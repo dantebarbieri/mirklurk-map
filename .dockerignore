@@ -1,0 +1,9 @@
+# Only what the image build needs; never game files or saves.
+*
+!deno.json
+!index.html
+!style.css
+!src/
+!src/**
+!tools/build.ts
+!deploy/nginx.conf

@@ -1,0 +1,658 @@
+:root {
+  --bg: #1b1516;
+  --panel: #251d1f;
+  --line: #3d3133;
+  --text: #cebbae;
+  --muted: #8f7c76;
+  --gold: #fff3b2;
+  --gold2: #d1b76a;
+  --land: #cebbae;
+  --water: #483b3d;
+  --fort: #fff3b2;
+  --bhato: #a6d98c;
+  --library: #ffd873;
+  --scaal: #c79bff;
+  --gurb: #ff9f5a;
+  --ihar: #6fd3ff;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+code {
+  font-size: 12px;
+  background: var(--panel);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.muted {
+  color: var(--muted);
+}
+h1 {
+  font-size: 16px;
+  margin: 0 8px 0 0;
+  color: var(--gold);
+  letter-spacing: .02em;
+}
+h2 {
+  font-size: 15px;
+  margin: 0;
+  color: var(--gold);
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.button {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid var(--gold2);
+  border-radius: 4px;
+  color: var(--gold);
+  cursor: pointer;
+  background: #2e2426;
+}
+.button:hover,
+.button:focus-within {
+  background: #3a2e30;
+}
+.button.subtle {
+  border-color: var(--line);
+  color: var(--text);
+  background: none;
+}
+select {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+#status {
+  color: var(--muted);
+}
+#status.error {
+  color: #ff8a80;
+}
+
+.intro {
+  max-width: 720px;
+  margin: 48px auto;
+  padding: 0 16px;
+}
+.drop-hint {
+  display: none;
+  position: fixed;
+  inset: 12px;
+  border: 2px dashed var(--gold2);
+  border-radius: 12px;
+  background: rgba(27, 21, 22, .85);
+  color: var(--gold);
+  font-size: 20px;
+  place-items: center;
+  pointer-events: none;
+}
+body.dragging .drop-hint {
+  display: grid;
+}
+
+body.loaded main {
+  display: grid;
+  grid-template-columns: minmax(360px, 540px) minmax(0, 1fr);
+  gap: 20px;
+  padding: 14px 16px 32px;
+  align-items: start;
+}
+@media (max-width: 980px) {
+  body.loaded main {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summary {
+  margin: 0 0 10px;
+}
+
+/* World grid */
+.grid {
+  display: grid;
+  grid-template-columns: 16px repeat(5, minmax(0, 1fr));
+  gap: 3px;
+}
+.axis {
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
+  align-self: center;
+}
+.cell {
+  position: relative;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #231b1c;
+  cursor: pointer;
+  overflow: hidden;
+}
+.cell:hover {
+  border-color: var(--gold2);
+}
+.cell.sel {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+  border-color: var(--gold);
+}
+.cell:focus-visible {
+  outline: 2px solid var(--gold);
+}
+.thumb {
+  position: absolute;
+  inset: 0;
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+.blank {
+  position: absolute;
+  inset: 0;
+  background: #2c2325;
+}
+.blank .land {
+  position: absolute;
+  background: #54443f;
+  border-radius: 10%;
+}
+.label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 4px 2px;
+  font-size: 11px;
+  line-height: 1.15;
+  text-align: left;
+  background: linear-gradient(transparent, rgba(12, 9, 10, .85) 45%);
+}
+.label b {
+  color: var(--gold);
+}
+.cell:not(.explored) .label {
+  color: #b6a39a;
+}
+.pills {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.pill {
+  font-size: 10px;
+  line-height: 14px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(12, 9, 10, .8);
+  border: 1px solid;
+  white-space: nowrap;
+}
+.pill.zone {
+  border-style: dashed;
+}
+.pill.maybe {
+  border-style: dotted;
+}
+.dot,
+.you {
+  position: absolute;
+  z-index: 2;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid #1b1516;
+}
+.you {
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .35);
+}
+.region {
+  position: absolute;
+  z-index: 2;
+  border: 1px dashed;
+  border-radius: 2px;
+}
+
+.m-fort {
+  --c: var(--fort);
+}
+.m-bhato {
+  --c: var(--bhato);
+}
+.m-library {
+  --c: var(--library);
+}
+.m-scaal {
+  --c: var(--scaal);
+}
+.m-gurb {
+  --c: var(--gurb);
+}
+.m-ihar {
+  --c: var(--ihar);
+}
+.pill[class*="m-"] {
+  border-color: var(--c);
+  color: var(--c);
+}
+.dot[class*="m-"] {
+  background: var(--c);
+}
+.region[class*="m-"] {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+}
+
+/* Landmark list */
+.landmarks {
+  margin-top: 16px;
+}
+.landmarks ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  gap: 8px;
+}
+.landmarks li {
+  display: grid;
+  grid-template-columns: 12px auto 1fr;
+  gap: 0 8px;
+  align-items: baseline;
+}
+.sw {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--c, var(--gold));
+}
+.landmarks .who {
+  color: var(--c);
+  font-weight: 600;
+}
+.landmarks .note {
+  grid-column: 2 / 4;
+  color: var(--muted);
+  font-size: 12px;
+}
+.landmarks li.zone .sw {
+  background: none;
+  border: 1px dashed var(--c);
+}
+.landmarks li.candidates .sw {
+  background: none;
+  border: 1px dotted var(--c);
+}
+.where,
+.link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--gold);
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.where:hover,
+.link:hover {
+  text-decoration-style: solid;
+}
+.plain {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.plain:hover {
+  color: var(--gold);
+}
+.warnings {
+  margin-top: 16px;
+  color: #ffb4a8;
+  font-size: 12px;
+}
+
+/* Zone panel */
+#zone header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+}
+#zone .coord {
+  color: var(--muted);
+  font-weight: 400;
+}
+.mapbox {
+  position: relative;
+  width: min(100%, 78vh);
+  aspect-ratio: 1;
+  background: #120e0f;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+svg.map {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+svg.map:active {
+  cursor: grabbing;
+}
+.b-map,
+.heat,
+.overlay {
+  image-rendering: pixelated;
+}
+.b-water {
+  fill: #2c2325;
+}
+.b-land {
+  fill: #54443f;
+}
+.heat {
+  opacity: .9;
+}
+.heat-edge {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 1px;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+.zooms {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.zoom {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(27, 21, 22, .85);
+  cursor: pointer;
+  line-height: 1;
+}
+.tip {
+  position: absolute;
+  z-index: 2;
+  max-width: 300px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: rgba(18, 14, 15, .95);
+  border: 1px solid var(--gold2);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.layers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chip input {
+  margin: 0;
+  accent-color: var(--gold2);
+}
+.legend {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0;
+  max-width: 78vh;
+}
+.legend .sw {
+  vertical-align: -1px;
+  margin-right: 3px;
+}
+.lists {
+  margin-top: 8px;
+  max-width: 78vh;
+}
+.lists details {
+  margin: 6px 0;
+}
+.lists summary {
+  cursor: pointer;
+  color: var(--gold2);
+}
+.lists ul {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0 0 0 4px;
+  columns: 2 220px;
+  column-gap: 16px;
+}
+.lists li {
+  break-inside: avoid;
+  padding: 1px 0;
+  font-size: 13px;
+}
+.lists .sym {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 2px;
+  background: var(--muted);
+}
+.lists .sym.landmark {
+  background: var(--gold);
+  transform: rotate(45deg);
+}
+.lists .sym.entrance {
+  background: none;
+  border: 1.5px solid var(--gold);
+}
+.lists .sym.explored {
+  background: var(--gold);
+}
+.lists .sym.npc {
+  background: var(--gold);
+  border-radius: 50%;
+}
+.lists .sym.rift {
+  background: var(--scaal);
+  transform: rotate(45deg);
+}
+.lists .sym.loot,
+.lists .sym.shelf {
+  background: #f0b44c;
+}
+.lists .sym.carcass {
+  background: #e06060;
+}
+.lists .sym.storage {
+  background: var(--ihar);
+}
+.lists .sym.camp {
+  background: var(--gurb);
+}
+.lists .sym.exit {
+  background: #fff;
+}
+
+/* Map markers (point symbols are drawn in screen pixels) */
+.marks text {
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+  fill: var(--gold);
+  stroke: #120e0f;
+  stroke-width: 3px;
+  paint-order: stroke;
+  pointer-events: none;
+}
+.pt > :not(text) {
+  stroke: #120e0f;
+  stroke-width: 1.5px;
+}
+.pt.landmark > :not(text) {
+  fill: var(--gold);
+}
+.pt.entrance > :not(text) {
+  fill: rgba(18, 14, 15, .6);
+  stroke: var(--gold);
+  stroke-width: 2px;
+}
+.pt.entrance.explored > :not(text) {
+  fill: var(--gold);
+  stroke: #120e0f;
+  stroke-width: 1.5px;
+}
+.pt.exit > :not(text) {
+  fill: #fff;
+}
+.pt.npc > :not(text) {
+  fill: var(--gold);
+}
+.pt.creature > :not(text) {
+  fill: #e06060;
+  stroke-width: 1px;
+}
+.pt.loot > :not(text) {
+  fill: #f0b44c;
+}
+.pt.loot.chest > :not(text) {
+  stroke: #fff;
+}
+.pt.carcass > :not(text) {
+  stroke: #e06060;
+  stroke-width: 2px;
+}
+.pt.drop > :not(text) {
+  fill: #d9c3a5;
+}
+.pt.storage > :not(text) {
+  fill: var(--ihar);
+}
+.pt.camp > :not(text) {
+  fill: var(--gurb);
+}
+.pt.rift > :not(text) {
+  fill: var(--scaal);
+}
+.pt.tree > :not(text) {
+  fill: #7fae6a;
+  stroke-width: .8px;
+}
+.pt.you > :not(text) {
+  fill: #fff;
+  stroke: #000;
+  stroke-width: 2px;
+}
+.pt.you text {
+  fill: #fff;
+}
+.pt.hl > :not(text) {
+  stroke: #fff;
+  stroke-width: 3px;
+}
+.fp {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1px;
+  fill: none;
+}
+.fp.landmark {
+  fill: rgba(255, 243, 178, .22);
+  stroke: var(--gold);
+  stroke-width: 1.5px;
+}
+.fp.entrance {
+  fill: rgba(255, 243, 178, .08);
+  stroke: rgba(255, 243, 178, .55);
+}
+.fp.boat {
+  fill: rgba(255, 243, 178, .15);
+  stroke: var(--gold2);
+}
+.fp.boulder {
+  fill: rgba(109, 91, 89, .35);
+  stroke: #6d5b59;
+}
+.fp.boulder.big {
+  fill: rgba(80, 64, 62, .55);
+  stroke: #3a2d2e;
+  stroke-width: 1.5px;
+}
+.fp.ruin {
+  fill: rgba(165, 139, 131, .25);
+  stroke: #a58b83;
+  stroke-dasharray: 3 2;
+}
+.fp.rock {
+  fill: rgba(136, 110, 106, .6);
+  stroke: none;
+}
+.fp.shelf {
+  fill: rgba(240, 180, 76, .3);
+  stroke: #f0b44c;
+}
+.fp.hl {
+  stroke: #fff;
+  stroke-width: 2px;
+}
+
+svg.hide-npcs .L-npcs,
+svg.hide-creatures .L-creatures,
+svg.hide-loot .L-loot,
+svg.hide-camp .L-camp,
+svg.hide-boulders .L-boulders,
+svg.hide-rocks .L-rocks,
+svg.hide-trees .L-trees {
+  display: none;
+}

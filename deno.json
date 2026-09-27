@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext", "deno.ns"],
+    "strict": true
+  },
+  "tasks": {
+    "dev": "deno run --allow-net=127.0.0.1 --allow-read --allow-run --allow-env tools/dev.ts",
+    "build": "deno run --allow-read --allow-write --allow-run --allow-env tools/build.ts",
+    "check": "deno check src/main.ts tools/build.ts tools/dev.ts tools/gamedata.ts tests/",
+    "test": "deno test --allow-read --allow-env tests/"
+  },
+  "fmt": { "lineWidth": 140 },
+  "exclude": ["dist/"]
+}

@@ -1,0 +1,14 @@
+# Local smoke test only (http://127.0.0.1:8098). The homeserver runs its own service definition.
+services:
+  mirklurk-map:
+    build: .
+    image: mirklurk-map:local
+    ports:
+      - "127.0.0.1:8098:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
