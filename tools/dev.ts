@@ -37,6 +37,11 @@ Deno.serve({ hostname: "127.0.0.1", port }, async (req) => {
   const path = decodeURIComponent(new URL(req.url).pathname);
   try {
     if (path === "/app.js") return await bundle();
+    if (/^\/assets\/game\/[a-z0-9_.]+\.png$/.test(path)) {
+      return new Response(await Deno.readFile(new URL(path.slice(1), root)), {
+        headers: { "content-type": "image/png", "cache-control": "public, max-age=31536000, immutable" },
+      });
+    }
     if (path === "/" || path === "/index.html" || path === "/style.css") {
       const file = path === "/style.css" ? "style.css" : "index.html";
       return new Response(await Deno.readFile(new URL(file, root)), {

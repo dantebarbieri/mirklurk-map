@@ -5,7 +5,8 @@ import { assert, assertEquals } from "./assert.ts";
 import { type FileMap, findCharacters } from "../src/files.ts";
 import { landmarks, shipwreckOdds } from "../src/predict.ts";
 import { Area, PLACEMENT, reflect } from "../src/rules.ts";
-import { loadLayer, loadWorld } from "../src/world.ts";
+import { loadDetail, loadLayer, loadTrees, loadWorld } from "../src/world.ts";
+import { areaLayers, ART, tileSource } from "../src/tiles.ts";
 
 const dir = Deno.env.get("MIRKLURK_SAVES") ??
   decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
@@ -96,5 +97,39 @@ Deno.test({ name: "real saves: placed buildings sit in the zones the save names"
       const odds = shipwreckOdds((await loadLayer(w, z.dir!, "Water1"))!.data, (await loadLayer(w, z.dir!, "Lower"))!.data);
       assert(odds.perEntry > 0.9, `${c.name}: the Broken Fen holding the shipwreck has shore sites (${odds.perEntry})`);
     }
+  }
+});
+
+Deno.test({ name: "real saves: all saved terrain and scenery have matching game art", ignore: !present }, async () => {
+  const files = readTree(dir);
+  for (const c of findCharacters(files)) {
+    const world = await loadWorld(files, c.root, c.name);
+    const areas = [
+      ...world.zones.flat().filter((z) => z.dir).map((z) => ({ dir: z.dir!, kind: z.type, solids: z.solids })),
+      ...world.interiors,
+    ];
+    for (const area of areas) {
+      assert(area.kind !== null, area.dir);
+      for (const layer of areaLayers(area.kind)) {
+        const grid = await loadLayer(world, area.dir, layer.name);
+        if (!grid) continue;
+        for (const tile of new Set(grid.data)) tileSource(ART.tilesets[layer.tileset], tile);
+      }
+      const d = await loadDetail(world, area.dir);
+      for (
+        const item of [
+          ...area.solids,
+          ...d.decorations,
+          ...d.containers.filter((c) => c.status !== -209),
+          ...d.stations,
+          ...d.interactables,
+        ]
+      ) {
+        assert(!item.sprite || item.sprite === "spr_part_circles" || ART.sprites[item.sprite], `${area.dir}: ${item.sprite}`);
+      }
+      const trees = await loadTrees(world, area.dir);
+      for (const tree of trees) assert(tree.parts, `${area.dir}: saved tree geometry`);
+    }
+    assertEquals(world.warnings, [], c.name);
   }
 });

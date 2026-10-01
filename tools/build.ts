@@ -24,6 +24,12 @@ async function hash(bytes: Uint8Array) {
 
 await Deno.remove(dist, { recursive: true }).catch(() => {});
 await Deno.mkdir(dist, { recursive: true });
+await Deno.mkdir(new URL("assets/game/", dist), { recursive: true });
+for await (const file of Deno.readDir(new URL("assets/game/", root))) {
+  if (file.isFile && file.name.endsWith(".png")) {
+    await Deno.copyFile(new URL(`assets/game/${file.name}`, root), new URL(`assets/game/${file.name}`, dist));
+  }
+}
 
 const js = await bundle();
 const css = await Deno.readFile(new URL("style.css", root));

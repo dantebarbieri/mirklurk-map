@@ -129,6 +129,8 @@ export interface Tree {
   index: number;
   x: number;
   y: number;
+  /** Saved procedural branch geometry, in obj_tree's partArray layout. */
+  parts?: number[][];
 }
 
 const list = (raw: unknown) => (Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []);
@@ -159,4 +161,13 @@ export const parsePlaced = (raw: unknown): Placed[] =>
     object: typeof c.object === "string" ? c.object : undefined,
   }));
 
-export const parseTrees = (raw: unknown): Tree[] => list(raw).map((t) => ({ index: num(t.index, -1), x: num(t.x), y: num(t.y) }));
+export const parseTrees = (raw: unknown): Tree[] =>
+  list(raw).map((t) => {
+    if (
+      t.partArray !== undefined && (!Array.isArray(t.partArray) ||
+        t.partArray.some((p) => !Array.isArray(p) || p.length < 25 || p.some((v) => typeof v !== "number" || !Number.isFinite(v))))
+    ) {
+      throw new Error("Invalid saved tree branch geometry");
+    }
+    return { index: num(t.index, -1), x: num(t.x), y: num(t.y), parts: t.partArray as number[][] | undefined };
+  });

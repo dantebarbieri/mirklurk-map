@@ -5,13 +5,16 @@ import { type Character, type FileMap, findCharacters, fromDataTransfer, fromFil
 import { LAYERS } from "./objects.ts";
 import { landmarks, shipwreckOdds } from "./predict.ts";
 import { Area } from "./rules.ts";
-import { renderWorld, selectZone, type State } from "./view.ts";
+import { disposeView, renderWorld, selectZone, type State } from "./view.ts";
+import { TerrainStore } from "./terrain.ts";
 import { loadLayer, loadWorld } from "./world.ts";
 
 let files: FileMap | null = null;
 let chars: Character[] = [];
 let urls: string[] = [];
-const prefs = { layers: new Set(LAYERS.filter((l) => l.on).map((l) => l.id)), water: false };
+const prefs = { layers: new Set(LAYERS.filter((l) => l.on).map((l) => l.id)), water: false, realistic: false };
+let state: State | undefined;
+let showToken = 0;
 
 function status(text: string, error = false) {
   const el = $("#status");
@@ -35,33 +38,40 @@ async function open(map: FileMap) {
 
 async function show(i: number) {
   if (!files) return;
+  const my = ++showToken;
+  const selectedFiles = files;
   const c = chars[i];
   status(`Reading ${c.name}…`);
   try {
-    const world = await loadWorld(files, c.root, c.name);
+    const world = await loadWorld(selectedFiles, c.root, c.name);
     const shipwreck = new Map<string, number>();
     for (const z of world.zones.flat()) {
       if (z.type !== Area.BrokenFen || !z.dir) continue;
       const [w1, lo] = await Promise.all([loadLayer(world, z.dir, "Water1"), loadLayer(world, z.dir, "Lower")]);
       if (w1 && lo) shipwreck.set(`${z.x},${z.y}`, shipwreckOdds(w1.data, lo.data).perEntry);
     }
+    if (my !== showToken) return;
+    if (state) disposeView(state);
     urls.forEach((u) => URL.revokeObjectURL(u));
     urls = [];
     const mapUrls = new Map<string, string>();
     for (const z of world.zones.flat()) {
       if (!z.mapPath) continue;
-      const bytes = await files.get(z.mapPath)!.read();
+      const bytes = await selectedFiles.get(z.mapPath)!.read();
+      if (my !== showToken) return;
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/png" }));
       urls.push(url);
       mapUrls.set(`${z.x},${z.y}`, url);
     }
-    const st: State = { world, marks: landmarks(world, shipwreck), mapUrls, prefs };
+    const st: State = { world, marks: landmarks(world, shipwreck), mapUrls, prefs, terrain: new TerrainStore(world) };
+    state = st;
     document.body.classList.add("loaded");
     renderWorld(st);
     const want = /^([A-E]),?([1-5])$/i.exec(new URLSearchParams(location.search).get("zone") ?? "");
     if (want) selectZone(st, "ABCDE".indexOf(want[1].toUpperCase()), Number(want[2]) - 1);
     status("");
   } catch (e) {
+    if (my !== showToken) return;
     console.error(e);
     status(`Could not read ${c.name}: ${(e as Error).message}`, true);
   }

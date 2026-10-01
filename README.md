@@ -10,8 +10,8 @@ A small static site for **Mirklurk 0.8.1.5**, published at **https://map.mirklur
   loot, your stashes and camp items, rifts, large boulders and ruins. Creatures, small rocks, trees and a water overlay can be switched on.
   Click an explored entrance to see the inside.
 
-Everything happens in the browser tab: files are never uploaded, and the page makes no requests after loading. There is no world seed to
-type in — the game does not have a reusable one (see below).
+Save processing happens in the browser tab: files are never uploaded. Realistic mode loads bundled art from the same site, never a third
+party. There is no world seed to type in — the game does not have a reusable one (see below).
 
 ## Using it
 
@@ -21,6 +21,18 @@ maps and objects then stay empty.
 
 Map controls: wheel or `+`/`−` to zoom, drag to pan, `⟲` to reset. Hover a marker for its name and tile; click a list entry to find it on
 the map.
+
+**Realistic mode** is off by default; enable it with the **Realistic** toggle. It reconstructs explored zones and interiors from saved
+`.tmap` layers using the game's own tilesets, including animated-tile first frames, atlas borders, mirroring and rotation. Buildings, rocks,
+placed objects and procedural trees use their saved sprites/geometry. NPCs, creatures and carcasses remain markers; this is a static
+daylight-like view, not a simulation of the game's lighting, weather, animation or camera-dependent roof fading. Layer chips control
+informational markers, not the scenery baked into the realistic map. Switch **Realistic** off to return to the original overview.
+
+Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
+followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. **World** fits
+the whole 5×5 world into the map; click a neighbouring zone to inspect it. Only four full-resolution areas are retained, alongside small
+world previews. Unexplored or missing terrain is labelled rather than invented: import the full character folder or ZIP for realistic
+terrain (`Player.save` or map PNGs alone are insufficient).
 
 ## How the guesses work
 
@@ -85,6 +97,17 @@ deno run -R -W --allow-run tools/gamedata.ts ".." "$env:TEMP\mirklurk-meta"
 
 Then re-check the rules above in the decompiled entries (`UndertaleModCli dump ..\data.win -c UMT_DUMP_ALL`).
 
+To regenerate the permitted map art, run from this repository's root:
+
+```powershell
+& "C:\Program Files (x86)\UTMT_CLI\UndertaleModCli.exe" load "D:\SteamLibrary\steamapps\common\Mirklurk Every Step Matters\data.win" -s tools\dump_art.csx
+```
+
+This reads the game without modifying it and writes only selected environment sprite strips, visual tilesets and layer metadata to
+`assets/game/` and `src/artdata.json`. Images have content-hashed filenames; the build includes them in `dist/assets/game/`. No game
+executables, decompiled code, full texture pages, audio or save files are shipped. Remove obsolete hashed PNGs after re-exporting a new game
+version. Set `MIRKLURK_SAVES` to the installed game's `Saves` directory when using `deno task dev` from a worktree.
+
 ## Deploying
 
 `dist/` is the whole site; serve it as static files. The Docker image builds it with Deno and serves it with unprivileged nginx on port 8080
@@ -99,5 +122,5 @@ update builds every service and stops at the first failure.
 For a local check where Docker is available: `docker compose up --build -d` (http://127.0.0.1:8098) or `bash tools/smoke.sh`. The build
 context is an allowlist (`.dockerignore`), so game files and saves cannot end up in the image.
 
-Unofficial fan tool. Mirklurk is by Edym Pixels; the site ships only short factual names and numbers from the game, no art or code, and
-displays your own map images locally.
+Unofficial fan tool. Mirklurk and the game art are by Edym Pixels. Selected game art is used on this site with the developer's permission;
+it remains the developer's copyrighted material and is not relicensed as part of the viewer's source code.
