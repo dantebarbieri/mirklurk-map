@@ -15,6 +15,7 @@ let urls: string[] = [];
 const prefs = { layers: new Set(LAYERS.filter((l) => l.on).map((l) => l.id)), water: false, realistic: false };
 let state: State | undefined;
 let showToken = 0;
+let activeCharacter = 0;
 
 function status(text: string, error = false) {
   const el = $("#status");
@@ -28,19 +29,15 @@ async function open(map: FileMap) {
     status("No Player.save in what you picked. Choose a character folder from the game's Saves folder.", true);
     return;
   }
-  files = map;
-  chars = found;
-  const pick = $<HTMLSelectElement>("#character");
-  pick.replaceChildren(...chars.map((c, i) => h("option", { value: i }, c.name)));
-  pick.hidden = chars.length < 2;
-  await show(0);
+  await show(0, map, found);
 }
 
-async function show(i: number) {
-  if (!files) return;
+async function show(i: number, selectedFiles = files, selectedChars = chars) {
+  if (!selectedFiles) return;
   const my = ++showToken;
-  const selectedFiles = files;
-  const c = chars[i];
+  const c = selectedChars[i];
+  const preparedUrls: string[] = [];
+  let installed = false;
   status(`Reading ${c.name}…`);
   try {
     const world = await loadWorld(selectedFiles, c.root, c.name);
@@ -51,20 +48,29 @@ async function show(i: number) {
       if (w1 && lo) shipwreck.set(`${z.x},${z.y}`, shipwreckOdds(w1.data, lo.data).perEntry);
     }
     if (my !== showToken) return;
-    if (state) disposeView(state);
-    urls.forEach((u) => URL.revokeObjectURL(u));
-    urls = [];
     const mapUrls = new Map<string, string>();
     for (const z of world.zones.flat()) {
       if (!z.mapPath) continue;
       const bytes = await selectedFiles.get(z.mapPath)!.read();
       if (my !== showToken) return;
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/png" }));
-      urls.push(url);
+      preparedUrls.push(url);
       mapUrls.set(`${z.x},${z.y}`, url);
     }
     const st: State = { world, marks: landmarks(world, shipwreck), mapUrls, prefs, terrain: new TerrainStore(world) };
+    const options = selectedChars.map((c, i) => h("option", { value: i }, c.name));
+    if (state) disposeView(state);
+    urls.forEach((u) => URL.revokeObjectURL(u));
+    urls = preparedUrls;
+    files = selectedFiles;
+    chars = selectedChars;
+    activeCharacter = i;
     state = st;
+    installed = true;
+    const pick = $<HTMLSelectElement>("#character");
+    pick.replaceChildren(...options);
+    pick.hidden = chars.length < 2;
+    pick.value = String(activeCharacter);
     document.body.classList.add("loaded");
     renderWorld(st);
     const want = /^([A-E]),?([1-5])$/i.exec(new URLSearchParams(location.search).get("zone") ?? "");
@@ -73,7 +79,10 @@ async function show(i: number) {
   } catch (e) {
     if (my !== showToken) return;
     console.error(e);
+    $<HTMLSelectElement>("#character").value = String(activeCharacter);
     status(`Could not read ${c.name}: ${(e as Error).message}`, true);
+  } finally {
+    if (!installed) preparedUrls.forEach((u) => URL.revokeObjectURL(u));
   }
 }
 
