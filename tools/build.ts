@@ -1,5 +1,7 @@
 // Builds the static site into dist/: one hashed script, one hashed stylesheet and index.html.
 
+import art from "../src/artdata.json" with { type: "json" };
+
 const root = new URL("../", import.meta.url);
 const dist = new URL("dist/", root);
 
@@ -25,10 +27,9 @@ async function hash(bytes: Uint8Array) {
 await Deno.remove(dist, { recursive: true }).catch(() => {});
 await Deno.mkdir(dist, { recursive: true });
 await Deno.mkdir(new URL("assets/game/", dist), { recursive: true });
-for await (const file of Deno.readDir(new URL("assets/game/", root))) {
-  if (file.isFile && file.name.endsWith(".png")) {
-    await Deno.copyFile(new URL(`assets/game/${file.name}`, root), new URL(`assets/game/${file.name}`, dist));
-  }
+const artFiles = new Set([...Object.values(art.tilesets), ...Object.values(art.sprites)].map((asset) => asset.file));
+for (const file of artFiles) {
+  await Deno.copyFile(new URL(file, root), new URL(file, dist));
 }
 
 const js = await bundle();

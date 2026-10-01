@@ -62,17 +62,23 @@ const treeSpecies: Record<number, [string, string, string | null]> = {
   13: ["spr_riftvine_branch", "spr_riftvine_branch", null],
 };
 
-async function renderScene(world: World, scene: Scene): Promise<Texture> {
+async function renderScene(world: World, scene: Scene, signal: AbortSignal): Promise<Texture> {
+  signal.throwIfAborted();
   if (!scene.dir) throw new Error("This area has no saved tile layers.");
   if (scene.kind === null) throw new Error("This interior's tileset is unknown.");
   const art = await loadImages();
+  signal.throwIfAborted();
   const specs = areaLayers(scene.kind);
   const layers = await Promise.all(specs.map(async (spec) => {
     const file = world.files.get(`${scene.dir}${spec.name}.tmap`);
-    return { spec, grid: file ? decodeTilemap(await file.read()) : null };
+    const bytes = file ? await file.read() : null;
+    signal.throwIfAborted();
+    return { spec, grid: bytes ? decodeTilemap(bytes) : null };
   }));
+  signal.throwIfAborted();
   if (!layers.some((l) => l.grid)) throw new Error("No saved visual tile layers. Open the full character folder, not just Player.save.");
   const [detail, trees] = await Promise.all([loadDetail(world, scene.dir), loadTrees(world, scene.dir)]);
+  signal.throwIfAborted();
   const full = canvas(ROOM);
   const ctx = full.getContext("2d")!;
   ctx.fillStyle = "#120e0f";
@@ -183,8 +189,9 @@ export class TerrainStore {
   private listeners = new Set<() => void>();
   private busy = false;
   private dead = false;
+  private controller = new AbortController();
 
-  constructor(private world: World) {}
+  constructor(private world: World, private render = renderScene) {}
 
   subscribe(callback: () => void) {
     this.listeners.add(callback);
@@ -193,15 +200,17 @@ export class TerrainStore {
 
   dispose() {
     this.dead = true;
+    this.controller.abort();
     this.queue.clear();
     this.listeners.clear();
     this.full.clear();
     this.previews.clear();
+    this.errors.clear();
   }
 
   get(scene: Scene, high: boolean): Texture | undefined {
     const dir = scene.dir;
-    if (!dir) return undefined;
+    if (this.dead || !dir) return undefined;
     const full = this.full.get(dir);
     if (high && full) {
       this.full.delete(dir);
@@ -221,7 +230,7 @@ export class TerrainStore {
     while (this.queue.size && !this.dead) {
       const [dir, scene] = this.queue.entries().next().value!;
       try {
-        const texture = await renderScene(this.world, scene);
+        const texture = await this.render(this.world, scene, this.controller.signal);
         if (this.dead) break;
         this.previews.set(dir, { levels: texture.levels.slice(3) });
         this.full.set(dir, texture);
@@ -234,7 +243,7 @@ export class TerrainStore {
       this.queue.delete(dir);
       for (const update of this.listeners) update();
       // Yield between zones so zooming and save selection stay responsive.
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (this.queue.size) await new Promise((resolve) => setTimeout(resolve, 0));
     }
     this.busy = false;
   }

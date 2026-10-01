@@ -31,8 +31,9 @@ informational markers, not the scenery baked into the realistic map. Switch **Re
 Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
 followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. **World** fits
 the whole 5×5 world into the map; click a neighbouring zone to inspect it. Only four full-resolution areas are retained, alongside small
-world previews. Unexplored or missing terrain is labelled rather than invented: import the full character folder or ZIP for realistic
-terrain (`Player.save` or map PNGs alone are insufficient).
+world previews. Switching realistic mode off cancels pending terrain work and releases its caches; switching it back on rebuilds them.
+Unexplored or missing terrain is labelled rather than invented: import the full character folder or ZIP for realistic terrain (`Player.save`
+or map PNGs alone are insufficient).
 
 ## How the guesses work
 
@@ -105,8 +106,9 @@ To regenerate the permitted map art, run from this repository's root:
 
 This reads the game without modifying it and writes only selected environment sprite strips, visual tilesets and layer metadata to
 `assets/game/` and `src/artdata.json`. Images have content-hashed filenames; the build includes them in `dist/assets/game/`. No game
-executables, decompiled code, full texture pages, audio or save files are shipped. Remove obsolete hashed PNGs after re-exporting a new game
-version. Set `MIRKLURK_SAVES` to the installed game's `Saves` directory when using `deno task dev` from a worktree.
+executables, decompiled code, full texture pages, audio or save files are shipped. Builds copy only images referenced by the manifest, so
+obsolete hashes from earlier exports are not shipped. Set `MIRKLURK_SAVES` to the installed game's `Saves` directory when using
+`deno task dev` from a worktree.
 
 ## Deploying
 

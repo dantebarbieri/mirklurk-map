@@ -29,6 +29,11 @@ export interface MapSpec {
   onOpen?: (m: Mark) => void;
 }
 
+export function mapBounds([x, y, size]: [number, number, number]): [number, number, number] {
+  const left = Math.min(0, x), top = Math.min(0, y);
+  return [left, top, Math.max(Math.max(ROOM, x + size) - left, Math.max(ROOM, y + size) - top)];
+}
+
 const POINT: Record<string, (m: Mark) => SVGElement[]> = {
   landmark: () => [s("rect", { x: -5, y: -5, width: 10, height: 10, transform: "rotate(45)" })],
   entrance: () => [s("path", { d: "M-6 4 L0 -6 L6 4 Z" })],
@@ -68,11 +73,7 @@ export class MapView {
 
   constructor(spec: MapSpec) {
     this.home = spec.view ?? [0, 0, ROOM];
-    this.bounds = spec.bounds ?? [
-      Math.min(0, this.home[0]),
-      Math.min(0, this.home[1]),
-      Math.max(ROOM, this.home[2]),
-    ];
+    this.bounds = spec.bounds ?? mapBounds(this.home);
     [this.vx, this.vy, this.vw] = this.home;
     this.svg = s("svg", { class: "map", viewBox: this.viewBox(), role: "img" }) as SVGSVGElement;
     const base = s("g", { class: "base" }, spec.base);

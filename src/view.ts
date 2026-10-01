@@ -100,6 +100,10 @@ export function renderWorld(st: State) {
   const mode = h("input", { type: "checkbox", checked: st.prefs.realistic, id: "realistic-mode" }) as HTMLInputElement;
   mode.addEventListener("change", () => {
     st.prefs.realistic = mode.checked;
+    if (!mode.checked) {
+      st.terrain.dispose();
+      st.terrain = new TerrainStore(w);
+    }
     renderWorld(st);
   });
   const modeControl = h("label", { class: "chip mode" }, mode, "Realistic");
