@@ -6,6 +6,7 @@ import { detailMarks, type Layer, LAYERS, type Mark, sealedMarks, solidMarks, tr
 import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES } from "./gamedata.ts";
+import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import {
   type Interior,
   interiorsOf,
@@ -23,7 +24,9 @@ export interface State {
   marks: Landmark[];
   mapUrls: Map<string, string>;
   /** Shared across characters and reloads. */
-  prefs: { layers: Set<Layer>; water: boolean };
+  prefs: { layers: Set<Layer>; water: boolean; realistic: boolean };
+  terrain: TerrainStore;
+  cleanup?: () => void;
   selected?: [number, number];
 }
 
@@ -38,6 +41,15 @@ const HEAT_COLOR: Record<LandmarkId, string> = {
 
 const key = (x: number, y: number) => `${x},${y}`;
 let token = 0;
+let activeMap: MapView | undefined;
+
+export function disposeView(st: State) {
+  ++token;
+  activeMap?.dispose();
+  activeMap = undefined;
+  st.cleanup?.();
+  st.terrain.dispose();
+}
 
 /** Water on each side of a zone, as the game decides it (terrain_create_shore in Alarm_2). */
 function shores(world: World, x: number, y: number) {
@@ -58,6 +70,7 @@ function playerSpot(world: World): { x: number; y: number; zone: [number, number
 }
 
 export function renderWorld(st: State) {
+  st.cleanup?.();
   const w = st.world, p = w.player;
   const you = playerSpot(w);
   const here = w.zones[you.zone[1]]?.[you.zone[0]];
@@ -84,24 +97,61 @@ export function renderWorld(st: State) {
       h("ul", {}, w.warnings.map((t) => h("li", {}, t))),
     )
     : null;
+  const mode = h("input", { type: "checkbox", checked: st.prefs.realistic, id: "realistic-mode" }) as HTMLInputElement;
+  mode.addEventListener("change", () => {
+    st.prefs.realistic = mode.checked;
+    if (!mode.checked) {
+      st.terrain.dispose();
+      st.terrain = new TerrainStore(w);
+    }
+    renderWorld(st);
+  });
+  const modeControl = h("label", { class: "chip mode" }, mode, "Realistic");
+  const artStatus = h("p", { class: "legend art-status", role: "status" });
+  const updateArt = () => {
+    if (!st.prefs.realistic) return;
+    const scenes = worldScenes(w, 0, 0);
+    for (const target of grid.querySelectorAll<HTMLCanvasElement>("canvas")) {
+      const scene = scenes[Number(target.dataset.zone)];
+      paintThumbnail(target, st.terrain, scene);
+    }
+    const saved = scenes.filter((scene) => scene.dir);
+    const ready = saved.filter((scene) => st.terrain.previews.has(scene.dir!) || st.terrain.errors.has(scene.dir!)).length;
+    const problems = [...st.terrain.errors.values(), ...w.warnings];
+    artStatus.textContent = problems.length
+      ? problems.join(" · ")
+      : !saved.length
+      ? "No saved terrain available. Open the full character folder or ZIP, including its area folders, for realistic mode."
+      : ready < saved.length
+      ? `Rendering saved terrain (${ready}/${saved.length})...`
+      : "Game terrain and saved scenery. Wheel to zoom, drag to pan, World to fit all zones. Click a neighbouring zone to inspect it. NPCs, creatures and carcasses remain markers; lighting and animation are not simulated.";
+    artStatus.classList.toggle("error", problems.length > 0);
+  };
+  st.cleanup = st.terrain.subscribe(updateArt);
   $("#app").replaceChildren(
-    h("section", { id: "world" }, summary, grid, landmarkList(st), warn),
+    h("section", { id: "world" }, summary, modeControl, grid, st.prefs.realistic ? artStatus : null, landmarkList(st), warn),
     h("section", { id: "zone", "aria-live": "polite" }),
   );
-  selectZone(st, you.zone[0], you.zone[1]);
+  updateArt();
+  const [x, y] = st.selected ?? you.zone;
+  selectZone(st, x, y);
 }
 
 function cell(st: State, z: Zone, you: ReturnType<typeof playerSpot>) {
   const url = st.mapUrls.get(key(z.x, z.y));
   const sh = shores(st.world, z.x, z.y);
-  const thumb = url ? h("img", { src: url, alt: "", draggable: "false" }) : h(
-    "div",
-    { class: "blank" },
-    sh.all ? null : h("div", {
-      class: "land",
-      style: `top:${sh.n ? 14 : 0}%;bottom:${sh.s ? 14 : 0}%;left:${sh.w ? 14 : 0}%;right:${sh.e ? 14 : 0}%`,
-    }),
-  );
+  const thumb = st.prefs.realistic && z.dir
+    ? h("canvas", { width: 160, height: 160, "data-zone": z.y * 5 + z.x, "aria-label": "Saved game terrain" })
+    : url && !st.prefs.realistic
+    ? h("img", { src: url, alt: "", draggable: "false" })
+    : h(
+      "div",
+      { class: "blank" },
+      sh.all ? null : h("div", {
+        class: "land",
+        style: `top:${sh.n ? 14 : 0}%;bottom:${sh.s ? 14 : 0}%;left:${sh.w ? 14 : 0}%;right:${sh.e ? 14 : 0}%`,
+      }),
+    );
   const pills: HTMLElement[] = [];
   const dots: HTMLElement[] = [];
   for (const m of st.marks) {
@@ -245,6 +295,7 @@ function insideSummary(d: ZoneDetail): string {
 
 async function renderZone(st: State, z: Zone) {
   const my = ++token;
+  activeMap?.dispose();
   const world = st.world;
   const panel = $("#zone");
   const visit = z.lastVisit ? `last here on day ${Math.floor(z.lastVisit[0])}` : z.explored ? "explored" : "not explored yet";
@@ -281,12 +332,23 @@ async function renderZone(st: State, z: Zone) {
     : blankBase(world, z);
   const openInterior = (m: Mark) => m.interior && renderInterior(st, z, m.interior, m.name);
   const map = new MapView({
-    base,
+    base: st.prefs.realistic ? [] : base,
+    ...(st.prefs.realistic
+      ? {
+        raster: new TerrainRaster(st.terrain, worldScenes(world, z.x, z.y)),
+        bounds: [-z.x * ROOM, -z.y * ROOM, 5 * ROOM] as [number, number, number],
+        onMapClick: (px: number, py: number) => {
+          const x = z.x + Math.floor(px / ROOM), y = z.y + Math.floor(py / ROOM);
+          if (x >= 0 && x < 5 && y >= 0 && y < 5 && (x !== z.x || y !== z.y)) selectZone(st, x, y);
+        },
+      }
+      : {}),
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
     player: you.zone[0] === z.x && you.zone[1] === z.y ? { x: you.x, y: you.y, label: you.inside ? "You (inside)" : "You" } : undefined,
     onOpen: openInterior,
   });
+  activeMap = map;
   const chips = layerChips(st, map, z.dir, () => my === token);
 
   const legend = heats.length
@@ -396,6 +458,7 @@ const rank = (m: Mark) => (m.kind === "landmark" ? 0 : m.kind.startsWith("entran
 
 async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
   const my = ++token;
+  activeMap?.dispose();
   const world = st.world;
   const panel = $("#zone");
   const [data, lower, onLower, water1] = await Promise.all(["Data", "Lower", "OnLower", "Water1"].map((l) => loadLayer(world, it.dir, l)));
@@ -432,12 +495,18 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
   const kind = it.kind !== null ? INTERIOR_NAMES[it.kind] ?? name : name;
   const open = (m: Mark) => m.interior && renderInterior(st, z, m.interior, m.name);
   const map = new MapView({
-    base: [s("image", { href: url, x: 0, y: 0, width: ROOM, height: ROOM, class: "b-map", preserveAspectRatio: "none" })],
+    base: st.prefs.realistic
+      ? []
+      : [s("image", { href: url, x: 0, y: 0, width: ROOM, height: ROOM, class: "b-map", preserveAspectRatio: "none" })],
+    raster: st.prefs.realistic
+      ? new TerrainRaster(st.terrain, [{ dir: it.dir, kind: it.kind, solids: it.solids, x: 0, y: 0, label: kind }])
+      : undefined,
     view,
     marks,
     heats: [],
     onOpen: open,
   });
+  activeMap = map;
   const up = it.parent;
   const back = h(
     "button",

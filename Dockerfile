@@ -2,6 +2,7 @@ FROM denoland/deno:2.9.7 AS build
 WORKDIR /app
 COPY deno.json index.html style.css ./
 COPY src ./src
+COPY assets/game ./assets/game
 COPY tools/build.ts ./tools/build.ts
 RUN deno run --allow-read --allow-write --allow-run --allow-env tools/build.ts
 

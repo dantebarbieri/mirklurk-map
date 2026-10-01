@@ -5,14 +5,33 @@ import type { Layer, Mark } from "./objects.ts";
 import { describe } from "./objects.ts";
 import { ROOM } from "./rules.ts";
 
+export interface Viewport {
+  x: number;
+  y: number;
+  size: number;
+}
+
+export interface Raster {
+  paint(ctx: CanvasRenderingContext2D, view: Viewport): void;
+  subscribe(callback: () => void): () => void;
+}
+
 export interface MapSpec {
   base: SVGElement[];
   /** Initial view: [x, y, size] in game units. */
   view?: [number, number, number];
+  bounds?: [number, number, number];
+  raster?: Raster;
+  onMapClick?: (x: number, y: number) => void;
   marks: Mark[];
   heats: { cls: string; url: string; bounds?: [number, number, number, number] | null }[];
   player?: { x: number; y: number; label: string };
   onOpen?: (m: Mark) => void;
+}
+
+export function mapBounds([x, y, size]: [number, number, number]): [number, number, number] {
+  const left = Math.min(0, x), top = Math.min(0, y);
+  return [left, top, Math.max(Math.max(ROOM, x + size) - left, Math.max(ROOM, y + size) - top)];
 }
 
 const POINT: Record<string, (m: Mark) => SVGElement[]> = {
@@ -45,9 +64,16 @@ export class MapView {
   private vw = ROOM;
   private home: [number, number, number];
   private k = 1;
+  private bounds: [number, number, number];
+  private observer: ResizeObserver;
+  private canvas?: HTMLCanvasElement;
+  private raster?: Raster;
+  private unsubscribe?: () => void;
+  private frame = 0;
 
   constructor(spec: MapSpec) {
     this.home = spec.view ?? [0, 0, ROOM];
+    this.bounds = spec.bounds ?? mapBounds(this.home);
     [this.vx, this.vy, this.vw] = this.home;
     this.svg = s("svg", { class: "map", viewBox: this.viewBox(), role: "img" }) as SVGSVGElement;
     const base = s("g", { class: "base" }, spec.base);
@@ -63,11 +89,19 @@ export class MapView {
       }
     }
     this.tip = h("div", { class: "tip", hidden: true });
+    if (spec.raster) {
+      this.raster = spec.raster;
+      this.canvas = document.createElement("canvas");
+      this.canvas.className = "terrain";
+      this.canvas.setAttribute("aria-hidden", "true");
+      this.unsubscribe = spec.raster.subscribe(() => this.redraw());
+    }
     const zoomBtn = (label: string, f: number) =>
       h("button", { class: "zoom", type: "button", "aria-label": label, onclick: () => this.zoomBy(f) }, label === "Zoom in" ? "+" : "−");
     this.el = h(
       "div",
       { class: "mapbox" },
+      this.canvas,
       this.svg,
       h(
         "div",
@@ -80,6 +114,13 @@ export class MapView {
           "aria-label": "Reset view",
           onclick: () => this.reset(),
         }, "⟲"),
+        spec.bounds
+          ? h(
+            "button",
+            { class: "zoom fit-world", type: "button", "aria-label": "Fit whole world", onclick: () => this.fitWorld() },
+            "World",
+          )
+          : null,
       ),
       this.tip,
     );
@@ -88,7 +129,33 @@ export class MapView {
       this.addPoint(spec.player.x, spec.player.y, "you", [s("circle", { r: 6 }), s("text", { y: -10 }, spec.player.label)], -1);
     }
     this.rescale();
-    this.wire(spec.onOpen);
+    this.wire(spec.onOpen, spec.onMapClick);
+    this.observer = new ResizeObserver(() => this.rescale());
+    this.observer.observe(this.svg);
+  }
+
+  dispose() {
+    this.observer.disconnect();
+    this.unsubscribe?.();
+    cancelAnimationFrame(this.frame);
+  }
+
+  private redraw() {
+    if (!this.canvas || !this.raster || this.frame) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = 0;
+      const canvas = this.canvas!;
+      const size = Math.max(1, Math.round(this.svg.clientWidth * devicePixelRatio));
+      if (canvas.width !== size) canvas.width = canvas.height = size;
+      const ctx = canvas.getContext("2d")!;
+      ctx.clearRect(0, 0, size, size);
+      this.raster!.paint(ctx, { x: this.vx, y: this.vy, size: this.vw });
+    });
+  }
+
+  fitWorld() {
+    [this.vx, this.vy, this.vw] = this.bounds;
+    this.apply();
   }
 
   private image(url: string, cls: string) {
@@ -143,6 +210,7 @@ export class MapView {
     const w = this.svg.clientWidth || 600;
     this.k = this.vw / w;
     for (const p of this.pts) p.g.setAttribute("transform", `translate(${p.x} ${p.y}) scale(${this.k})`);
+    this.redraw();
   }
 
   private viewBox() {
@@ -150,16 +218,16 @@ export class MapView {
   }
 
   private apply() {
-    const max = Math.max(ROOM, this.home[2]);
+    const [left, top, max] = this.bounds;
     this.vw = Math.min(Math.max(this.vw, 96), max);
-    this.vx = Math.min(Math.max(this.vx, Math.min(0, this.home[0])), Math.max(ROOM, this.home[0] + this.home[2]) - this.vw);
-    this.vy = Math.min(Math.max(this.vy, Math.min(0, this.home[1])), Math.max(ROOM, this.home[1] + this.home[2]) - this.vw);
+    this.vx = Math.min(Math.max(this.vx, left), left + max - this.vw);
+    this.vy = Math.min(Math.max(this.vy, top), top + max - this.vw);
     this.svg.setAttribute("viewBox", this.viewBox());
     this.rescale();
   }
 
   zoomBy(f: number, cx = this.vx + this.vw / 2, cy = this.vy + this.vw / 2) {
-    const nw = Math.min(Math.max(this.vw * f, 96), Math.max(ROOM, this.home[2]));
+    const nw = Math.min(Math.max(this.vw * f, 96), this.bounds[2]);
     this.vx = cx - (cx - this.vx) * nw / this.vw;
     this.vy = cy - (cy - this.vy) * nw / this.vw;
     this.vw = nw;
@@ -186,7 +254,7 @@ export class MapView {
     return [this.vx + (e.clientX - r.left) / r.width * this.vw, this.vy + (e.clientY - r.top) / r.height * this.vw];
   }
 
-  private wire(onOpen?: (m: Mark) => void) {
+  private wire(onOpen?: (m: Mark) => void, onMapClick?: (x: number, y: number) => void) {
     const svg = this.svg;
     svg.addEventListener("wheel", (e) => {
       e.preventDefault();
@@ -233,13 +301,16 @@ export class MapView {
       if (drag?.moved) return;
       const m = this.markAt(e.target);
       if (m?.interior && onOpen) onOpen(m);
+      else if (!m && onMapClick) {
+        const [x, y] = this.toGame(e);
+        onMapClick(x, y);
+      }
     });
     svg.addEventListener("dblclick", (e) => {
       e.preventDefault();
       const [x, y] = this.toGame(e);
       this.zoomBy(0.5, x, y);
     });
-    new ResizeObserver(() => this.rescale()).observe(svg);
   }
 
   private markAt(target: EventTarget | null): Mark | undefined {
