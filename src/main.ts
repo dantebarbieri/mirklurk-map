@@ -1,13 +1,14 @@
 // Entry point: pick or drop a save, then render the world.
 
 import { $, h } from "./dom.ts";
-import { type Character, type FileMap, findCharacters, fromDataTransfer, fromFiles } from "./files.ts";
+import { type Character, characterIndex, type FileMap, findCharacters, fromDataTransfer, fromFiles } from "./files.ts";
 import { LAYERS } from "./objects.ts";
 import { landmarks, shipwreckOdds } from "./predict.ts";
 import { Area } from "./rules.ts";
-import { disposeView, renderWorld, selectZone, type State } from "./view.ts";
+import { disposeView, playerInterior, rememberView, renderWorld, selectZone, type State } from "./view.ts";
 import { TerrainStore } from "./terrain.ts";
 import { loadLayer, loadWorld } from "./world.ts";
+import { type DirectoryPicker, LiveReader, scanDirectory } from "./live.ts";
 
 let files: FileMap | null = null;
 let chars: Character[] = [];
@@ -16,6 +17,10 @@ const prefs = { layers: new Set(LAYERS.filter((l) => l.on).map((l) => l.id)), wa
 let state: State | undefined;
 let showToken = 0;
 let activeCharacter = 0;
+let reader: LiveReader | undefined;
+let liveTimer: number | undefined;
+let sourceToken = 0;
+let follow = true;
 
 function status(text: string, error = false) {
   const el = $("#status");
@@ -32,8 +37,8 @@ async function open(map: FileMap) {
   await show(0, map, found);
 }
 
-async function show(i: number, selectedFiles = files, selectedChars = chars) {
-  if (!selectedFiles) return;
+async function show(i: number, selectedFiles = files, selectedChars = chars, refresh = false): Promise<boolean> {
+  if (!selectedFiles) return false;
   const my = ++showToken;
   const c = selectedChars[i];
   const preparedUrls: string[] = [];
@@ -47,17 +52,36 @@ async function show(i: number, selectedFiles = files, selectedChars = chars) {
       const [w1, lo] = await Promise.all([loadLayer(world, z.dir, "Water1"), loadLayer(world, z.dir, "Lower")]);
       if (w1 && lo) shipwreck.set(`${z.x},${z.y}`, shipwreckOdds(w1.data, lo.data).perEntry);
     }
-    if (my !== showToken) return;
+    if (refresh && world.warnings.length) throw new Error(world.warnings.join("; "));
+    if (my !== showToken) return false;
     const mapUrls = new Map<string, string>();
     for (const z of world.zones.flat()) {
       if (!z.mapPath) continue;
       const bytes = await selectedFiles.get(z.mapPath)!.read();
-      if (my !== showToken) return;
+      if (my !== showToken) return false;
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/png" }));
       preparedUrls.push(url);
       mapUrls.set(`${z.x},${z.y}`, url);
     }
     const st: State = { world, marks: landmarks(world, shipwreck), mapUrls, prefs, terrain: new TerrainStore(world) };
+    if (refresh && state && chars[activeCharacter]?.root === c.root) {
+      rememberView(state);
+      st.selected = state.selected;
+      st.interiorDir = state.interiorDir;
+      st.viewport = state.viewport;
+      st.inspected = state.inspected;
+      st.expanded = state.expanded;
+    }
+    if (reader && follow) {
+      const selected: [number, number] = [world.player.area.x, world.player.area.y];
+      const interior = playerInterior(world)?.dir;
+      if (st.selected?.[0] !== selected[0] || st.selected?.[1] !== selected[1] || st.interiorDir !== interior) {
+        st.viewport = undefined;
+        st.inspected = undefined;
+      }
+      st.selected = selected;
+      st.interiorDir = interior;
+    }
     const options = selectedChars.map((c, i) => h("option", { value: i }, c.name));
     if (state) disposeView(state);
     urls.forEach((u) => URL.revokeObjectURL(u));
@@ -74,28 +98,116 @@ async function show(i: number, selectedFiles = files, selectedChars = chars) {
     document.body.classList.add("loaded");
     renderWorld(st);
     const want = /^([A-E]),?([1-5])$/i.exec(new URLSearchParams(location.search).get("zone") ?? "");
-    if (want) selectZone(st, "ABCDE".indexOf(want[1].toUpperCase()), Number(want[2]) - 1);
+    if (want && !refresh && !reader) selectZone(st, "ABCDE".indexOf(want[1].toUpperCase()), Number(want[2]) - 1);
     status("");
+    return true;
   } catch (e) {
-    if (my !== showToken) return;
+    if (my !== showToken) return false;
     console.error(e);
     $<HTMLSelectElement>("#character").value = String(activeCharacter);
     status(`Could not read ${c.name}: ${(e as Error).message}`, true);
+    return false;
   } finally {
     if (!installed) preparedUrls.forEach((u) => URL.revokeObjectURL(u));
   }
 }
 
+function liveStatus(text: string, error = false) {
+  $("#live-status").textContent = text;
+  $("#live-status").classList.toggle("error", error);
+}
+
+function stopLive() {
+  ++sourceToken;
+  ++showToken;
+  reader?.stop();
+  reader = undefined;
+  clearInterval(liveTimer);
+  liveTimer = undefined;
+  $("#stop-live").hidden = true;
+  $("#follow-control").hidden = true;
+  status("");
+  liveStatus("Live saves off. Manual imports are snapshots.");
+}
+
+async function manualImport(read: () => Promise<FileMap>) {
+  stopLive();
+  const my = sourceToken;
+  try {
+    const map = await read();
+    if (my === sourceToken) await open(map);
+  } catch (e) {
+    if (my !== sourceToken) return;
+    console.error(e);
+    status(`Could not import save: ${(e as Error).message}`, true);
+  }
+}
+
+async function startLive(picker: DirectoryPicker) {
+  stopLive();
+  const my = sourceToken;
+  try {
+    const handle = await picker.showDirectoryPicker!({ mode: "read" });
+    if (my !== sourceToken) return;
+    const session = sourceToken;
+    status("");
+    const selectedCharacter = chars[activeCharacter];
+    let first = true;
+    reader = new LiveReader(
+      () => scanDirectory(handle),
+      async (snapshot) => {
+        if (session !== sourceToken) return false;
+        const found = findCharacters(snapshot.files);
+        const selected = first ? selectedCharacter : chars[activeCharacter];
+        const i = characterIndex(found, selected);
+        const success = await show(i, snapshot.files, found, !first);
+        if (success) first = false;
+        return success;
+      },
+      liveStatus,
+    );
+    $("#stop-live").hidden = false;
+    $("#follow-control").hidden = false;
+    liveStatus("Reading folder; waiting for a complete save snapshot.");
+    liveTimer = setInterval(() => reader?.poll(), 1500);
+    await reader.poll();
+  } catch (e) {
+    if (my !== sourceToken) return;
+    if (e instanceof DOMException && e.name === "AbortError") return;
+    console.error(e);
+    liveStatus(`Could not open live folder: ${(e as Error).message}`, true);
+  }
+}
 function wire() {
   const folder = $<HTMLInputElement>("#pick-folder");
   const zip = $<HTMLInputElement>("#pick-zip");
   for (const input of [folder, zip]) {
     input.addEventListener("change", async () => {
-      if (input.files?.length) await open(await fromFiles(Array.from(input.files)));
+      if (input.files?.length) await manualImport(() => fromFiles(Array.from(input.files!)));
       input.value = "";
     });
   }
   $<HTMLSelectElement>("#character").addEventListener("change", (e) => show(Number((e.target as HTMLSelectElement).value)));
+  const picker: DirectoryPicker = window;
+  const liveButton = $<HTMLButtonElement>("#start-live");
+  liveButton.disabled = !picker.showDirectoryPicker || !isSecureContext;
+  if (liveButton.disabled) {
+    liveButton.title = "Live saves require desktop Chrome/Edge over HTTPS or localhost. Manual imports still work.";
+    liveStatus(liveButton.title);
+  }
+  liveButton.addEventListener("click", () => startLive(picker));
+  $("#stop-live").addEventListener("click", stopLive);
+  $<HTMLInputElement>("#follow-player").addEventListener("change", (e) => {
+    follow = (e.target as HTMLInputElement).checked;
+    if (follow && state) {
+      rememberView(state);
+      state.selected = [state.world.player.area.x, state.world.player.area.y];
+      state.interiorDir = playerInterior(state.world)?.dir;
+      state.viewport = undefined;
+      state.inspected = undefined;
+      renderWorld(state);
+    }
+  });
   let depth = 0;
   addEventListener("dragenter", (e) => {
     e.preventDefault();
@@ -109,7 +221,7 @@ function wire() {
     e.preventDefault();
     depth = 0;
     document.body.classList.remove("dragging");
-    if (e.dataTransfer) await open(await fromDataTransfer(e.dataTransfer));
+    if (e.dataTransfer) await manualImport(() => fromDataTransfer(e.dataTransfer!));
   });
 }
 
@@ -124,9 +236,14 @@ async function devSave(name: string) {
         ),
     });
   }
-  await open(map);
+  await manualImport(() => Promise.resolve(map));
 }
 
 wire();
 const dev = new URLSearchParams(location.search).get("dev");
-if (dev && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) devSave(dev);
+if (dev && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+  devSave(dev).catch((e) => {
+    console.error(e);
+    status(`Could not read development save: ${e.message}`, true);
+  });
+}

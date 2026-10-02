@@ -2,11 +2,13 @@
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
 import { MapView } from "./mapview.ts";
-import { detailMarks, type Layer, LAYERS, type Mark, sealedMarks, solidMarks, treeMarks } from "./objects.ts";
+import { detailMarks, type Layer, LAYERS, type Mark, markKey, sealedMarks, solidMarks, treeMarks } from "./objects.ts";
 import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
+import { entityLink, inspectMark, inventoryView, wikiLink } from "./inspect.ts";
+import { entityWiki } from "./wiki.ts";
 import {
   type Interior,
   interiorsOf,
@@ -28,6 +30,10 @@ export interface State {
   terrain: TerrainStore;
   cleanup?: () => void;
   selected?: [number, number];
+  interiorDir?: string;
+  viewport?: [number, number, number];
+  inspected?: string;
+  expanded?: Set<string>;
 }
 
 const HEAT_COLOR: Record<LandmarkId, string> = {
@@ -42,6 +48,22 @@ const HEAT_COLOR: Record<LandmarkId, string> = {
 const key = (x: number, y: number) => `${x},${y}`;
 let token = 0;
 let activeMap: MapView | undefined;
+
+export function rememberView(st: State) {
+  st.viewport = activeMap?.viewport;
+  st.expanded = new Set(
+    Array.from(document.querySelectorAll<HTMLDetailsElement>("details[data-remember][open]")).map((el) => el.dataset.remember!),
+  );
+}
+
+export function playerInterior(world: World): Interior | undefined {
+  const p = world.player;
+  if (isOutside(p.area.type)) return undefined;
+  return world.interiors.find((it) =>
+    it.kind === p.area.type && it.zone[0] === p.area.x && it.zone[1] === p.area.y &&
+    (it.at[0] === -1 || (it.at[0] === p.entrance[0] && it.at[1] === p.entrance[1]))
+  );
+}
 
 export function disposeView(st: State) {
   ++token;
@@ -83,6 +105,13 @@ export function renderWorld(st: State) {
     here ? ` · you are in ${coordLabel(here.x, here.y)} ${here.name}${you.inside ? " (indoors)" : ""}` : "",
     version,
   );
+  const freshness = h(
+    "p",
+    { class: "muted freshness" },
+    p.version ? "Saved snapshot" : "Snapshot",
+    w.savedAt ? ` - Player saved ${new Date(w.savedAt).toLocaleString()}` : " - file timestamp unavailable",
+    ". Not a live position; other areas and ground loot may have different save times.",
+  );
   const grid = h("div", { class: "grid", role: "group", "aria-label": "World map" });
   grid.append(h("span"), ..."ABCDE".split("").map((c) => h("span", { class: "axis" }, c)));
   for (let y = 0; y < 5; y++) {
@@ -99,6 +128,7 @@ export function renderWorld(st: State) {
     : null;
   const mode = h("input", { type: "checkbox", checked: st.prefs.realistic, id: "realistic-mode" }) as HTMLInputElement;
   mode.addEventListener("change", () => {
+    rememberView(st);
     st.prefs.realistic = mode.checked;
     if (!mode.checked) {
       st.terrain.dispose();
@@ -129,12 +159,32 @@ export function renderWorld(st: State) {
   };
   st.cleanup = st.terrain.subscribe(updateArt);
   $("#app").replaceChildren(
-    h("section", { id: "world" }, summary, modeControl, grid, st.prefs.realistic ? artStatus : null, landmarkList(st), warn),
+    h(
+      "section",
+      { id: "world" },
+      summary,
+      freshness,
+      modeControl,
+      grid,
+      st.prefs.realistic ? artStatus : null,
+      landmarkList(st),
+      h(
+        "details",
+        { class: "inventory-panel", "data-remember": "player", open: st.expanded?.has("player") },
+        h("summary", {}, "Saved equipment & inventory"),
+        inventoryView(p.inventory, "player", st.expanded),
+      ),
+      warn,
+    ),
     h("section", { id: "zone", "aria-live": "polite" }),
   );
   updateArt();
   const [x, y] = st.selected ?? you.zone;
-  selectZone(st, x, y);
+  const interior = w.interiors.find((it) => it.dir === st.interiorDir);
+  if (interior) {
+    document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`)?.classList.add("sel");
+    renderInterior(st, w.zones[y][x], interior, INTERIOR_NAMES[interior.kind ?? -1] ?? "Interior");
+  } else selectZone(st, x, y, true);
 }
 
 function cell(st: State, z: Zone, you: ReturnType<typeof playerSpot>) {
@@ -227,7 +277,12 @@ function landmarkList(st: State) {
   return h("div", { class: "landmarks" }, h("h2", {}, "Landmarks"), h("ul", {}, items));
 }
 
-export function selectZone(st: State, x: number, y: number) {
+export function selectZone(st: State, x: number, y: number, restore = false) {
+  if (!restore) {
+    st.viewport = undefined;
+    st.inspected = undefined;
+  }
+  st.interiorDir = undefined;
   st.selected = [x, y];
   document.querySelectorAll(".cell.sel").forEach((c) => c.classList.remove("sel"));
   document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`)?.classList.add("sel");
@@ -297,10 +352,17 @@ async function renderZone(st: State, z: Zone) {
   const my = ++token;
   activeMap?.dispose();
   const world = st.world;
+  st.interiorDir = undefined;
   const panel = $("#zone");
   const visit = z.lastVisit ? `last here on day ${Math.floor(z.lastVisit[0])}` : z.explored ? "explored" : "not explored yet";
   panel.replaceChildren(
-    h("header", {}, h("h2", {}, h("span", { class: "coord" }, coordLabel(z.x, z.y)), " ", z.name), h("span", { class: "muted" }, visit)),
+    h(
+      "header",
+      {},
+      h("h2", {}, h("span", { class: "coord" }, coordLabel(z.x, z.y)), " ", z.name),
+      h("span", { class: "muted" }, visit),
+      wikiLink(entityWiki(z.name)),
+    ),
     h("p", { class: "muted loading" }, "Loading…"),
   );
 
@@ -330,7 +392,17 @@ async function renderZone(st: State, z: Zone) {
   const base = url
     ? [s("image", { href: url, x: 0, y: 0, width: ROOM, height: ROOM, class: "b-map", preserveAspectRatio: "none" })]
     : blankBase(world, z);
-  const openInterior = (m: Mark) => m.interior && renderInterior(st, z, m.interior, m.name);
+  const inspector = h("section", { class: "inspection", hidden: true, "aria-live": "polite" });
+  const openInterior = (m: Mark) => {
+    if (m.interior) {
+      st.viewport = undefined;
+      st.inspected = undefined;
+      renderInterior(st, z, m.interior, m.name);
+    } else {
+      st.inspected = markKey(m);
+      inspectMark(inspector, m);
+    }
+  };
   const map = new MapView({
     base: st.prefs.realistic ? [] : base,
     ...(st.prefs.realistic
@@ -349,7 +421,13 @@ async function renderZone(st: State, z: Zone) {
     onOpen: openInterior,
   });
   activeMap = map;
-  const chips = layerChips(st, map, z.dir, () => my === token);
+  if (st.viewport) map.restore(st.viewport);
+  const restoreInspection = (available: Mark[]) => {
+    const inspected = available.find((m) => markKey(m) === st.inspected);
+    if (inspected) inspectMark(inspector, inspected, st.expanded);
+  };
+  restoreInspection(marks);
+  const chips = layerChips(st, map, z.dir, () => my === token, false, restoreInspection);
 
   const legend = heats.length
     ? h(
@@ -369,12 +447,21 @@ async function renderZone(st: State, z: Zone) {
     ? h("p", { class: "legend" }, "The game generates this zone when you first enter it.")
     : null;
 
-  const lists = poiLists(marks, map, openInterior);
-  panel.replaceChildren(...[panel.firstElementChild!, map.el, chips, legend, lists].filter((n): n is Element => !!n));
+  const lists = poiLists(st, marks, map, openInterior);
+  panel.replaceChildren(
+    ...[panel.firstElementChild!, map.el, chips, legend, inspector, lists, areaWarnings(world)].filter((n): n is Element => !!n),
+  );
 }
 
 /** Layer checkboxes. Trees and water load lazily, and only for outdoor zones (`dir` given). */
-function layerChips(st: State, map: MapView, dir: string | undefined, current: () => boolean, indoor = false) {
+function layerChips(
+  st: State,
+  map: MapView,
+  dir: string | undefined,
+  current: () => boolean,
+  indoor = false,
+  onAdded?: (marks: Mark[]) => void,
+) {
   const all = LAYERS.map((l) => l.id);
   map.setLayers(st.prefs.layers, all);
   const chips = h("div", { class: "layers" });
@@ -383,7 +470,11 @@ function layerChips(st: State, map: MapView, dir: string | undefined, current: (
     if (treesLoaded || !dir) return;
     treesLoaded = true;
     const trees = await loadTrees(st.world, dir);
-    if (current()) map.addMarks(treeMarks(trees));
+    if (current()) {
+      const added = treeMarks(trees);
+      map.addMarks(added);
+      onAdded?.(added);
+    }
   };
   for (const l of LAYERS) {
     if (indoor && (l.id === "trees" || l.id === "boulders")) continue;
@@ -413,7 +504,11 @@ function layerChips(st: State, map: MapView, dir: string | undefined, current: (
   return chips;
 }
 
-function poiLists(marks: Mark[], map: MapView, open: (m: Mark) => void) {
+function areaWarnings(world: World) {
+  return world.warnings.length ? h("p", { class: "warnings" }, world.warnings.join(" · ")) : null;
+}
+
+function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => void) {
   const group = (title: string, ms: Mark[], openByDefault = true) => {
     if (!ms.length) return null;
     const rows = ms.map((m) =>
@@ -425,13 +520,36 @@ function poiLists(marks: Mark[], map: MapView, open: (m: Mark) => void) {
           onmouseleave: () => map.highlight(null),
         },
         h("span", { class: `sym ${m.kind}` }),
-        m.interior
-          ? h("button", { type: "button", class: "link", title: "Look inside", onclick: () => open(m) }, m.name)
-          : h("button", { type: "button", class: "plain", title: "Show on map", onclick: () => map.focus(m) }, m.name),
+        m.interior ? h("button", { type: "button", class: "link", title: "Look inside", onclick: () => open(m) }, m.name) : h("button", {
+          type: "button",
+          class: "plain",
+          title: "Show on map and inspect",
+          onclick: () => {
+            map.focus(m);
+            open(m);
+          },
+        }, m.name),
+        entityLink(m),
         m.detail ? h("span", { class: "muted" }, ` — ${m.detail}`) : "",
+        m.inventory
+          ? h(
+            "span",
+            { class: "muted" },
+            m.inventory.state === "saved"
+              ? ` - ${m.inventory.items.length ? `${m.inventory.items.length} saved stack(s)` : "empty when saved"}`
+              : m.inventory.state === "unrolled"
+              ? " - not rolled when saved"
+              : " - contents unavailable",
+          )
+          : null,
       )
     );
-    return h("details", { open: openByDefault }, h("summary", {}, `${title} (${ms.length})`), h("ul", {}, rows));
+    return h(
+      "details",
+      { "data-remember": title, open: st.expanded ? st.expanded.has(title) : openByDefault },
+      h("summary", {}, `${title} (${ms.length})`),
+      h("ul", {}, rows),
+    );
   };
   const places = marks.filter((m) => m.layer === "places" && m.kind !== "boat");
   places.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
@@ -439,8 +557,6 @@ function poiLists(marks: Mark[], map: MapView, open: (m: Mark) => void) {
   const loot = marks.filter((m) => m.layer === "loot");
   const camp = marks.filter((m) => m.layer === "camp");
   const creatures = marks.filter((m) => m.layer === "creatures");
-  const tally = new Map<string, number>();
-  for (const c of creatures) tally.set(c.name, (tally.get(c.name) ?? 0) + 1);
   return h(
     "div",
     { class: "lists" },
@@ -448,9 +564,7 @@ function poiLists(marks: Mark[], map: MapView, open: (m: Mark) => void) {
     group("NPCs", npcs),
     group("Loot", loot, loot.length <= 12),
     group("Camp & storage", camp),
-    creatures.length
-      ? h("p", { class: "muted" }, `Creatures when saved: ${[...tally].map(([n, c]) => (c > 1 ? `${n} ×${c}` : n)).join(", ")}`)
-      : null,
+    group("Creatures when saved", creatures, false),
   );
 }
 
@@ -460,6 +574,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
   const my = ++token;
   activeMap?.dispose();
   const world = st.world;
+  st.interiorDir = it.dir;
   const panel = $("#zone");
   const [data, lower, onLower, water1] = await Promise.all(["Data", "Lower", "OnLower", "Water1"].map((l) => loadLayer(world, it.dir, l)));
   const detail = await loadDetail(world, it.dir);
@@ -493,7 +608,17 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     }
   });
   const kind = it.kind !== null ? INTERIOR_NAMES[it.kind] ?? name : name;
-  const open = (m: Mark) => m.interior && renderInterior(st, z, m.interior, m.name);
+  const inspector = h("section", { class: "inspection", hidden: true, "aria-live": "polite" });
+  const open = (m: Mark) => {
+    if (m.interior) {
+      st.viewport = undefined;
+      st.inspected = undefined;
+      renderInterior(st, z, m.interior, m.name);
+    } else {
+      st.inspected = markKey(m);
+      inspectMark(inspector, m);
+    }
+  };
   const map = new MapView({
     base: st.prefs.realistic
       ? []
@@ -504,16 +629,25 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     view,
     marks,
     heats: [],
+    player: playerInterior(world)?.dir === it.dir ? { x: world.player.pos[0], y: world.player.pos[1], label: "You (saved)" } : undefined,
     onOpen: open,
   });
   activeMap = map;
+  if (st.viewport) map.restore(st.viewport);
+  const inspected = marks.find((m) => markKey(m) === st.inspected);
+  if (inspected) inspectMark(inspector, inspected, st.expanded);
   const up = it.parent;
   const back = h(
     "button",
     {
       type: "button",
       class: "link",
-      onclick: () => (up ? renderInterior(st, z, up, INTERIOR_NAMES[up.kind ?? -1] ?? "Interior") : renderZone(st, z)),
+      onclick: () => {
+        st.viewport = undefined;
+        st.inspected = undefined;
+        if (up) renderInterior(st, z, up, INTERIOR_NAMES[up.kind ?? -1] ?? "Interior");
+        else renderZone(st, z);
+      },
     },
     up ? `← back to ${INTERIOR_NAMES[up.kind ?? -1] ?? "the level above"}` : `← back to ${coordLabel(z.x, z.y)} ${z.name}`,
   );
@@ -522,7 +656,9 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     back,
     map.el,
     layerChips(st, map, undefined, () => my === token, true),
-    poiLists(marks, map, open),
+    inspector,
+    poiLists(st, marks, map, open),
+    ...(world.warnings.length ? [areaWarnings(world)!] : []),
   );
 }
 

@@ -140,6 +140,15 @@ export class MapView {
     cancelAnimationFrame(this.frame);
   }
 
+  get viewport(): [number, number, number] {
+    return [this.vx, this.vy, this.vw];
+  }
+
+  restore(view: [number, number, number]) {
+    [this.vx, this.vy, this.vw] = view;
+    this.apply();
+  }
+
   private redraw() {
     if (!this.canvas || !this.raster || this.frame) return;
     this.frame = requestAnimationFrame(() => {
@@ -285,7 +294,7 @@ export class MapView {
         return;
       }
       const box = this.el.getBoundingClientRect();
-      this.tip.textContent = describe(m) + (m.interior && onOpen ? " — click to look inside" : "");
+      this.tip.textContent = describe(m) + (onOpen ? (m.interior ? " — click to look inside" : " — click to inspect") : "");
       this.tip.hidden = false;
       const x = e.clientX - box.left, y = e.clientY - box.top;
       this.tip.style.left = `${Math.min(x + 14, box.width - this.tip.offsetWidth - 4)}px`;
@@ -300,7 +309,7 @@ export class MapView {
     svg.addEventListener("click", (e) => {
       if (drag?.moved) return;
       const m = this.markAt(e.target);
-      if (m?.interior && onOpen) onOpen(m);
+      if (m && onOpen) onOpen(m);
       else if (!m && onMapClick) {
         const [x, y] = this.toGame(e);
         onMapClick(x, y);

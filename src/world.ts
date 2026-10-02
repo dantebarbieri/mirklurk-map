@@ -11,6 +11,7 @@ import {
   type Grid,
   parseAreaDir,
   parseBeings,
+  parseContainers,
   parsePlaced,
   parsePlayer,
   parseSolids,
@@ -20,6 +21,7 @@ import {
   type Solid,
   type Tree,
 } from "./save.ts";
+import { type Inventory, parseItemList } from "./inventory.ts";
 
 export interface Zone {
   x: number;
@@ -71,6 +73,7 @@ export interface World {
   interiors: Interior[];
   warnings: string[];
   files: FileMap;
+  savedAt?: number;
 }
 
 export async function readJson(files: FileMap, path: string): Promise<unknown | undefined> {
@@ -176,7 +179,7 @@ export async function loadWorld(files: FileMap, root: string, character: string)
     }
   }
 
-  return { character, player, zones, interiors, warnings, files };
+  return { character, player, zones, interiors, warnings, files, savedAt: files.get(`${root}Player.save`)?.lastModified };
 }
 
 export interface ZoneDetail {
@@ -185,6 +188,7 @@ export interface ZoneDetail {
   stations: Placed[];
   interactables: Placed[];
   decorations: Placed[];
+  groundLoot?: { x: number; y: number; inventory: Inventory }[];
 }
 
 async function tryList<T>(world: World, path: string, parse: (raw: unknown) => T[]): Promise<T[]> {
@@ -207,14 +211,38 @@ export function loadDetail(world: World, dir: string): Promise<ZoneDetail> {
   if (!p) {
     p = (async () => ({
       beings: await tryList(world, `${dir}Beings.save`, parseBeings),
-      containers: await tryList(world, `${dir}Containers.save`, parsePlaced),
+      containers: await tryList(
+        world,
+        `${dir}Containers.save`,
+        (raw) => parseContainers(raw, (message) => world.warnings.push(`${dir}Containers.save: ${message}`)),
+      ),
       stations: await tryList(world, `${dir}Stations.save`, parsePlaced),
       interactables: await tryList(world, `${dir}Interactables.save`, parsePlaced),
       decorations: await tryList(world, `${dir}Decoration.save`, parsePlaced),
+      groundLoot: await loadGroundLoot(world, dir),
     }))();
     cache.set(dir, p);
   }
   return p;
+}
+
+async function loadGroundLoot(world: World, dir: string): Promise<NonNullable<ZoneDetail["groundLoot"]>> {
+  const out: NonNullable<ZoneDetail["groundLoot"]> = [];
+  for (const path of world.files.keys()) {
+    if (!path.startsWith(dir)) continue;
+    const match = /^LOOT-(-?\d+(?:\.\d+)?)_(-?\d+(?:\.\d+)?)\.save$/.exec(path.slice(dir.length));
+    if (!match) continue;
+    let inventory: Inventory;
+    try {
+      inventory = parseItemList(await readJson(world.files, path));
+    } catch (e) {
+      const reason = `${path}: ${(e as Error).message}`;
+      world.warnings.push(reason);
+      inventory = { state: "unavailable", reason };
+    }
+    out.push({ x: Number(match[1]), y: Number(match[2]), inventory });
+  }
+  return out;
 }
 
 export const loadTrees = (world: World, dir: string): Promise<Tree[]> => tryList(world, `${dir}Trees.save`, parseTrees);

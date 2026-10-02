@@ -4,12 +4,16 @@ import { readZip } from "./zip.ts";
 
 export interface Source {
   read(): Promise<Uint8Array>;
+  lastModified?: number;
 }
 export type FileMap = Map<string, Source>;
 
 const norm = (p: string) => p.replace(/\\/g, "/").replace(/^\/+/, "");
 
-const fileSource = (f: Blob): Source => ({ read: async () => new Uint8Array(await f.arrayBuffer()) });
+const fileSource = (f: Blob): Source => ({
+  read: async () => new Uint8Array(await f.arrayBuffer()),
+  lastModified: f instanceof File ? f.lastModified : undefined,
+});
 
 async function addZip(map: FileMap, file: Blob, prefix = "") {
   for (const e of await readZip(file)) map.set(norm(prefix + e.name), e);
@@ -69,6 +73,12 @@ export interface Character {
   name: string;
   /** Path prefix ending in "/" (or "" when Player.save was picked on its own). */
   root: string;
+}
+
+/** A character can have a different root when switching between its folder and the whole Saves folder. */
+export function characterIndex(characters: Character[], selected?: Character): number {
+  const exact = characters.findIndex((c) => c.root === selected?.root);
+  return exact >= 0 ? exact : Math.max(0, characters.findIndex((c) => c.name === selected?.name));
 }
 
 /** Every folder that contains a Player.save is a character (Saves/<name>/Player.save). */
