@@ -16,8 +16,12 @@
       <select id="character" aria-label="Character" hidden></select>
       <label class="button">Open save folder<input id="pick-folder" type="file" webkitdirectory multiple hidden></label>
       <label class="button subtle">Open .zip<input id="pick-zip" type="file" accept=".zip,application/zip" hidden></label>
+      <button id="start-live" class="button" type="button">Live saves...</button>
+      <button id="stop-live" class="button subtle" type="button" hidden>Stop live saves</button>
+      <label id="follow-control" hidden><input id="follow-player" type="checkbox" checked> Follow saved location</label>
       <span id="status" role="status"></span>
     </header>
+    <p id="live-status" class="live-status muted" role="status">Live saves off. Manual imports are snapshots.</p>
     <main id="app">
       <section class="intro">
         <p>See your Mirklurk world: every zone by its in-game name, real game tiles and scenery for each saved zone,
@@ -28,6 +32,9 @@
         Picking the whole <code>Saves</code> folder, or a .zip of it, works too.</p>
         <p
           class="muted">Your files are read in this browser tab and never uploaded. Save and quit to the menu first so the files are current.</p>
+        <p>Or opt into <b>Live saves</b> in desktop Chrome/Edge: choose the folder once for read-only monitoring.
+        The map refreshes after the game saves, not every movement. Stop monitoring at any time.
+        Saved items and loot can be inspected; wiki links open separately without uploading your saves.</p>
       </section>
     </main>
     <div class="drop-hint" aria-hidden="true">Drop the save folder</div>

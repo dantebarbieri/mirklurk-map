@@ -4,12 +4,16 @@ import { readZip } from "./zip.ts";
 
 export interface Source {
   read(): Promise<Uint8Array>;
+  lastModified?: number;
 }
 export type FileMap = Map<string, Source>;
 
 const norm = (p: string) => p.replace(/\\/g, "/").replace(/^\/+/, "");
 
-const fileSource = (f: Blob): Source => ({ read: async () => new Uint8Array(await f.arrayBuffer()) });
+const fileSource = (f: Blob): Source => ({
+  read: async () => new Uint8Array(await f.arrayBuffer()),
+  lastModified: f instanceof File ? f.lastModified : undefined,
+});
 
 async function addZip(map: FileMap, file: Blob, prefix = "") {
   for (const e of await readZip(file)) map.set(norm(prefix + e.name), e);

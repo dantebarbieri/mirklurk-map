@@ -90,8 +90,56 @@ select {
   color: var(--muted);
 }
 #status.error,
-.art-status.error {
+.art-status.error,
+.live-status.error {
   color: #ff8a80;
+}
+
+[hidden] {
+  display: none !important;
+}
+.button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.live-status {
+  margin: 8px 16px;
+  font-size: 12px;
+}
+.freshness {
+  font-size: 12px;
+}
+.wiki {
+  margin-left: 8px;
+  font-size: 12px;
+}
+.inventory-panel,
+.inspection {
+  margin-top: 14px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.inventory-panel summary {
+  cursor: pointer;
+  color: var(--gold2);
+}
+.inspection {
+  max-width: 78vh;
+}
+.inspection h3 {
+  margin: 0;
+  color: var(--gold);
+}
+.inventory-items {
+  padding-left: 18px;
+}
+.inventory-items li {
+  margin: 5px 0;
+}
+.inventory-items .wiki {
+  margin-left: 0;
+  font-size: inherit;
 }
 
 .intro {

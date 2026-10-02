@@ -1,6 +1,7 @@
 // Decoders for Mirklurk save files (gml_GlobalScript_scr_saveload).
 
 import { TILES } from "./rules.ts";
+import { containerInventory, type Inventory, parseItemList } from "./inventory.ts";
 
 /** save_datajson: UTF-8 JSON written with buffer_string, so it ends in one NUL byte. */
 export function decodeJson(bytes: Uint8Array): unknown {
@@ -70,6 +71,7 @@ export interface PlayerSave {
   riftQuestArea: [number, number] | null;
   gurbsHut: boolean;
   shipWreck: boolean;
+  inventory?: Inventory;
 }
 
 export function parsePlayer(raw: unknown): PlayerSave {
@@ -96,6 +98,7 @@ export function parsePlayer(raw: unknown): PlayerSave {
     riftQuestArea: pair(p.riftQuestArea),
     gurbsHut: p.gurbsHut === true,
     shipWreck: p.shipWreck === true,
+    inventory: parseItemList(p.myEquips),
   };
 }
 
@@ -123,6 +126,7 @@ export interface Placed {
   x: number;
   y: number;
   object?: string;
+  inventory?: Inventory;
 }
 
 export interface Tree {
@@ -160,6 +164,12 @@ export const parsePlaced = (raw: unknown): Placed[] =>
     y: num(c.y),
     object: typeof c.object === "string" ? c.object : undefined,
   }));
+
+export const parseContainers = (raw: unknown): Placed[] => {
+  if (!Array.isArray(raw)) throw new Error("Invalid containers list");
+  const placed = parsePlaced(raw);
+  return placed.map((c, i) => ({ ...c, inventory: containerInventory(raw[i]) }));
+};
 
 export const parseTrees = (raw: unknown): Tree[] =>
   list(raw).map((t) => {

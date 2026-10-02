@@ -5,6 +5,7 @@ import { spriteBox } from "./predict.ts";
 import { centerpos, INTERIOR_NAMES, isOutside, LANDMARK_NAMES, NPC_BEINGS, SolidId } from "./rules.ts";
 import type { Placed, Solid, Tree } from "./save.ts";
 import type { Interior, ZoneDetail } from "./world.ts";
+import type { Inventory } from "./inventory.ts";
 
 export type Layer = "places" | "npcs" | "creatures" | "loot" | "camp" | "boulders" | "rocks" | "trees";
 
@@ -31,6 +32,7 @@ export interface Mark {
   interior?: Interior;
   /** Entrance leading here: "explored" when the game has saved the interior. */
   explored?: boolean;
+  inventory?: Inventory;
 }
 
 const tile = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
@@ -118,16 +120,25 @@ export function detailMarks(d: ZoneDetail): Mark[] {
     out.push({ layer: npc ? "npcs" : "creatures", kind: npc ? "npc" : "creature", x: b.x, y: b.y, name, label });
   }
   for (const c of d.containers) {
-    const at = { x: c.x, y: c.y };
-    if (c.index === 152 && c.status === -214) out.push({ layer: "loot", kind: "loot", ...at, name: "Unsearched remains" });
-    else if (CHEST[c.index] && c.status === -214) out.push({ layer: "loot", kind: "loot chest", ...at, name: CHEST[c.index] });
+    const at = {
+      x: c.x,
+      y: c.y,
+      inventory: c.inventory ?? { state: "unavailable" as const, reason: "Contents were not recorded in this save." },
+    };
+    if (c.index === 152) out.push({ layer: "loot", kind: "loot", ...at, name: c.status === -214 ? "Unsearched remains" : "Remains" });
+    else if (CHEST[c.index]) out.push({ layer: "loot", kind: "loot chest", ...at, name: CHEST[c.index] });
     else if (c.status === -215) out.push({ layer: "loot", kind: "loot", ...at, name: "Supplies" });
     else if (c.status === -211) {
       out.push({ layer: "camp", kind: "storage", ...at, name: c.index === 108 ? ITEM_NAMES[108] ?? "Hidden Hollow" : "Storage chest" });
-    } else if (c.status === -209) {
+    } else if (c.status === -209 || c.status === -216) {
       out.push({ layer: "loot", kind: "carcass", ...at, name: `Carcass: ${BEING_NAMES[c.index] ?? "creature"}` });
-    } else if (c.status === -205 && c.sprite !== "spr_drops_woodcut") {
+    } else if (c.status === -205) {
       out.push({ layer: "loot", kind: "drop", ...at, name: "Dropped items" });
+    } else out.push({ layer: "loot", kind: "loot", ...at, name: ITEM_NAMES[c.index] ?? "Container" });
+  }
+  for (const loot of d.groundLoot ?? []) {
+    if (!d.containers.some((c) => c.x === loot.x && c.y === loot.y)) {
+      out.push({ layer: "loot", kind: "drop", name: "Ground loot", ...loot, detail: "Separate saved ground-loot record" });
     }
   }
   for (const s of d.stations) out.push(stationMark(s));

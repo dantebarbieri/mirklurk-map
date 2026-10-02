@@ -22,6 +22,44 @@ maps and objects then stay empty.
 Map controls: wheel or `+`/`−` to zoom, drag to pan, `⟲` to reset. Hover a marker for its name and tile; click a list entry to find it on
 the map.
 
+### Live saves (opt-in)
+
+Click **Live saves...** in desktop Chrome or Edge on HTTPS (or localhost), then grant **read-only** access to a character folder or the
+whole `Saves` folder. The site polls every 1.5 seconds, discovers added/deleted files, and refreshes after writes have settled. Nothing is
+uploaded, written to the game, or installed. **Stop live saves** stops polling and retains the last displayed snapshot. Opening a folder,
+ZIP, or dropped save manually also stops monitoring. Access is requested again when restarting live mode; it is not stored across reloads.
+Browsers without the directory picker retain manual import.
+
+**This follows saved locations, not live movement.** The game saves before area transitions, on new-area generation, after normal sleep, at
+some story checkpoints, and when saving to the menu. The position may still be in the departing area until the next save. **Follow saved
+location** selects the player's saved zone/interior on refresh; turn it off to keep inspecting another area. Zoom, inspection selection and
+expanded sections are retained on same-area refreshes. The snapshot label shows `Player.save`'s timestamp when available; ZIP imports do not
+currently expose one.
+
+The game writes a save over 19 game steps: player first, containers last. Live mode waits for at least 1.5 seconds of unchanged metadata,
+checks that the current area's container file is at least as recent as the player file, validates newly read data, then rechecks the
+directory before publishing immutable file contents. Interrupted writes or lost permissions leave the previous snapshot visible with an
+error/retry notice. This is a best-effort coherent disk snapshot, not a game-provided atomic transaction. When monitoring several characters
+together, an incomplete character save delays the folder snapshot; choose a single character folder to isolate it.
+
+### Inventory, containers and wiki
+
+Expand **Saved equipment & inventory** to see equipped items and nested bag contents, stack quantities, saved durability values (not
+percentages), and wetness. Click a container/corpse/drop marker or list entry to inspect its saved contents. Reopened chests, empty
+containers, wood drops and separate `LOOT-x_y.save` ground-loot records are included.
+
+- **Not rolled when saved:** unopened treasure chests and placed remains; the game rolls their contents on first opening.
+- **Empty when saved:** a recorded inventory with no items.
+- **Unavailable:** the save does not contain the inventory data, or the record cannot be read.
+
+Creature corpse loot is rolled at death but is only visible here after saving. Some ground-loot records are written independently when a
+loot window closes, so their age can differ from the player snapshot. Unsaved changes, future rolls, and later item decay cannot be
+inferred. The viewer never rolls loot itself.
+
+Item names and entity **Wiki** links open verified pages on `mirklurk.wiki` in a separate tab. Unrolled loot links to its source guide;
+entities without a dedicated known page use a relevant guide instead of a guessed article URL. The bundled public-title catalog is verified
+at development time, not by sending save data to the wiki; pages can change after verification.
+
 **Realistic mode** is off by default; enable it with the **Realistic** toggle. It reconstructs explored zones and interiors from saved
 `.tmap` layers using the game's own tilesets, including animated-tile first frames, atlas borders, mirroring and rotation. Buildings, rocks,
 placed objects and procedural trees use their saved sprites/geometry. NPCs, creatures and carcasses remain markers; this is a static
@@ -86,6 +124,7 @@ deno task dev      # http://127.0.0.1:8123 — also serves ../Saves read-only, s
 deno task test     # unit tests, plus checks against real saves in ../Saves (or $env:MIRKLURK_SAVES) when present
 deno task check    # type-check
 deno task build    # dist/: index.html + hashed app.*.js and style.*.css
+deno task wiki     # refresh src/wikidata.json from the public wiki; no saves or game data are sent
 ```
 
 `src/gamedata.ts` holds the game's names and sprite bounds. After a game update, regenerate it:

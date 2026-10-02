@@ -7,6 +7,8 @@ import { landmarks, shipwreckOdds } from "../src/predict.ts";
 import { Area, PLACEMENT, reflect } from "../src/rules.ts";
 import { loadDetail, loadLayer, loadTrees, loadWorld } from "../src/world.ts";
 import { areaLayers, ART, tileSource } from "../src/tiles.ts";
+import { captureSnapshot, type LiveDirectory, scanDirectory } from "../src/live.ts";
+import { detailMarks } from "../src/objects.ts";
 
 const dir = Deno.env.get("MIRKLURK_SAVES") ??
   decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
@@ -131,5 +133,50 @@ Deno.test({ name: "real saves: all saved terrain and scenery have matching game 
       for (const tree of trees) assert(tree.parts, `${area.dir}: saved tree geometry`);
     }
     assertEquals(world.warnings, [], c.name);
+  }
+});
+
+function liveDirectory(path: string, name: string): LiveDirectory {
+  return {
+    kind: "directory",
+    name,
+    async *values() {
+      for await (const e of Deno.readDir(path)) {
+        const child = `${path}/${e.name}`;
+        if (e.isDirectory) yield liveDirectory(child, e.name);
+        else if (e.isFile) {
+          yield {
+            kind: "file" as const,
+            name: e.name,
+            getFile: async () => {
+              const stat = await Deno.stat(child);
+              return new File([await Deno.readFile(child)], e.name, { lastModified: stat.mtime?.getTime() });
+            },
+          };
+        }
+      }
+    },
+  };
+}
+
+Deno.test({ name: "real saves: live completion fence and inventories parse for every character", ignore: !present }, async () => {
+  for await (const e of Deno.readDir(dir)) {
+    if (!e.isDirectory) continue;
+    const snapshot = await captureSnapshot(await scanDirectory(liveDirectory(`${dir}/${e.name}`, e.name)));
+    const world = await loadWorld(snapshot.files, `${e.name}/`, e.name);
+    assert(world.player.inventory?.state === "saved", `${e.name}: player inventory`);
+    for (const area of [...world.zones.flat(), ...world.interiors]) {
+      if (!area.dir) continue;
+      const detail = await loadDetail(world, area.dir);
+      assert(detail.containers.every((c) => c.inventory), `${area.dir}: container inventories`);
+      const marks = detailMarks(detail);
+      assertEquals(
+        marks.filter((m) => m.inventory).length,
+        detail.containers.length + (detail.groundLoot ?? []).filter(
+          (g) => !detail.containers.some((c) => c.x === g.x && c.y === g.y),
+        ).length,
+      );
+    }
+    assertEquals(world.warnings, [], e.name);
   }
 });
