@@ -1,7 +1,7 @@
 import { type FileMap, findCharacters, type Source } from "./files.ts";
 import { parseItemList } from "./inventory.ts";
 import { centerpos, isOutside } from "./rules.ts";
-import { decodeHeights, decodeJson, decodeTilemap, parseAreaDir, parseContainers, parsePlayer } from "./save.ts";
+import { decodeHeights, decodeJson, decodeTilemap, parseAreaDir, parseContainers, parsePlayer, parseTrees } from "./save.ts";
 
 // Structural types keep the optional picker usable without requiring it in every browser.
 export interface LiveDirectory {
@@ -59,6 +59,7 @@ function validate(path: string, bytes: Uint8Array) {
     if (!Array.isArray(raw)) throw new Error(`${path} is not a saved list`);
     if (path.endsWith("/Player.save")) parsePlayer(raw);
     else if (path.endsWith("/Containers.save")) parseContainers(raw);
+    else if (path.endsWith("/Trees.save")) parseTrees(raw);
     else if (/\/LOOT-[^/]+\.save$/.test(path)) parseItemList(raw);
   } else if (path.endsWith(".png")) {
     const end = [0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130];

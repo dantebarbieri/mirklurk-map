@@ -2,7 +2,7 @@
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
 import { MapView } from "./mapview.ts";
-import { detailMarks, type Layer, LAYERS, type Mark, sealedMarks, solidMarks, treeMarks } from "./objects.ts";
+import { detailMarks, type Layer, LAYERS, type Mark, markKey, sealedMarks, solidMarks, treeMarks } from "./objects.ts";
 import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES } from "./gamedata.ts";
@@ -48,7 +48,6 @@ const HEAT_COLOR: Record<LandmarkId, string> = {
 const key = (x: number, y: number) => `${x},${y}`;
 let token = 0;
 let activeMap: MapView | undefined;
-const markKey = (m: Mark) => `${m.layer}:${m.x}:${m.y}:${m.name}`;
 
 export function rememberView(st: State) {
   st.viewport = activeMap?.viewport;
@@ -423,9 +422,12 @@ async function renderZone(st: State, z: Zone) {
   });
   activeMap = map;
   if (st.viewport) map.restore(st.viewport);
-  const inspected = marks.find((m) => markKey(m) === st.inspected);
-  if (inspected) inspectMark(inspector, inspected, st.expanded);
-  const chips = layerChips(st, map, z.dir, () => my === token);
+  const restoreInspection = (available: Mark[]) => {
+    const inspected = available.find((m) => markKey(m) === st.inspected);
+    if (inspected) inspectMark(inspector, inspected, st.expanded);
+  };
+  restoreInspection(marks);
+  const chips = layerChips(st, map, z.dir, () => my === token, false, restoreInspection);
 
   const legend = heats.length
     ? h(
@@ -452,7 +454,14 @@ async function renderZone(st: State, z: Zone) {
 }
 
 /** Layer checkboxes. Trees and water load lazily, and only for outdoor zones (`dir` given). */
-function layerChips(st: State, map: MapView, dir: string | undefined, current: () => boolean, indoor = false) {
+function layerChips(
+  st: State,
+  map: MapView,
+  dir: string | undefined,
+  current: () => boolean,
+  indoor = false,
+  onAdded?: (marks: Mark[]) => void,
+) {
   const all = LAYERS.map((l) => l.id);
   map.setLayers(st.prefs.layers, all);
   const chips = h("div", { class: "layers" });
@@ -461,7 +470,11 @@ function layerChips(st: State, map: MapView, dir: string | undefined, current: (
     if (treesLoaded || !dir) return;
     treesLoaded = true;
     const trees = await loadTrees(st.world, dir);
-    if (current()) map.addMarks(treeMarks(trees));
+    if (current()) {
+      const added = treeMarks(trees);
+      map.addMarks(added);
+      onAdded?.(added);
+    }
   };
   for (const l of LAYERS) {
     if (indoor && (l.id === "trees" || l.id === "boulders")) continue;

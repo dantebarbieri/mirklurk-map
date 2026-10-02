@@ -211,7 +211,11 @@ export function loadDetail(world: World, dir: string): Promise<ZoneDetail> {
   if (!p) {
     p = (async () => ({
       beings: await tryList(world, `${dir}Beings.save`, parseBeings),
-      containers: await tryList(world, `${dir}Containers.save`, parseContainers),
+      containers: await tryList(
+        world,
+        `${dir}Containers.save`,
+        (raw) => parseContainers(raw, (message) => world.warnings.push(`${dir}Containers.save: ${message}`)),
+      ),
       stations: await tryList(world, `${dir}Stations.save`, parsePlaced),
       interactables: await tryList(world, `${dir}Interactables.save`, parsePlaced),
       decorations: await tryList(world, `${dir}Decoration.save`, parsePlaced),

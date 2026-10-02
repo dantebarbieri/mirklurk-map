@@ -1,7 +1,7 @@
 // Entry point: pick or drop a save, then render the world.
 
 import { $, h } from "./dom.ts";
-import { type Character, type FileMap, findCharacters, fromDataTransfer, fromFiles } from "./files.ts";
+import { type Character, characterIndex, type FileMap, findCharacters, fromDataTransfer, fromFiles } from "./files.ts";
 import { LAYERS } from "./objects.ts";
 import { landmarks, shipwreckOdds } from "./predict.ts";
 import { Area } from "./rules.ts";
@@ -151,15 +151,15 @@ async function startLive(picker: DirectoryPicker) {
     if (my !== sourceToken) return;
     const session = sourceToken;
     status("");
-    const activeRoot = chars[activeCharacter]?.root;
+    const selectedCharacter = chars[activeCharacter];
     let first = true;
     reader = new LiveReader(
       () => scanDirectory(handle),
       async (snapshot) => {
         if (session !== sourceToken) return false;
         const found = findCharacters(snapshot.files);
-        const root = first ? activeRoot : chars[activeCharacter]?.root;
-        const i = Math.max(0, found.findIndex((c) => c.root === root));
+        const selected = first ? selectedCharacter : chars[activeCharacter];
+        const i = characterIndex(found, selected);
         const success = await show(i, snapshot.files, found, !first);
         if (success) first = false;
         return success;

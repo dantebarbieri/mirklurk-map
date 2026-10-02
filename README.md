@@ -48,6 +48,11 @@ Expand **Saved equipment & inventory** to see equipped items and nested bag cont
 percentages), and wetness. Click a container/corpse/drop marker or list entry to inspect its saved contents. Reopened chests, empty
 containers, wood drops and separate `LOOT-x_y.save` ground-loot records are included.
 
+Ground-loot files remain separate, labeled entries even when a container occupies the same tile; the two records may describe different
+contents or save times. If one container inventory is malformed during manual import, its marker remains with unavailable contents and a
+warning, without hiding other containers. Live mode instead rejects malformed updates, including invalid saved tree geometry, and keeps the
+last accepted snapshot.
+
 - **Not rolled when saved:** unopened treasure chests and placed remains; the game rolls their contents on first opening.
 - **Empty when saved:** a recorded inventory with no items.
 - **Unavailable:** the save does not contain the inventory data, or the record cannot be read.

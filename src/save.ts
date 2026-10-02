@@ -165,10 +165,20 @@ export const parsePlaced = (raw: unknown): Placed[] =>
     object: typeof c.object === "string" ? c.object : undefined,
   }));
 
-export const parseContainers = (raw: unknown): Placed[] => {
+/** Validation is strict unless the display loader supplies a per-inventory warning handler. */
+export const parseContainers = (raw: unknown, warn?: (message: string) => void): Placed[] => {
   if (!Array.isArray(raw)) throw new Error("Invalid containers list");
   const placed = parsePlaced(raw);
-  return placed.map((c, i) => ({ ...c, inventory: containerInventory(raw[i]) }));
+  return placed.map((c, i) => {
+    try {
+      return { ...c, inventory: containerInventory(raw[i]) };
+    } catch (e) {
+      if (!warn) throw e;
+      const reason = `Container ${i + 1} at ${c.x},${c.y}: ${(e as Error).message}`;
+      warn(reason);
+      return { ...c, inventory: { state: "unavailable", reason } };
+    }
+  });
 };
 
 export const parseTrees = (raw: unknown): Tree[] =>

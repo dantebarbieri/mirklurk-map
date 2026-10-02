@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertRejects } from "./assert.ts";
 import { captureSnapshot, type LiveDirectory, LiveReader, type Scan, scanDirectory, type Snapshot } from "../src/live.ts";
 import { decodeJson, parsePlayer } from "../src/save.ts";
+import { characterIndex } from "../src/files.ts";
 
 const json = (value: unknown) => JSON.stringify(value) + "\0";
 const p = (x = 24) => [{ worldGrid: Array.from({ length: 5 }, () => [1, 1, 1, 1, 1]), areaX: 0, areaY: 0, areaType: 1, xx: x }];
@@ -65,9 +66,46 @@ Deno.test("live: reject incomplete save stages, malformed JSON, grids and map im
   await assertRejects(() => captureSnapshot(scan(1, { "[ 0,0 ]/LOOT-8_8.save": "[" })));
   await assertRejects(() => captureSnapshot(scan(1, { "[ 0,0 ]/Lower.tmap": "partial" })), /short/);
   await assertRejects(() => captureSnapshot(scan(1, { "Maps/0_0.png": "partial" })), /PNG/);
+  await assertRejects(() =>
+    captureSnapshot(scan(1, {
+      "[ 0,0 ]/Containers.save": json([{ status: -205, gridSave: [[null]] }]),
+    })), /inventory cell/);
   const missing = scan();
   missing.entries.delete("Hero/[ 0,0 ]/Containers.save");
   await assertRejects(() => captureSnapshot(missing), /Containers.save/);
+});
+
+Deno.test("live: preserve character by exact root, then name, when folder scope changes", () => {
+  const whole = [{ name: "Aardvark", root: "Saves/Aardvark/" }, { name: "Hero", root: "Saves/Hero/" }];
+  const character = { name: "Hero", root: "Hero/" };
+  assertEquals(characterIndex(whole, character), 1);
+  assertEquals(characterIndex([character], whole[1]), 0);
+  assertEquals(characterIndex([{ name: "Hero", root: "Other/Hero/" }, whole[1]], whole[1]), 1);
+  assertEquals(characterIndex(whole, { name: "Deleted", root: "Deleted/" }), 0);
+  assertEquals(characterIndex(whole), 0);
+});
+
+Deno.test("live: malformed tree geometry cannot replace a previously accepted snapshot", async () => {
+  let time = 0;
+  let current = scan(1, { "[ 0,0 ]/Trees.save": json([{ index: 4, x: 8, y: 8, partArray: [Array(25).fill(0)] }]) });
+  const published: Snapshot[] = [], errors: string[] = [];
+  const reader = new LiveReader(() => Promise.resolve(current), (s) => {
+    published.push(s);
+    return Promise.resolve(true);
+  }, (message, error) => {
+    if (error) errors.push(message);
+  }, () => time);
+  await reader.poll();
+  time = 1500;
+  await reader.poll();
+  current = scan(2, { "[ 0,0 ]/Trees.save": json([{ index: 4, x: 8, y: 8, partArray: [[1]] }]) });
+  await reader.poll();
+  time = 3000;
+  await reader.poll();
+  assertEquals(published.length, 1);
+  assert(errors[0].includes("Invalid saved tree branch geometry"));
+  assertEquals(parsePlayer(decodeJson(await published[0].files.get("Hero/Player.save")!.read())).pos[0], 24);
+  reader.stop();
 });
 
 Deno.test("live: completion fence matches interior entrances and rift depth folders", async () => {

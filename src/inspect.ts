@@ -1,7 +1,7 @@
 import { h } from "./dom.ts";
 import { ITEM_NAMES } from "./gamedata.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
-import type { Mark } from "./objects.ts";
+import { type Mark, markKey } from "./objects.ts";
 import { entityWiki, itemWiki, wikiUrl, wikiVerified } from "./wiki.ts";
 
 export function wikiLink(url: string | undefined, label = "Wiki") {
@@ -68,7 +68,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>)
     entityLink(m),
     ...(m.inventory
       ? [
-        inventoryView(m.inventory, `inspection:${m.x}:${m.y}:${m.name}`, expanded),
+        inventoryView(m.inventory, `inspection:${markKey(m)}`, expanded),
         h("p", { class: "muted" }, "Saved contents only. Unsaved changes and later decay are not visible."),
       ]
       : []),

@@ -37,6 +37,8 @@ export interface Mark {
 
 const tile = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
 
+export const markKey = (m: Mark) => `${m.layer}:${m.x}:${m.y}:${m.name === "Unsearched remains" ? "Remains" : m.name}`;
+
 /** The saved interior a transition leads to (folder "[ zx,zy,ex,ey ]", or RW1–RW3 for the rift depths). */
 function interiorFor(tp: number[], interiors: Interior[]): Interior | undefined {
   if (tp[0] >= 24 && tp[0] <= 26) return interiors.find((i) => i.at[0] === -1 && i.kind === tp[0]);
@@ -137,9 +139,13 @@ export function detailMarks(d: ZoneDetail): Mark[] {
     } else out.push({ layer: "loot", kind: "loot", ...at, name: ITEM_NAMES[c.index] ?? "Container" });
   }
   for (const loot of d.groundLoot ?? []) {
-    if (!d.containers.some((c) => c.x === loot.x && c.y === loot.y)) {
-      out.push({ layer: "loot", kind: "drop", name: "Ground loot", ...loot, detail: "Separate saved ground-loot record" });
-    }
+    out.push({
+      layer: "loot",
+      kind: "drop",
+      name: "Ground loot",
+      ...loot,
+      detail: `Separate LOOT-${loot.x}_${loot.y}.save record; not merged with containers at this tile`,
+    });
   }
   for (const s of d.stations) out.push(stationMark(s));
   for (const i of d.interactables) {

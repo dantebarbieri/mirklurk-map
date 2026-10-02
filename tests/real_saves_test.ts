@@ -172,9 +172,7 @@ Deno.test({ name: "real saves: live completion fence and inventories parse for e
       const marks = detailMarks(detail);
       assertEquals(
         marks.filter((m) => m.inventory).length,
-        detail.containers.length + (detail.groundLoot ?? []).filter(
-          (g) => !detail.containers.some((c) => c.x === g.x && c.y === g.y),
-        ).length,
+        detail.containers.length + (detail.groundLoot?.length ?? 0),
       );
     }
     assertEquals(world.warnings, [], e.name);

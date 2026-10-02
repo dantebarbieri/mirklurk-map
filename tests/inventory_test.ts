@@ -1,7 +1,7 @@
 import { assert, assertEquals, assertRejects } from "./assert.ts";
 import { containerInventory, parseInventoryGrid, parseItemList } from "../src/inventory.ts";
 import { parseContainers, parsePlayer } from "../src/save.ts";
-import { detailMarks } from "../src/objects.ts";
+import { detailMarks, markKey } from "../src/objects.ts";
 import { loadDetail, loadWorld, type ZoneDetail } from "../src/world.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
 import { entityWiki, itemWiki, wikiUrl } from "../src/wiki.ts";
@@ -67,7 +67,7 @@ Deno.test("markers: reopened chests, remains, corpses, storage and wood drops re
   assertEquals(marks[2].name, `Carcass: ${BEING_NAMES[31]}`);
 });
 
-Deno.test("ground loot: load separate saved records, report corrupt files, avoid duplicate markers", async () => {
+Deno.test("ground loot: keep independently saved records visible at occupied container tiles", async () => {
   const source = (raw: unknown) => ({ read: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(raw))) });
   const world = await loadWorld(
     new Map([
@@ -84,8 +84,58 @@ Deno.test("ground loot: load separate saved records, report corrupt files, avoid
   assertEquals(d.groundLoot?.[0].inventory.state, "saved");
   assertEquals(d.groundLoot?.[1].inventory.state, "unavailable");
   assertEquals(world.warnings.length, 1);
-  d.containers.push(...parseContainers([{ x: 24, y: 40, status: -205, gridSave: [[item()]] }]));
-  assertEquals(detailMarks(d).length, 2);
+  for (const grid of [{}, { gridSave: [[item(3)]] }]) {
+    d.containers = parseContainers([{ x: 24, y: 40, status: -205, ...grid }]);
+    const marks = detailMarks(d);
+    assertEquals(marks.length, 3);
+    const ground = marks.find((m) => m.name === "Ground loot" && m.x === 24)!;
+    assert(ground.inventory?.state === "saved");
+    assertEquals(ground.inventory.items[0].index, 72);
+    assert(ground.detail?.includes("LOOT-24_40.save"));
+    assert(markKey(ground) !== markKey(marks[0]));
+    assertEquals(marks[0].inventory?.state, "gridSave" in grid ? "saved" : "unavailable");
+  }
+});
+
+Deno.test("manual containers: malformed inventory retains its marker and does not hide valid neighbors", async () => {
+  const containers = [
+    { x: 24, y: 40, index: 149, status: -200, gridSave: [[item()]] },
+    {
+      x: 56,
+      y: 40,
+      index: 108,
+      status: -211,
+      gridSave: [[{
+        ...item(12),
+        subParts: [{ type: 0, gridSave: [[null]] }],
+      }]],
+    },
+    { x: 72, y: 40, index: 31, status: -216, gridSave: [[item(72)]] },
+  ];
+  const source = (raw: unknown) => ({ read: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(raw))) });
+  const world = await loadWorld(
+    new Map([
+      ["Player.save", source(player())],
+      ["[ 0,0 ]/Containers.save", source(containers)],
+    ]),
+    "",
+    "Hero",
+  );
+  const loaded = await loadDetail(world, "[ 0,0 ]/");
+  assertEquals(loaded.containers.map((c) => c.inventory?.state), ["saved", "unavailable", "saved"]);
+  assertEquals(detailMarks(loaded).map((m) => m.x), [24, 56, 72]);
+  assertEquals(world.warnings.length, 1);
+  assert(world.warnings[0].includes("Containers.save: Container 2 at 56,40"));
+  await assertRejects(() => parseContainers(containers), /inventory cell/);
+});
+
+Deno.test("inspection: remains keep their selection key after opening", () => {
+  const before = detailMarks(detail(parseContainers([{ x: 24, y: 40, index: 152, status: -214 }])))[0];
+  const after = detailMarks(detail(parseContainers([{ x: 24, y: 40, index: 152, status: -205, gridSave: [[item()]] }])))[0];
+  assertEquals(before.name, "Unsearched remains");
+  assertEquals(after.name, "Remains");
+  assertEquals(markKey(before), markKey(after));
+  assertEquals(after.inventory?.state, "saved");
 });
 
 Deno.test("wiki: only verified titles produce direct article links; loot uses specific guides", () => {

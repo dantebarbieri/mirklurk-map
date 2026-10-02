@@ -75,6 +75,12 @@ export interface Character {
   root: string;
 }
 
+/** A character can have a different root when switching between its folder and the whole Saves folder. */
+export function characterIndex(characters: Character[], selected?: Character): number {
+  const exact = characters.findIndex((c) => c.root === selected?.root);
+  return exact >= 0 ? exact : Math.max(0, characters.findIndex((c) => c.name === selected?.name));
+}
+
 /** Every folder that contains a Player.save is a character (Saves/<name>/Player.save). */
 export function findCharacters(files: FileMap): Character[] {
   const out: Character[] = [];
