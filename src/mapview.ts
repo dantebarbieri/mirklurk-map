@@ -11,6 +11,31 @@ export interface Viewport {
   size: number;
 }
 
+export interface TouchPoint {
+  x: number;
+  y: number;
+}
+
+/** Keep the world point under the gesture midpoint fixed while the fingers move and scale. */
+export function gestureView(
+  view: Viewport,
+  before: TouchPoint[],
+  after: TouchPoint[],
+  width: number,
+  height: number,
+  max: number,
+): Viewport {
+  const midpoint = (points: TouchPoint[]) => ({
+    x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
+    y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
+  });
+  const a = midpoint(before), b = midpoint(after);
+  const distance = (points: TouchPoint[]) => Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+  const factor = before.length === 2 && after.length === 2 ? Math.max(1, distance(before)) / Math.max(1, distance(after)) : 1;
+  const size = Math.min(max, Math.max(96, view.size * factor));
+  return { x: view.x + a.x / width * view.size - b.x / width * size, y: view.y + a.y / height * view.size - b.y / height * size, size };
+}
+
 export interface Raster {
   paint(ctx: CanvasRenderingContext2D, view: Viewport): void;
   subscribe(callback: () => void): () => void;
@@ -270,20 +295,33 @@ export class MapView {
       const [x, y] = this.toGame(e);
       this.zoomBy(Math.exp(Math.max(-1, Math.min(1, e.deltaY / 200)) * 0.5), x, y);
     }, { passive: false });
-    let drag: { x: number; y: number; vx: number; vy: number; moved: boolean } | null = null;
+    const pointers = new Map<number, TouchPoint>();
+    let origin: TouchPoint | undefined;
+    let suppressClick = false;
+    let tapTarget: EventTarget | null = null;
     svg.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
-      drag = { x: e.clientX, y: e.clientY, vx: this.vx, vy: this.vy, moved: false };
+      if (!pointers.size) {
+        suppressClick = false;
+        origin = { x: e.clientX, y: e.clientY };
+        tapTarget = e.target;
+      } else {
+        suppressClick = true;
+      }
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      svg.setPointerCapture(e.pointerId);
+      this.tip.hidden = true;
     });
     svg.addEventListener("pointermove", (e) => {
-      if (drag && (e.buttons & 1)) {
+      if (pointers.has(e.pointerId)) {
+        if (!suppressClick && origin && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) < 4) return;
+        suppressClick = true;
         const r = svg.getBoundingClientRect();
-        const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-        if (!drag.moved && Math.hypot(dx, dy) < 4) return;
-        if (!drag.moved) svg.setPointerCapture(e.pointerId);
-        drag.moved = true;
-        this.vx = drag.vx - dx / r.width * this.vw;
-        this.vy = drag.vy - dy / r.height * this.vw;
+        const points = () => [...pointers.values()].slice(0, 2).map((p) => ({ x: p.x - r.left, y: p.y - r.top }));
+        const before = points();
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        const view = gestureView({ x: this.vx, y: this.vy, size: this.vw }, before, points(), r.width, r.height, this.bounds[2]);
+        [this.vx, this.vy, this.vw] = [view.x, view.y, view.size];
         this.apply();
         this.tip.hidden = true;
         return;
@@ -300,15 +338,20 @@ export class MapView {
       this.tip.style.left = `${Math.min(x + 14, box.width - this.tip.offsetWidth - 4)}px`;
       this.tip.style.top = `${y + 16 + this.tip.offsetHeight > box.height ? y - this.tip.offsetHeight - 8 : y + 16}px`;
     });
-    const end = () => {
-      setTimeout(() => (drag = null));
+    const end = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      if (e.type === "pointercancel") suppressClick = true;
+      if (svg.hasPointerCapture(e.pointerId)) svg.releasePointerCapture(e.pointerId);
     };
     svg.addEventListener("pointerup", end);
     svg.addEventListener("pointercancel", end);
+    svg.addEventListener("lostpointercapture", (e) => {
+      if (pointers.delete(e.pointerId)) suppressClick = true;
+    });
     svg.addEventListener("pointerleave", () => (this.tip.hidden = true));
     svg.addEventListener("click", (e) => {
-      if (drag?.moved) return;
-      const m = this.markAt(e.target);
+      if (suppressClick) return;
+      const m = this.markAt(tapTarget ?? e.target);
       if (m && onOpen) onOpen(m);
       else if (!m && onMapClick) {
         const [x, y] = this.toGame(e);
@@ -317,6 +360,7 @@ export class MapView {
     });
     svg.addEventListener("dblclick", (e) => {
       e.preventDefault();
+      if (suppressClick) return;
       const [x, y] = this.toGame(e);
       this.zoomBy(0.5, x, y);
     });

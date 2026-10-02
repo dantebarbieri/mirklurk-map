@@ -10,3 +10,5 @@
 !assets/game/*.png
 !tools/build.ts
 !deploy/nginx.conf
+!server/
+!server/**

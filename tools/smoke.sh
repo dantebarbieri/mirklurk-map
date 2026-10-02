@@ -10,6 +10,7 @@ base=http://127.0.0.1:18080
 
 cleanup() {
   docker rm -f "$name" >/dev/null 2>&1 || true
+  docker rm -f "$name-uploads" >/dev/null 2>&1 || true
   docker network rm "$net" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -21,6 +22,10 @@ fail() {
 
 docker build --pull -t "$img" .
 docker network create --ipv6 --subnet fd6d:6170:7000::/64 "$net" >/dev/null
+docker build --target uploads -t "$img-uploads" .
+docker run -d --name "$name-uploads" --network "$net" --network-alias uploads \
+  --read-only --tmpfs /tmp:size=16m --tmpfs /data:uid=1000,gid=1000,mode=700,size=128m \
+  --cap-drop ALL --security-opt no-new-privileges -e TRUST_UPLOAD_PROXY=true "$img-uploads" >/dev/null
 docker run -d --name "$name" --network "$net" -p 127.0.0.1:18080:8080 \
   --read-only --tmpfs /tmp:size=16m --cap-drop ALL --security-opt no-new-privileges \
   --health-interval 2s --health-start-period 1s "$img" >/dev/null
@@ -38,6 +43,13 @@ done
 [ "$(docker exec "$name" id -u)" != 0 ] || fail "nginx runs as root"
 
 curl -fsS "$base/healthz" | grep -qx ok || fail "/healthz"
+for _ in $(seq 1 30); do
+  if curl -fsS "$base/api/shares" >/dev/null; then break; fi
+  sleep 1
+done
+curl -fsS "$base/api/shares" | grep -q '"maxActivePerIP":3' || fail "private upload service unavailable"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/octet-stream' --data-binary invalid "$base/api/shares")" = 400 ] \
+  || fail "invalid uploads must be rejected"
 
 headers=$(curl -fsSI "$base/")
 grep -qi "^content-security-policy: default-src 'none'" <<<"$headers" || fail "CSP missing on /"
