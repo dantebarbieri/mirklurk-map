@@ -9,6 +9,7 @@ import { disposeView, playerInterior, rememberView, renderWorld, selectZone, typ
 import { TerrainStore } from "./terrain.ts";
 import { loadLayer, loadWorld } from "./world.ts";
 import { type DirectoryPicker, LiveReader, scanDirectory } from "./live.ts";
+import { Sharing } from "./sharing.ts";
 
 let files: FileMap | null = null;
 let chars: Character[] = [];
@@ -21,6 +22,12 @@ let reader: LiveReader | undefined;
 let liveTimer: number | undefined;
 let sourceToken = 0;
 let follow = true;
+let revision = 0;
+const sharing: Sharing = new Sharing({
+  current: () => files && !sharing.isWatching ? { files, character: chars[activeCharacter], revision, session: sourceToken } : undefined,
+  stopLocal: stopLive,
+  display: (map, character, refresh) => show(0, map, [character], refresh),
+});
 
 function status(text: string, error = false) {
   const el = $("#status");
@@ -72,7 +79,7 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
       st.inspected = state.inspected;
       st.expanded = state.expanded;
     }
-    if (reader && follow) {
+    if ((reader || sharing.isWatching) && follow) {
       const selected: [number, number] = [world.player.area.x, world.player.area.y];
       const interior = playerInterior(world)?.dir;
       if (st.selected?.[0] !== selected[0] || st.selected?.[1] !== selected[1] || st.interiorDir !== interior) {
@@ -90,6 +97,7 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
     chars = selectedChars;
     activeCharacter = i;
     state = st;
+    ++revision;
     installed = true;
     const pick = $<HTMLSelectElement>("#character");
     pick.replaceChildren(...options);
@@ -98,7 +106,8 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
     document.body.classList.add("loaded");
     renderWorld(st);
     const want = /^([A-E]),?([1-5])$/i.exec(new URLSearchParams(location.search).get("zone") ?? "");
-    if (want && !refresh && !reader) selectZone(st, "ABCDE".indexOf(want[1].toUpperCase()), Number(want[2]) - 1);
+    if (want && !refresh && !reader && !sharing.isWatching) selectZone(st, "ABCDE".indexOf(want[1].toUpperCase()), Number(want[2]) - 1);
+    sharing.changed();
     status("");
     return true;
   } catch (e) {
@@ -118,6 +127,7 @@ function liveStatus(text: string, error = false) {
 }
 
 function stopLive() {
+  sharing.stop();
   ++sourceToken;
   ++showToken;
   reader?.stop();
@@ -128,6 +138,7 @@ function stopLive() {
   $("#follow-control").hidden = true;
   status("");
   liveStatus("Live saves off. Manual imports are snapshots.");
+  sharing.changed();
 }
 
 async function manualImport(read: () => Promise<FileMap>) {
@@ -240,6 +251,7 @@ async function devSave(name: string) {
 }
 
 wire();
+void sharing.init();
 const dev = new URLSearchParams(location.search).get("dev");
 if (dev && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   devSave(dev).catch((e) => {

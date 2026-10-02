@@ -2,7 +2,14 @@
 // read-only at /__saves/<Character>/ so that /?dev=<Character> loads one without picking it.
 //   deno task dev            (saves default to ../Saves, override with MIRKLURK_SAVES)
 
+import { UploadStore } from "../server/uploads.ts";
+
 const root = new URL("../", import.meta.url);
+const uploads = Deno.env.get("ENABLE_UPLOADS") === "true" ? new UploadStore(".uploads") : undefined;
+if (uploads) {
+  await uploads.init();
+  setInterval(() => uploads.cleanup().catch((e) => console.error("Upload cleanup failed", e)), 60_000);
+}
 const saves = Deno.env.get("MIRKLURK_SAVES") ??
   decodeURIComponent(new URL("../Saves/", root).pathname).replace(/^\/([A-Za-z]:)/, "$1").replace(/\/$/, "");
 const port = Number(Deno.env.get("PORT") ?? 8123);
@@ -33,8 +40,13 @@ async function listDir(dir: string, prefix = ""): Promise<string[]> {
 
 const types: Record<string, string> = { html: "text/html; charset=utf-8", css: "text/css", png: "image/png" };
 
-Deno.serve({ hostname: "127.0.0.1", port }, async (req) => {
+Deno.serve({ hostname: "127.0.0.1", port }, async (req, info) => {
   const path = decodeURIComponent(new URL(req.url).pathname);
+  if (path.startsWith("/api/")) {
+    return uploads
+      ? uploads.handle(req, info.remoteAddr.hostname)
+      : Response.json({ error: "Uploads are disabled; set ENABLE_UPLOADS=true to enable local sharing" }, { status: 503 });
+  }
   try {
     if (path === "/app.js") return await bundle();
     if (/^\/assets\/game\/[a-z0-9_.]+\.png$/.test(path)) {
