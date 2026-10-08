@@ -6,8 +6,9 @@ import { centerpos, INTERIOR_NAMES, isOutside, LANDMARK_NAMES, NPC_BEINGS, Solid
 import type { Placed, Solid, Tree } from "./save.ts";
 import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
+import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, isTree, Nature, partLabel, trunkOf } from "./chop.ts";
 
-export type Layer = "places" | "npcs" | "creatures" | "loot" | "camp" | "boulders" | "rocks" | "trees";
+export type Layer = "places" | "npcs" | "creatures" | "loot" | "camp" | "boulders" | "rocks" | "trees" | "brambles";
 
 export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "npcs", label: "NPCs", on: true },
@@ -17,6 +18,7 @@ export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "creatures", label: "Creatures", on: false },
   { id: "rocks", label: "Small rocks", on: false },
   { id: "trees", label: "Trees", on: false },
+  { id: "brambles", label: "Brambles & sharp ground", on: false },
 ];
 
 export interface Mark {
@@ -33,6 +35,7 @@ export interface Mark {
   /** Entrance leading here: "explored" when the game has saved the interior. */
   explored?: boolean;
   inventory?: Inventory;
+  tree?: Tree;
 }
 
 const tile = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
@@ -177,7 +180,48 @@ export const sealedMarks = (interiors: Interior[]): Mark[] =>
     explored: true,
   }));
 
-export const treeMarks = (trees: Tree[]): Mark[] =>
-  trees.map((t) => ({ layer: "trees", kind: "tree", x: t.x, y: t.y, name: NATURE_NAMES[t.index] ?? "Tree" }));
+const SPECIES: Record<number, string> = {
+  [Nature.Willow]: "willow",
+  [Nature.Cypress]: "cypress",
+  [Nature.Trollgnarl]: "trollgnarl",
+  [Nature.Elderwort]: "elderwort",
+};
+
+/** Real trees only (wood for fires and rafts); brambles and rift vines go to `brambleMarks`. */
+export const treeMarks = (trees: Tree[], tool?: number): Mark[] =>
+  trees.filter((t) => isTree(t.index)).map((t) => {
+    const trunk = trunkOf(t);
+    return {
+      layer: "trees",
+      kind: ["tree", SPECIES[t.index], trunk && `f${trunk.freshness}`].filter(Boolean).join(" "),
+      x: t.x,
+      y: t.y,
+      name: NATURE_NAMES[t.index] ?? "Tree",
+      detail: treeDetail(t, tool),
+      tree: t,
+    };
+  });
+
+/** Thorny plants that hinder walking: Brambles and Rift Vines. */
+export const brambleMarks = (trees: Tree[]): Mark[] =>
+  trees.filter((t) => t.index === Nature.Brambles || t.index === Nature.RiftVine).map((t) => ({
+    layer: "brambles",
+    kind: t.index === Nature.RiftVine ? "bramble vine" : "bramble",
+    x: t.x,
+    y: t.y,
+    name: NATURE_NAMES[t.index] ?? "Brambles",
+    detail: t.index === Nature.RiftVine ? "thorny, slows walking more than brambles" : "thorny, slows walking",
+    tree: t,
+  }));
+
+/** "Half Dead (48% alive), trunk 4.2 AP" — the trunk's liveliness and its harvest cost with the tool. */
+export function treeDetail(t: Tree, tool?: number): string | undefined {
+  const trunk = trunkOf(t);
+  if (!trunk) return undefined;
+  const life = `${FRESHNESS[trunk.freshness]} (${Math.round(trunk.life * 100)}% alive)`;
+  if (tool === undefined) return life;
+  const cost = harvestCost(t.index, trunk.part, CHOP_TOOLS[tool] ?? 1);
+  return `${life}, ${partLabel(t.index, trunk.part).toLowerCase()} ${formatAp(cost)} AP`;
+}
 
 export const describe = (m: Mark) => `${m.name}${m.detail ? ` — ${m.detail}` : ""} (${tile(m.x, m.y)})`;

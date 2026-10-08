@@ -745,9 +745,98 @@ svg.map:active {
 .pt.rift > :not(text) {
   fill: var(--scaal);
 }
-.pt.tree > :not(text) {
-  fill: #7fae6a;
-  stroke-width: .8px;
+.pt.tree > :not(text),
+.lists .sym-icon path {
+  stroke: #120e0f;
+  stroke-width: .9px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.tree .tree-crown {
+  fill: var(--life, #7fae6a);
+}
+.tree .tree-wood {
+  fill: #b39b7b;
+}
+.pt.tree > .tree-detail,
+.lists .sym-icon .tree-detail {
+  fill: none;
+  stroke-width: .65px;
+  stroke-opacity: .65;
+}
+/* Trunk freshness, Very Fresh (f0) to Dead (f4); the drier, the cheaper to chop. */
+.tree.f0 {
+  --life: #5fae4f;
+}
+.tree.f1 {
+  --life: #a3c25a;
+}
+.tree.f2 {
+  --life: #e0c048;
+}
+.tree.f3 {
+  --life: #e58a3c;
+}
+.tree.f4 {
+  --life: #d9533e;
+}
+.lists .sym.tree {
+  background: var(--life, #7fae6a);
+  border-radius: 50%;
+}
+.lists .sym-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.pt.bramble > :not(text) {
+  fill: none;
+  stroke: #c85abe;
+  stroke-width: 2px;
+}
+.pt.bramble.vine > :not(text) {
+  stroke: #9a5aeb;
+}
+.lists .sym.bramble {
+  background: #c85abe;
+}
+.lists .sym.bramble.vine {
+  background: #9a5aeb;
+}
+.freshness-tag {
+  color: var(--life);
+  font-weight: 600;
+}
+.life-bar {
+  display: inline-block;
+  width: 80px;
+  height: 6px;
+  margin-left: 8px;
+  vertical-align: 1px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.life-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--life);
+}
+.tool-costs {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+.tool-costs .current {
+  color: var(--gold);
+}
+.chip select {
+  font-size: 12px;
+  max-width: 14em;
+}
+.marks .filtered {
+  display: none;
 }
 .pt.you > :not(text) {
   fill: #fff;
@@ -812,6 +901,7 @@ svg.hide-loot .L-loot,
 svg.hide-camp .L-camp,
 svg.hide-boulders .L-boulders,
 svg.hide-rocks .L-rocks,
-svg.hide-trees .L-trees {
+svg.hide-trees .L-trees,
+svg.hide-brambles .L-brambles {
   display: none;
 }

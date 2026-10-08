@@ -2,6 +2,8 @@ import { h } from "./dom.ts";
 import { ITEM_NAMES } from "./gamedata.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { type Mark, markKey } from "./objects.ts";
+import type { Tree } from "./save.ts";
+import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, MAX_AP, NATDEAD, Nature, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
 import { entityWiki, itemWiki, wikiUrl, wikiVerified } from "./wiki.ts";
 
 export function wikiLink(url: string | undefined, label = "Wiki") {
@@ -61,12 +63,17 @@ export function entityLink(m: Mark) {
   );
 }
 
-export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>) {
+export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>, tool?: number) {
   panel.hidden = false;
   panel.replaceChildren(
     h("h3", {}, m.name),
     h("p", { class: "muted" }, `Saved tile ${m.x >> 4},${m.y >> 4}${m.detail ? ` - ${m.detail}` : ""}`),
     entityLink(m),
+    ...(m.tree
+      ? (m.layer === "brambles"
+        ? brambleView(m.tree, tool ?? UNARMED)
+        : treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, expanded))
+      : []),
     ...(m.inventory
       ? [
         inventoryView(m.inventory, `inspection:${markKey(m)}`, expanded),
@@ -74,4 +81,100 @@ export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>)
       ]
       : []),
   );
+}
+
+const toolName = (tool: number) => ITEM_NAMES[tool] ?? `Item ${tool}`;
+
+const treeGuide = () => h("p", {}, wikiLink(wikiUrl("Tree health and chopping"), "How tree health and chopping work"));
+
+/** How a thorny plant hinders walking (scr_tiles_movement), and what cutting its stem costs. */
+function brambleView(plant: Tree, tool: number): HTMLElement[] {
+  const vine = plant.index === Nature.RiftVine;
+  const stem = trunkOf(plant);
+  return [
+    h(
+      "p",
+      {},
+      "Its stems turn the ground under them into ",
+      h("strong", {}, vine ? "rift vine" : "bramble"),
+      ` tiles (shaded on the map). Each step onto one costs more AP: the game divides a step's cost by the tile's footing, and ${
+        vine ? "rift vines take 0.6" : "brambles take 0.4"
+      } off it (sharp ground takes 1.0). Every step there also scratches you, costing a little wellbeing and wearing your gear. Each Wanderer skill level softens the slowdown by 8%.`,
+    ),
+    stem
+      ? h(
+        "p",
+        {},
+        "Cutting its main stem: ",
+        h("strong", {}, `${formatAp(harvestCost(plant.index, stem.part, CHOP_TOOLS[tool]))} AP`),
+        ` with ${toolName(tool)} (${FRESHNESS[stem.freshness].toLowerCase()}, ${Math.round(stem.life * 100)}% alive).`,
+      )
+      : null,
+  ].filter((e): e is HTMLElement => !!e);
+}
+
+/** Trunk liveliness, the game's harvest cost for the trunk with the chosen tool, and what it drops. */
+function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>): HTMLElement[] {
+  const trunk = trunkOf(tree);
+  if (!trunk) return [h("p", { class: "muted" }, "No standing trunk was saved for this plant.")];
+  const label = partLabel(tree.index, trunk.part);
+  const cost = (t: number) => formatAp(harvestCost(tree.index, trunk.part, CHOP_TOOLS[t]));
+  const tooDear = (t: number) => harvestCost(tree.index, trunk.part, CHOP_TOOLS[t]) > MAX_AP;
+  const wood = trunkWood(tree.index, trunk.size);
+  const wet = Math.max(0, trunk.life - 0.5);
+  const tools = Object.keys(CHOP_TOOLS).map(Number).sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
+  const branches = (tree.parts?.length ?? 1) - 1;
+  return [
+    h(
+      "p",
+      { class: `trunk-life tree f${trunk.freshness}` },
+      h("span", { class: "freshness-tag" }, FRESHNESS[trunk.freshness]),
+      ` trunk, ${Math.round(trunk.life * 100)}% alive`,
+      h("span", { class: "life-bar", "aria-hidden": "true" }, h("span", { style: `width: ${Math.round(trunk.life * 100)}%` })),
+      trunk.life < NATDEAD ? h("span", { class: "muted" }, " (leafless, no longer growing)") : null,
+    ),
+    h(
+      "p",
+      {},
+      `Harvest cost (${label}): `,
+      h("strong", {}, `${cost(tool)} AP`),
+      ` with ${toolName(tool)} (tool bonus ×${CHOP_TOOLS[tool]}).`,
+      tool !== UNARMED ? h("span", { class: "muted" }, ` Bare hands: ${cost(UNARMED)} AP.`) : null,
+    ),
+    h(
+      "p",
+      { class: "muted" },
+      tooDear(tool)
+        ? `The game refuses this chop: it costs more than the ${MAX_AP} AP maximum. Use a stronger tool or wait for the trunk to dry.`
+        : "Outside combat you can chop with fewer AP left; the shortfall comes off your next turn.",
+    ),
+    wood
+      ? h(
+        "p",
+        {},
+        `Felled, it drops ${wood.count} × ${ITEM_NAMES[wood.item] ?? `Item ${wood.item}`} (${
+          wet > 0 ? `${Math.round(wet * 100)}% wet` : "dry"
+        })`,
+        branches ? `, and its ${branches} branch${branches === 1 ? "" : "es"} fall with it` : "",
+        ".",
+      )
+      : null,
+    h(
+      "details",
+      { "data-remember": `${key}/tools`, open: expanded?.has(`${key}/tools`) ?? false },
+      h("summary", {}, "Cost with every tool"),
+      h(
+        "ul",
+        { class: "tool-costs" },
+        tools.map((t) =>
+          h(
+            "li",
+            { class: t === tool ? "current" : "" },
+            `${toolName(t)} (×${CHOP_TOOLS[t]}): ${cost(t)} AP${tooDear(t) ? ` (over ${MAX_AP} AP, refused)` : ""}`,
+          )
+        ),
+      ),
+    ),
+    treeGuide(),
+  ].filter((e): e is HTMLElement => !!e);
 }

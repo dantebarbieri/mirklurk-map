@@ -8,8 +8,8 @@ it shows:
 - where **Fort Solid, Ranger Bhato, the Library, Scaal, Gurb-Gurb and Ihar** are — or, where the game has not placed them yet, where its own
   placement rules can still put them, with probabilities;
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
-  loot, your stashes and camp items, rifts, large boulders and ruins. Creatures, small rocks, trees and a water overlay can be switched on.
-  Click an explored entrance to see the inside.
+  loot, your stashes and camp items, rifts, large boulders and ruins. Creatures, small rocks, trees, brambles and a water overlay can be
+  switched on. Click an explored entrance to see the inside.
 
 Save processing happens in the browser tab. Files stay local unless you explicitly upload a temporary shared copy. Realistic mode loads
 bundled art from the same site, never a third party. There is no world seed to type in — the game does not have a reusable one (see below).
@@ -118,6 +118,30 @@ world previews. Switching realistic mode off cancels pending terrain work and re
 Unexplored or missing terrain is labelled rather than invented: import the full character folder or ZIP for realistic terrain (`Player.save`
 or map PNGs alone are insufficient).
 
+### Trees: trunk liveliness and chopping cost
+
+Switch on **Trees** to draw each real tree (Willow, Cypress, Trollgnarl, Elderwort Shrub) as a small silhouette of its species, coloured by
+how alive its trunk is, from green (_Very Fresh_) through yellow (_Half Dead_) to red (_Dead_), using the game's own five freshness labels.
+Willows have hanging crowns, cypresses have pointed, uneven boughs, Trollgnarls have bare twisted forks, and Elderwort Shrubs have three
+flower clusters. Map markers and list icons share the same hand-drawn shapes. Freshness colours the foliage (or the bare Trollgnarl); the
+pale stems on the other species are just a visual anchor, not a second health indicator. No wiki images are loaded for these icons.
+**Trunks** hides all but the drier trees (Half Dead, Mostly Dead or Dead only), which are much cheaper to fell for logs. **Chop with** picks
+the tool used for costs; it defaults to the best chopping tool your character carries (equipped or in a bag), else bare hands. Hovering a
+tree shows its freshness, % alive and trunk harvest cost; clicking it shows the cost with the chosen tool and every other tool, the logs the
+felled trunk drops, and a link to the wiki's _Tree health and chopping_ guide (linked ahead of that page's deployment, as its title is
+fixed). **Trees, deadest first** lists the zone's trees (respecting the filter), and the choices are kept across zones and characters.
+
+Costs are the action points the game's harvest menu shows, at save time; trees keep growing and drying after that. The game refuses a chop
+that costs more than the player's maximum of 8 AP (`actionPointsMax` in `gml_Object_obj_player_Create_0`), and the inspector says so;
+outside combat a cheaper chop still goes through with fewer AP left, and the shortfall comes off the next turn. Trunk life never recovers:
+it only drops during the growth the game catches up on when you return to a zone (mostly on high ground and low inner branches) and near
+live rifts, so many lowland trees stay fresh.
+
+**Brambles & sharp ground** is a separate layer: Brambles and Rift Vines give no firewood but hinder walking. It marks each plant with a
+thorn and shades the ground tiles the game saved as thorny (`NatureData.tmap`: brambles, rift vines and sharp ground). A step's AP cost is
+divided by the tile's footing, which brambles cut by 0.4, rift vines by 0.6 and sharp ground by 1.0 (`tile_get_moment` in
+`gml_GlobalScript_scr_tiles_movement`), and each step there also costs wellbeing and gear durability.
+
 ## How the guesses work
 
 All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.8.1.5); the entry names are given so they can be
@@ -152,13 +176,23 @@ The zone percentages assume you head for a random candidate zone each time (one 
 per-visit chance divided by the sum of all of them (equal shares for Gurb-Gurb). If you are standing in a candidate zone, loading the save
 tries there first.
 
+**Tree liveliness and harvest cost** (`src/chop.ts`). Each saved tree part has a life value from 1 to 0 that drops as it grows (`tree_grow`
+in `gml_GlobalScript_scr_nature`); below `global.NATDEAD` = 0.33 (`gml_Room_rm_int_Create`) it loses its leaves and stops growing. The trunk
+is the root part. The harvest menu (`gml_Object_UI_Draw_64`) shows freshness `round(4 − 4 × life)` (Very Fresh … Dead) and charges
+`24 × size ÷ (round(max(0.1, 1 − life) × 10) × 0.5)` AP, so a dead trunk costs a tenth of a living one. Trunks are then multiplied by
+`1.33 + size` (Elderwort uses `8 × size` for its stem and `4 × size` for branches instead). The cost is capped at 32, multiplied by 1.2 for
+Cypress and 2 for Trollgnarl, divided by the tool's `chopMod` (`gml_Object_databank_Alarm_1`; e.g. Iron Hand Axe 3, Steel Felling Axe 4.2,
+bare hands 1), and rounded to 0.2 AP (at least 0.2). A felled trunk drops `ceil(size × trunk sprite height ÷ 16) + 1` logs, or branches when
+its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by `life − 0.5`, so dead wood is dry.
+
 ## What the zone map shows
 
 The base is the game's own map (land, water, slopes, big boulders; drawn when the zone was generated, so later changes such as the hut are
 overlays). Markers come from the zone folder: `Solids.save` (buildings, entrances with their `transPoint`, boulders and ruins with real
-sprite bounds), `Beings.save`, `Containers.save`, `Stations.save`, `Interactables.save` (rifts), `Trees.save` (loaded only when switched on)
-and `Water1.tmap` / `Ygrid.save` for the water overlay. Interiors (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to
-the entrance whose door is at `ex,ey` and drawn from their `Data`/`Lower`/`OnLower`/`Water1` layers.
+sprite bounds), `Beings.save`, `Containers.save`, `Stations.save`, `Interactables.save` (rifts), `Trees.save` (loaded only when trees or
+brambles are switched on), `NatureData.tmap` for thorny ground and `Water1.tmap` / `Ygrid.save` for the water overlay. Interiors
+(`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn from their
+`Data`/`Lower`/`OnLower`/`Water1` layers.
 
 ## Development
 

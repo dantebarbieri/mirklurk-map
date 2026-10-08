@@ -14,7 +14,12 @@ import { Sharing } from "./sharing.ts";
 let files: FileMap | null = null;
 let chars: Character[] = [];
 let urls: string[] = [];
-const prefs = { layers: new Set(LAYERS.filter((l) => l.on).map((l) => l.id)), water: false, realistic: false };
+const prefs: State["prefs"] = {
+  layers: new Set(LAYERS.filter((l) => l.on).map((l) => l.id)),
+  water: false,
+  realistic: false,
+  treeMin: 0,
+};
 let state: State | undefined;
 let showToken = 0;
 let activeCharacter = 0;
