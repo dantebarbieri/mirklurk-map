@@ -142,6 +142,10 @@ thorn and shades the ground tiles the game saved as thorny (`NatureData.tmap`: b
 divided by the tile's footing, which brambles cut by 0.4, rift vines by 0.6 and sharp ground by 1.0 (`tile_get_moment` in
 `gml_GlobalScript_scr_tiles_movement`), and each step there also costs wellbeing and gear durability.
 
+**Rifts** are drawn with a dashed circle showing how far they reach: 24 × a base radius of 8 (192 px, 12 tiles) for the large rift or 2.5
+(60 px) for the small one, measured from the sprite centre. Within it a rift withers tree parts, spreads rift grass and poisons you; a rift
+that hits you in your sleep takes up to half a health point, less further out. Dead rifts do nothing (`gml_Object_obj_rift_Alarm_0`).
+
 ## How the guesses work
 
 All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.8.1.5); the entry names are given so they can be

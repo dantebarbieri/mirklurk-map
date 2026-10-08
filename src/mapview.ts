@@ -275,6 +275,7 @@ export class MapView {
         const [l, t, r, b] = m.box;
         frag.append(s("rect", { class: `fp ${cls}`, x: l, y: t, width: r - l + 1, height: b - t + 1, "data-i": i }));
       }
+      if (m.radius) frag.append(s("circle", { class: `fp area ${cls}`, cx: m.x, cy: m.y, r: m.radius, "data-i": i }));
       if (FOOTPRINT_ONLY.has(m.kind.split(" ")[0])) continue;
       const sym = (POINT[m.kind.split(" ")[0]] ?? POINT.loot)(m);
       if (m.label) sym.push(s("text", { y: -9 }, m.label));
