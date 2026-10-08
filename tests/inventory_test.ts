@@ -44,9 +44,26 @@ Deno.test("inventory: not rolled, absent, and empty are distinct", () => {
   assertEquals(parseItemList([]), { state: "saved", items: [] });
 });
 
+Deno.test("inventory: game-saved wrong origins recover by occupied cells with a note", () => {
+  // From a real save: a bag inside its own pouch, with item 130's origin written as 0,0 instead of 2,0.
+  const self = { ...item(12), subParts: [{ type: 0, grid: "@ref ds_grid(159)" }] }, stray = item(130);
+  const parsed = parseInventoryGrid([[self, self, stray, stray], [self, self, stray, stray]]);
+  assert(parsed.state === "saved");
+  assertEquals(parsed.items.map((i) => i.index), [12, 130]);
+  assert(parsed.note?.includes("inconsistent"));
+  assertEquals(parsed.items[0].contents[0].state, "unavailable");
+  const outOfBounds = parseInventoryGrid([[item(3, 10)]]);
+  assert(outOfBounds.state === "saved");
+  assertEquals(outOfBounds.items.length, 1);
+  assertEquals((parseInventoryGrid([[item(3)]]) as { note?: string }).note, undefined);
+  const one = item(3, 10, 0, 1), two = item(3, 10, 0, 2), wetter = { ...item(3, 10, 0, 1), wet: 0.5 };
+  const adjacent = parseInventoryGrid([[one, one, two], [one, one, two], [wetter, wetter, two]]);
+  assert(adjacent.state === "saved");
+  assertEquals(adjacent.items.map((i) => [i.amount, i.wet]), [[1, 0.25], [2, 0.25], [1, 0.5]]);
+});
+
 Deno.test("inventory: corrupt grids and item records are explicit errors", async () => {
   await assertRejects(() => parseInventoryGrid([[-4], []]), /Ragged/);
-  await assertRejects(() => parseInventoryGrid([[item(3, 10)]]), /origin/);
   await assertRejects(() => parseInventoryGrid([[null]]), /cell/);
   await assertRejects(() => parseItemList([{ index: 3, amount: "many" }]), /item/);
   await assertRejects(() => parseItemList([{ ...item(), wet: Infinity }]), /wet/);

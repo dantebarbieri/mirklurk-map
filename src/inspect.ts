@@ -46,9 +46,10 @@ export function inventoryView(inventory: Inventory | undefined, key = "inventory
   if (!inventory || inventory.state !== "saved") {
     return h("p", { class: "muted" }, inventory?.reason ?? "Inventory is unavailable in this save.");
   }
-  return inventory.items.length
+  const list = inventory.items.length
     ? h("ul", { class: "inventory-items" }, inventory.items.map((item, i) => itemRow(item, `${key}/${i}:${item.index}`, expanded)))
     : h("p", { class: "muted" }, "Empty when saved.");
+  return inventory.note ? h("div", {}, h("p", { class: "muted" }, inventory.note), list) : list;
 }
 
 export function entityLink(m: Mark) {
