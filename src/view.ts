@@ -489,6 +489,14 @@ async function renderZone(st: State, z: Zone) {
   );
 }
 
+/** Layer chips grouped by category, each with a tri-state header. */
+const LAYER_GROUPS: [string, (Layer | "water")[]][] = [
+  ["Entities", ["npcs", "creatures"]],
+  ["Items", ["loot", "camp"]],
+  ["Terrain", ["boulders", "rocks", "water"]],
+  ["Nature", ["trees", "brambles"]],
+];
+
 /** Layer checkboxes. Trees and water load lazily, and only for outdoor zones (`dir` given). */
 function layerChips(
   st: State,
@@ -525,7 +533,8 @@ function layerChips(
     const url = dir && st.prefs.layers.has("brambles") ? await thornsUrl(st.world, dir) : null;
     if (current() && request === thornsRequest) map.setOverlay("thorns", url);
   };
-  const boxes = new Map<Layer, HTMLInputElement>();
+  // Water is a separate pref but is shown as part of Terrain.
+  const boxes = new Map<Layer | "water", [HTMLInputElement, HTMLElement]>();
   for (const l of LAYERS) {
     if (indoor && (l.id === "trees" || l.id === "boulders" || l.id === "brambles")) continue;
     const box = h("input", { type: "checkbox", checked: st.prefs.layers.has(l.id) }) as HTMLInputElement;
@@ -536,36 +545,8 @@ function layerChips(
       if (l.id === "brambles") setThorns();
       map.setLayers(st.prefs.layers, all);
     });
-    boxes.set(l.id, box);
-    chips.append(h("label", { class: `chip L-${l.id}`, title: LAYER_TIPS[l.id] ?? "" }, box, l.label));
+    boxes.set(l.id, [box, h("label", { class: `chip L-${l.id}`, title: LAYER_TIPS[l.id] ?? "" }, box, l.label)]);
   }
-  // Presets toggle a set of layers: all on unless every one already is.
-  const presets: [string, Layer[]][] = [["All", [...boxes.keys()]], ["Entities", ["npcs", "creatures"]]];
-  if (!indoor) presets.push(["Nature", ["trees", "brambles"]]);
-  const presetButtons: [HTMLButtonElement, HTMLInputElement[]][] = [];
-  const syncPresets = () => {
-    for (const [b, set] of presetButtons) b.setAttribute("aria-pressed", String(set.every((x) => x.checked)));
-  };
-  const presetRow = h("div", { class: "presets" });
-  for (const [label, ids] of presets) {
-    const set = ids.flatMap((id) => boxes.get(id) ?? []);
-    if (!set.length) continue;
-    const b = h("button", { type: "button", class: "chip preset", title: `Show/hide ${ids.join(", ")}` }, label) as HTMLButtonElement;
-    b.addEventListener("click", () => {
-      const on = !set.every((x) => x.checked);
-      for (const x of set) {
-        if (x.checked !== on) {
-          x.checked = on;
-          x.dispatchEvent(new Event("change"));
-        }
-      }
-    });
-    presetButtons.push([b, set]);
-    presetRow.append(b);
-  }
-  for (const box of boxes.values()) box.addEventListener("change", syncPresets);
-  syncPresets();
-  chips.prepend(presetRow);
   if (dir && !indoor) {
     if (st.prefs.layers.has("trees") || st.prefs.layers.has("brambles")) loadTreesOnce();
     if (st.prefs.layers.has("brambles")) setThorns();
@@ -578,9 +559,49 @@ function layerChips(
       st.prefs.water = box.checked;
       setWater();
     });
-    chips.append(h("label", { class: "chip water" }, box, "Water"));
+    boxes.set("water", [box, h("label", { class: "chip water" }, box, "Water")]);
     if (st.prefs.water) setWater();
+  }
 
+  /** Tri-state header: checks all of `set`, or clears them when every one is already on. */
+  const headers: [HTMLInputElement, HTMLInputElement[]][] = [];
+  const setBox = (x: HTMLInputElement, on: boolean) => {
+    if (x.checked === on) return;
+    x.checked = on;
+    x.dispatchEvent(new Event("change"));
+  };
+  const header = (label: string, set: HTMLInputElement[]) => {
+    const box = h("input", { type: "checkbox" }) as HTMLInputElement;
+    box.addEventListener("change", () => {
+      const on = !set.every((x) => x.checked);
+      for (const x of set) setBox(x, on);
+    });
+    headers.push([box, set]);
+    return h("label", { class: "chip group" }, box, label);
+  };
+  const sync = () => {
+    for (const [box, set] of headers) {
+      const n = set.filter((x) => x.checked).length;
+      box.checked = n === set.length;
+      box.indeterminate = n > 0 && n < set.length;
+    }
+  };
+  const every = [...boxes.values()].map(([box]) => box);
+  const reset = h("button", { type: "button", class: "chip reset" }, "Reset to defaults");
+  reset.addEventListener("click", () => {
+    for (const l of LAYERS) if (boxes.has(l.id)) setBox(boxes.get(l.id)![0], l.on);
+    const water = boxes.get("water");
+    if (water) setBox(water[0], false);
+  });
+  chips.append(h("div", { class: "layer-group" }, header("All", every), reset));
+  for (const [label, ids] of LAYER_GROUPS) {
+    const rows = ids.flatMap((id) => boxes.has(id) ? [boxes.get(id)!] : []);
+    if (!rows.length) continue;
+    chips.append(h("div", { class: "layer-group" }, header(label, rows.map(([box]) => box)), ...rows.map(([, el]) => el)));
+  }
+  for (const box of every) box.addEventListener("change", sync);
+  sync();
+  if (dir && !indoor) {
     const trunks = h(
       "select",
       { "aria-label": "Show trees by trunk liveliness" },
@@ -589,7 +610,7 @@ function layerChips(
     trunks.addEventListener("change", () => {
       st.prefs.treeMin = Number(trunks.value);
       map.setFilter(treeKeep(st.prefs.treeMin));
-      const treeBox = boxes.get("trees");
+      const treeBox = boxes.get("trees")?.[0];
       if (treeBox && !treeBox.checked) {
         treeBox.checked = true;
         treeBox.dispatchEvent(new Event("change"));

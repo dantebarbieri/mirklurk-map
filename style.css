@@ -604,18 +604,20 @@ svg.map:active {
   font-size: 12px;
   cursor: pointer;
 }
-.presets {
+.layer-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   flex-basis: 100%;
 }
-.chip.preset {
+.chip.group {
+  font-weight: 600;
+  min-width: 70px;
+}
+.chip.reset {
   background: none;
   color: inherit;
   padding: 1px 8px;
-}
-.chip.preset[aria-pressed="true"] {
-  border-color: var(--gold2);
 }
 .chip input {
   margin: 0;
