@@ -67,7 +67,13 @@ export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>,
   panel.hidden = false;
   panel.replaceChildren(
     h("h3", {}, m.name),
-    h("p", { class: "muted" }, `Saved tile ${m.x >> 4},${m.y >> 4}${m.detail ? ` - ${m.detail}` : ""}`),
+    h(
+      "p",
+      { class: "muted" },
+      `${m.away ? `${m.away.zone}, saved` : "Saved"} tile ${(m.x - (m.away?.ox ?? 0)) >> 4},${(m.y - (m.away?.oy ?? 0)) >> 4}${
+        m.detail ? ` - ${m.detail}` : ""
+      }`,
+    ),
     entityLink(m),
     ...(m.tree
       ? (m.layer === "brambles"

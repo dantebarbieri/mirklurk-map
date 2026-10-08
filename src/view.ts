@@ -470,7 +470,17 @@ async function renderZone(st: State, z: Zone) {
     if (list && wasOpen !== undefined) list.open = wasOpen;
   });
 
-  chips.addEventListener("change", () => around?.refresh(true));
+  const retool = () => {
+    around?.refresh(true);
+    const open = around?.trees.find((m) => markKey(m) === st.inspected);
+    if (open && !inspector.hidden) {
+      const expanded = new Set(
+        Array.from(inspector.querySelectorAll<HTMLDetailsElement>("details[data-remember][open]")).map((el) => el.dataset.remember!),
+      );
+      inspectMark(inspector, open, expanded, chopTool(st));
+    }
+  };
+  chips.addEventListener("change", retool);
 
   const legend = heats.length
     ? h(
@@ -539,6 +549,7 @@ function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean
   let timer = 0;
   return {
     zoneOf,
+    trees,
     /** Debounced; settings also refreshes neighbour tree costs after the chopping tool changes. */
     refresh(settings = false) {
       if (settings) { for (const m of trees) m.detail = treeDetail(m.tree!, chopTool(st)); }
