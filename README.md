@@ -109,7 +109,8 @@ at development time, not by sending save data to the wiki; pages can change afte
 `.tmap` layers using the game's own tilesets, including animated-tile first frames, atlas borders, mirroring and rotation. Buildings, rocks,
 placed objects and procedural trees use their saved sprites/geometry. NPCs, creatures and carcasses remain markers; this is a static
 daylight-like view, not a simulation of the game's lighting, weather, animation or camera-dependent roof fading. Layer chips control
-informational markers, not the scenery baked into the realistic map. Switch **Realistic** off to return to the original overview.
+informational markers (preset buttons toggle **All**, **Entities** — NPCs + creatures — and **Nature** — trees + brambles — at once), not
+the scenery baked into the realistic map. Switch **Realistic** off to return to the original overview.
 
 Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
 followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. **World** fits

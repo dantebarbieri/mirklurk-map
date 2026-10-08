@@ -604,6 +604,19 @@ svg.map:active {
   font-size: 12px;
   cursor: pointer;
 }
+.presets {
+  display: flex;
+  gap: 6px;
+  flex-basis: 100%;
+}
+.chip.preset {
+  background: none;
+  color: inherit;
+  padding: 1px 8px;
+}
+.chip.preset[aria-pressed="true"] {
+  border-color: var(--gold2);
+}
 .chip input {
   margin: 0;
   accent-color: var(--gold2);

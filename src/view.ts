@@ -539,6 +539,33 @@ function layerChips(
     boxes.set(l.id, box);
     chips.append(h("label", { class: `chip L-${l.id}`, title: LAYER_TIPS[l.id] ?? "" }, box, l.label));
   }
+  // Presets toggle a set of layers: all on unless every one already is.
+  const presets: [string, Layer[]][] = [["All", [...boxes.keys()]], ["Entities", ["npcs", "creatures"]]];
+  if (!indoor) presets.push(["Nature", ["trees", "brambles"]]);
+  const presetButtons: [HTMLButtonElement, HTMLInputElement[]][] = [];
+  const syncPresets = () => {
+    for (const [b, set] of presetButtons) b.setAttribute("aria-pressed", String(set.every((x) => x.checked)));
+  };
+  const presetRow = h("div", { class: "presets" });
+  for (const [label, ids] of presets) {
+    const set = ids.flatMap((id) => boxes.get(id) ?? []);
+    if (!set.length) continue;
+    const b = h("button", { type: "button", class: "chip preset", title: `Show/hide ${ids.join(", ")}` }, label) as HTMLButtonElement;
+    b.addEventListener("click", () => {
+      const on = !set.every((x) => x.checked);
+      for (const x of set) {
+        if (x.checked !== on) {
+          x.checked = on;
+          x.dispatchEvent(new Event("change"));
+        }
+      }
+    });
+    presetButtons.push([b, set]);
+    presetRow.append(b);
+  }
+  for (const box of boxes.values()) box.addEventListener("change", syncPresets);
+  syncPresets();
+  chips.prepend(presetRow);
   if (dir && !indoor) {
     if (st.prefs.layers.has("trees") || st.prefs.layers.has("brambles")) loadTreesOnce();
     if (st.prefs.layers.has("brambles")) setThorns();
