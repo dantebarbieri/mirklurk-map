@@ -875,7 +875,7 @@ svg.map:active {
   stroke-width: .9px;
   stroke-linejoin: round;
 }
-.pt.you.selected .you-halo {
+.pt.you.sel .you-halo {
   stroke: #ffd34d;
   stroke-width: 4px;
 }
