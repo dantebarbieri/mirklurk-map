@@ -8,9 +8,26 @@ import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
 import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, isTree, Nature, partLabel, trunkOf } from "./chop.ts";
 
-export type Layer = "places" | "npcs" | "creatures" | "loot" | "camp" | "boulders" | "rocks" | "trees" | "brambles";
+export type Layer =
+  | "exits"
+  | "places"
+  | "caves"
+  | "ruins"
+  | "rifts"
+  | "npcs"
+  | "creatures"
+  | "loot"
+  | "camp"
+  | "boulders"
+  | "rocks"
+  | "trees"
+  | "brambles";
 
 export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
+  { id: "places", label: "Places", on: true },
+  { id: "caves", label: "Caves", on: true },
+  { id: "ruins", label: "Ruins", on: true },
+  { id: "rifts", label: "Rifts", on: true },
   { id: "npcs", label: "NPCs", on: true },
   { id: "loot", label: "Loot", on: true },
   { id: "camp", label: "Camp & storage", on: true },
@@ -39,6 +56,18 @@ export interface Mark {
 }
 
 const tile = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
+
+/** Which location layer an interior kind belongs to; named places are the default. */
+export const locationLayer = (kind: number | null | undefined): Layer =>
+  kind == null
+    ? "places"
+    : kind >= 10 && kind <= 12
+    ? "caves"
+    : kind === 20 || kind === 21
+    ? "ruins"
+    : kind >= 24 && kind <= 26
+    ? "rifts"
+    : "places";
 
 export const markKey = (m: Mark) => `${m.layer}:${m.x}:${m.y}:${m.name === "Unsearched remains" ? "Remains" : m.name}`;
 
@@ -77,14 +106,14 @@ export function solidMarks(solids: Solid[], interiors: Interior[], current?: Int
     if (tp) {
       const up = isOutside(tp[0]) || (current?.parent != null && tp[0] === current.parent.kind);
       if (current && up) {
-        out.push({ layer: "places", kind: "exit", x: tp[1], y: tp[2], box, name: "Way out" });
+        out.push({ layer: "exits", kind: "exit", x: tp[1], y: tp[2], box, name: "Way out" });
         continue;
       }
       const name = INTERIOR_NAMES[tp[0]];
       if (name) {
         const interior = interiorFor(tp, interiors);
         out.push({
-          layer: "places",
+          layer: locationLayer(tp[0]),
           kind: interior ? "entrance explored" : "entrance",
           x: tp[1],
           y: tp[2],
@@ -154,7 +183,7 @@ export function detailMarks(d: ZoneDetail): Mark[] {
   for (const i of d.interactables) {
     const [l, t, r, b] = spriteBox(i.sprite, i.x, i.y);
     if (i.object === "obj_rift") {
-      out.push({ layer: "places", kind: "rift", x: (l + r) / 2, y: (t + b) / 2, name: "Rift", detail: "harms anything close to it" });
+      out.push({ layer: "rifts", kind: "rift", x: (l + r) / 2, y: (t + b) / 2, name: "Rift", detail: "harms anything close to it" });
     } else if (i.object === "obj_interactable") {
       out.push({ layer: "loot", kind: "loot", x: i.x, y: i.y, name: "Something to examine" });
     }
@@ -170,7 +199,7 @@ function stationMark(s: Placed): Mark {
 /** Saved interiors whose entrance no longer exists (so they get a marker of their own). */
 export const sealedMarks = (interiors: Interior[]): Mark[] =>
   interiors.filter((i) => i.sealed && !i.parent && i.at[0] >= 0).map((i) => ({
-    layer: "places",
+    layer: locationLayer(i.kind),
     kind: "entrance explored",
     x: i.at[0],
     y: i.at[1],

@@ -910,6 +910,10 @@ svg.map:active {
   stroke-width: 2px;
 }
 
+svg.hide-places .L-places,
+svg.hide-caves .L-caves,
+svg.hide-ruins .L-ruins,
+svg.hide-rifts .L-rifts,
 svg.hide-npcs .L-npcs,
 svg.hide-creatures .L-creatures,
 svg.hide-loot .L-loot,

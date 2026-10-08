@@ -491,6 +491,7 @@ async function renderZone(st: State, z: Zone) {
 
 /** Layer chips grouped by category, each with a tri-state header. */
 const LAYER_GROUPS: [string, (Layer | "water")[]][] = [
+  ["Locations", ["places", "caves", "ruins", "rifts"]],
   ["Entities", ["npcs", "creatures"]],
   ["Items", ["loot", "camp"]],
   ["Terrain", ["boulders", "rocks", "water"]],
@@ -643,6 +644,10 @@ function layerChips(
 }
 
 const LAYER_TIPS: Partial<Record<Layer, string>> = {
+  places: "Named landmarks such as Fort Solid, Camp, the Library and NPC homes, and their entrances",
+  caves: "Cave entrances",
+  ruins: "Ruin and ruin cellar entrances",
+  rifts: "Rifts and the entrances to the rift depths",
   trees: "Willow, Cypress, Trollgnarl and Elderwort, coloured by how dead the trunk is",
   brambles: "Brambles, Rift Vines and sharp ground: tiles that make each step cost more AP and scratch you",
 };
@@ -731,9 +736,11 @@ function markGroup(st: State, map: MapView, open: (m: Mark) => void, title: stri
   );
 }
 
+const LOCATIONS = new Set<Layer>(["exits", "places", "caves", "ruins", "rifts"]);
+
 function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => void) {
   const group = (title: string, ms: Mark[], openByDefault = true) => markGroup(st, map, open, title, ms, openByDefault);
-  const places = marks.filter((m) => m.layer === "places" && m.kind !== "boat");
+  const places = marks.filter((m) => LOCATIONS.has(m.layer) && m.kind !== "boat");
   places.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   const npcs = marks.filter((m) => m.layer === "npcs");
   const loot = marks.filter((m) => m.layer === "loot");
