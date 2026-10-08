@@ -122,6 +122,9 @@ or map PNGs alone are insufficient).
 
 Switch on **Trees** to draw each real tree (Willow, Cypress, Trollgnarl, Elderwort Shrub) as a small silhouette of its species, coloured by
 how alive its trunk is, from green (_Very Fresh_) through yellow (_Half Dead_) to red (_Dead_), using the game's own five freshness labels.
+Willows have hanging crowns, cypresses have pointed, uneven boughs, Trollgnarls have bare twisted forks, and Elderwort Shrubs have three
+flower clusters. Map markers and list icons share the same hand-drawn shapes. Freshness colours the foliage (or the bare Trollgnarl); the
+pale stems on the other species are just a visual anchor, not a second health indicator. No wiki images are loaded for these icons.
 **Trunks** hides all but the drier trees (Half Dead, Mostly Dead or Dead only), which are much cheaper to fell for logs. **Chop with** picks
 the tool used for costs; it defaults to the best chopping tool your character carries (equipped or in a bag), else bare hands. Hovering a
 tree shows its freshness, % alive and trunk harvest cost; clicking it shows the cost with the chosen tool and every other tool, the logs the

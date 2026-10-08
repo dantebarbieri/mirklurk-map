@@ -1,7 +1,7 @@
 // Page rendering: world grid, landmark list, zone and interior panels.
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
-import { MapView, TREE_ICONS } from "./mapview.ts";
+import { MapView, treeIcon } from "./mapview.ts";
 import {
   brambleMarks,
   detailMarks,
@@ -633,7 +633,7 @@ const treeSym = (kind: string) =>
   s(
     "svg",
     { class: `sym-icon ${kind}`, viewBox: "-8 -11 16 16", "aria-hidden": "true" },
-    s("path", { d: TREE_ICONS[kind.split(" ")[1]] ?? TREE_ICONS.willow }),
+    treeIcon(kind),
   );
 
 function markGroup(st: State, map: MapView, open: (m: Mark) => void, title: string, ms: Mark[], openByDefault = true) {

@@ -71,17 +71,44 @@ const POINT: Record<string, (m: Mark) => SVGElement[]> = {
   storage: () => [s("rect", { x: -4, y: -4, width: 8, height: 8 })],
   camp: () => [s("path", { d: "M-4 3 L0 -5 L4 3 Z" })],
   rift: () => [s("rect", { x: -4, y: -4, width: 8, height: 8, transform: "rotate(45)" })],
-  tree: (m) => [s("path", { d: TREE_ICONS[m.kind.split(" ")[1]] ?? TREE_ICONS.willow })],
+  tree: (m) => treeIcon(m.kind),
   bramble: () => [s("path", { d: "M-5 0 H5 M0 -5 V5 M-3.6 -3.6 L3.6 3.6 M3.6 -3.6 L-3.6 3.6" })],
 };
-/** Tree silhouettes by species, drawn about 14px tall with the trunk base at the tree's position. */
-export const TREE_ICONS: Record<string, string> = {
-  willow: "M-1 4 L-1 -1 L-3 1.5 L-4 -1.5 L-6 1 C-7.5 -6 -4 -9 0 -9 C4 -9 7.5 -6 6 1 L4 -1.5 L3 1.5 L1 -1 L1 4 Z",
-  cypress: "M0 -10 C3 -6 3.6 -1 1.3 2 L1 4 L-1 4 L-1.3 2 C-3.6 -1 -3 -6 0 -10 Z",
-  trollgnarl:
-    "M-1.5 4 L-0.5 0 L-3 -1.5 L-6.5 -2 L-5 -5 L-2 -4.5 L-3 -8.5 L0 -6.5 L3 -9.5 L3.5 -5.5 L6.5 -5.5 L5 -2 L1.8 -1 L1 1.5 L2.5 4 Z",
-  elderwort: "M-6 4 C-7.5 0 -5 -2.5 -2.8 -1.5 C-2.5 -6 2.5 -6 2.8 -1.5 C5 -2.5 7.5 0 6 4 Z",
+/** Hand-drawn, game-shaped silhouettes in screen pixels; roots end at y=4. */
+const TREE_ICONS: Record<string, { wood?: string; crown: string; detail: string }> = {
+  willow: {
+    wood: "M-1.8 4 Q-.5 1 -1 -2 L-4 -4 L-3 -5 L0 -3 L3 -6 L4 -5 L1 -1 Q.6 2 1.8 4 Z",
+    crown:
+      "M-6.5 .5 Q-7.5 -4 -5 -6 Q-4 -9 -1 -8 Q1 -10 3 -7 Q6.5 -7 6.5 -3 L6 1 L4.5 -1 L3.5 .5 L3 -3 Q1 -5 -1 -3 L-2 1 L-3.5 -1 L-4.5 2 L-5 -1 Z",
+    detail: "M-4 -5 Q-5 -3 -4.5 -1 M1.5 -7 Q4 -6 4.5 -3",
+  },
+  cypress: {
+    wood: "M-1.8 4 L-.8 0 L-3 -2 L-2 -3 L0 -1 L1 -6 L2 -6 L1.3 0 L2 4 Z",
+    crown: "M2 -10 L4 -7 L3 -6 L5 -4 L3.5 -3 L6 0 L3 1 L1 -.5 L-1 1 L-4.5 0 L-6 -2 L-4 -2 L-4.5 -4 L-2 -3 L-2.5 -6 L-.5 -5 L0 -8 L1 -7 Z",
+    detail: "M.5 -5 L2 -3 L3.5 -3 M-2 -1.5 L0 -.5 L2 -1.5",
+  },
+  trollgnarl: {
+    crown:
+      "M-2.5 4 Q-1 2 -1.8 0 Q-2.5 -1.5 -1 -3 L-3 -4.5 L-5 -4.8 L-6 -7 L-3.5 -5.8 L-4 -9 L-2 -6.3 L.2 -4.8 L.6 -7 L-.5 -10 L1.5 -8.5 L3 -10 L2.5 -6 L4 -7 L5 -9 L5 -6 L3 -4 Q1 -2 1.7 -.5 Q.5 1.5 2.5 4 Z",
+    detail: "M-.5 3 Q.7 1.5 -.3 0 Q-1.2 -1 .5 -2.5 M-2.5 -5.5 L0 -3.5",
+  },
+  elderwort: {
+    wood: "M-1 4 L-.5 1 L-4 -1 L-3.5 -2 L0 0 L1 -4 L2 -3 L1 1 L4 -1 L4.5 0 L1 2 L1 4 Z",
+    crown:
+      "M-.8 -5 Q-2 -6 -.8 -7 Q-.8 -8.5 .8 -8 Q2 -9 2.7 -7.5 Q4.3 -7.2 3.2 -5.8 Q3 -4.3 1.5 -4.8 Q0 -4 -.8 -5 Z M-6 -2 Q-7 -3 -5.8 -4 Q-5.8 -5.5 -4.2 -5 Q-2.8 -6 -2.1 -4.5 Q-.5 -4.2 -1.6 -2.8 Q-1.8 -1.3 -3.3 -1.8 Q-4.8 -1 -6 -2 Z M1 0 Q0 -1 1.2 -2 Q1.2 -3.5 2.8 -3 Q4.2 -4 4.9 -2.5 Q6.5 -2.2 5.4 -.8 Q5.2 .7 3.7 .2 Q2.2 1 1 0 Z",
+    detail: "M.5 -6.5 H1.5 M-4.5 -3.5 H-3.5 M2.5 -1.5 H3.5",
+  },
 };
+
+/** Shared by map markers and list rows, including the freshness-coloured bare Trollgnarl trunk. */
+export function treeIcon(kind: string): SVGElement[] {
+  const icon = TREE_ICONS[kind.split(" ")[1]] ?? TREE_ICONS.willow;
+  return [
+    ...(icon.wood ? [s("path", { class: "tree-wood", d: icon.wood })] : []),
+    s("path", { class: "tree-crown", d: icon.crown }),
+    s("path", { class: "tree-detail", d: icon.detail }),
+  ];
+}
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
 
 export class MapView {

@@ -745,9 +745,24 @@ svg.map:active {
 .pt.rift > :not(text) {
   fill: var(--scaal);
 }
-.pt.tree > :not(text) {
-  fill: #7fae6a;
-  stroke-width: .8px;
+.pt.tree > :not(text),
+.lists .sym-icon path {
+  stroke: #120e0f;
+  stroke-width: .9px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.tree .tree-crown {
+  fill: var(--life, #7fae6a);
+}
+.tree .tree-wood {
+  fill: #b39b7b;
+}
+.pt.tree > .tree-detail,
+.lists .sym-icon .tree-detail {
+  fill: none;
+  stroke-width: .65px;
+  stroke-opacity: .65;
 }
 /* Trunk freshness, Very Fresh (f0) to Dead (f4); the drier, the cheaper to chop. */
 .tree.f0 {
@@ -765,27 +780,15 @@ svg.map:active {
 .tree.f4 {
   --life: #d9533e;
 }
-.pt.tree[class*=" f"] > :not(text) {
-  fill: var(--life);
-}
-.pt.tree.f3 > :not(text),
-.pt.tree.f4 > :not(text) {
-  stroke-width: 1.4px;
-}
 .lists .sym.tree {
   background: var(--life, #7fae6a);
   border-radius: 50%;
 }
 .lists .sym-icon {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   margin-right: 4px;
   vertical-align: -1px;
-}
-.lists .sym-icon path {
-  fill: var(--life, #7fae6a);
-  stroke: #120e0f;
-  stroke-width: 1px;
 }
 .pt.bramble > :not(text) {
   fill: none;
