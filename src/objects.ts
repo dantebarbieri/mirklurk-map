@@ -53,6 +53,8 @@ export interface Mark {
   x: number;
   y: number;
   box?: [number, number, number, number];
+  /** Reach of an area effect around (x, y), in pixels. */
+  radius?: number;
   label?: string;
   name: string;
   detail?: string;
@@ -191,13 +193,18 @@ export function detailMarks(d: ZoneDetail): Mark[] {
   for (const i of d.interactables) {
     const [l, t, r, b] = spriteBox(i.sprite, i.x, i.y);
     if (i.object === "obj_rift") {
-      out.push({ layer: "rifts", kind: "rift", x: (l + r) / 2, y: (t + b) / 2, name: "Rift", detail: "harms anything close to it" });
+      const radius = riftRadius(i.sprite);
+      const detail = radius ? `harms anything within ${radius} px (${radius / 16} tiles)` : "dead, harmless";
+      out.push({ layer: "rifts", kind: "rift", x: (l + r) / 2, y: (t + b) / 2, radius: radius || undefined, name: "Rift", detail });
     } else if (i.object === "obj_interactable") {
       out.push({ layer: "loot", kind: "loot", x: i.x, y: i.y, name: "Something to examine" });
     }
   }
   return out;
 }
+
+/** Poison radius around a rift's sprite centre; dead rifts do nothing (obj_rift Alarm_0: poisonRadius = 24 * baseRad). */
+export const riftRadius = (sprite: string) => sprite.endsWith("_dead") ? 0 : 24 * (sprite === "spr_rift_16x16" ? 2.5 : 8);
 
 function stationMark(s: Placed): Mark {
   const name = ITEM_NAMES[s.index] ?? "Workstation";

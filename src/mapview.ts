@@ -314,12 +314,17 @@ export class MapView {
         const [l, t, r, b] = m.box;
         fps.push(s("rect", { class: `fp ${cls}`, x: l, y: t, width: r - l + 1, height: b - t + 1, "data-i": i }));
       }
+      if (m.radius) fps.push(s("circle", { class: `fp area ${cls}`, cx: m.x, cy: m.y, r: m.radius, "data-i": i }));
       if (FOOTPRINT_ONLY.has(m.kind.split(" ")[0])) continue;
       const sym = (POINT[m.kind.split(" ")[0]] ?? POINT.loot)(m);
       if (m.label) sym.push(s("text", { y: -9 }, m.label));
       this.addPoint(m.x, m.y, cls, sym, i, frag);
     }
-    const box = (e: SVGElement) => this.marks[Number(e.getAttribute("data-i"))].box!;
+    // Area circles sort by their bounding square, so they sit below the footprints they cover.
+    const box = (e: SVGElement): Box => {
+      const m = this.marks[Number(e.getAttribute("data-i"))], r = m.radius ?? 0;
+      return e.tagName === "circle" ? [m.x - r, m.y - r, m.x + r, m.y + r] : m.box!;
+    };
     this.fpLayer.append(...fps.sort((a, b) => footprintOrder(box(a), box(b))));
     this.markLayer.append(frag);
     if (this.keep) this.applyFilter();
