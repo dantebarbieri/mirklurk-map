@@ -125,11 +125,12 @@ how alive its trunk is, from green (_Very Fresh_) through yellow (_Half Dead_) t
 Willows have hanging crowns, cypresses have pointed, uneven boughs, Trollgnarls have bare twisted forks, and Elderwort Shrubs have three
 flower clusters. Map markers and list icons share the same hand-drawn shapes. Freshness colours the foliage (or the bare Trollgnarl); the
 pale stems on the other species are just a visual anchor, not a second health indicator. No wiki images are loaded for these icons.
-**Trunks** hides all but the drier trees (Half Dead, Mostly Dead or Dead only), which are much cheaper to fell for logs. **Chop with** picks
-the tool used for costs; it defaults to the best chopping tool your character carries (equipped or in a bag), else bare hands. Hovering a
-tree shows its freshness, % alive and trunk harvest cost; clicking it shows the cost with the chosen tool and every other tool, the logs the
-felled trunk drops, and a link to the wiki's _Tree health and chopping_ guide (linked ahead of that page's deployment, as its title is
-fixed). **Trees, deadest first** lists the zone's trees (respecting the filter), and the choices are kept across zones and characters.
+**Trunks** hides all but the drier trees (Half Dead, Mostly Dead or Dead only), which are much cheaper to fell for logs. **Chop with**,
+beside a clicked tree's harvest cost, picks the tool used for costs; it defaults to the best chopping tool your character carries (equipped
+or in a bag), else bare hands, and a manual pick resets to that default once the carried tools change. Hovering a tree shows its freshness,
+% alive and trunk harvest cost; clicking it shows the cost with the chosen tool and every other tool, the logs the felled trunk drops, and a
+link to the wiki's _Tree health and chopping_ guide (linked ahead of that page's deployment, as its title is fixed). **Trees, deadest
+first** lists the zone's trees (respecting the filter), and the choices are kept across zones and characters.
 
 Costs are the action points the game's harvest menu shows, at save time; trees keep growing and drying after that. The game refuses a chop
 that costs more than the player's maximum of 8 AP (`actionPointsMax` in `gml_Object_obj_player_Create_0`), and the inspector says so;

@@ -63,7 +63,7 @@ export function entityLink(m: Mark) {
   );
 }
 
-export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>, tool?: number) {
+export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>, tool?: number, picker?: HTMLElement) {
   panel.hidden = false;
   panel.replaceChildren(
     h("h3", {}, m.name),
@@ -72,7 +72,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>,
     ...(m.tree
       ? (m.layer === "brambles"
         ? brambleView(m.tree, tool ?? UNARMED)
-        : treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, expanded))
+        : treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, expanded, picker))
       : []),
     ...(m.inventory
       ? [
@@ -114,7 +114,7 @@ function brambleView(plant: Tree, tool: number): HTMLElement[] {
 }
 
 /** Trunk liveliness, the game's harvest cost for the trunk with the chosen tool, and what it drops. */
-function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>): HTMLElement[] {
+function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>, picker?: HTMLElement): HTMLElement[] {
   const trunk = trunkOf(tree);
   if (!trunk) return [h("p", { class: "muted" }, "No standing trunk was saved for this plant.")];
   const label = partLabel(tree.index, trunk.part);
@@ -133,6 +133,7 @@ function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>)
       h("span", { class: "life-bar", "aria-hidden": "true" }, h("span", { style: `width: ${Math.round(trunk.life * 100)}%` })),
       trunk.life < NATDEAD ? h("span", { class: "muted" }, " (leafless, no longer growing)") : null,
     ),
+    picker ? h("p", {}, picker) : null,
     h(
       "p",
       {},
