@@ -50,7 +50,8 @@ export interface MapSpec {
   onMapClick?: (x: number, y: number) => void;
   marks: Mark[];
   heats: { cls: string; url: string; bounds?: [number, number, number, number] | null }[];
-  player?: { x: number; y: number; label: string };
+  /** The player's spot; `title` is its hover text (saved or estimated position). */
+  player?: { x: number; y: number; label: string; title: string };
   onOpen?: (m: Mark) => void;
 }
 
@@ -109,6 +110,15 @@ export function treeIcon(kind: string): SVGElement[] {
     s("path", { class: "tree-detail", d: icon.detail }),
   ];
 }
+/** A simple player pictogram, coloured by the character's hair (--hair). Origin is the torso, shoulders end at y=4. */
+export function personIcon(): SVGElement[] {
+  const d = "M0 -8.5 A3 3 0 1 1 0 -2.5 A3 3 0 1 1 0 -8.5 Z M-5.5 4 A5.5 4.5 0 0 1 5.5 4 Z";
+  return [s("path", { class: "you-halo", d }), s("path", { class: "you-fill", d })];
+}
+/** Inline (HTML) person icon for the world grid and lists. */
+export const personSvg = () =>
+  s("svg", { class: "you-icon", viewBox: "-7 -10 14 15.5", "aria-hidden": "true" }, s("g", { class: "you" }, personIcon()));
+
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
 
 export class MapView {
@@ -119,6 +129,7 @@ export class MapView {
   private heatLayer: SVGElement;
   private overlay: SVGElement;
   private tip: HTMLElement;
+  private youTitle = "";
   private marks: Mark[] = [];
   private keep: ((m: Mark) => boolean) | null = null;
   private vx = 0;
@@ -188,7 +199,8 @@ export class MapView {
     );
     this.addMarks(spec.marks);
     if (spec.player) {
-      this.addPoint(spec.player.x, spec.player.y, "you", [s("circle", { r: 6 }), s("text", { y: -10 }, spec.player.label)], -1);
+      this.youTitle = spec.player.title;
+      this.addPoint(spec.player.x, spec.player.y, "you L-you", [...personIcon(), s("text", { y: -14 }, spec.player.label)], -1);
     }
     this.rescale();
     this.wire(spec.onOpen, spec.onMapClick);
@@ -378,12 +390,15 @@ export class MapView {
         return;
       }
       const m = this.markAt(e.target);
-      if (!m) {
+      const you = !m && (e.target as Element | null)?.closest?.(".pt.you");
+      if (!m && !you) {
         this.tip.hidden = true;
         return;
       }
       const box = this.el.getBoundingClientRect();
-      this.tip.textContent = describe(m) + (onOpen ? (m.interior ? " — click to look inside" : " — click to inspect") : "");
+      this.tip.textContent = m
+        ? describe(m) + (onOpen ? (m.interior ? " — click to look inside" : " — click to inspect") : "")
+        : this.youTitle;
       this.tip.hidden = false;
       const x = e.clientX - box.left, y = e.clientY - box.top;
       this.tip.style.left = `${Math.min(x + 14, box.width - this.tip.offsetWidth - 4)}px`;

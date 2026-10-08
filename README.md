@@ -71,10 +71,13 @@ ZIP, or dropped save manually also stops monitoring. Access is requested again w
 Browsers without the directory picker retain manual import.
 
 **This follows saved locations, not live movement.** The game saves before area transitions, on new-area generation, after normal sleep, at
-some story checkpoints, and when saving to the menu. The position may still be in the departing area until the next save. **Follow saved
-location** selects the player's saved zone/interior on refresh; turn it off to keep inspecting another area. Zoom, inspection selection and
-expanded sections are retained on same-area refreshes. The snapshot label shows `Player.save`'s timestamp when available; ZIP imports do not
-currently expose one.
+some story checkpoints, and when saving to the menu. Because a transition save is written while you still stand at the border or door, live
+mode (and watching a shared link) **estimates** where you went: a save within the travel strip at a zone edge, or within 3 tiles of an
+entrance, way out or stairs, moves you to the spot the game puts you on the other side (see _Where you are_ below). Estimates are labelled
+(est.), and hovering the person shows the basis and the true saved position. Manual imports, and stopping live saves, always show the saved
+position only. **Follow saved location** selects the player's (estimated) zone/interior on refresh; turn it off to keep inspecting another
+area. Zoom, inspection selection and expanded sections are retained on same-area refreshes. The snapshot label shows `Player.save`'s
+timestamp when available; ZIP imports do not currently expose one.
 
 The game writes a save over 19 game steps: player first, containers last. Live mode waits for at least 1.5 seconds of unchanged metadata,
 checks that the current area's container file is at least as recent as the player file, validates newly read data, then rechecks the
@@ -109,10 +112,10 @@ at development time, not by sending save data to the wiki; pages can change afte
 `.tmap` layers using the game's own tilesets, including animated-tile first frames, atlas borders, mirroring and rotation. Buildings, rocks,
 placed objects and procedural trees use their saved sprites/geometry. NPCs, creatures and carcasses remain markers; this is a static
 daylight-like view, not a simulation of the game's lighting, weather, animation or camera-dependent roof fading. Layer chips control
-informational markers, grouped as **Locations** (Places, Caves, Ruins, Rifts; indoor "Way out" exits always show), **Entities**, **Items**,
-**Terrain** (including Water) and **Nature**; each group's header checkbox (and the master **All**) toggles all its layers and shows a
-partial state when only some are on, and **Reset to defaults** restores the initial selection. They do not affect the scenery baked into the
-realistic map. Switch **Realistic** off to return to the original overview.
+informational markers, grouped as **Locations** (Places, Caves, Ruins, Rifts; indoor "Way out" exits always show), **Entities** (You, NPCs,
+Creatures), **Items**, **Terrain** (including Water) and **Nature**; each group's header checkbox (and the master **All**) toggles all its
+layers and shows a partial state when only some are on, and **Reset to defaults** restores the initial selection. They do not affect the
+scenery baked into the realistic map. Switch **Realistic** off to return to the original overview.
 
 Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
 followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. **World** fits
@@ -190,6 +193,14 @@ is the root part. The harvest menu (`gml_Object_UI_Draw_64`) shows freshness `ro
 Cypress and 2 for Trollgnarl, divided by the tool's `chopMod` (`gml_Object_databank_Alarm_1`; e.g. Iron Hand Axe 3, Steel Felling Axe 4.2,
 bare hands 1), and rounded to 0.2 AP (at least 0.2). A felled trunk drops `ceil(size × trunk sprite height ÷ 16) + 1` logs, or branches when
 its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by `life − 0.5`, so dead wood is dry.
+
+**Where you are** (`src/estimate.ts`). You are drawn as a head-and-shoulders pictogram filled with your character's hair colour (`hairBlend`
+in `Player.save`), outlined dark or light by its perceived lightness, on the world grid and on the zone or interior map. The game offers
+border travel at x ≤ 16, x ≥ 2544, y ≤ 48 or y ≥ 2512 (`gml_Object_UI_Draw_64`) and saves when you click it; you arrive at x = 8 / 2552 at
+the same y, or at the same x with y = 56 / 2552 (`sendX`/`sendY` there plus `manager_area` Alarm_2's +16). Using an entrance (targetAction 4
+in `gml_Object_obj_player_Step_0`) saves too, then `obj_screenfader` Step_0 places you at its `transPoint` 3–4 inside; a way out returns you
+to the entrance's interaction point, 16 below. Saves the game makes on arriving (a new zone, or first entering a quest room, `manager_area`
+Alarm_3) are recognised and not read as another departure.
 
 ## What the zone map shows
 
