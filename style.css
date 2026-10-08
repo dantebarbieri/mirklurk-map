@@ -604,6 +604,21 @@ svg.map:active {
   font-size: 12px;
   cursor: pointer;
 }
+.layer-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-basis: 100%;
+}
+.chip.group {
+  font-weight: 600;
+  min-width: 70px;
+}
+.chip.reset {
+  background: none;
+  color: inherit;
+  padding: 1px 8px;
+}
 .chip input {
   margin: 0;
   accent-color: var(--gold2);
@@ -792,17 +807,17 @@ svg.map:active {
 }
 .pt.bramble > :not(text) {
   fill: none;
-  stroke: #c85abe;
+  stroke: #a06e3c;
   stroke-width: 2px;
 }
 .pt.bramble.vine > :not(text) {
-  stroke: #9a5aeb;
+  stroke: #eb6eaa;
 }
 .lists .sym.bramble {
-  background: #c85abe;
+  background: #a06e3c;
 }
 .lists .sym.bramble.vine {
-  background: #9a5aeb;
+  background: #eb6eaa;
 }
 .freshness-tag {
   color: var(--life);
@@ -895,13 +910,19 @@ svg.map:active {
   stroke-width: 2px;
 }
 
+svg.hide-places .L-places,
+svg.hide-caves .L-caves,
+svg.hide-ruins .L-ruins,
+svg.hide-rifts .L-rifts,
 svg.hide-npcs .L-npcs,
 svg.hide-creatures .L-creatures,
 svg.hide-loot .L-loot,
 svg.hide-camp .L-camp,
 svg.hide-boulders .L-boulders,
+svg.hide-rubble .L-rubble,
 svg.hide-rocks .L-rocks,
 svg.hide-trees .L-trees,
-svg.hide-brambles .L-brambles {
+svg.hide-brambles .L-brambles,
+svg.hide-vines .L-vines {
   display: none;
 }
