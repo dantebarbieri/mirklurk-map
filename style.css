@@ -971,8 +971,8 @@ svg.map:active {
   stroke: var(--scaal);
   stroke-dasharray: 4 3;
 }
-.fp.hl,
-.fp.sel {
+.fp.hl:not(.area),
+.fp.sel:not(.area) {
   stroke: #fff;
   stroke-width: 2px;
 }

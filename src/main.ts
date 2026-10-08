@@ -151,9 +151,19 @@ function stopLive() {
   if (state?.estimate) {
     rememberView(state);
     state.estimate = null;
+    if (follow) followPlayer(state);
     renderWorld(state);
   }
   sharing.changed();
+}
+
+/** Points the view at the player's (estimated or saved) spot. */
+function followPlayer(st: State) {
+  const you = playerSpot(st);
+  st.selected = you.zone;
+  st.interiorDir = you.inside ? you.interior : undefined;
+  st.viewport = undefined;
+  st.inspected = undefined;
 }
 
 async function manualImport(read: () => Promise<FileMap>) {
@@ -227,11 +237,7 @@ function wire() {
     follow = (e.target as HTMLInputElement).checked;
     if (follow && state) {
       rememberView(state);
-      const you = playerSpot(state);
-      state.selected = you.zone;
-      state.interiorDir = you.inside ? you.interior : undefined;
-      state.viewport = undefined;
-      state.inspected = undefined;
+      followPlayer(state);
       renderWorld(state);
     }
   });

@@ -362,9 +362,13 @@ export function selectZone(st: State, x: number, y: number, restore = false) {
   }
   st.interiorDir = undefined;
   st.selected = [x, y];
+  markCell(x, y);
+  renderZone(st, st.world.zones[y][x]);
+}
+
+function markCell(x: number, y: number) {
   document.querySelectorAll(".cell.sel").forEach((c) => c.classList.remove("sel"));
   document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`)?.classList.add("sel");
-  renderZone(st, st.world.zones[y][x]);
 }
 
 function blankBase(world: World, z: Zone): SVGElement[] {
@@ -476,7 +480,10 @@ async function renderZone(st: State, z: Zone) {
     if (m.interior) {
       st.viewport = undefined;
       st.inspected = undefined;
-      renderInterior(st, around?.zoneOf.get(m) ?? z, m.interior, m.name);
+      const at = around?.zoneOf.get(m) ?? z;
+      st.selected = [at.x, at.y];
+      markCell(at.x, at.y);
+      renderInterior(st, at, m.interior, m.name);
     } else {
       st.inspected = markKey(m);
       map.select(m);
@@ -511,7 +518,7 @@ async function renderZone(st: State, z: Zone) {
   });
   activeMap = map;
   const around: ReturnType<typeof neighbourMarks> | undefined = st.prefs.realistic
-    ? neighbourMarks(st, map, z, () => my === token)
+    ? neighbourMarks(st, map, z, () => my === token, (added) => restoreInspection(added))
     : undefined;
   if (st.viewport) map.restore(st.viewport);
   around?.refresh();
@@ -581,7 +588,7 @@ async function renderZone(st: State, z: Zone) {
 }
 
 /** Realistic mode: other zones' markers, loaded once each zone first scrolls into view (trees only while shown). */
-function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean) {
+function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean, onAdd: (marks: Mark[]) => void) {
   const world = st.world;
   const loaded = new Set<string>(), treesLoaded = new Set<string>();
   const zoneOf = new Map<Mark, Zone>();
@@ -597,6 +604,7 @@ function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean
       zoneOf.set(m, n);
     }
     map.addMarks(marks);
+    onAdd(marks);
   };
   const load = () => {
     if (!current()) return;
