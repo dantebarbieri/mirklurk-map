@@ -115,7 +115,8 @@ daylight-like view, not a simulation of the game's lighting, weather, animation 
 informational markers, grouped as **Locations** (Places, Caves, Ruins, Rifts; indoor "Way out" exits always show), **Entities** (You, NPCs,
 Creatures), **Items**, **Terrain** (including Water) and **Nature**; each group's header checkbox (and the master **All**) toggles all its
 layers and shows a partial state when only some are on, and **Reset to defaults** restores the initial selection. They do not affect the
-scenery baked into the realistic map. Switch **Realistic** off to return to the original overview.
+scenery baked into the realistic map. Zooming out past the selected zone also shows other zones' markers for the enabled layers, loaded as
+each zone first comes into view. Switch **Realistic** off to return to the original overview.
 
 Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
 followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. **World** fits

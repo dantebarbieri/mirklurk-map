@@ -1,7 +1,7 @@
 // Page rendering: world grid, landmark list, zone and interior panels.
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
-import { MapView, personSvg, treeIcon } from "./mapview.ts";
+import { MapView, personSvg, treeIcon, zonesInView } from "./mapview.ts";
 import type { Estimate } from "./estimate.ts";
 import {
   brambleMarks,
@@ -476,7 +476,7 @@ async function renderZone(st: State, z: Zone) {
     if (m.interior) {
       st.viewport = undefined;
       st.inspected = undefined;
-      renderInterior(st, z, m.interior, m.name);
+      renderInterior(st, around?.zoneOf.get(m) ?? z, m.interior, m.name);
     } else {
       st.inspected = markKey(m);
       map.select(m);
@@ -497,13 +497,24 @@ async function renderZone(st: State, z: Zone) {
       : {}),
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
-    player: you.zone[0] === z.x && you.zone[1] === z.y
-      ? { x: you.x, y: you.y, label: youLabel(st, you, you.inside), title: you.title }
+    // Realistic mode spans the world, so the player shows even from a neighbouring zone.
+    player: st.prefs.realistic || (you.zone[0] === z.x && you.zone[1] === z.y)
+      ? {
+        x: you.x + (you.zone[0] - z.x) * ROOM,
+        y: you.y + (you.zone[1] - z.y) * ROOM,
+        label: youLabel(st, you, you.inside),
+        title: you.title,
+      }
       : undefined,
     onOpen: openInterior,
+    onView: () => around?.refresh(),
   });
   activeMap = map;
+  const around: ReturnType<typeof neighbourMarks> | undefined = st.prefs.realistic
+    ? neighbourMarks(st, map, z, () => my === token)
+    : undefined;
   if (st.viewport) map.restore(st.viewport);
+  around?.refresh();
   const restoreInspection = (available: Mark[]) => {
     const inspected = available.find((m) => markKey(m) === st.inspected);
     if (inspected) {
@@ -531,6 +542,20 @@ async function renderZone(st: State, z: Zone) {
     if (list && wasOpen !== undefined) list.open = wasOpen;
   });
 
+  const retool = () => {
+    around?.refresh(true);
+    const open = around?.trees.find((m) => markKey(m) === st.inspected);
+    if (open && !inspector.hidden) {
+      const expanded = new Set(
+        Array.from(inspector.querySelectorAll<HTMLDetailsElement>("details[data-remember][open]")).map((el) => el.dataset.remember!),
+      );
+      inspectMark(inspector, open, expanded, chopTool(st), picker());
+      map.select(open);
+    }
+  };
+  chips.addEventListener("retool", retool);
+  chips.addEventListener("change", () => around?.refresh());
+
   const legend = heats.length
     ? h(
       "p",
@@ -553,6 +578,59 @@ async function renderZone(st: State, z: Zone) {
   panel.replaceChildren(
     ...[panel.firstElementChild!, map.el, chips, legend, inspector, lists, treeList, areaWarnings(world)].filter((n): n is Element => !!n),
   );
+}
+
+/** Realistic mode: other zones' markers, loaded once each zone first scrolls into view (trees only while shown). */
+function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean) {
+  const world = st.world;
+  const loaded = new Set<string>(), treesLoaded = new Set<string>();
+  const zoneOf = new Map<Mark, Zone>();
+  const trees: Mark[] = [];
+  const add = (n: Zone, marks: Mark[]) => {
+    if (!current()) return;
+    const ox = (n.x - z.x) * ROOM, oy = (n.y - z.y) * ROOM;
+    for (const m of marks) {
+      m.x += ox;
+      m.y += oy;
+      if (m.box) m.box = [m.box[0] + ox, m.box[1] + oy, m.box[2] + ox, m.box[3] + oy];
+      m.away = { zone: n.name, ox, oy };
+      zoneOf.set(m, n);
+    }
+    map.addMarks(marks);
+  };
+  const load = () => {
+    if (!current()) return;
+    const plants = [...PLANT_LAYERS].some((l) => st.prefs.layers.has(l));
+    for (const [x, y] of zonesInView(map.viewport, [z.x, z.y])) {
+      const n = world.zones[y][x], k = key(x, y);
+      if (!loaded.has(k)) {
+        loaded.add(k);
+        const inners = interiorsOf(world, x, y);
+        (n.dir ? loadDetail(world, n.dir) : Promise.resolve(null)).then((detail) =>
+          add(n, [...solidMarks(n.solids, inners), ...sealedMarks(inners), ...(detail ? detailMarks(detail) : [])])
+        );
+      }
+      if (plants && n.dir && !treesLoaded.has(k)) {
+        treesLoaded.add(k);
+        loadTrees(world, n.dir).then((saved) => {
+          const t = treeMarks(saved, chopTool(st));
+          trees.push(...t);
+          add(n, [...t, ...brambleMarks(saved)]);
+        });
+      }
+    }
+  };
+  let timer = 0;
+  return {
+    zoneOf,
+    trees,
+    /** Debounced; settings also refreshes neighbour tree costs after the chopping tool changes. */
+    refresh(settings = false) {
+      if (settings) { for (const m of trees) m.detail = treeDetail(m.tree!, chopTool(st)); }
+      clearTimeout(timer);
+      timer = setTimeout(load, 120);
+    },
+  };
 }
 
 /** Layer chips grouped by category, each with a tri-state header. */

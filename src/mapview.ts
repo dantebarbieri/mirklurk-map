@@ -53,6 +53,19 @@ export interface MapSpec {
   /** The player's spot; `title` is its hover text (saved or estimated position). */
   player?: { x: number; y: number; label: string; title: string };
   onOpen?: (m: Mark) => void;
+  /** Called after every zoom or pan. */
+  onView?: (view: [number, number, number]) => void;
+}
+
+/** Zones of an n×n world, other than origin, that a viewport in origin's coordinates overlaps. */
+export function zonesInView([x, y, size]: [number, number, number], [ox, oy]: [number, number], n = 5): [number, number][] {
+  const out: [number, number][] = [];
+  const lo = (v: number, o: number) => Math.max(0, o + Math.floor(v / ROOM));
+  const hi = (v: number, o: number) => Math.min(n - 1, o + Math.ceil((v + size) / ROOM) - 1);
+  for (let zy = lo(y, oy); zy <= hi(y, oy); zy++) {
+    for (let zx = lo(x, ox); zx <= hi(x, ox); zx++) if (zx !== ox || zy !== oy) out.push([zx, zy]);
+  }
+  return out;
 }
 
 export function mapBounds([x, y, size]: [number, number, number]): [number, number, number] {
@@ -158,6 +171,7 @@ export class MapView {
   private raster?: Raster;
   private unsubscribe?: () => void;
   private frame = 0;
+  private onView?: (view: [number, number, number]) => void;
 
   constructor(spec: MapSpec) {
     this.home = spec.view ?? [0, 0, ROOM];
@@ -221,6 +235,7 @@ export class MapView {
       this.addPoint(spec.player.x, spec.player.y, "you L-you", [...personIcon(), s("text", { y: -14 }, spec.player.label)], -1);
     }
     this.rescale();
+    this.onView = spec.onView;
     this.wire(spec.onOpen, spec.onMapClick);
     this.observer = new ResizeObserver(() => this.rescale());
     this.observer.observe(this.svg);
@@ -358,6 +373,7 @@ export class MapView {
     this.vy = Math.min(Math.max(this.vy, top), top + max - this.vw);
     this.svg.setAttribute("viewBox", this.viewBox());
     this.rescale();
+    this.onView?.(this.viewport);
   }
 
   zoomBy(f: number, cx = this.vx + this.vw / 2, cy = this.vy + this.vw / 2) {

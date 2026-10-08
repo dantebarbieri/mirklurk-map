@@ -1,4 +1,4 @@
-import { boxArea, footprintOrder, gestureView, mapBounds, stackAt } from "../src/mapview.ts";
+import { boxArea, footprintOrder, gestureView, mapBounds, stackAt, zonesInView } from "../src/mapview.ts";
 import type { Mark } from "../src/objects.ts";
 import { ROOM } from "../src/rules.ts";
 import { assert, assertEquals } from "./assert.ts";
@@ -52,4 +52,11 @@ Deno.test("footprints: smaller boxes paint above larger ones; identical boxes st
   assertEquals(boxArea(door.box!), 36);
   assertEquals(stackAt([fort, door, twin], twin), [twin, door]);
   assertEquals(stackAt([fort, door, twin], fort), [fort]);
+});
+
+Deno.test("zones in view: neighbours a viewport overlaps, clipped to the world", () => {
+  assertEquals(zonesInView([0, 0, ROOM], [2, 2]), []);
+  assertEquals(zonesInView([-1, 0, ROOM], [2, 2]), [[1, 2]]);
+  assertEquals(zonesInView([-ROOM, -ROOM, 3 * ROOM], [0, 0]), [[1, 0], [0, 1], [1, 1]]);
+  assertEquals(zonesInView([-4 * ROOM, -4 * ROOM, 5 * ROOM], [4, 4]).length, 24);
 });
