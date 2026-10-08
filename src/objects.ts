@@ -14,6 +14,7 @@ export type Layer =
   | "caves"
   | "ruins"
   | "rifts"
+  | "you"
   | "npcs"
   | "creatures"
   | "loot"
@@ -31,6 +32,7 @@ export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "caves", label: "Caves", on: true },
   { id: "ruins", label: "Ruins", on: true },
   { id: "rifts", label: "Rifts", on: true },
+  { id: "you", label: "You", on: true },
   { id: "npcs", label: "NPCs", on: true },
   { id: "loot", label: "Loot", on: true },
   { id: "camp", label: "Camp & storage", on: true },

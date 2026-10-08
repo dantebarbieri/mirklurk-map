@@ -1,7 +1,8 @@
 // Page rendering: world grid, landmark list, zone and interior panels.
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
-import { MapView, treeIcon } from "./mapview.ts";
+import { MapView, personSvg, treeIcon } from "./mapview.ts";
+import type { Estimate } from "./estimate.ts";
 import {
   brambleMarks,
   detailMarks,
@@ -54,6 +55,8 @@ export interface State {
   viewport?: [number, number, number];
   inspected?: string;
   expanded?: Set<string>;
+  /** Live mode only: where the player probably went after this save. */
+  estimate?: Estimate | null;
 }
 
 const HEAT_COLOR: Record<LandmarkId, string> = {
@@ -104,17 +107,51 @@ function shores(world: World, x: number, y: number) {
   return { all: t === Area.VastWaters, n: wet(x, y - 1), s: wet(x, y + 1), e: wet(x + 1, y), w: wet(x - 1, y) };
 }
 
-function playerSpot(world: World): { x: number; y: number; zone: [number, number]; inside: boolean } {
-  const p = world.player;
+interface Spot {
+  x: number;
+  y: number;
+  zone: [number, number];
+  inside: boolean;
+  /** Interior holding the player, when known. */
+  interior?: string;
+  /** Position inside interior. */
+  at?: [number, number];
+  estimated?: string;
+  title: string;
+}
+
+const tileOf = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
+
+/** The player's spot: the live estimate when there is one, else the saved position (indoors, the entrance outside). */
+export function playerSpot(st: State): Spot {
+  const world = st.world, p = world.player, e = st.estimate;
+  const saved = `saved at ${coordLabel(p.area.x, p.area.y)}${isOutside(p.area.type) ? "" : " (indoors)"}, ${tileOf(p.pos[0], p.pos[1])}`;
+  if (e) {
+    const [x, y] = e.interior ? e.interior.at : e.pos;
+    return {
+      x,
+      y,
+      zone: e.zone,
+      inside: e.inside,
+      interior: e.interior?.dir,
+      at: e.interior ? e.pos : undefined,
+      estimated: e.basis,
+      title: `You (estimated: ${e.basis}; ${saved})`,
+    };
+  }
   const inside = !isOutside(p.area.type);
   const [x, y] = inside ? p.entrance : p.pos;
-  return { x, y, zone: [p.area.x, p.area.y], inside };
+  return { x, y, zone: [p.area.x, p.area.y], inside, interior: playerInterior(world)?.dir, at: p.pos, title: `You (${saved})` };
 }
+
+const youLabel = (you: Spot, inside: boolean) => `You${inside ? " (inside)" : ""}${you.estimated ? " (est.)" : ""}`;
 
 export function renderWorld(st: State) {
   st.cleanup?.();
   const w = st.world, p = w.player;
-  const you = playerSpot(w);
+  const you = playerSpot(st);
+  if (p.hair) document.documentElement.style.setProperty("--hair", p.hair);
+  else document.documentElement.style.removeProperty("--hair");
   const here = w.zones[you.zone[1]]?.[you.zone[0]];
   const version = p.version === "0.8.1.5" ? "" : ` · made for game 0.8.1.5, this save is ${p.version}`;
   const summary = h(
@@ -122,7 +159,11 @@ export function renderWorld(st: State) {
     { class: "summary" },
     h("b", {}, w.character),
     ` · day ${p.day}`,
-    here ? ` · you are in ${coordLabel(here.x, here.y)} ${here.name}${you.inside ? " (indoors)" : ""}` : "",
+    here
+      ? ` · you are ${you.estimated ? "probably " : ""}in ${coordLabel(here.x, here.y)} ${here.name}${you.inside ? " (indoors)" : ""}${
+        you.estimated ? ` (estimated: ${you.estimated})` : ""
+      }`
+      : "",
     version,
   );
   const freshness = h(
@@ -207,7 +248,7 @@ export function renderWorld(st: State) {
   } else selectZone(st, x, y, true);
 }
 
-function cell(st: State, z: Zone, you: ReturnType<typeof playerSpot>) {
+function cell(st: State, z: Zone, you: Spot) {
   const url = st.mapUrls.get(key(z.x, z.y));
   const sh = shores(st.world, z.x, z.y);
   const thumb = st.prefs.realistic && z.dir
@@ -252,7 +293,11 @@ function cell(st: State, z: Zone, you: ReturnType<typeof playerSpot>) {
     }
   }
   const isHere = you.zone[0] === z.x && you.zone[1] === z.y;
-  if (isHere) dots.push(h("span", { class: "you", title: "You", style: `left:${you.x / ROOM * 100}%;top:${you.y / ROOM * 100}%` }));
+  if (isHere) {
+    dots.push(
+      h("span", { class: "you-dot", title: you.title, style: `left:${you.x / ROOM * 100}%;top:${you.y / ROOM * 100}%` }, personSvg()),
+    );
+  }
   return h(
     "button",
     {
@@ -407,7 +452,7 @@ async function renderZone(st: State, z: Zone) {
     if (inside) m.detail = `${m.detail === "entrance is gone" ? "entrance is gone; " : ""}inside: ${insideSummary(inside.detail)}`;
   }
   const heats = zoneHeat(world, st.marks, z, { ...tiles, beings: detail?.beings });
-  const you = playerSpot(world);
+  const you = playerSpot(st);
   const url = st.mapUrls.get(key(z.x, z.y));
   const base = url
     ? [s("image", { href: url, x: 0, y: 0, width: ROOM, height: ROOM, class: "b-map", preserveAspectRatio: "none" })]
@@ -437,7 +482,9 @@ async function renderZone(st: State, z: Zone) {
       : {}),
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
-    player: you.zone[0] === z.x && you.zone[1] === z.y ? { x: you.x, y: you.y, label: you.inside ? "You (inside)" : "You" } : undefined,
+    player: you.zone[0] === z.x && you.zone[1] === z.y
+      ? { x: you.x, y: you.y, label: youLabel(you, you.inside), title: you.title }
+      : undefined,
     onOpen: openInterior,
   });
   activeMap = map;
@@ -492,7 +539,7 @@ async function renderZone(st: State, z: Zone) {
 /** Layer chips grouped by category, each with a tri-state header. */
 const LAYER_GROUPS: [string, (Layer | "water")[]][] = [
   ["Locations", ["places", "caves", "ruins", "rifts"]],
-  ["Entities", ["npcs", "creatures"]],
+  ["Entities", ["you", "npcs", "creatures"]],
   ["Items", ["loot", "camp"]],
   ["Terrain", ["boulders", "rubble", "rocks", "sharp", "water"]],
   ["Nature", ["trees", "brambles", "vines"]],
@@ -502,6 +549,12 @@ const LAYER_GROUPS: [string, (Layer | "water")[]][] = [
 const PLANT_LAYERS = new Set<Layer>(["trees", "brambles", "vines"]);
 const THORN_TILES: [Layer, number][] = [["brambles", 1], ["sharp", 2], ["vines", 3]];
 const OUTDOOR_ONLY = new Set<Layer>(["trees", "brambles", "vines", "sharp", "boulders", "rubble"]);
+
+/** The world grid's person follows the You layer too. */
+function showLayers(st: State, map: MapView, all: Layer[]) {
+  map.setLayers(st.prefs.layers, all);
+  document.body.classList.toggle("hide-you", !st.prefs.layers.has("you"));
+}
 
 /** Layer checkboxes. Trees and water load lazily, and only for outdoor zones (`dir` given). */
 function layerChips(
@@ -513,7 +566,7 @@ function layerChips(
   onPlants?: (plants: Mark[]) => void,
 ) {
   const all = LAYERS.map((l) => l.id);
-  map.setLayers(st.prefs.layers, all);
+  showLayers(st, map, all);
   map.setFilter(treeKeep(st.prefs.treeMin));
   const chips = h("div", { class: "layers" });
   let treesLoaded = false;
@@ -550,7 +603,7 @@ function layerChips(
       else st.prefs.layers.delete(l.id);
       if (PLANT_LAYERS.has(l.id) && box.checked) loadTreesOnce();
       if (THORN_TILES.some(([t]) => t === l.id)) setThorns();
-      map.setLayers(st.prefs.layers, all);
+      showLayers(st, map, all);
     });
     boxes.set(l.id, [box, h("label", { class: `chip L-${l.id}`, title: LAYER_TIPS[l.id] ?? "" }, box, l.label)]);
   }
@@ -808,6 +861,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     }
   });
   const kind = it.kind !== null ? INTERIOR_NAMES[it.kind] ?? name : name;
+  const you = playerSpot(st);
   const inspector = h("section", { class: "inspection", hidden: true, "aria-live": "polite" });
   const open = (m: Mark) => {
     if (m.interior) {
@@ -829,7 +883,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     view,
     marks,
     heats: [],
-    player: playerInterior(world)?.dir === it.dir ? { x: world.player.pos[0], y: world.player.pos[1], label: "You (saved)" } : undefined,
+    player: you.interior === it.dir && you.at ? { x: you.at[0], y: you.at[1], label: youLabel(you, false), title: you.title } : undefined,
     onOpen: open,
   });
   activeMap = map;

@@ -50,7 +50,8 @@ export interface MapSpec {
   onMapClick?: (x: number, y: number) => void;
   marks: Mark[];
   heats: { cls: string; url: string; bounds?: [number, number, number, number] | null }[];
-  player?: { x: number; y: number; label: string };
+  /** The player's spot; 	itle is its hover text (saved or estimated position). */
+  player?: { x: number; y: number; label: string; title: string };
   onOpen?: (m: Mark) => void;
 }
 
@@ -109,6 +110,25 @@ export function treeIcon(kind: string): SVGElement[] {
     s("path", { class: "tree-detail", d: icon.detail }),
   ];
 }
+/** The player as a small person; hair takes the save's hair colour via --hair. Origin is the lower torso, feet end at y=4. */
+export function personIcon(): SVGElement[] {
+  return [
+    s("path", {
+      class: "you-body",
+      d: "M-1.5 -5 L1.5 -5 L3.5 -3 L5 0 L3.5 0.5 L2 -2 L2 1 L3 4 L1 4 L1 1 L-1 1 L-1 4 L-3 4 L-2 1 L-2 -2 L-3.5 0.5 L-5 0 L-3.5 -3 Z",
+    }),
+    s("path", { class: "you-skin", d: "M-2.5 -9 L2.5 -9 L2.5 -6 L1 -4.5 L-1 -4.5 L-2.5 -6 Z" }),
+    s("path", {
+      class: "you-hair",
+      d: "M-3 -6.5 L-3 -9 L-1.5 -10.5 L1.5 -10.5 L3 -9 L3 -6.5 L2 -6.5 L2 -8.5 L0 -8 L-2 -8.5 L-2 -6.5 Z",
+    }),
+  ];
+}
+
+/** Inline (HTML) person icon for the world grid and lists. */
+export const personSvg = () =>
+  s("svg", { class: "you-icon", viewBox: "-6.5 -12.5 13 18", "aria-hidden": "true" }, s("g", { class: "you" }, personIcon()));
+
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
 
 export class MapView {
@@ -119,6 +139,7 @@ export class MapView {
   private heatLayer: SVGElement;
   private overlay: SVGElement;
   private tip: HTMLElement;
+  private youTitle = "";
   private marks: Mark[] = [];
   private keep: ((m: Mark) => boolean) | null = null;
   private vx = 0;
@@ -188,7 +209,8 @@ export class MapView {
     );
     this.addMarks(spec.marks);
     if (spec.player) {
-      this.addPoint(spec.player.x, spec.player.y, "you", [s("circle", { r: 6 }), s("text", { y: -10 }, spec.player.label)], -1);
+      this.youTitle = spec.player.title;
+      this.addPoint(spec.player.x, spec.player.y, "you L-you", [...personIcon(), s("text", { y: -14 }, spec.player.label)], -1);
     }
     this.rescale();
     this.wire(spec.onOpen, spec.onMapClick);
@@ -378,12 +400,15 @@ export class MapView {
         return;
       }
       const m = this.markAt(e.target);
-      if (!m) {
+      const you = !m && (e.target as Element | null)?.closest?.(".pt.you");
+      if (!m && !you) {
         this.tip.hidden = true;
         return;
       }
       const box = this.el.getBoundingClientRect();
-      this.tip.textContent = describe(m) + (onOpen ? (m.interior ? " — click to look inside" : " — click to inspect") : "");
+      this.tip.textContent = m
+        ? describe(m) + (onOpen ? (m.interior ? " — click to look inside" : " — click to inspect") : "")
+        : this.youTitle;
       this.tip.hidden = false;
       const x = e.clientX - box.left, y = e.clientY - box.top;
       this.tip.style.left = `${Math.min(x + 14, box.width - this.tip.offsetWidth - 4)}px`;

@@ -56,6 +56,8 @@ const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) 
 const pair = (v: unknown): [number, number] | null =>
   Array.isArray(v) && v.length >= 2 && typeof v[0] === "number" && typeof v[1] === "number" ? [v[0], v[1]] : null;
 
+export const bgr = (c: number) => `rgb(${c & 255},${(c >> 8) & 255},${(c >> 16) & 255})`;
+
 export interface PlayerSave {
   version: string;
   grid: number[][]; // [y][x], as grid_to_array writes it
@@ -71,6 +73,8 @@ export interface PlayerSave {
   riftQuestArea: [number, number] | null;
   gurbsHut: boolean;
   shipWreck: boolean;
+  /** Hair colour as CSS, from hairBlend (GameMaker colours are 0xBBGGRR). */
+  hair?: string;
   inventory?: Inventory;
 }
 
@@ -98,6 +102,7 @@ export function parsePlayer(raw: unknown): PlayerSave {
     riftQuestArea: pair(p.riftQuestArea),
     gurbsHut: p.gurbsHut === true,
     shipWreck: p.shipWreck === true,
+    hair: typeof p.hairBlend === "number" ? bgr(p.hairBlend) : undefined,
     inventory: parseItemList(p.myEquips),
   };
 }

@@ -370,8 +370,22 @@ body.loaded main {
 .pill.maybe {
   border-style: dotted;
 }
-.dot,
-.you {
+/* Grid thumbnail: the person's torso centre (~72% down the 18-unit viewBox) sits on the player's spot. */
+.you-dot {
+  position: absolute;
+  z-index: 3;
+  width: 14px;
+  height: 19px;
+  transform: translate(-50%, -69%);
+  pointer-events: auto;
+}
+.you-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.dot {
   position: absolute;
   z-index: 2;
   width: 9px;
@@ -379,10 +393,6 @@ body.loaded main {
   border-radius: 50%;
   transform: translate(-50%, -50%);
   border: 2px solid #1b1516;
-}
-.you {
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, .35);
 }
 .region {
   position: absolute;
@@ -853,10 +863,22 @@ svg.map:active {
 .marks .filtered {
   display: none;
 }
-.pt.you > :not(text) {
-  fill: #fff;
-  stroke: #000;
-  stroke-width: 2px;
+.you .you-body,
+.you .you-skin,
+.you .you-hair {
+  stroke: #120e0f;
+  stroke-width: .9px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.you .you-body {
+  fill: #f0eadf;
+}
+.you .you-skin {
+  fill: #d7c6ad;
+}
+.you .you-hair {
+  fill: var(--hair, #6b4a2b);
 }
 .pt.you text {
   fill: #fff;
@@ -910,6 +932,7 @@ svg.map:active {
   stroke-width: 2px;
 }
 
+svg.hide-you .L-you,
 svg.hide-places .L-places,
 svg.hide-caves .L-caves,
 svg.hide-ruins .L-ruins,
@@ -924,5 +947,8 @@ svg.hide-rocks .L-rocks,
 svg.hide-trees .L-trees,
 svg.hide-brambles .L-brambles,
 svg.hide-vines .L-vines {
+  display: none;
+}
+.hide-you .you-dot {
   display: none;
 }
