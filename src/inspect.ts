@@ -84,11 +84,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>,
 
 const toolName = (tool: number) => ITEM_NAMES[tool] ?? `Item ${tool}`;
 
-/** The wiki's tree health page once the catalog knows it, else the harvesting drops page. */
-const treeGuide = () => {
-  const url = wikiUrl("Tree health and chopping") ?? wikiUrl("Tree and shrub harvesting");
-  return url ? h("p", {}, wikiLink(url, "How tree health and chopping work")) : null;
-};
+const treeGuide = () => h("p", {}, wikiLink(wikiUrl("Tree health and chopping"), "How tree health and chopping work"));
 
 /** How a thorny plant hinders walking (scr_tiles_movement), and what cutting its stem costs. */
 function brambleView(plant: Tree, tool: number): HTMLElement[] {

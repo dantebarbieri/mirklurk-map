@@ -128,8 +128,8 @@ pale stems on the other species are just a visual anchor, not a second health in
 **Trunks** hides all but the drier trees (Half Dead, Mostly Dead or Dead only), which are much cheaper to fell for logs. **Chop with** picks
 the tool used for costs; it defaults to the best chopping tool your character carries (equipped or in a bag), else bare hands. Hovering a
 tree shows its freshness, % alive and trunk harvest cost; clicking it shows the cost with the chosen tool and every other tool, the logs the
-felled trunk drops, and a link to the wiki's guide. **Trees, deadest first** lists the zone's trees (respecting the filter), and the choices
-are kept across zones and characters.
+felled trunk drops, and a link to the wiki's _Tree health and chopping_ guide (linked ahead of that page's deployment, as its title is
+fixed). **Trees, deadest first** lists the zone's trees (respecting the filter), and the choices are kept across zones and characters.
 
 Costs are the action points the game's harvest menu shows, at save time; trees keep growing and drying after that. The game refuses a chop
 that costs more than the player's maximum of 8 AP (`actionPointsMax` in `gml_Object_obj_player_Create_0`), and the inspector says so;

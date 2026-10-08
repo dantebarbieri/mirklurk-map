@@ -1,9 +1,12 @@
 import data from "./wikidata.json" with { type: "json" };
 
-const titles = new Set(data.titles);
+/** Pages whose wiki PR is open (mirklurk-wiki#44); their titles are fixed, so link ahead of deployment. */
+const UPCOMING = ["Tree health and chopping"];
+
+const titles = new Set([...data.titles, ...UPCOMING]);
 export const wikiVerified = data.verified;
 
-/** Never construct an article URL for a title absent from the verified catalog. */
+/** Never construct an article URL for a title absent from the verified catalog or the upcoming list. */
 export function wikiUrl(title: string): string | undefined {
   return titles.has(title) ? `https://mirklurk.wiki/w/${encodeURIComponent(title.replaceAll(" ", "_"))}` : undefined;
 }

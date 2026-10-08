@@ -148,5 +148,6 @@ Deno.test("wiki: only verified titles produce direct article links; loot uses sp
   for (const name of Object.values(BEING_NAMES)) assert(wikiUrl(name), `No verified being page: ${name}`);
   assertEquals(itemWiki("Turnip"), wikiUrl("Turnip (item)"));
   assertEquals(entityWiki("Turnip"), wikiUrl("Turnip (nature)"));
+  assertEquals(wikiUrl("Tree health and chopping"), "https://mirklurk.wiki/w/Tree_health_and_chopping");
   for (const name of Object.values(ITEM_NAMES)) assert(itemWiki(name), `No verified item page: ${name}`);
 });
