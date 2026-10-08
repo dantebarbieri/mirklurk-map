@@ -110,19 +110,13 @@ export function treeIcon(kind: string): SVGElement[] {
     s("path", { class: "tree-detail", d: icon.detail }),
   ];
 }
-/** The player as a small person; hair takes the save's hair colour via --hair. Origin is the lower torso, feet end at y=4. */
+/** The player as a neutral pictogram (head + shoulders) filled with the save's hair colour (--hair). Origin is the torso, base at y=4. */
 export function personIcon(): SVGElement[] {
-  return [
-    s("path", {
-      class: "you-body",
-      d: "M-1.5 -5 L1.5 -5 L3.5 -3 L5 0 L3.5 0.5 L2 -2 L2 1 L3 4 L1 4 L1 1 L-1 1 L-1 4 L-3 4 L-2 1 L-2 -2 L-3.5 0.5 L-5 0 L-3.5 -3 Z",
-    }),
-    s("path", { class: "you-skin", d: "M-2.5 -9 L2.5 -9 L2.5 -6 L1 -4.5 L-1 -4.5 L-2.5 -6 Z" }),
-    s("path", {
-      class: "you-hair",
-      d: "M-3 -6.5 L-3 -9 L-1.5 -10.5 L1.5 -10.5 L3 -9 L3 -6.5 L2 -6.5 L2 -8.5 L0 -8 L-2 -8.5 L-2 -6.5 Z",
-    }),
+  const shape = (cls: string) => [
+    s("circle", { class: cls, cx: 0, cy: -7, r: 3 }),
+    s("path", { class: cls, d: "M-5 4 A5 5.5 0 0 1 5 4 Z" }),
   ];
+  return [...shape("you-halo"), ...shape("you-fill")];
 }
 
 /** Inline (HTML) person icon for the world grid and lists. */

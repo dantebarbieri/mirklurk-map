@@ -194,13 +194,13 @@ Cypress and 2 for Trollgnarl, divided by the tool's `chopMod` (`gml_Object_datab
 bare hands 1), and rounded to 0.2 AP (at least 0.2). A felled trunk drops `ceil(size × trunk sprite height ÷ 16) + 1` logs, or branches when
 its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by `life − 0.5`, so dead wood is dry.
 
-**Where you are** (`src/estimate.ts`). You are drawn as a small person in your character's hair colour (`hairBlend` in `Player.save`), on
-the world grid and on the zone or interior map. The game offers border travel at x ≤ 16, x ≥ 2544, y ≤ 48 or y ≥ 2512
-(`gml_Object_UI_Draw_64`) and saves when you click it; you arrive at x = 8 / 2552 at the same y, or at the same x with y = 56 / 2552
-(`sendX`/`sendY` there plus `manager_area` Alarm_2's +16). Using an entrance (targetAction 4 in `gml_Object_obj_player_Step_0`) saves too,
-then `obj_screenfader` Step_0 places you at its `transPoint` 3–4 inside; a way out returns you to the entrance's interaction point, 16
-below. Saves the game makes on arriving (a new zone, or first entering a quest room, `manager_area` Alarm_3) are recognised and not read as
-another departure.
+**Where you are** (`src/estimate.ts`). You are drawn as a head-and-shoulders pictogram filled with your character's hair colour (`hairBlend`
+in `Player.save`), outlined dark or light by its perceived lightness, on the world grid and on the zone or interior map. The game offers
+border travel at x ≤ 16, x ≥ 2544, y ≤ 48 or y ≥ 2512 (`gml_Object_UI_Draw_64`) and saves when you click it; you arrive at x = 8 / 2552 at
+the same y, or at the same x with y = 56 / 2552 (`sendX`/`sendY` there plus `manager_area` Alarm_2's +16). Using an entrance (targetAction 4
+in `gml_Object_obj_player_Step_0`) saves too, then `obj_screenfader` Step_0 places you at its `transPoint` 3–4 inside; a way out returns you
+to the entrance's interaction point, 16 below. Saves the game makes on arriving (a new zone, or first entering a quest room, `manager_area`
+Alarm_3) are recognised and not read as another departure.
 
 ## What the zone map shows
 

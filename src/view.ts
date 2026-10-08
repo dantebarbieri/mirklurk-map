@@ -150,8 +150,12 @@ export function renderWorld(st: State) {
   st.cleanup?.();
   const w = st.world, p = w.player;
   const you = playerSpot(st);
-  if (p.hair) document.documentElement.style.setProperty("--hair", p.hair);
-  else document.documentElement.style.removeProperty("--hair");
+  const root = document.documentElement.style;
+  if (p.hair) root.setProperty("--hair", p.hair);
+  else root.removeProperty("--hair");
+  const light = p.hairLight !== false;
+  root.setProperty("--you-line", light ? "#120e0f" : "#f4efe6");
+  root.setProperty("--you-halo", light ? "rgb(244 239 230 / .45)" : "rgb(18 14 15 / .5)");
   const here = w.zones[you.zone[1]]?.[you.zone[0]];
   const version = p.version === "0.8.1.5" ? "" : ` · made for game 0.8.1.5, this save is ${p.version}`;
   const summary = h(

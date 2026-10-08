@@ -1,6 +1,6 @@
 import { assertEquals } from "./assert.ts";
 import { arrival, borderSide, estimatePlayer, inferMove } from "../src/estimate.ts";
-import { bgr, type PlayerSave } from "../src/save.ts";
+import { bgr, isLight, type PlayerSave } from "../src/save.ts";
 import type { Interior, World, Zone } from "../src/world.ts";
 
 const player = (area: [number, number, number], pos: [number, number], entrance: [number, number] = [8, 8]) =>
@@ -69,6 +69,9 @@ Deno.test("the game's arrival save after a predicted move is not treated as anot
 
 Deno.test("hairBlend is a BGR colour", () => {
   assertEquals(bgr(4011322), "rgb(58,53,61)");
+  assertEquals(isLight(4011322), false);
+  assertEquals(isLight(0x80c0ff), true); // rgb(255,192,128) blonde-ish
+  assertEquals(isLight(0x000080), false); // dark red
 });
 
 Deno.test("the save made on first entering a quest room is not read as leaving it", () => {
