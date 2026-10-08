@@ -54,6 +54,7 @@ Deno.test("a save beside an entrance or way out crosses it", () => {
   const inside = inferMove(world(p), p);
   assertEquals(inside?.interior, cave);
   assertEquals(inside?.pos, [1280, 1400]);
+  assertEquals(inside?.entrance, [1000, 1000]);
   const q = player([1, 0, 10], [1280, 1400], [1000, 1000]);
   const out = inferMove(world(q), q);
   assertEquals(out && { zone: out.zone, pos: out.pos, inside: out.inside }, { zone: [1, 0], pos: [1000, 1000], inside: false });

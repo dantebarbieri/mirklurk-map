@@ -12,6 +12,8 @@ export interface Estimate {
   zone: [number, number];
   /** The interior the player is guessed to be in; undefined outdoors or when it has not been saved yet. */
   interior?: Interior;
+  /** The outdoor entrance used, on the zone map; set with `interior` (rift depths have no outdoor `at`). */
+  entrance?: [number, number];
   inside: boolean;
   /** In the interior's coordinates when `interior` is set, else in the zone's (the entrance spot when inside). */
   pos: [number, number];
@@ -74,7 +76,7 @@ export function inferMove(world: World, p: PlayerSave): Estimate | null {
       const at: [number, number] = [centerpos(door[1]), centerpos(door[2])];
       const interior = world.interiors.find((it) => it.zone[0] === ax && it.zone[1] === ay && it.at[0] === at[0] && it.at[1] === at[1]);
       return interior
-        ? { zone: [ax, ay], interior, inside: true, pos: [door[3], door[4]], basis: "saved beside this entrance" }
+        ? { zone: [ax, ay], interior, entrance: at, inside: true, pos: [door[3], door[4]], basis: "saved beside this entrance" }
         : { zone: [ax, ay], inside: true, pos: at, basis: "saved beside this entrance (inside not saved yet)" };
     }
     const side = borderSide(p.pos[0], p.pos[1]);
@@ -95,7 +97,9 @@ export function inferMove(world: World, p: PlayerSave): Estimate | null {
   }
   const up = here.parent?.kind === door[0] ? here.parent : undefined;
   const to = up ?? world.interiors.find((it) => it.parent === here && it.kind === door[0]);
-  return to ? { zone: here.zone, interior: to, inside: true, pos: [door[3], door[4]], basis: "saved beside the stairs" } : null;
+  return to
+    ? { zone: here.zone, interior: to, entrance: p.entrance, inside: true, pos: [door[3], door[4]], basis: "saved beside the stairs" }
+    : null;
 }
 
 const sameArea = (e: Estimate, world: World, p: PlayerSave) =>

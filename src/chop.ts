@@ -132,7 +132,7 @@ export function ownedTools(inventory: Inventory | undefined): number[] {
     }
   };
   walk(inventory);
-  return [...found].sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a]);
+  return [...found].sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
 }
 
 /** A manual pick only holds while the carried tools are what they were when it was made; otherwise the best carried tool. */

@@ -127,7 +127,7 @@ export function playerSpot(st: State): Spot {
   const world = st.world, p = world.player, e = st.estimate;
   const saved = `saved at ${coordLabel(p.area.x, p.area.y)}${isOutside(p.area.type) ? "" : " (indoors)"}, ${tileOf(p.pos[0], p.pos[1])}`;
   if (e) {
-    const [x, y] = e.interior ? e.interior.at : e.pos;
+    const [x, y] = e.interior ? e.entrance ?? e.interior.at : e.pos;
     return {
       x,
       y,
