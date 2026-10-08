@@ -100,7 +100,7 @@ Deno.test("chop: brambles and rift vines are their own layer, not trees", () => 
   const plant = (index: number) => ({ index, x: 0, y: 0, parts: [part(0.5, 0.5)] });
   const saved = [plant(Nature.Willow), plant(Nature.Brambles), plant(Nature.RiftVine), plant(Nature.Cypress)];
   assertEquals(treeMarks(saved).map((m) => m.kind.split(" ")[1]), ["willow", "cypress"]);
-  assertEquals(brambleMarks(saved).map((m) => [m.layer, m.kind]), [["brambles", "bramble"], ["brambles", "bramble vine"]]);
+  assertEquals(brambleMarks(saved).map((m) => [m.layer, m.kind]), [["brambles", "bramble"], ["vines", "bramble vine"]]);
 });
 
 Deno.test("chop: the default tool is the best one carried, even in a bag", () => {

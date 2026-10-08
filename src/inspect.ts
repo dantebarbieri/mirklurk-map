@@ -70,7 +70,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>,
     h("p", { class: "muted" }, `Saved tile ${m.x >> 4},${m.y >> 4}${m.detail ? ` - ${m.detail}` : ""}`),
     entityLink(m),
     ...(m.tree
-      ? (m.layer === "brambles"
+      ? (m.layer === "brambles" || m.layer === "vines"
         ? brambleView(m.tree, tool ?? UNARMED)
         : treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, expanded))
       : []),

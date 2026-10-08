@@ -807,17 +807,17 @@ svg.map:active {
 }
 .pt.bramble > :not(text) {
   fill: none;
-  stroke: #c85abe;
+  stroke: #a06e3c;
   stroke-width: 2px;
 }
 .pt.bramble.vine > :not(text) {
-  stroke: #9a5aeb;
+  stroke: #eb6eaa;
 }
 .lists .sym.bramble {
-  background: #c85abe;
+  background: #a06e3c;
 }
 .lists .sym.bramble.vine {
-  background: #9a5aeb;
+  background: #eb6eaa;
 }
 .freshness-tag {
   color: var(--life);
@@ -919,8 +919,10 @@ svg.hide-creatures .L-creatures,
 svg.hide-loot .L-loot,
 svg.hide-camp .L-camp,
 svg.hide-boulders .L-boulders,
+svg.hide-rubble .L-rubble,
 svg.hide-rocks .L-rocks,
 svg.hide-trees .L-trees,
-svg.hide-brambles .L-brambles {
+svg.hide-brambles .L-brambles,
+svg.hide-vines .L-vines {
   display: none;
 }

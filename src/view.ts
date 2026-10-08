@@ -494,9 +494,14 @@ const LAYER_GROUPS: [string, (Layer | "water")[]][] = [
   ["Locations", ["places", "caves", "ruins", "rifts"]],
   ["Entities", ["npcs", "creatures"]],
   ["Items", ["loot", "camp"]],
-  ["Terrain", ["boulders", "rocks", "water"]],
-  ["Nature", ["trees", "brambles"]],
+  ["Terrain", ["boulders", "rubble", "rocks", "sharp", "water"]],
+  ["Nature", ["trees", "brambles", "vines"]],
 ];
+
+/** Layers drawn from saved plants (lazy `loadTrees`), and the NatureData tile each thorny layer shades. */
+const PLANT_LAYERS = new Set<Layer>(["trees", "brambles", "vines"]);
+const THORN_TILES: [Layer, number][] = [["brambles", 1], ["sharp", 2], ["vines", 3]];
+const OUTDOOR_ONLY = new Set<Layer>(["trees", "brambles", "vines", "sharp", "boulders", "rubble"]);
 
 /** Layer checkboxes. Trees and water load lazily, and only for outdoor zones (`dir` given). */
 function layerChips(
@@ -531,26 +536,27 @@ function layerChips(
   let thornsRequest = 0;
   const setThorns = async () => {
     const request = ++thornsRequest;
-    const url = dir && st.prefs.layers.has("brambles") ? await thornsUrl(st.world, dir) : null;
+    const tiles = THORN_TILES.filter(([l]) => st.prefs.layers.has(l)).map(([, t]) => t);
+    const url = dir && tiles.length ? await thornsUrl(st.world, dir, tiles) : null;
     if (current() && request === thornsRequest) map.setOverlay("thorns", url);
   };
   // Water is a separate pref but is shown as part of Terrain.
   const boxes = new Map<Layer | "water", [HTMLInputElement, HTMLElement]>();
   for (const l of LAYERS) {
-    if (indoor && (l.id === "trees" || l.id === "boulders" || l.id === "brambles")) continue;
+    if (indoor && OUTDOOR_ONLY.has(l.id)) continue;
     const box = h("input", { type: "checkbox", checked: st.prefs.layers.has(l.id) }) as HTMLInputElement;
     box.addEventListener("change", () => {
       if (box.checked) st.prefs.layers.add(l.id);
       else st.prefs.layers.delete(l.id);
-      if ((l.id === "trees" || l.id === "brambles") && box.checked) loadTreesOnce();
-      if (l.id === "brambles") setThorns();
+      if (PLANT_LAYERS.has(l.id) && box.checked) loadTreesOnce();
+      if (THORN_TILES.some(([t]) => t === l.id)) setThorns();
       map.setLayers(st.prefs.layers, all);
     });
     boxes.set(l.id, [box, h("label", { class: `chip L-${l.id}`, title: LAYER_TIPS[l.id] ?? "" }, box, l.label)]);
   }
   if (dir && !indoor) {
-    if (st.prefs.layers.has("trees") || st.prefs.layers.has("brambles")) loadTreesOnce();
-    if (st.prefs.layers.has("brambles")) setThorns();
+    if ([...PLANT_LAYERS].some((l) => st.prefs.layers.has(l))) loadTreesOnce();
+    setThorns();
     const box = h("input", { type: "checkbox", checked: st.prefs.water }) as HTMLInputElement;
     const setWater = async () => {
       const url = st.prefs.water ? await waterUrl(st.world, dir) : null;
@@ -649,17 +655,22 @@ const LAYER_TIPS: Partial<Record<Layer, string>> = {
   ruins: "Ruin and ruin cellar entrances",
   rifts: "Rifts and the entrances to the rift depths",
   trees: "Willow, Cypress, Trollgnarl and Elderwort, coloured by how dead the trunk is",
-  brambles: "Brambles, Rift Vines and sharp ground: tiles that make each step cost more AP and scratch you",
+  boulders: "Boulders and large boulders",
+  rubble: "Ruin footprints and blocks that cannot be entered",
+  brambles: "Brambles and the ground they cover: each step there costs more AP and scratches you",
+  vines: "Rift Vines and the ground they cover: slower to cross than brambles, and they scratch you",
+  sharp: "Sharp ground, such as the ring around Fort Solid's clearing: the worst footing of the three, making each step cost more AP",
 };
 
-/** Saved NatureData tiles that hinder walking: 1 brambles, 3 rift vine, 2 sharp ground. */
-async function thornsUrl(world: World, dir: string): Promise<string | null> {
+/** Saved NatureData tiles that hinder walking (1 brambles, 3 rift vine, 2 sharp ground); only `tiles` are painted. */
+async function thornsUrl(world: World, dir: string, tiles: number[]): Promise<string | null> {
   const nd = await loadLayer(world, dir, "NatureData");
   if (!nd) return null;
-  const colour: Record<number, number[]> = { 1: [200, 90, 190, 150], 3: [150, 90, 235, 160], 2: [230, 230, 230, 170] };
+  const colour: Record<number, number[]> = { 1: [160, 110, 60, 170], 3: [235, 110, 170, 160], 2: [220, 220, 210, 170] };
   return tileImage((img) => {
     for (let i = 0; i < TILES * TILES; i++) {
-      const c = colour[tileIndex(nd.data[i])];
+      const t = tileIndex(nd.data[i]);
+      const c = tiles.includes(t) ? colour[t] : undefined;
       if (c) img.data.set(c, i * 4);
     }
   });

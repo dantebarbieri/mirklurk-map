@@ -8,8 +8,8 @@ it shows:
 - where **Fort Solid, Ranger Bhato, the Library, Scaal, Gurb-Gurb and Ihar** are — or, where the game has not placed them yet, where its own
   placement rules can still put them, with probabilities;
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
-  loot, your stashes and camp items, rifts, large boulders and ruins. Creatures, small rocks, trees, brambles and a water overlay can be
-  switched on. Click an explored entrance to see the inside.
+  loot, your stashes and camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees, brambles, rift vines, sharp
+  ground and a water overlay can be switched on. Click an explored entrance to see the inside.
 
 Save processing happens in the browser tab. Files stay local unless you explicitly upload a temporary shared copy. Realistic mode loads
 bundled art from the same site, never a third party. There is no world seed to type in — the game does not have a reusable one (see below).
@@ -140,10 +140,13 @@ outside combat a cheaper chop still goes through with fewer AP left, and the sho
 it only drops during the growth the game catches up on when you return to a zone (mostly on high ground and low inner branches) and near
 live rifts, so many lowland trees stay fresh.
 
-**Brambles & sharp ground** is a separate layer: Brambles and Rift Vines give no firewood but hinder walking. It marks each plant with a
-thorn and shades the ground tiles the game saved as thorny (`NatureData.tmap`: brambles, rift vines and sharp ground). A step's AP cost is
-divided by the tile's footing, which brambles cut by 0.4, rift vines by 0.6 and sharp ground by 1.0 (`tile_get_moment` in
-`gml_GlobalScript_scr_tiles_movement`), and each step there also costs wellbeing and gear durability.
+**Brambles**, **Rift Vines** and **Sharp ground** are separate layers. Brambles (brown) and Rift Vines (pink) give no firewood but hinder
+walking: each plant gets a thorn marker and the ground tiles the game saved under it (`NatureData.tmap` 1 and 3) are shaded. Sharp ground
+(`NatureData.tmap` 2, pale) has no plant: the game lays it as the ring of debris around Fort Solid's clearing
+(`gml_Object_manager_area_Alarm_2`) and as sharp floor patches in caves (`dungeonlike_areas` in `gml_GlobalScript_scr_mapcreations`; cave
+interiors are not shaded here). A step's AP cost is divided by the tile's footing, which brambles cut by 0.4, rift vines by 0.6 and sharp
+ground by 1.0 (`tile_get_moment` in `gml_GlobalScript_scr_tiles_movement`), and each step there also costs wellbeing and gear durability.
+**Boulders** and **Rubble** (ruin footprints and blocks you cannot enter) are separate from the enterable **Ruins** under Locations.
 
 ## How the guesses work
 
@@ -192,8 +195,8 @@ its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by `life �
 
 The base is the game's own map (land, water, slopes, big boulders; drawn when the zone was generated, so later changes such as the hut are
 overlays). Markers come from the zone folder: `Solids.save` (buildings, entrances with their `transPoint`, boulders and ruins with real
-sprite bounds), `Beings.save`, `Containers.save`, `Stations.save`, `Interactables.save` (rifts), `Trees.save` (loaded only when trees or
-brambles are switched on), `NatureData.tmap` for thorny ground and `Water1.tmap` / `Ygrid.save` for the water overlay. Interiors
+sprite bounds), `Beings.save`, `Containers.save`, `Stations.save`, `Interactables.save` (rifts), `Trees.save` (loaded only when trees,
+brambles or rift vines are switched on), `NatureData.tmap` for thorny ground and `Water1.tmap` / `Ygrid.save` for the water overlay. Interiors
 (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn from their
 `Data`/`Lower`/`OnLower`/`Water1` layers.
 

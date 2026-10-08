@@ -19,9 +19,12 @@ export type Layer =
   | "loot"
   | "camp"
   | "boulders"
+  | "rubble"
   | "rocks"
   | "trees"
-  | "brambles";
+  | "brambles"
+  | "vines"
+  | "sharp";
 
 export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "places", label: "Places", on: true },
@@ -31,11 +34,14 @@ export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "npcs", label: "NPCs", on: true },
   { id: "loot", label: "Loot", on: true },
   { id: "camp", label: "Camp & storage", on: true },
-  { id: "boulders", label: "Boulders & ruins", on: true },
+  { id: "boulders", label: "Boulders", on: true },
+  { id: "rubble", label: "Rubble", on: true },
   { id: "creatures", label: "Creatures", on: false },
   { id: "rocks", label: "Small rocks", on: false },
   { id: "trees", label: "Trees", on: false },
-  { id: "brambles", label: "Brambles & sharp ground", on: false },
+  { id: "brambles", label: "Brambles", on: false },
+  { id: "vines", label: "Rift Vines", on: false },
+  { id: "sharp", label: "Sharp ground", on: false },
 ];
 
 export interface Mark {
@@ -133,9 +139,9 @@ export function solidMarks(solids: Solid[], interiors: Interior[], current?: Int
     const spr = s.sprite;
     let layer: Layer = "boulders", kind = "boulder", name = "Boulder";
     if (spr === "spr_boulders_128x128") [kind, name] = ["boulder big", "Large boulder"];
-    else if (/^spr_ruins_(32x32|64x48)$/.test(spr)) [kind, name] = ["ruin", "Ruins"];
+    else if (/^spr_ruins_(32x32|64x48)$/.test(spr)) [layer, kind, name] = ["rubble", "ruin", "Ruins"];
     else if (/^spr_(boulders_16x16|cavesolids_)/.test(spr)) [layer, kind, name] = ["rocks", "rock", "Rock"];
-    else if (spr === "spr_ruins_16x16") [layer, kind, name] = ["rocks", "rock", "Ruin block"];
+    else if (spr === "spr_ruins_16x16") [layer, kind, name] = ["rubble", "rock", "Ruin block"];
     else if (!/^spr_boulders_/.test(spr)) [layer, kind, name] = ["rocks", "rock", spr.replace(/^spr_/, "").replace(/_/g, " ")];
     out.push({ layer, kind, x: (box[0] + box[2]) / 2, y: (box[1] + box[3]) / 2, box, name });
   }
@@ -234,7 +240,7 @@ export const treeMarks = (trees: Tree[], tool?: number): Mark[] =>
 /** Thorny plants that hinder walking: Brambles and Rift Vines. */
 export const brambleMarks = (trees: Tree[]): Mark[] =>
   trees.filter((t) => t.index === Nature.Brambles || t.index === Nature.RiftVine).map((t) => ({
-    layer: "brambles",
+    layer: t.index === Nature.RiftVine ? "vines" : "brambles",
     kind: t.index === Nature.RiftVine ? "bramble vine" : "bramble",
     x: t.x,
     y: t.y,
