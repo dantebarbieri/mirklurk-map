@@ -46,6 +46,9 @@ export const CHOP_TOOLS: Record<number, number> = {
 };
 export const UNARMED = 31;
 
+/** The player's `actionPointsMax` (obj_player Create); the harvest menu refuses any part costing more. */
+export const MAX_AP = 8;
+
 /** GameMaker's round() rounds halves to even. */
 export function roundGml(v: number): number {
   const r = Math.round(v);

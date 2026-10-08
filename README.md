@@ -131,8 +131,11 @@ tree shows its freshness, % alive and trunk harvest cost; clicking it shows the 
 felled trunk drops, and a link to the wiki's guide. **Trees, deadest first** lists the zone's trees (respecting the filter), and the choices
 are kept across zones and characters.
 
-Costs are the action points the game's harvest menu shows, at save time; trees keep growing and drying after that. The game also refuses a
-chop that costs more than your maximum action points, which the save does not record.
+Costs are the action points the game's harvest menu shows, at save time; trees keep growing and drying after that. The game refuses a chop
+that costs more than the player's maximum of 8 AP (`actionPointsMax` in `gml_Object_obj_player_Create_0`), and the inspector says so;
+outside combat a cheaper chop still goes through with fewer AP left, and the shortfall comes off the next turn. Trunk life never recovers:
+it only drops during the growth the game catches up on when you return to a zone (mostly on high ground and low inner branches) and near
+live rifts, so many lowland trees stay fresh.
 
 **Brambles & sharp ground** is a separate layer: Brambles and Rift Vines give no firewood but hinder walking. It marks each plant with a
 thorn and shades the ground tiles the game saved as thorny (`NatureData.tmap`: brambles, rift vines and sharp ground). A step's AP cost is

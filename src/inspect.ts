@@ -3,7 +3,7 @@ import { ITEM_NAMES } from "./gamedata.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { type Mark, markKey } from "./objects.ts";
 import type { Tree } from "./save.ts";
-import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, NATDEAD, Nature, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
+import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, MAX_AP, NATDEAD, Nature, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
 import { entityWiki, itemWiki, wikiUrl, wikiVerified } from "./wiki.ts";
 
 export function wikiLink(url: string | undefined, label = "Wiki") {
@@ -122,6 +122,7 @@ function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>)
   if (!trunk) return [h("p", { class: "muted" }, "No standing trunk was saved for this plant.")];
   const label = partLabel(tree.index, trunk.part);
   const cost = (t: number) => formatAp(harvestCost(tree.index, trunk.part, CHOP_TOOLS[t]));
+  const tooDear = (t: number) => harvestCost(tree.index, trunk.part, CHOP_TOOLS[t]) > MAX_AP;
   const wood = trunkWood(tree.index, trunk.size);
   const wet = Math.max(0, trunk.life - 0.5);
   const tools = Object.keys(CHOP_TOOLS).map(Number).sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
@@ -143,6 +144,13 @@ function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>)
       ` with ${toolName(tool)} (tool bonus ×${CHOP_TOOLS[tool]}).`,
       tool !== UNARMED ? h("span", { class: "muted" }, ` Bare hands: ${cost(UNARMED)} AP.`) : null,
     ),
+    h(
+      "p",
+      { class: "muted" },
+      tooDear(tool)
+        ? `The game refuses this chop: it costs more than the ${MAX_AP} AP maximum. Use a stronger tool or wait for the trunk to dry.`
+        : "Outside combat you can chop with fewer AP left; the shortfall comes off your next turn.",
+    ),
     wood
       ? h(
         "p",
@@ -161,7 +169,13 @@ function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>)
       h(
         "ul",
         { class: "tool-costs" },
-        tools.map((t) => h("li", { class: t === tool ? "current" : "" }, `${toolName(t)} (×${CHOP_TOOLS[t]}): ${cost(t)} AP`)),
+        tools.map((t) =>
+          h(
+            "li",
+            { class: t === tool ? "current" : "" },
+            `${toolName(t)} (×${CHOP_TOOLS[t]}): ${cost(t)} AP${tooDear(t) ? ` (over ${MAX_AP} AP, refused)` : ""}`,
+          )
+        ),
       ),
     ),
     treeGuide(),
