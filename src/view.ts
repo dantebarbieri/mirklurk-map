@@ -136,15 +136,24 @@ export function playerSpot(st: State): Spot {
       interior: e.interior?.dir,
       at: e.interior ? e.pos : undefined,
       estimated: e.basis,
-      title: `You (estimated: ${e.basis}; ${saved})`,
+      title: `${world.character} (estimated: ${e.basis}; ${saved})`,
     };
   }
   const inside = !isOutside(p.area.type);
   const [x, y] = inside ? p.entrance : p.pos;
-  return { x, y, zone: [p.area.x, p.area.y], inside, interior: playerInterior(world)?.dir, at: p.pos, title: `You (${saved})` };
+  return {
+    x,
+    y,
+    zone: [p.area.x, p.area.y],
+    inside,
+    interior: playerInterior(world)?.dir,
+    at: p.pos,
+    title: `${world.character} (${saved})`,
+  };
 }
 
-const youLabel = (you: Spot, inside: boolean) => `You${inside ? " (inside)" : ""}${you.estimated ? " (est.)" : ""}`;
+const youLabel = (st: State, you: Spot, inside: boolean) =>
+  `${st.world.character}${inside ? " (inside)" : ""}${you.estimated ? " (est.)" : ""}`;
 
 export function renderWorld(st: State) {
   st.cleanup?.();
@@ -487,7 +496,7 @@ async function renderZone(st: State, z: Zone) {
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
     player: you.zone[0] === z.x && you.zone[1] === z.y
-      ? { x: you.x, y: you.y, label: youLabel(you, you.inside), title: you.title }
+      ? { x: you.x, y: you.y, label: youLabel(st, you, you.inside), title: you.title }
       : undefined,
     onOpen: openInterior,
   });
@@ -887,7 +896,9 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     view,
     marks,
     heats: [],
-    player: you.interior === it.dir && you.at ? { x: you.at[0], y: you.at[1], label: youLabel(you, false), title: you.title } : undefined,
+    player: you.interior === it.dir && you.at
+      ? { x: you.at[0], y: you.at[1], label: youLabel(st, you, false), title: you.title }
+      : undefined,
     onOpen: open,
   });
   activeMap = map;
