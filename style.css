@@ -370,8 +370,22 @@ body.loaded main {
 .pill.maybe {
   border-style: dotted;
 }
-.dot,
-.you {
+/* Grid thumbnail: the person's torso centre (~72% down the 18-unit viewBox) sits on the player's spot. */
+.you-dot {
+  position: absolute;
+  z-index: 3;
+  width: 14px;
+  height: 19px;
+  transform: translate(-50%, -69%);
+  pointer-events: auto;
+}
+.you-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.dot {
   position: absolute;
   z-index: 2;
   width: 9px;
@@ -379,10 +393,6 @@ body.loaded main {
   border-radius: 50%;
   transform: translate(-50%, -50%);
   border: 2px solid #1b1516;
-}
-.you {
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, .35);
 }
 .region {
   position: absolute;
@@ -587,6 +597,35 @@ svg.map:active {
   border-radius: 4px;
   pointer-events: none;
 }
+.picker {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  max-width: 300px;
+  padding: 4px;
+  background: rgba(18, 14, 15, .97);
+  border: 1px solid var(--gold2);
+  border-radius: 4px;
+}
+.picker[hidden] {
+  display: none;
+}
+.picker button {
+  padding: 6px 8px;
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.picker button:hover,
+.picker button:focus-visible {
+  background: rgba(255, 255, 255, .1);
+}
 
 .layers {
   display: flex;
@@ -603,6 +642,21 @@ svg.map:active {
   border-radius: 12px;
   font-size: 12px;
   cursor: pointer;
+}
+.layer-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-basis: 100%;
+}
+.chip.group {
+  font-weight: 600;
+  min-width: 70px;
+}
+.chip.reset {
+  background: none;
+  color: inherit;
+  padding: 1px 8px;
 }
 .chip input {
   margin: 0;
@@ -792,17 +846,17 @@ svg.map:active {
 }
 .pt.bramble > :not(text) {
   fill: none;
-  stroke: #c85abe;
+  stroke: #a06e3c;
   stroke-width: 2px;
 }
 .pt.bramble.vine > :not(text) {
-  stroke: #9a5aeb;
+  stroke: #eb6eaa;
 }
 .lists .sym.bramble {
-  background: #c85abe;
+  background: #a06e3c;
 }
 .lists .sym.bramble.vine {
-  background: #9a5aeb;
+  background: #eb6eaa;
 }
 .freshness-tag {
   color: var(--life);
@@ -838,10 +892,26 @@ svg.map:active {
 .marks .filtered {
   display: none;
 }
-.pt.you > :not(text) {
-  fill: #fff;
-  stroke: #000;
+.you .you-halo,
+.you .you-fill {
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.you .you-halo {
+  fill: none;
+  stroke: var(--you-halo, #120e0f);
   stroke-width: 2px;
+  stroke-opacity: .4;
+}
+.you .you-fill {
+  fill: var(--hair, #3a353d);
+  stroke: var(--you-line, #f4efe6);
+  stroke-width: .8px;
+}
+.pt.you.sel .you-halo {
+  stroke: #ffd34d;
+  stroke-width: 4px;
+  stroke-opacity: 1;
 }
 .pt.you text {
   fill: #fff;
@@ -849,6 +919,9 @@ svg.map:active {
 .pt.hl > :not(text) {
   stroke: #fff;
   stroke-width: 3px;
+}
+.marks .pt.sel.sel > :not(text) {
+  stroke: #fff;
 }
 .fp {
   vector-effect: non-scaling-stroke;
@@ -890,18 +963,37 @@ svg.map:active {
   fill: rgba(240, 180, 76, .3);
   stroke: #f0b44c;
 }
-.fp.hl {
+.fp.area {
+  pointer-events: none;
+}
+.fp.rift {
+  fill: color-mix(in srgb, var(--scaal) 12%, transparent);
+  stroke: var(--scaal);
+  stroke-dasharray: 4 3;
+}
+.fp.hl:not(.area),
+.fp.sel:not(.area) {
   stroke: #fff;
   stroke-width: 2px;
 }
 
+svg.hide-you .L-you,
+svg.hide-places .L-places,
+svg.hide-caves .L-caves,
+svg.hide-ruins .L-ruins,
+svg.hide-rifts .L-rifts,
 svg.hide-npcs .L-npcs,
 svg.hide-creatures .L-creatures,
 svg.hide-loot .L-loot,
 svg.hide-camp .L-camp,
 svg.hide-boulders .L-boulders,
+svg.hide-rubble .L-rubble,
 svg.hide-rocks .L-rocks,
 svg.hide-trees .L-trees,
-svg.hide-brambles .L-brambles {
+svg.hide-brambles .L-brambles,
+svg.hide-vines .L-vines {
+  display: none;
+}
+.hide-you .you-dot {
   display: none;
 }

@@ -56,6 +56,13 @@ const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) 
 const pair = (v: unknown): [number, number] | null =>
   Array.isArray(v) && v.length >= 2 && typeof v[0] === "number" && typeof v[1] === "number" ? [v[0], v[1]] : null;
 
+export const bgr = (c: number) => `rgb(${c & 255},${(c >> 8) & 255},${(c >> 16) & 255})`;
+/** Whether a GameMaker BGR colour looks light: WCAG relative luminance above 0.18 (≈ CIE L* 50). */
+export function isLight(c: number): boolean {
+  const lin = (v: number) => (v /= 255) <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  return 0.2126 * lin(c & 255) + 0.7152 * lin((c >> 8) & 255) + 0.0722 * lin((c >> 16) & 255) > 0.18;
+}
+
 export interface PlayerSave {
   version: string;
   grid: number[][]; // [y][x], as grid_to_array writes it
@@ -71,6 +78,10 @@ export interface PlayerSave {
   riftQuestArea: [number, number] | null;
   gurbsHut: boolean;
   shipWreck: boolean;
+  /** Hair colour as CSS, from hairBlend (GameMaker colours are 0xBBGGRR). */
+  hair?: string;
+  /** Hair colour is perceived as light (outline goes dark). */
+  hairLight?: boolean;
   inventory?: Inventory;
 }
 
@@ -98,6 +109,8 @@ export function parsePlayer(raw: unknown): PlayerSave {
     riftQuestArea: pair(p.riftQuestArea),
     gurbsHut: p.gurbsHut === true,
     shipWreck: p.shipWreck === true,
+    hair: typeof p.hairBlend === "number" ? bgr(p.hairBlend) : undefined,
+    hairLight: typeof p.hairBlend === "number" ? isLight(p.hairBlend) : undefined,
     inventory: parseItemList(p.myEquips),
   };
 }

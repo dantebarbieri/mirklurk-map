@@ -8,8 +8,8 @@ it shows:
 - where **Fort Solid, Ranger Bhato, the Library, Scaal, Gurb-Gurb and Ihar** are — or, where the game has not placed them yet, where its own
   placement rules can still put them, with probabilities;
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
-  loot, your stashes and camp items, rifts, large boulders and ruins. Creatures, small rocks, trees, brambles and a water overlay can be
-  switched on. Click an explored entrance to see the inside.
+  loot, your stashes and camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees, brambles, rift vines, sharp
+  ground and a water overlay can be switched on. Click an explored entrance to see the inside.
 
 Save processing happens in the browser tab. Files stay local unless you explicitly upload a temporary shared copy. Realistic mode loads
 bundled art from the same site, never a third party. There is no world seed to type in — the game does not have a reusable one (see below).
@@ -71,10 +71,13 @@ ZIP, or dropped save manually also stops monitoring. Access is requested again w
 Browsers without the directory picker retain manual import.
 
 **This follows saved locations, not live movement.** The game saves before area transitions, on new-area generation, after normal sleep, at
-some story checkpoints, and when saving to the menu. The position may still be in the departing area until the next save. **Follow saved
-location** selects the player's saved zone/interior on refresh; turn it off to keep inspecting another area. Zoom, inspection selection and
-expanded sections are retained on same-area refreshes. The snapshot label shows `Player.save`'s timestamp when available; ZIP imports do not
-currently expose one.
+some story checkpoints, and when saving to the menu. Because a transition save is written while you still stand at the border or door, live
+mode (and watching a shared link) **estimates** where you went: a save within the travel strip at a zone edge, or within 3 tiles of an
+entrance, way out or stairs, moves you to the spot the game puts you on the other side (see _Where you are_ below). Estimates are labelled
+(est.), and hovering the person shows the basis and the true saved position. Manual imports, and stopping live saves, always show the saved
+position only. **Follow saved location** selects the player's (estimated) zone/interior on refresh; turn it off to keep inspecting another
+area. Zoom, inspection selection and expanded sections are retained on same-area refreshes. The snapshot label shows `Player.save`'s
+timestamp when available; ZIP imports do not currently expose one.
 
 The game writes a save over 19 game steps: player first, containers last. Live mode waits for at least 1.5 seconds of unchanged metadata,
 checks that the current area's container file is at least as recent as the player file, validates newly read data, then rechecks the
@@ -109,7 +112,11 @@ at development time, not by sending save data to the wiki; pages can change afte
 `.tmap` layers using the game's own tilesets, including animated-tile first frames, atlas borders, mirroring and rotation. Buildings, rocks,
 placed objects and procedural trees use their saved sprites/geometry. NPCs, creatures and carcasses remain markers; this is a static
 daylight-like view, not a simulation of the game's lighting, weather, animation or camera-dependent roof fading. Layer chips control
-informational markers, not the scenery baked into the realistic map. Switch **Realistic** off to return to the original overview.
+informational markers, grouped as **Locations** (Places, Caves, Ruins, Rifts; indoor "Way out" exits always show), **Entities** (You, NPCs,
+Creatures), **Items**, **Terrain** (including Water) and **Nature**; each group's header checkbox (and the master **All**) toggles all its
+layers and shows a partial state when only some are on, and **Reset to defaults** restores the initial selection. They do not affect the
+scenery baked into the realistic map. Zooming out past the selected zone also shows other zones' markers for the enabled layers, loaded as
+each zone first comes into view. Switch **Realistic** off to return to the original overview.
 
 Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
 followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. **World** fits
@@ -125,11 +132,12 @@ how alive its trunk is, from green (_Very Fresh_) through yellow (_Half Dead_) t
 Willows have hanging crowns, cypresses have pointed, uneven boughs, Trollgnarls have bare twisted forks, and Elderwort Shrubs have three
 flower clusters. Map markers and list icons share the same hand-drawn shapes. Freshness colours the foliage (or the bare Trollgnarl); the
 pale stems on the other species are just a visual anchor, not a second health indicator. No wiki images are loaded for these icons.
-**Trunks** hides all but the drier trees (Half Dead, Mostly Dead or Dead only), which are much cheaper to fell for logs. **Chop with** picks
-the tool used for costs; it defaults to the best chopping tool your character carries (equipped or in a bag), else bare hands. Hovering a
-tree shows its freshness, % alive and trunk harvest cost; clicking it shows the cost with the chosen tool and every other tool, the logs the
-felled trunk drops, and a link to the wiki's _Tree health and chopping_ guide (linked ahead of that page's deployment, as its title is
-fixed). **Trees, deadest first** lists the zone's trees (respecting the filter), and the choices are kept across zones and characters.
+**Trunks** hides all but the drier trees (Half Dead, Mostly Dead or Dead only), which are much cheaper to fell for logs. **Chop with**,
+beside a clicked tree's harvest cost, picks the tool used for costs; it defaults to the best chopping tool your character carries (equipped
+or in a bag), else bare hands, and a manual pick resets to that default once the carried tools change. Hovering a tree shows its freshness,
+% alive and trunk harvest cost; clicking it shows the cost with the chosen tool and every other tool, the logs the felled trunk drops, and a
+link to the wiki's _Tree health and chopping_ guide (linked ahead of that page's deployment, as its title is fixed). **Trees, deadest
+first** lists the zone's trees (respecting the filter), and the choices are kept across zones and characters.
 
 Costs are the action points the game's harvest menu shows, at save time; trees keep growing and drying after that. The game refuses a chop
 that costs more than the player's maximum of 8 AP (`actionPointsMax` in `gml_Object_obj_player_Create_0`), and the inspector says so;
@@ -137,10 +145,17 @@ outside combat a cheaper chop still goes through with fewer AP left, and the sho
 it only drops during the growth the game catches up on when you return to a zone (mostly on high ground and low inner branches) and near
 live rifts, so many lowland trees stay fresh.
 
-**Brambles & sharp ground** is a separate layer: Brambles and Rift Vines give no firewood but hinder walking. It marks each plant with a
-thorn and shades the ground tiles the game saved as thorny (`NatureData.tmap`: brambles, rift vines and sharp ground). A step's AP cost is
-divided by the tile's footing, which brambles cut by 0.4, rift vines by 0.6 and sharp ground by 1.0 (`tile_get_moment` in
-`gml_GlobalScript_scr_tiles_movement`), and each step there also costs wellbeing and gear durability.
+**Brambles**, **Rift Vines** and **Sharp ground** are separate layers. Brambles (brown) and Rift Vines (pink) give no firewood but hinder
+walking: each plant gets a thorn marker and the ground tiles the game saved under it (`NatureData.tmap` 1 and 3) are shaded. Sharp ground
+(`NatureData.tmap` 2, pale) has no plant: the game lays it as the ring of debris around Fort Solid's clearing
+(`gml_Object_manager_area_Alarm_2`) and as sharp floor patches in caves (`dungeonlike_areas` in `gml_GlobalScript_scr_mapcreations`; cave
+interiors are not shaded here). A step's AP cost is divided by the tile's footing, which brambles cut by 0.4, rift vines by 0.6 and sharp
+ground by 1.0 (`tile_get_moment` in `gml_GlobalScript_scr_tiles_movement`), and each step there also costs wellbeing and gear durability.
+**Boulders** and **Rubble** (ruin footprints and blocks you cannot enter) are separate from the enterable **Ruins** under Locations.
+
+**Rifts** are drawn with a dashed circle showing how far they reach: 24 × a base radius of 8 (192 px, 12 tiles) for the large rift or 2.5
+(60 px) for the small one, measured from the sprite centre. Within it a rift withers tree parts, spreads rift grass and poisons you; a rift
+that hits you in your sleep takes up to half a health point, less further out. Dead rifts do nothing (`gml_Object_obj_rift_Alarm_0`).
 
 ## How the guesses work
 
@@ -185,13 +200,21 @@ Cypress and 2 for Trollgnarl, divided by the tool's `chopMod` (`gml_Object_datab
 bare hands 1), and rounded to 0.2 AP (at least 0.2). A felled trunk drops `ceil(size × trunk sprite height ÷ 16) + 1` logs, or branches when
 its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by `life − 0.5`, so dead wood is dry.
 
+**Where you are** (`src/estimate.ts`). You are drawn as a head-and-shoulders pictogram filled with your character's hair colour (`hairBlend`
+in `Player.save`), outlined dark or light by its perceived lightness, on the world grid and on the zone or interior map. The game offers
+border travel at x ≤ 16, x ≥ 2544, y ≤ 48 or y ≥ 2512 (`gml_Object_UI_Draw_64`) and saves when you click it; you arrive at x = 8 / 2552 at
+the same y, or at the same x with y = 56 / 2552 (`sendX`/`sendY` there plus `manager_area` Alarm_2's +16). Using an entrance (targetAction 4
+in `gml_Object_obj_player_Step_0`) saves too, then `obj_screenfader` Step_0 places you at its `transPoint` 3–4 inside; a way out returns you
+to the entrance's interaction point, 16 below. Saves the game makes on arriving (a new zone, or first entering a quest room, `manager_area`
+Alarm_3) are recognised and not read as another departure.
+
 ## What the zone map shows
 
 The base is the game's own map (land, water, slopes, big boulders; drawn when the zone was generated, so later changes such as the hut are
 overlays). Markers come from the zone folder: `Solids.save` (buildings, entrances with their `transPoint`, boulders and ruins with real
-sprite bounds), `Beings.save`, `Containers.save`, `Stations.save`, `Interactables.save` (rifts), `Trees.save` (loaded only when trees or
-brambles are switched on), `NatureData.tmap` for thorny ground and `Water1.tmap` / `Ygrid.save` for the water overlay. Interiors
-(`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn from their
+sprite bounds), `Beings.save`, `Containers.save`, `Stations.save`, `Interactables.save` (rifts), `Trees.save` (loaded only when trees,
+brambles or rift vines are switched on), `NatureData.tmap` for thorny ground and `Water1.tmap` / `Ygrid.save` for the water overlay.
+Interiors (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn from their
 `Data`/`Lower`/`OnLower`/`Water1` layers.
 
 ## Development

@@ -50,8 +50,22 @@ export interface MapSpec {
   onMapClick?: (x: number, y: number) => void;
   marks: Mark[];
   heats: { cls: string; url: string; bounds?: [number, number, number, number] | null }[];
-  player?: { x: number; y: number; label: string };
+  /** The player's spot; `title` is its hover text (saved or estimated position). */
+  player?: { x: number; y: number; label: string; title: string };
   onOpen?: (m: Mark) => void;
+  /** Called after every zoom or pan. */
+  onView?: (view: [number, number, number]) => void;
+}
+
+/** Zones of an n×n world, other than origin, that a viewport in origin's coordinates overlaps. */
+export function zonesInView([x, y, size]: [number, number, number], [ox, oy]: [number, number], n = 5): [number, number][] {
+  const out: [number, number][] = [];
+  const lo = (v: number, o: number) => Math.max(0, o + Math.floor(v / ROOM));
+  const hi = (v: number, o: number) => Math.min(n - 1, o + Math.ceil((v + size) / ROOM) - 1);
+  for (let zy = lo(y, oy); zy <= hi(y, oy); zy++) {
+    for (let zx = lo(x, ox); zx <= hi(x, ox); zx++) if (zx !== ox || zy !== oy) out.push([zx, zy]);
+  }
+  return out;
 }
 
 export function mapBounds([x, y, size]: [number, number, number]): [number, number, number] {
@@ -109,16 +123,40 @@ export function treeIcon(kind: string): SVGElement[] {
     s("path", { class: "tree-detail", d: icon.detail }),
   ];
 }
+/** A simple player pictogram, coloured by the character's hair (--hair). Origin is the torso, shoulders end at y=4. */
+export function personIcon(): SVGElement[] {
+  const d = "M0 -8.5 A3 3 0 1 1 0 -2.5 A3 3 0 1 1 0 -8.5 Z M-5.5 4 A5.5 4.5 0 0 1 5.5 4 Z";
+  return [s("path", { class: "you-halo", d }), s("path", { class: "you-fill", d })];
+}
+/** Inline (HTML) person icon for the world grid and lists. */
+export const personSvg = () =>
+  s("svg", { class: "you-icon", viewBox: "-7 -10 14 15.5", "aria-hidden": "true" }, s("g", { class: "you" }, personIcon()));
+
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
+
+type Box = [number, number, number, number];
+export const boxArea = ([l, t, r, b]: Box) => (r - l + 1) * (b - t + 1);
+
+/** Footprint paint order: largest first, so a smaller intersecting footprint is always on top. */
+export const footprintOrder = (a: Box, b: Box) => boxArea(b) - boxArea(a);
+
+/** Marks whose footprint exactly matches `m`'s, `m` first; a single entry when nothing else shares it. */
+export function stackAt(marks: Mark[], m: Mark): Mark[] {
+  const k = m.box?.join();
+  return k ? [m, ...marks.filter((o) => o !== m && o.box?.join() === k)] : [m];
+}
 
 export class MapView {
   readonly el: HTMLElement;
   readonly svg: SVGSVGElement;
   private pts: { g: SVGElement; x: number; y: number }[] = [];
   private markLayer: SVGElement;
+  private fpLayer: SVGElement;
+  private picker: HTMLElement;
   private heatLayer: SVGElement;
   private overlay: SVGElement;
   private tip: HTMLElement;
+  private youTitle = "";
   private marks: Mark[] = [];
   private keep: ((m: Mark) => boolean) | null = null;
   private vx = 0;
@@ -126,12 +164,14 @@ export class MapView {
   private vw = ROOM;
   private home: [number, number, number];
   private k = 1;
+  private selected = -1;
   private bounds: [number, number, number];
   private observer: ResizeObserver;
   private canvas?: HTMLCanvasElement;
   private raster?: Raster;
   private unsubscribe?: () => void;
   private frame = 0;
+  private onView?: (view: [number, number, number]) => void;
 
   constructor(spec: MapSpec) {
     this.home = spec.view ?? [0, 0, ROOM];
@@ -141,7 +181,8 @@ export class MapView {
     const base = s("g", { class: "base" }, spec.base);
     this.heatLayer = s("g", { class: "heats" });
     this.overlay = s("g", { class: "overlays" });
-    this.markLayer = s("g", { class: "marks" });
+    this.fpLayer = s("g", { class: "footprints" });
+    this.markLayer = s("g", { class: "marks" }, this.fpLayer);
     this.svg.append(base, this.overlay, this.heatLayer, this.markLayer);
     for (const ht of spec.heats) {
       this.heatLayer.append(this.image(ht.url, `heat ${ht.cls}`));
@@ -151,6 +192,7 @@ export class MapView {
       }
     }
     this.tip = h("div", { class: "tip", hidden: true });
+    this.picker = h("div", { class: "picker", role: "menu", hidden: true });
     if (spec.raster) {
       this.raster = spec.raster;
       this.canvas = document.createElement("canvas");
@@ -185,12 +227,15 @@ export class MapView {
           : null,
       ),
       this.tip,
+      this.picker,
     );
     this.addMarks(spec.marks);
     if (spec.player) {
-      this.addPoint(spec.player.x, spec.player.y, "you", [s("circle", { r: 6 }), s("text", { y: -10 }, spec.player.label)], -1);
+      this.youTitle = spec.player.title;
+      this.addPoint(spec.player.x, spec.player.y, "you L-you", [...personIcon(), s("text", { y: -14 }, spec.player.label)], -1);
     }
     this.rescale();
+    this.onView = spec.onView;
     this.wire(spec.onOpen, spec.onMapClick);
     this.observer = new ResizeObserver(() => this.rescale());
     this.observer.observe(this.svg);
@@ -266,20 +311,36 @@ export class MapView {
     this.markLayer.querySelectorAll(`[data-i="${i}"]`).forEach((e) => e.classList.add("hl"));
   }
 
+  /** Persistently marks `m` as the clicked/inspected mark (white border, 1.1× size). */
+  select(m: Mark | null) {
+    this.markLayer.querySelectorAll(".sel").forEach((e) => e.classList.remove("sel"));
+    this.selected = m ? this.marks.indexOf(m) : -1;
+    if (this.selected >= 0) this.markLayer.querySelectorAll(`[data-i="${this.selected}"]`).forEach((e) => e.classList.add("sel"));
+    this.rescale();
+  }
+
   addMarks(marks: Mark[]) {
     const frag = document.createDocumentFragment();
+    const fps: SVGElement[] = [...this.fpLayer.children] as SVGElement[];
     for (const m of marks) {
       const i = this.marks.push(m) - 1;
       const cls = `${m.kind} L-${m.layer}`;
       if (m.box) {
         const [l, t, r, b] = m.box;
-        frag.append(s("rect", { class: `fp ${cls}`, x: l, y: t, width: r - l + 1, height: b - t + 1, "data-i": i }));
+        fps.push(s("rect", { class: `fp ${cls}`, x: l, y: t, width: r - l + 1, height: b - t + 1, "data-i": i }));
       }
+      if (m.radius) fps.push(s("circle", { class: `fp area ${cls}`, cx: m.x, cy: m.y, r: m.radius, "data-i": i }));
       if (FOOTPRINT_ONLY.has(m.kind.split(" ")[0])) continue;
       const sym = (POINT[m.kind.split(" ")[0]] ?? POINT.loot)(m);
       if (m.label) sym.push(s("text", { y: -9 }, m.label));
       this.addPoint(m.x, m.y, cls, sym, i, frag);
     }
+    // Area circles sort by their bounding square, so they sit below the footprints they cover.
+    const box = (e: SVGElement): Box => {
+      const m = this.marks[Number(e.getAttribute("data-i"))], r = m.radius ?? 0;
+      return e.tagName === "circle" ? [m.x - r, m.y - r, m.x + r, m.y + r] : m.box!;
+    };
+    this.fpLayer.append(...fps.sort((a, b) => footprintOrder(box(a), box(b))));
     this.markLayer.append(frag);
     if (this.keep) this.applyFilter();
     this.rescale();
@@ -294,7 +355,10 @@ export class MapView {
   private rescale() {
     const w = this.svg.clientWidth || 600;
     this.k = this.vw / w;
-    for (const p of this.pts) p.g.setAttribute("transform", `translate(${p.x} ${p.y}) scale(${this.k})`);
+    for (const p of this.pts) {
+      const k = p.g.getAttribute("data-i") === String(this.selected) ? this.k * 1.1 : this.k;
+      p.g.setAttribute("transform", `translate(${p.x} ${p.y}) scale(${k})`);
+    }
     this.redraw();
   }
 
@@ -309,6 +373,7 @@ export class MapView {
     this.vy = Math.min(Math.max(this.vy, top), top + max - this.vw);
     this.svg.setAttribute("viewBox", this.viewBox());
     this.rescale();
+    this.onView?.(this.viewport);
   }
 
   zoomBy(f: number, cx = this.vx + this.vw / 2, cy = this.vy + this.vw / 2) {
@@ -362,6 +427,7 @@ export class MapView {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       svg.setPointerCapture(e.pointerId);
       this.tip.hidden = true;
+      this.picker.hidden = true;
     });
     svg.addEventListener("pointermove", (e) => {
       if (pointers.has(e.pointerId)) {
@@ -378,12 +444,15 @@ export class MapView {
         return;
       }
       const m = this.markAt(e.target);
-      if (!m) {
+      const you = !m && (e.target as Element | null)?.closest?.(".pt.you");
+      if (!m && !you) {
         this.tip.hidden = true;
         return;
       }
       const box = this.el.getBoundingClientRect();
-      this.tip.textContent = describe(m) + (onOpen ? (m.interior ? " — click to look inside" : " — click to inspect") : "");
+      this.tip.textContent = m
+        ? describe(m) + (onOpen ? (m.interior ? " — click to look inside" : " — click to inspect") : "")
+        : this.youTitle;
       this.tip.hidden = false;
       const x = e.clientX - box.left, y = e.clientY - box.top;
       this.tip.style.left = `${Math.min(x + 14, box.width - this.tip.offsetWidth - 4)}px`;
@@ -403,8 +472,12 @@ export class MapView {
     svg.addEventListener("click", (e) => {
       if (suppressClick) return;
       const m = this.markAt(tapTarget ?? e.target);
-      if (m && onOpen) onOpen(m);
-      else if (!m && onMapClick) {
+      this.picker.hidden = true;
+      if (m && onOpen) {
+        const stack = stackAt(this.marks, m).filter((o) => o === m || this.shown(o));
+        if (stack.length > 1) this.pick(stack, e, onOpen);
+        else onOpen(m);
+      } else if (!m && onMapClick) {
         const [x, y] = this.toGame(e);
         onMapClick(x, y);
       }
@@ -415,6 +488,43 @@ export class MapView {
       const [x, y] = this.toGame(e);
       this.zoomBy(0.5, x, y);
     });
+  }
+
+  private shown(m: Mark) {
+    const el = this.fpLayer.querySelector(`[data-i="${this.marks.indexOf(m)}"]`);
+    return !!el && getComputedStyle(el).display !== "none" && getComputedStyle(el).visibility !== "hidden";
+  }
+
+  /** Lets the user choose between marks sharing an identical footprint. */
+  private pick(stack: Mark[], e: MouseEvent, onOpen: (m: Mark) => void) {
+    const close = () => {
+      this.picker.hidden = true;
+      document.removeEventListener("keydown", key);
+      document.removeEventListener("pointerdown", outside);
+    };
+    const key = (k: KeyboardEvent) => k.key === "Escape" && close();
+    const outside = (p: PointerEvent) => !this.picker.contains(p.target as Node) && close();
+    document.addEventListener("keydown", key);
+    document.addEventListener("pointerdown", outside);
+    this.picker.replaceChildren(
+      ...stack.map((m) =>
+        h("button", {
+          type: "button",
+          role: "menuitem",
+          onclick: () => {
+            close();
+            onOpen(m);
+          },
+        }, describe(m))
+      ),
+    );
+    this.tip.hidden = true;
+    this.picker.hidden = false;
+    const box = this.el.getBoundingClientRect();
+    const x = e.clientX - box.left, y = e.clientY - box.top;
+    this.picker.style.left = `${Math.max(4, Math.min(x, box.width - this.picker.offsetWidth - 4))}px`;
+    this.picker.style.top = `${Math.max(4, Math.min(y, box.height - this.picker.offsetHeight - 4))}px`;
+    (this.picker.firstElementChild as HTMLElement | null)?.focus();
   }
 
   private markAt(target: EventTarget | null): Mark | undefined {

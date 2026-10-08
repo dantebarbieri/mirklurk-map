@@ -8,17 +8,42 @@ import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
 import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, isTree, Nature, partLabel, trunkOf } from "./chop.ts";
 
-export type Layer = "places" | "npcs" | "creatures" | "loot" | "camp" | "boulders" | "rocks" | "trees" | "brambles";
+export type Layer =
+  | "exits"
+  | "places"
+  | "caves"
+  | "ruins"
+  | "rifts"
+  | "you"
+  | "npcs"
+  | "creatures"
+  | "loot"
+  | "camp"
+  | "boulders"
+  | "rubble"
+  | "rocks"
+  | "trees"
+  | "brambles"
+  | "vines"
+  | "sharp";
 
 export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
+  { id: "places", label: "Places", on: true },
+  { id: "caves", label: "Caves", on: true },
+  { id: "ruins", label: "Ruins", on: true },
+  { id: "rifts", label: "Rifts", on: true },
+  { id: "you", label: "You", on: true },
   { id: "npcs", label: "NPCs", on: true },
   { id: "loot", label: "Loot", on: true },
   { id: "camp", label: "Camp & storage", on: true },
-  { id: "boulders", label: "Boulders & ruins", on: true },
+  { id: "boulders", label: "Boulders", on: true },
+  { id: "rubble", label: "Rubble", on: true },
   { id: "creatures", label: "Creatures", on: false },
   { id: "rocks", label: "Small rocks", on: false },
   { id: "trees", label: "Trees", on: false },
-  { id: "brambles", label: "Brambles & sharp ground", on: false },
+  { id: "brambles", label: "Brambles", on: false },
+  { id: "vines", label: "Rift Vines", on: false },
+  { id: "sharp", label: "Sharp ground", on: false },
 ];
 
 export interface Mark {
@@ -28,6 +53,8 @@ export interface Mark {
   x: number;
   y: number;
   box?: [number, number, number, number];
+  /** Reach of an area effect around (x, y), in pixels. */
+  radius?: number;
   label?: string;
   name: string;
   detail?: string;
@@ -36,9 +63,23 @@ export interface Mark {
   explored?: boolean;
   inventory?: Inventory;
   tree?: Tree;
+  /** A neighbouring zone's marker, shifted by (ox, oy) into the shown zone's coordinates. */
+  away?: { zone: string; ox: number; oy: number };
 }
 
 const tile = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
+
+/** Which location layer an interior kind belongs to; named places are the default. */
+export const locationLayer = (kind: number | null | undefined): Layer =>
+  kind == null
+    ? "places"
+    : kind >= 10 && kind <= 12
+    ? "caves"
+    : kind === 20 || kind === 21
+    ? "ruins"
+    : kind >= 24 && kind <= 26
+    ? "rifts"
+    : "places";
 
 export const markKey = (m: Mark) => `${m.layer}:${m.x}:${m.y}:${m.name === "Unsearched remains" ? "Remains" : m.name}`;
 
@@ -77,14 +118,14 @@ export function solidMarks(solids: Solid[], interiors: Interior[], current?: Int
     if (tp) {
       const up = isOutside(tp[0]) || (current?.parent != null && tp[0] === current.parent.kind);
       if (current && up) {
-        out.push({ layer: "places", kind: "exit", x: tp[1], y: tp[2], box, name: "Way out" });
+        out.push({ layer: "exits", kind: "exit", x: tp[1], y: tp[2], box, name: "Way out" });
         continue;
       }
       const name = INTERIOR_NAMES[tp[0]];
       if (name) {
         const interior = interiorFor(tp, interiors);
         out.push({
-          layer: "places",
+          layer: locationLayer(tp[0]),
           kind: interior ? "entrance explored" : "entrance",
           x: tp[1],
           y: tp[2],
@@ -104,9 +145,9 @@ export function solidMarks(solids: Solid[], interiors: Interior[], current?: Int
     const spr = s.sprite;
     let layer: Layer = "boulders", kind = "boulder", name = "Boulder";
     if (spr === "spr_boulders_128x128") [kind, name] = ["boulder big", "Large boulder"];
-    else if (/^spr_ruins_(32x32|64x48)$/.test(spr)) [kind, name] = ["ruin", "Ruins"];
+    else if (/^spr_ruins_(32x32|64x48)$/.test(spr)) [layer, kind, name] = ["rubble", "ruin", "Ruins"];
     else if (/^spr_(boulders_16x16|cavesolids_)/.test(spr)) [layer, kind, name] = ["rocks", "rock", "Rock"];
-    else if (spr === "spr_ruins_16x16") [layer, kind, name] = ["rocks", "rock", "Ruin block"];
+    else if (spr === "spr_ruins_16x16") [layer, kind, name] = ["rubble", "rock", "Ruin block"];
     else if (!/^spr_boulders_/.test(spr)) [layer, kind, name] = ["rocks", "rock", spr.replace(/^spr_/, "").replace(/_/g, " ")];
     out.push({ layer, kind, x: (box[0] + box[2]) / 2, y: (box[1] + box[3]) / 2, box, name });
   }
@@ -154,13 +195,18 @@ export function detailMarks(d: ZoneDetail): Mark[] {
   for (const i of d.interactables) {
     const [l, t, r, b] = spriteBox(i.sprite, i.x, i.y);
     if (i.object === "obj_rift") {
-      out.push({ layer: "places", kind: "rift", x: (l + r) / 2, y: (t + b) / 2, name: "Rift", detail: "harms anything close to it" });
+      const radius = riftRadius(i.sprite);
+      const detail = radius ? `harms anything within ${radius} px (${radius / 16} tiles)` : "dead, harmless";
+      out.push({ layer: "rifts", kind: "rift", x: (l + r) / 2, y: (t + b) / 2, radius: radius || undefined, name: "Rift", detail });
     } else if (i.object === "obj_interactable") {
       out.push({ layer: "loot", kind: "loot", x: i.x, y: i.y, name: "Something to examine" });
     }
   }
   return out;
 }
+
+/** Poison radius around a rift's sprite centre; dead rifts do nothing (obj_rift Alarm_0: poisonRadius = 24 * baseRad). */
+export const riftRadius = (sprite: string) => sprite.endsWith("_dead") ? 0 : 24 * (sprite === "spr_rift_16x16" ? 2.5 : 8);
 
 function stationMark(s: Placed): Mark {
   const name = ITEM_NAMES[s.index] ?? "Workstation";
@@ -170,7 +216,7 @@ function stationMark(s: Placed): Mark {
 /** Saved interiors whose entrance no longer exists (so they get a marker of their own). */
 export const sealedMarks = (interiors: Interior[]): Mark[] =>
   interiors.filter((i) => i.sealed && !i.parent && i.at[0] >= 0).map((i) => ({
-    layer: "places",
+    layer: locationLayer(i.kind),
     kind: "entrance explored",
     x: i.at[0],
     y: i.at[1],
@@ -205,7 +251,7 @@ export const treeMarks = (trees: Tree[], tool?: number): Mark[] =>
 /** Thorny plants that hinder walking: Brambles and Rift Vines. */
 export const brambleMarks = (trees: Tree[]): Mark[] =>
   trees.filter((t) => t.index === Nature.Brambles || t.index === Nature.RiftVine).map((t) => ({
-    layer: "brambles",
+    layer: t.index === Nature.RiftVine ? "vines" : "brambles",
     kind: t.index === Nature.RiftVine ? "bramble vine" : "bramble",
     x: t.x,
     y: t.y,
@@ -224,4 +270,7 @@ export function treeDetail(t: Tree, tool?: number): string | undefined {
   return `${life}, ${partLabel(t.index, trunk.part).toLowerCase()} ${formatAp(cost)} AP`;
 }
 
-export const describe = (m: Mark) => `${m.name}${m.detail ? ` — ${m.detail}` : ""} (${tile(m.x, m.y)})`;
+export const describe = (m: Mark) =>
+  `${m.name}${m.detail ? ` — ${m.detail}` : ""} (${m.away ? `${m.away.zone}, ` : ""}${
+    tile(m.x - (m.away?.ox ?? 0), m.y - (m.away?.oy ?? 0))
+  })`;

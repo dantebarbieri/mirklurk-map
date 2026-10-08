@@ -5,7 +5,8 @@ import { type Character, characterIndex, type FileMap, findCharacters, fromDataT
 import { LAYERS } from "./objects.ts";
 import { landmarks, shipwreckOdds } from "./predict.ts";
 import { Area } from "./rules.ts";
-import { disposeView, playerInterior, rememberView, renderWorld, selectZone, type State } from "./view.ts";
+import { estimatePlayer } from "./estimate.ts";
+import { disposeView, playerSpot, rememberView, renderWorld, selectZone, type State } from "./view.ts";
 import { TerrainStore } from "./terrain.ts";
 import { loadLayer, loadWorld } from "./world.ts";
 import { type DirectoryPicker, LiveReader, scanDirectory } from "./live.ts";
@@ -76,7 +77,10 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
       mapUrls.set(`${z.x},${z.y}`, url);
     }
     const st: State = { world, marks: landmarks(world, shipwreck), mapUrls, prefs, terrain: new TerrainStore(world) };
-    if (refresh && state && chars[activeCharacter]?.root === c.root) {
+    const same = refresh && state && chars[activeCharacter]?.root === c.root;
+    // Estimates are only for live views (local live saves or a watched shared link); manual imports show the save as is.
+    if (reader || sharing.isWatching) st.estimate = estimatePlayer(world, same ? state!.world.player : undefined);
+    if (same && state) {
       rememberView(state);
       st.selected = state.selected;
       st.interiorDir = state.interiorDir;
@@ -85,8 +89,9 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
       st.expanded = state.expanded;
     }
     if ((reader || sharing.isWatching) && follow) {
-      const selected: [number, number] = [world.player.area.x, world.player.area.y];
-      const interior = playerInterior(world)?.dir;
+      const you = playerSpot(st);
+      const selected = you.zone;
+      const interior = you.inside ? you.interior : undefined;
       if (st.selected?.[0] !== selected[0] || st.selected?.[1] !== selected[1] || st.interiorDir !== interior) {
         st.viewport = undefined;
         st.inspected = undefined;
@@ -143,7 +148,22 @@ function stopLive() {
   $("#follow-control").hidden = true;
   status("");
   liveStatus("Live saves off. Manual imports are snapshots.");
+  if (state?.estimate) {
+    rememberView(state);
+    state.estimate = null;
+    if (follow) followPlayer(state);
+    renderWorld(state);
+  }
   sharing.changed();
+}
+
+/** Points the view at the player's (estimated or saved) spot. */
+function followPlayer(st: State) {
+  const you = playerSpot(st);
+  st.selected = you.zone;
+  st.interiorDir = you.inside ? you.interior : undefined;
+  st.viewport = undefined;
+  st.inspected = undefined;
 }
 
 async function manualImport(read: () => Promise<FileMap>) {
@@ -217,10 +237,7 @@ function wire() {
     follow = (e.target as HTMLInputElement).checked;
     if (follow && state) {
       rememberView(state);
-      state.selected = [state.world.player.area.x, state.world.player.area.y];
-      state.interiorDir = playerInterior(state.world)?.dir;
-      state.viewport = undefined;
-      state.inspected = undefined;
+      followPlayer(state);
       renderWorld(state);
     }
   });

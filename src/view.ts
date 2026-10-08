@@ -1,7 +1,8 @@
 // Page rendering: world grid, landmark list, zone and interior panels.
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
-import { MapView, treeIcon } from "./mapview.ts";
+import { MapView, personSvg, treeIcon, zonesInView } from "./mapview.ts";
+import type { Estimate } from "./estimate.ts";
 import {
   brambleMarks,
   detailMarks,
@@ -14,7 +15,7 @@ import {
   treeDetail,
   treeMarks,
 } from "./objects.ts";
-import { CHOP_TOOLS, ownedTools, trunkOf, UNARMED } from "./chop.ts";
+import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts";
 import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
@@ -44,8 +45,8 @@ export interface State {
     realistic: boolean;
     /** Show only trees whose trunk freshness index is at least this (0 = all, 4 = dead only). */
     treeMin: number;
-    /** Chopping tool item; undefined picks the best one the character carries. */
-    chopTool?: number;
+    /** Manually picked chopping tool and the carried tools it was picked with (see `chosenTool`). */
+    chopTool?: { tool: number; owned: string };
   };
   terrain: TerrainStore;
   cleanup?: () => void;
@@ -54,6 +55,8 @@ export interface State {
   viewport?: [number, number, number];
   inspected?: string;
   expanded?: Set<string>;
+  /** Live mode only: where the player probably went after this save. */
+  estimate?: Estimate | null;
 }
 
 const HEAT_COLOR: Record<LandmarkId, string> = {
@@ -104,17 +107,64 @@ function shores(world: World, x: number, y: number) {
   return { all: t === Area.VastWaters, n: wet(x, y - 1), s: wet(x, y + 1), e: wet(x + 1, y), w: wet(x - 1, y) };
 }
 
-function playerSpot(world: World): { x: number; y: number; zone: [number, number]; inside: boolean } {
-  const p = world.player;
+interface Spot {
+  x: number;
+  y: number;
+  zone: [number, number];
+  inside: boolean;
+  /** Interior holding the player, when known. */
+  interior?: string;
+  /** Position inside interior. */
+  at?: [number, number];
+  estimated?: string;
+  title: string;
+}
+
+const tileOf = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
+
+/** The player's spot: the live estimate when there is one, else the saved position (indoors, the entrance outside). */
+export function playerSpot(st: State): Spot {
+  const world = st.world, p = world.player, e = st.estimate;
+  const saved = `saved at ${coordLabel(p.area.x, p.area.y)}${isOutside(p.area.type) ? "" : " (indoors)"}, ${tileOf(p.pos[0], p.pos[1])}`;
+  if (e) {
+    const [x, y] = e.interior ? e.entrance ?? e.interior.at : e.pos;
+    return {
+      x,
+      y,
+      zone: e.zone,
+      inside: e.inside,
+      interior: e.interior?.dir,
+      at: e.interior ? e.pos : undefined,
+      estimated: e.basis,
+      title: `${world.character} (estimated: ${e.basis}; ${saved})`,
+    };
+  }
   const inside = !isOutside(p.area.type);
   const [x, y] = inside ? p.entrance : p.pos;
-  return { x, y, zone: [p.area.x, p.area.y], inside };
+  return {
+    x,
+    y,
+    zone: [p.area.x, p.area.y],
+    inside,
+    interior: playerInterior(world)?.dir,
+    at: p.pos,
+    title: `${world.character} (${saved})`,
+  };
 }
+
+const youLabel = (st: State, you: Spot, inside: boolean) =>
+  `${st.world.character}${inside ? " (inside)" : ""}${you.estimated ? " (est.)" : ""}`;
 
 export function renderWorld(st: State) {
   st.cleanup?.();
   const w = st.world, p = w.player;
-  const you = playerSpot(w);
+  const you = playerSpot(st);
+  const root = document.documentElement.style;
+  if (p.hair) root.setProperty("--hair", p.hair);
+  else root.removeProperty("--hair");
+  const light = p.hairLight !== false;
+  root.setProperty("--you-line", light ? "#120e0f" : "#f4efe6");
+  root.setProperty("--you-halo", light ? "#f4efe6" : "#120e0f");
   const here = w.zones[you.zone[1]]?.[you.zone[0]];
   const version = p.version === "0.8.1.5" ? "" : ` · made for game 0.8.1.5, this save is ${p.version}`;
   const summary = h(
@@ -122,7 +172,11 @@ export function renderWorld(st: State) {
     { class: "summary" },
     h("b", {}, w.character),
     ` · day ${p.day}`,
-    here ? ` · you are in ${coordLabel(here.x, here.y)} ${here.name}${you.inside ? " (indoors)" : ""}` : "",
+    here
+      ? ` · you are ${you.estimated ? "probably " : ""}in ${coordLabel(here.x, here.y)} ${here.name}${you.inside ? " (indoors)" : ""}${
+        you.estimated ? ` (estimated: ${you.estimated})` : ""
+      }`
+      : "",
     version,
   );
   const freshness = h(
@@ -207,7 +261,7 @@ export function renderWorld(st: State) {
   } else selectZone(st, x, y, true);
 }
 
-function cell(st: State, z: Zone, you: ReturnType<typeof playerSpot>) {
+function cell(st: State, z: Zone, you: Spot) {
   const url = st.mapUrls.get(key(z.x, z.y));
   const sh = shores(st.world, z.x, z.y);
   const thumb = st.prefs.realistic && z.dir
@@ -252,7 +306,11 @@ function cell(st: State, z: Zone, you: ReturnType<typeof playerSpot>) {
     }
   }
   const isHere = you.zone[0] === z.x && you.zone[1] === z.y;
-  if (isHere) dots.push(h("span", { class: "you", title: "You", style: `left:${you.x / ROOM * 100}%;top:${you.y / ROOM * 100}%` }));
+  if (isHere) {
+    dots.push(
+      h("span", { class: "you-dot", title: you.title, style: `left:${you.x / ROOM * 100}%;top:${you.y / ROOM * 100}%` }, personSvg()),
+    );
+  }
   return h(
     "button",
     {
@@ -304,9 +362,13 @@ export function selectZone(st: State, x: number, y: number, restore = false) {
   }
   st.interiorDir = undefined;
   st.selected = [x, y];
+  markCell(x, y);
+  renderZone(st, st.world.zones[y][x]);
+}
+
+function markCell(x: number, y: number) {
   document.querySelectorAll(".cell.sel").forEach((c) => c.classList.remove("sel"));
   document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`)?.classList.add("sel");
-  renderZone(st, st.world.zones[y][x]);
 }
 
 function blankBase(world: World, z: Zone): SVGElement[] {
@@ -407,20 +469,25 @@ async function renderZone(st: State, z: Zone) {
     if (inside) m.detail = `${m.detail === "entrance is gone" ? "entrance is gone; " : ""}inside: ${insideSummary(inside.detail)}`;
   }
   const heats = zoneHeat(world, st.marks, z, { ...tiles, beings: detail?.beings });
-  const you = playerSpot(world);
+  const you = playerSpot(st);
   const url = st.mapUrls.get(key(z.x, z.y));
   const base = url
     ? [s("image", { href: url, x: 0, y: 0, width: ROOM, height: ROOM, class: "b-map", preserveAspectRatio: "none" })]
     : blankBase(world, z);
   const inspector = h("section", { class: "inspection", hidden: true, "aria-live": "polite" });
+  const picker = () => toolPicker(st, () => chips);
   const openInterior = (m: Mark) => {
     if (m.interior) {
       st.viewport = undefined;
       st.inspected = undefined;
-      renderInterior(st, z, m.interior, m.name);
+      const at = around?.zoneOf.get(m) ?? z;
+      st.selected = [at.x, at.y];
+      markCell(at.x, at.y);
+      renderInterior(st, at, m.interior, m.name);
     } else {
       st.inspected = markKey(m);
-      inspectMark(inspector, m, undefined, chopTool(st));
+      map.select(m);
+      inspectMark(inspector, m, undefined, chopTool(st), picker());
     }
   };
   const map = new MapView({
@@ -437,14 +504,30 @@ async function renderZone(st: State, z: Zone) {
       : {}),
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
-    player: you.zone[0] === z.x && you.zone[1] === z.y ? { x: you.x, y: you.y, label: you.inside ? "You (inside)" : "You" } : undefined,
+    // Realistic mode spans the world, so the player shows even from a neighbouring zone.
+    player: st.prefs.realistic || (you.zone[0] === z.x && you.zone[1] === z.y)
+      ? {
+        x: you.x + (you.zone[0] - z.x) * ROOM,
+        y: you.y + (you.zone[1] - z.y) * ROOM,
+        label: youLabel(st, you, you.inside),
+        title: you.title,
+      }
+      : undefined,
     onOpen: openInterior,
+    onView: () => around?.refresh(),
   });
   activeMap = map;
+  const around: ReturnType<typeof neighbourMarks> | undefined = st.prefs.realistic
+    ? neighbourMarks(st, map, z, () => my === token, (added) => restoreInspection(added))
+    : undefined;
   if (st.viewport) map.restore(st.viewport);
+  around?.refresh();
   const restoreInspection = (available: Mark[]) => {
     const inspected = available.find((m) => markKey(m) === st.inspected);
-    if (inspected) inspectMark(inspector, inspected, st.expanded, chopTool(st));
+    if (inspected) {
+      map.select(inspected);
+      inspectMark(inspector, inspected, st.expanded, chopTool(st), picker());
+    }
   };
   restoreInspection(marks);
   const treeList = h("div", { class: "lists" });
@@ -455,7 +538,8 @@ async function renderZone(st: State, z: Zone) {
       const expanded = inspector.hidden ? st.expanded : new Set(
         Array.from(inspector.querySelectorAll<HTMLDetailsElement>("details[data-remember][open]")).map((el) => el.dataset.remember!),
       );
-      inspectMark(inspector, open, expanded, chopTool(st));
+      inspectMark(inspector, open, expanded, chopTool(st), picker());
+      map.select(open);
     }
     const keep = treeKeep(st.prefs.treeMin);
     const shown = plants.filter((m) => m.layer === "trees" && (!keep || keep(m))).sort((a, b) => treeLife(a) - treeLife(b));
@@ -464,6 +548,20 @@ async function renderZone(st: State, z: Zone) {
     const list = treeList.querySelector("details");
     if (list && wasOpen !== undefined) list.open = wasOpen;
   });
+
+  const retool = () => {
+    around?.refresh(true);
+    const open = around?.trees.find((m) => markKey(m) === st.inspected);
+    if (open && !inspector.hidden) {
+      const expanded = new Set(
+        Array.from(inspector.querySelectorAll<HTMLDetailsElement>("details[data-remember][open]")).map((el) => el.dataset.remember!),
+      );
+      inspectMark(inspector, open, expanded, chopTool(st), picker());
+      map.select(open);
+    }
+  };
+  chips.addEventListener("retool", retool);
+  chips.addEventListener("change", () => around?.refresh());
 
   const legend = heats.length
     ? h(
@@ -489,6 +587,80 @@ async function renderZone(st: State, z: Zone) {
   );
 }
 
+/** Realistic mode: other zones' markers, loaded once each zone first scrolls into view (trees only while shown). */
+function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean, onAdd: (marks: Mark[]) => void) {
+  const world = st.world;
+  const loaded = new Set<string>(), treesLoaded = new Set<string>();
+  const zoneOf = new Map<Mark, Zone>();
+  const trees: Mark[] = [];
+  const add = (n: Zone, marks: Mark[]) => {
+    if (!current()) return;
+    const ox = (n.x - z.x) * ROOM, oy = (n.y - z.y) * ROOM;
+    for (const m of marks) {
+      m.x += ox;
+      m.y += oy;
+      if (m.box) m.box = [m.box[0] + ox, m.box[1] + oy, m.box[2] + ox, m.box[3] + oy];
+      m.away = { zone: n.name, ox, oy };
+      zoneOf.set(m, n);
+    }
+    map.addMarks(marks);
+    onAdd(marks);
+  };
+  const load = () => {
+    if (!current()) return;
+    const plants = [...PLANT_LAYERS].some((l) => st.prefs.layers.has(l));
+    for (const [x, y] of zonesInView(map.viewport, [z.x, z.y])) {
+      const n = world.zones[y][x], k = key(x, y);
+      if (!loaded.has(k)) {
+        loaded.add(k);
+        const inners = interiorsOf(world, x, y);
+        (n.dir ? loadDetail(world, n.dir) : Promise.resolve(null)).then((detail) =>
+          add(n, [...solidMarks(n.solids, inners), ...sealedMarks(inners), ...(detail ? detailMarks(detail) : [])])
+        );
+      }
+      if (plants && n.dir && !treesLoaded.has(k)) {
+        treesLoaded.add(k);
+        loadTrees(world, n.dir).then((saved) => {
+          const t = treeMarks(saved, chopTool(st));
+          trees.push(...t);
+          add(n, [...t, ...brambleMarks(saved)]);
+        });
+      }
+    }
+  };
+  let timer = 0;
+  return {
+    zoneOf,
+    trees,
+    /** Debounced; settings also refreshes neighbour tree costs after the chopping tool changes. */
+    refresh(settings = false) {
+      if (settings) { for (const m of trees) m.detail = treeDetail(m.tree!, chopTool(st)); }
+      clearTimeout(timer);
+      timer = setTimeout(load, 120);
+    },
+  };
+}
+
+/** Layer chips grouped by category, each with a tri-state header. */
+const LAYER_GROUPS: [string, (Layer | "water")[]][] = [
+  ["Locations", ["places", "caves", "ruins", "rifts"]],
+  ["Entities", ["you", "npcs", "creatures"]],
+  ["Items", ["loot", "camp"]],
+  ["Terrain", ["boulders", "rubble", "rocks", "sharp", "water"]],
+  ["Nature", ["trees", "brambles", "vines"]],
+];
+
+/** Layers drawn from saved plants (lazy `loadTrees`), and the NatureData tile each thorny layer shades. */
+const PLANT_LAYERS = new Set<Layer>(["trees", "brambles", "vines"]);
+const THORN_TILES: [Layer, number][] = [["brambles", 1], ["sharp", 2], ["vines", 3]];
+const OUTDOOR_ONLY = new Set<Layer>(["trees", "brambles", "vines", "sharp", "boulders", "rubble"]);
+
+/** The world grid's person follows the You layer too. */
+function showLayers(st: State, map: MapView, all: Layer[]) {
+  map.setLayers(st.prefs.layers, all);
+  document.body.classList.toggle("hide-you", !st.prefs.layers.has("you"));
+}
+
 /** Layer checkboxes. Trees and water load lazily, and only for outdoor zones (`dir` given). */
 function layerChips(
   st: State,
@@ -499,7 +671,7 @@ function layerChips(
   onPlants?: (plants: Mark[]) => void,
 ) {
   const all = LAYERS.map((l) => l.id);
-  map.setLayers(st.prefs.layers, all);
+  showLayers(st, map, all);
   map.setFilter(treeKeep(st.prefs.treeMin));
   const chips = h("div", { class: "layers" });
   let treesLoaded = false;
@@ -522,26 +694,27 @@ function layerChips(
   let thornsRequest = 0;
   const setThorns = async () => {
     const request = ++thornsRequest;
-    const url = dir && st.prefs.layers.has("brambles") ? await thornsUrl(st.world, dir) : null;
+    const tiles = THORN_TILES.filter(([l]) => st.prefs.layers.has(l)).map(([, t]) => t);
+    const url = dir && tiles.length ? await thornsUrl(st.world, dir, tiles) : null;
     if (current() && request === thornsRequest) map.setOverlay("thorns", url);
   };
-  const boxes = new Map<Layer, HTMLInputElement>();
+  // Water is a separate pref but is shown as part of Terrain.
+  const boxes = new Map<Layer | "water", [HTMLInputElement, HTMLElement]>();
   for (const l of LAYERS) {
-    if (indoor && (l.id === "trees" || l.id === "boulders" || l.id === "brambles")) continue;
+    if (indoor && OUTDOOR_ONLY.has(l.id)) continue;
     const box = h("input", { type: "checkbox", checked: st.prefs.layers.has(l.id) }) as HTMLInputElement;
     box.addEventListener("change", () => {
       if (box.checked) st.prefs.layers.add(l.id);
       else st.prefs.layers.delete(l.id);
-      if ((l.id === "trees" || l.id === "brambles") && box.checked) loadTreesOnce();
-      if (l.id === "brambles") setThorns();
-      map.setLayers(st.prefs.layers, all);
+      if (PLANT_LAYERS.has(l.id) && box.checked) loadTreesOnce();
+      if (THORN_TILES.some(([t]) => t === l.id)) setThorns();
+      showLayers(st, map, all);
     });
-    boxes.set(l.id, box);
-    chips.append(h("label", { class: `chip L-${l.id}`, title: LAYER_TIPS[l.id] ?? "" }, box, l.label));
+    boxes.set(l.id, [box, h("label", { class: `chip L-${l.id}`, title: LAYER_TIPS[l.id] ?? "" }, box, l.label)]);
   }
   if (dir && !indoor) {
-    if (st.prefs.layers.has("trees") || st.prefs.layers.has("brambles")) loadTreesOnce();
-    if (st.prefs.layers.has("brambles")) setThorns();
+    if ([...PLANT_LAYERS].some((l) => st.prefs.layers.has(l))) loadTreesOnce();
+    setThorns();
     const box = h("input", { type: "checkbox", checked: st.prefs.water }) as HTMLInputElement;
     const setWater = async () => {
       const url = st.prefs.water ? await waterUrl(st.world, dir) : null;
@@ -551,9 +724,49 @@ function layerChips(
       st.prefs.water = box.checked;
       setWater();
     });
-    chips.append(h("label", { class: "chip water" }, box, "Water"));
+    boxes.set("water", [box, h("label", { class: "chip water" }, box, "Water")]);
     if (st.prefs.water) setWater();
+  }
 
+  /** Tri-state header: checks all of `set`, or clears them when every one is already on. */
+  const headers: [HTMLInputElement, HTMLInputElement[]][] = [];
+  const setBox = (x: HTMLInputElement, on: boolean) => {
+    if (x.checked === on) return;
+    x.checked = on;
+    x.dispatchEvent(new Event("change"));
+  };
+  const header = (label: string, set: HTMLInputElement[]) => {
+    const box = h("input", { type: "checkbox" }) as HTMLInputElement;
+    box.addEventListener("change", () => {
+      const on = !set.every((x) => x.checked);
+      for (const x of set) setBox(x, on);
+    });
+    headers.push([box, set]);
+    return h("label", { class: "chip group" }, box, label);
+  };
+  const sync = () => {
+    for (const [box, set] of headers) {
+      const n = set.filter((x) => x.checked).length;
+      box.checked = n === set.length;
+      box.indeterminate = n > 0 && n < set.length;
+    }
+  };
+  const every = [...boxes.values()].map(([box]) => box);
+  const reset = h("button", { type: "button", class: "chip reset" }, "Reset to defaults");
+  reset.addEventListener("click", () => {
+    for (const l of LAYERS) if (boxes.has(l.id)) setBox(boxes.get(l.id)![0], l.on);
+    const water = boxes.get("water");
+    if (water) setBox(water[0], false);
+  });
+  chips.append(h("div", { class: "layer-group" }, header("All", every), reset));
+  for (const [label, ids] of LAYER_GROUPS) {
+    const rows = ids.flatMap((id) => boxes.has(id) ? [boxes.get(id)!] : []);
+    if (!rows.length) continue;
+    chips.append(h("div", { class: "layer-group" }, header(label, rows.map(([box]) => box)), ...rows.map(([, el]) => el)));
+  }
+  for (const box of every) box.addEventListener("change", sync);
+  sync();
+  if (dir && !indoor) {
     const trunks = h(
       "select",
       { "aria-label": "Show trees by trunk liveliness" },
@@ -562,7 +775,7 @@ function layerChips(
     trunks.addEventListener("change", () => {
       st.prefs.treeMin = Number(trunks.value);
       map.setFilter(treeKeep(st.prefs.treeMin));
-      const treeBox = boxes.get("trees");
+      const treeBox = boxes.get("trees")?.[0];
       if (treeBox && !treeBox.checked) {
         treeBox.checked = true;
         treeBox.dispatchEvent(new Event("change"));
@@ -571,42 +784,59 @@ function layerChips(
     });
     chips.append(h("label", { class: "chip L-trees" }, "Trunks", trunks));
 
-    const owned = new Set(ownedTools(st.world.player.inventory));
-    const tools = Object.keys(CHOP_TOOLS).map(Number).sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
-    const tool = h(
-      "select",
-      { "aria-label": "Chopping tool for harvest costs" },
-      tools.map((t) =>
-        h(
-          "option",
-          { value: t, selected: t === chopTool(st) },
-          `${ITEM_NAMES[t] ?? `Item ${t}`} ×${CHOP_TOOLS[t]}${owned.has(t) && t !== UNARMED ? " (carried)" : ""}`,
-        )
-      ),
-    ) as HTMLSelectElement;
-    tool.addEventListener("change", () => {
-      st.prefs.chopTool = Number(tool.value);
-      for (const m of trees) m.detail = treeDetail(m.tree!, st.prefs.chopTool);
+    // The tree inspection's tool picker (see `toolPicker`) signals a new tool here.
+    chips.addEventListener("retool", () => {
+      for (const m of trees) m.detail = treeDetail(m.tree!, chopTool(st));
       treesChanged();
     });
-    chips.append(h("label", { class: "chip L-trees" }, "Chop with", tool));
   }
   return chips;
 }
 
+/** "Chop with" select for the tree inspection; changing it dispatches "retool" on `target`. */
+function toolPicker(st: State, target: () => Element | undefined): HTMLElement {
+  const owned = ownedTools(st.world.player.inventory);
+  const tools = Object.keys(CHOP_TOOLS).map(Number).sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
+  const tool = h(
+    "select",
+    { "aria-label": "Chopping tool for harvest costs" },
+    tools.map((t) =>
+      h(
+        "option",
+        { value: t, selected: t === chopTool(st) },
+        `${ITEM_NAMES[t] ?? `Item ${t}`} ×${CHOP_TOOLS[t]}${owned.includes(t) && t !== UNARMED ? " (carried)" : ""}`,
+      )
+    ),
+  ) as HTMLSelectElement;
+  tool.addEventListener("change", () => {
+    st.prefs.chopTool = { tool: Number(tool.value), owned: owned.join() };
+    target()?.dispatchEvent(new Event("retool"));
+  });
+  return h("label", { class: "chop-with" }, "Chop with ", tool);
+}
+
 const LAYER_TIPS: Partial<Record<Layer, string>> = {
+  places: "Named landmarks such as Fort Solid, Camp, the Library and NPC homes, and their entrances",
+  caves: "Cave entrances",
+  ruins: "Ruin and ruin cellar entrances",
+  rifts: "Rifts and the entrances to the rift depths",
   trees: "Willow, Cypress, Trollgnarl and Elderwort, coloured by how dead the trunk is",
-  brambles: "Brambles, Rift Vines and sharp ground: tiles that make each step cost more AP and scratch you",
+  boulders: "Boulders and large boulders",
+  rubble: "Ruin footprints and blocks that cannot be entered",
+  brambles: "Brambles and the ground they cover: each step there costs more AP and scratches you",
+  vines: "Rift Vines and the ground they cover: slower to cross than brambles, and they scratch you",
+  sharp: "Sharp ground, such as the ring around Fort Solid's clearing: the worst footing of the three, making each step cost more AP",
 };
 
-/** Saved NatureData tiles that hinder walking: 1 brambles, 3 rift vine, 2 sharp ground. */
-async function thornsUrl(world: World, dir: string): Promise<string | null> {
+/** Saved NatureData tiles that hinder walking (1 brambles, 3 rift vine, 2 sharp ground); only `tiles` are painted. */
+async function thornsUrl(world: World, dir: string, tiles: number[]): Promise<string | null> {
   const nd = await loadLayer(world, dir, "NatureData");
   if (!nd) return null;
-  const colour: Record<number, number[]> = { 1: [200, 90, 190, 150], 3: [150, 90, 235, 160], 2: [230, 230, 230, 170] };
+  const colour: Record<number, number[]> = { 1: [160, 110, 60, 170], 3: [235, 110, 170, 160], 2: [220, 220, 210, 170] };
   return tileImage((img) => {
     for (let i = 0; i < TILES * TILES; i++) {
-      const c = colour[tileIndex(nd.data[i])];
+      const t = tileIndex(nd.data[i]);
+      const c = tiles.includes(t) ? colour[t] : undefined;
       if (c) img.data.set(c, i * 4);
     }
   });
@@ -620,7 +850,7 @@ const TRUNK_FILTERS: [number, string][] = [
 ];
 
 /** The tool chosen for harvest costs, else the best one the character carries. */
-const chopTool = (st: State) => st.prefs.chopTool ?? ownedTools(st.world.player.inventory)[0];
+const chopTool = (st: State) => chosenTool(ownedTools(st.world.player.inventory), st.prefs.chopTool);
 
 const treeLife = (m: Mark) => (m.tree && trunkOf(m.tree)?.life) ?? 2;
 
@@ -683,9 +913,11 @@ function markGroup(st: State, map: MapView, open: (m: Mark) => void, title: stri
   );
 }
 
+const LOCATIONS = new Set<Layer>(["exits", "places", "caves", "ruins", "rifts"]);
+
 function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => void) {
   const group = (title: string, ms: Mark[], openByDefault = true) => markGroup(st, map, open, title, ms, openByDefault);
-  const places = marks.filter((m) => m.layer === "places" && m.kind !== "boat");
+  const places = marks.filter((m) => LOCATIONS.has(m.layer) && m.kind !== "boat");
   places.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   const npcs = marks.filter((m) => m.layer === "npcs");
   const loot = marks.filter((m) => m.layer === "loot");
@@ -742,6 +974,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     }
   });
   const kind = it.kind !== null ? INTERIOR_NAMES[it.kind] ?? name : name;
+  const you = playerSpot(st);
   const inspector = h("section", { class: "inspection", hidden: true, "aria-live": "polite" });
   const open = (m: Mark) => {
     if (m.interior) {
@@ -750,6 +983,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
       renderInterior(st, z, m.interior, m.name);
     } else {
       st.inspected = markKey(m);
+      map.select(m);
       inspectMark(inspector, m);
     }
   };
@@ -763,13 +997,18 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     view,
     marks,
     heats: [],
-    player: playerInterior(world)?.dir === it.dir ? { x: world.player.pos[0], y: world.player.pos[1], label: "You (saved)" } : undefined,
+    player: you.interior === it.dir && you.at
+      ? { x: you.at[0], y: you.at[1], label: youLabel(st, you, false), title: you.title }
+      : undefined,
     onOpen: open,
   });
   activeMap = map;
   if (st.viewport) map.restore(st.viewport);
   const inspected = marks.find((m) => markKey(m) === st.inspected);
-  if (inspected) inspectMark(inspector, inspected, st.expanded);
+  if (inspected) {
+    map.select(inspected);
+    inspectMark(inspector, inspected, st.expanded);
+  }
   const up = it.parent;
   const back = h(
     "button",

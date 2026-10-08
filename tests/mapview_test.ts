@@ -1,4 +1,5 @@
-import { gestureView, mapBounds } from "../src/mapview.ts";
+import { boxArea, footprintOrder, gestureView, mapBounds, stackAt, zonesInView } from "../src/mapview.ts";
+import type { Mark } from "../src/objects.ts";
 import { ROOM } from "../src/rules.ts";
 import { assert, assertEquals } from "./assert.ts";
 
@@ -40,4 +41,22 @@ Deno.test("map gestures: pinch anchors midpoint, pans, and clamps zoom without j
   assertEquals(gestureView(minimum, before, [{ x: 50, y: 150 }, { x: 250, y: 150 }], 300, 300, ROOM), minimum);
   const maximum = { x: 0, y: 0, size: ROOM };
   assertEquals(gestureView(maximum, before, [{ x: 125, y: 150 }, { x: 175, y: 150 }], 300, 300, ROOM), maximum);
+});
+
+Deno.test("footprints: smaller boxes paint above larger ones; identical boxes stack", () => {
+  const fort: Mark = { layer: "camp", kind: "landmark", x: 0, y: 0, box: [0, 0, 99, 99], name: "Fort Solid" };
+  const door: Mark = { layer: "camp", kind: "entrance", x: 5, y: 5, box: [4, 4, 9, 9], name: "Fort interior" };
+  const twin: Mark = { ...door, name: "Twin" };
+  assertEquals([fort.box!, door.box!].sort(footprintOrder), [fort.box!, door.box!]);
+  assertEquals([door.box!, fort.box!].sort(footprintOrder), [fort.box!, door.box!]);
+  assertEquals(boxArea(door.box!), 36);
+  assertEquals(stackAt([fort, door, twin], twin), [twin, door]);
+  assertEquals(stackAt([fort, door, twin], fort), [fort]);
+});
+
+Deno.test("zones in view: neighbours a viewport overlaps, clipped to the world", () => {
+  assertEquals(zonesInView([0, 0, ROOM], [2, 2]), []);
+  assertEquals(zonesInView([-1, 0, ROOM], [2, 2]), [[1, 2]]);
+  assertEquals(zonesInView([-ROOM, -ROOM, 3 * ROOM], [0, 0]), [[1, 0], [0, 1], [1, 1]]);
+  assertEquals(zonesInView([-4 * ROOM, -4 * ROOM, 5 * ROOM], [4, 4]).length, 24);
 });
