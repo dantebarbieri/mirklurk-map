@@ -850,7 +850,7 @@ svg.map:active {
   stroke: #fff;
   stroke-width: 3px;
 }
-.pt.sel > :not(text) {
+.marks .pt.sel.sel > :not(text) {
   stroke: #fff;
 }
 .fp {
