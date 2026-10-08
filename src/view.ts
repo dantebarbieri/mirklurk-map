@@ -448,8 +448,8 @@ async function renderZone(st: State, z: Zone) {
   };
   restoreInspection(marks);
   const treeList = h("div", { class: "lists" });
-  const chips = layerChips(st, map, z.dir, () => my === token, false, (trees) => {
-    const open = trees.find((m) => markKey(m) === st.inspected);
+  const chips = layerChips(st, map, z.dir, () => my === token, false, (plants) => {
+    const open = plants.find((m) => markKey(m) === st.inspected);
     if (open) {
       // Re-rendering for a new tool keeps the inspection's open sections.
       const expanded = inspector.hidden ? st.expanded : new Set(
@@ -458,7 +458,7 @@ async function renderZone(st: State, z: Zone) {
       inspectMark(inspector, open, expanded, chopTool(st));
     }
     const keep = treeKeep(st.prefs.treeMin);
-    const shown = trees.filter((m) => !keep || keep(m)).sort((a, b) => treeLife(a) - treeLife(b));
+    const shown = plants.filter((m) => m.layer === "trees" && (!keep || keep(m))).sort((a, b) => treeLife(a) - treeLife(b));
     const wasOpen = treeList.querySelector("details")?.open;
     treeList.replaceChildren(markGroup(st, map, openInterior, "Trees, deadest first", shown, false) ?? "");
     const list = treeList.querySelector("details");
@@ -496,7 +496,7 @@ function layerChips(
   dir: string | undefined,
   current: () => boolean,
   indoor = false,
-  onTrees?: (trees: Mark[]) => void,
+  onPlants?: (plants: Mark[]) => void,
 ) {
   const all = LAYERS.map((l) => l.id);
   map.setLayers(st.prefs.layers, all);
@@ -504,8 +504,9 @@ function layerChips(
   const chips = h("div", { class: "layers" });
   let treesLoaded = false;
   let trees: Mark[] = [];
+  let brambles: Mark[] = [];
   const treesChanged = () => {
-    if (current() && treesLoaded) onTrees?.(trees);
+    if (current() && treesLoaded) onPlants?.([...trees, ...brambles]);
   };
   const loadTreesOnce = async () => {
     if (treesLoaded || !dir) return;
@@ -513,13 +514,16 @@ function layerChips(
     const saved = await loadTrees(st.world, dir);
     if (current()) {
       trees = treeMarks(saved, chopTool(st));
-      map.addMarks([...trees, ...brambleMarks(saved)]);
+      brambles = brambleMarks(saved);
+      map.addMarks([...trees, ...brambles]);
       treesChanged();
     }
   };
+  let thornsRequest = 0;
   const setThorns = async () => {
+    const request = ++thornsRequest;
     const url = dir && st.prefs.layers.has("brambles") ? await thornsUrl(st.world, dir) : null;
-    if (current()) map.setOverlay("thorns", url);
+    if (current() && request === thornsRequest) map.setOverlay("thorns", url);
   };
   const boxes = new Map<Layer, HTMLInputElement>();
   for (const l of LAYERS) {
