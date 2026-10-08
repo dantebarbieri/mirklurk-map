@@ -121,11 +121,25 @@ export const personSvg = () =>
 
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
 
+type Box = [number, number, number, number];
+export const boxArea = ([l, t, r, b]: Box) => (r - l + 1) * (b - t + 1);
+
+/** Footprint paint order: largest first, so a smaller intersecting footprint is always on top. */
+export const footprintOrder = (a: Box, b: Box) => boxArea(b) - boxArea(a);
+
+/** Marks whose footprint exactly matches `m`'s, `m` first; a single entry when nothing else shares it. */
+export function stackAt(marks: Mark[], m: Mark): Mark[] {
+  const k = m.box?.join();
+  return k ? [m, ...marks.filter((o) => o !== m && o.box?.join() === k)] : [m];
+}
+
 export class MapView {
   readonly el: HTMLElement;
   readonly svg: SVGSVGElement;
   private pts: { g: SVGElement; x: number; y: number }[] = [];
   private markLayer: SVGElement;
+  private fpLayer: SVGElement;
+  private picker: HTMLElement;
   private heatLayer: SVGElement;
   private overlay: SVGElement;
   private tip: HTMLElement;
@@ -153,7 +167,8 @@ export class MapView {
     const base = s("g", { class: "base" }, spec.base);
     this.heatLayer = s("g", { class: "heats" });
     this.overlay = s("g", { class: "overlays" });
-    this.markLayer = s("g", { class: "marks" });
+    this.fpLayer = s("g", { class: "footprints" });
+    this.markLayer = s("g", { class: "marks" }, this.fpLayer);
     this.svg.append(base, this.overlay, this.heatLayer, this.markLayer);
     for (const ht of spec.heats) {
       this.heatLayer.append(this.image(ht.url, `heat ${ht.cls}`));
@@ -163,6 +178,7 @@ export class MapView {
       }
     }
     this.tip = h("div", { class: "tip", hidden: true });
+    this.picker = h("div", { class: "picker", role: "menu", hidden: true });
     if (spec.raster) {
       this.raster = spec.raster;
       this.canvas = document.createElement("canvas");
@@ -197,6 +213,7 @@ export class MapView {
           : null,
       ),
       this.tip,
+      this.picker,
     );
     this.addMarks(spec.marks);
     if (spec.player) {
@@ -289,18 +306,21 @@ export class MapView {
 
   addMarks(marks: Mark[]) {
     const frag = document.createDocumentFragment();
+    const fps: SVGElement[] = [...this.fpLayer.children] as SVGElement[];
     for (const m of marks) {
       const i = this.marks.push(m) - 1;
       const cls = `${m.kind} L-${m.layer}`;
       if (m.box) {
         const [l, t, r, b] = m.box;
-        frag.append(s("rect", { class: `fp ${cls}`, x: l, y: t, width: r - l + 1, height: b - t + 1, "data-i": i }));
+        fps.push(s("rect", { class: `fp ${cls}`, x: l, y: t, width: r - l + 1, height: b - t + 1, "data-i": i }));
       }
       if (FOOTPRINT_ONLY.has(m.kind.split(" ")[0])) continue;
       const sym = (POINT[m.kind.split(" ")[0]] ?? POINT.loot)(m);
       if (m.label) sym.push(s("text", { y: -9 }, m.label));
       this.addPoint(m.x, m.y, cls, sym, i, frag);
     }
+    const box = (e: SVGElement) => this.marks[Number(e.getAttribute("data-i"))].box!;
+    this.fpLayer.append(...fps.sort((a, b) => footprintOrder(box(a), box(b))));
     this.markLayer.append(frag);
     if (this.keep) this.applyFilter();
     this.rescale();
@@ -386,6 +406,7 @@ export class MapView {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       svg.setPointerCapture(e.pointerId);
       this.tip.hidden = true;
+      this.picker.hidden = true;
     });
     svg.addEventListener("pointermove", (e) => {
       if (pointers.has(e.pointerId)) {
@@ -430,8 +451,12 @@ export class MapView {
     svg.addEventListener("click", (e) => {
       if (suppressClick) return;
       const m = this.markAt(tapTarget ?? e.target);
-      if (m && onOpen) onOpen(m);
-      else if (!m && onMapClick) {
+      this.picker.hidden = true;
+      if (m && onOpen) {
+        const stack = stackAt(this.marks, m).filter((o) => o === m || this.shown(o));
+        if (stack.length > 1) this.pick(stack, e, onOpen);
+        else onOpen(m);
+      } else if (!m && onMapClick) {
         const [x, y] = this.toGame(e);
         onMapClick(x, y);
       }
@@ -442,6 +467,43 @@ export class MapView {
       const [x, y] = this.toGame(e);
       this.zoomBy(0.5, x, y);
     });
+  }
+
+  private shown(m: Mark) {
+    const el = this.fpLayer.querySelector(`[data-i="${this.marks.indexOf(m)}"]`);
+    return !!el && getComputedStyle(el).display !== "none" && getComputedStyle(el).visibility !== "hidden";
+  }
+
+  /** Lets the user choose between marks sharing an identical footprint. */
+  private pick(stack: Mark[], e: MouseEvent, onOpen: (m: Mark) => void) {
+    const close = () => {
+      this.picker.hidden = true;
+      document.removeEventListener("keydown", key);
+      document.removeEventListener("pointerdown", outside);
+    };
+    const key = (k: KeyboardEvent) => k.key === "Escape" && close();
+    const outside = (p: PointerEvent) => !this.picker.contains(p.target as Node) && close();
+    document.addEventListener("keydown", key);
+    document.addEventListener("pointerdown", outside);
+    this.picker.replaceChildren(
+      ...stack.map((m) =>
+        h("button", {
+          type: "button",
+          role: "menuitem",
+          onclick: () => {
+            close();
+            onOpen(m);
+          },
+        }, describe(m))
+      ),
+    );
+    this.tip.hidden = true;
+    this.picker.hidden = false;
+    const box = this.el.getBoundingClientRect();
+    const x = e.clientX - box.left, y = e.clientY - box.top;
+    this.picker.style.left = `${Math.max(4, Math.min(x, box.width - this.picker.offsetWidth - 4))}px`;
+    this.picker.style.top = `${Math.max(4, Math.min(y, box.height - this.picker.offsetHeight - 4))}px`;
+    (this.picker.firstElementChild as HTMLElement | null)?.focus();
   }
 
   private markAt(target: EventTarget | null): Mark | undefined {
