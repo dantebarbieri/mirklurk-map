@@ -50,7 +50,7 @@ export interface MapSpec {
   onMapClick?: (x: number, y: number) => void;
   marks: Mark[];
   heats: { cls: string; url: string; bounds?: [number, number, number, number] | null }[];
-  /** The player's spot; 	itle is its hover text (saved or estimated position). */
+  /** The player's spot; `title` is its hover text (saved or estimated position). */
   player?: { x: number; y: number; label: string; title: string };
   onOpen?: (m: Mark) => void;
 }

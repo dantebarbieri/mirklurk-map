@@ -113,5 +113,8 @@ export function estimatePlayer(world: World, prev?: PlayerSave): Estimate | null
   if (before && (before.interior || !before.inside) && sameArea(before, world, p) && dist(before.pos, p.pos[0], p.pos[1]) <= 16) {
     return null;
   }
+  // Without a previous snapshot, a save exactly on an arrival spot is most likely the new zone's own save: trust it.
+  const [x, y] = p.pos;
+  if (!prev && isOutside(p.area.type) && (x === 8 || x === ROOM - 8 || y === ROOM - 8)) return null;
   return inferMove(world, p);
 }

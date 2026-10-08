@@ -63,8 +63,8 @@ Deno.test("the game's arrival save after a predicted move is not treated as anot
   const before = player([1, 0, 1], [2552, 900]);
   const arrived = player([2, 0, 1], [8, 900]);
   assertEquals(estimatePlayer(world(arrived), before), null);
-  // Without the previous snapshot the same save reads as a departure west.
-  assertEquals(estimatePlayer(world(arrived))?.zone, [1, 0]);
+  // Without the previous snapshot an exact arrival spot is trusted as saved.
+  assertEquals(estimatePlayer(world(arrived)), null);
 });
 
 Deno.test("hairBlend is a BGR colour", () => {
