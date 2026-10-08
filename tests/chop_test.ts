@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "./assert.ts";
 import {
   CHOP_TOOLS,
+  chosenTool,
   dryDivisor,
   formatAp,
   freshnessOf,
@@ -108,5 +109,8 @@ Deno.test("chop: the default tool is the best one carried, even in a bag", () =>
   const inv: Inventory = { state: "saved", items: [item(3), item(100, [{ state: "saved", items: [item(IRON_HAND_AXE)] }])] };
   assertEquals(ownedTools(inv), [IRON_HAND_AXE, 3, UNARMED]);
   assertEquals(ownedTools(undefined), [UNARMED]);
+  assertEquals(chosenTool([IRON_HAND_AXE, UNARMED]), IRON_HAND_AXE);
+  assertEquals(chosenTool([IRON_HAND_AXE, UNARMED], { tool: UNARMED, owned: `${IRON_HAND_AXE},${UNARMED}` }), UNARMED);
+  assertEquals(chosenTool([IRON_HAND_AXE, UNARMED], { tool: UNARMED, owned: `${UNARMED}` }), IRON_HAND_AXE);
   assert(Object.values(CHOP_TOOLS).every((m) => m > 0));
 });

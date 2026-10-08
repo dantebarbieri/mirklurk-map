@@ -134,3 +134,8 @@ export function ownedTools(inventory: Inventory | undefined): number[] {
   walk(inventory);
   return [...found].sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a]);
 }
+
+/** A manual pick only holds while the carried tools are what they were when it was made; otherwise the best carried tool. */
+export function chosenTool(owned: number[], pick?: { tool: number; owned: string }): number {
+  return pick && pick.owned === owned.join() ? pick.tool : owned[0];
+}

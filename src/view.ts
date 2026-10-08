@@ -15,7 +15,7 @@ import {
   treeDetail,
   treeMarks,
 } from "./objects.ts";
-import { CHOP_TOOLS, ownedTools, trunkOf, UNARMED } from "./chop.ts";
+import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts";
 import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
@@ -45,8 +45,8 @@ export interface State {
     realistic: boolean;
     /** Show only trees whose trunk freshness index is at least this (0 = all, 4 = dead only). */
     treeMin: number;
-    /** Chopping tool item; undefined picks the best one the character carries. */
-    chopTool?: number;
+    /** Manually picked chopping tool and the carried tools it was picked with (see `chosenTool`). */
+    chopTool?: { tool: number; owned: string };
   };
   terrain: TerrainStore;
   cleanup?: () => void;
@@ -471,6 +471,7 @@ async function renderZone(st: State, z: Zone) {
     ? [s("image", { href: url, x: 0, y: 0, width: ROOM, height: ROOM, class: "b-map", preserveAspectRatio: "none" })]
     : blankBase(world, z);
   const inspector = h("section", { class: "inspection", hidden: true, "aria-live": "polite" });
+  const picker = () => toolPicker(st, () => chips);
   const openInterior = (m: Mark) => {
     if (m.interior) {
       st.viewport = undefined;
@@ -478,7 +479,7 @@ async function renderZone(st: State, z: Zone) {
       renderInterior(st, z, m.interior, m.name);
     } else {
       st.inspected = markKey(m);
-      inspectMark(inspector, m, undefined, chopTool(st));
+      inspectMark(inspector, m, undefined, chopTool(st), picker());
     }
   };
   const map = new MapView({
@@ -504,7 +505,7 @@ async function renderZone(st: State, z: Zone) {
   if (st.viewport) map.restore(st.viewport);
   const restoreInspection = (available: Mark[]) => {
     const inspected = available.find((m) => markKey(m) === st.inspected);
-    if (inspected) inspectMark(inspector, inspected, st.expanded, chopTool(st));
+    if (inspected) inspectMark(inspector, inspected, st.expanded, chopTool(st), picker());
   };
   restoreInspection(marks);
   const treeList = h("div", { class: "lists" });
@@ -515,7 +516,7 @@ async function renderZone(st: State, z: Zone) {
       const expanded = inspector.hidden ? st.expanded : new Set(
         Array.from(inspector.querySelectorAll<HTMLDetailsElement>("details[data-remember][open]")).map((el) => el.dataset.remember!),
       );
-      inspectMark(inspector, open, expanded, chopTool(st));
+      inspectMark(inspector, open, expanded, chopTool(st), picker());
     }
     const keep = treeKeep(st.prefs.treeMin);
     const shown = plants.filter((m) => m.layer === "trees" && (!keep || keep(m))).sort((a, b) => treeLife(a) - treeLife(b));
@@ -692,27 +693,35 @@ function layerChips(
     });
     chips.append(h("label", { class: "chip L-trees" }, "Trunks", trunks));
 
-    const owned = new Set(ownedTools(st.world.player.inventory));
-    const tools = Object.keys(CHOP_TOOLS).map(Number).sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
-    const tool = h(
-      "select",
-      { "aria-label": "Chopping tool for harvest costs" },
-      tools.map((t) =>
-        h(
-          "option",
-          { value: t, selected: t === chopTool(st) },
-          `${ITEM_NAMES[t] ?? `Item ${t}`} ×${CHOP_TOOLS[t]}${owned.has(t) && t !== UNARMED ? " (carried)" : ""}`,
-        )
-      ),
-    ) as HTMLSelectElement;
-    tool.addEventListener("change", () => {
-      st.prefs.chopTool = Number(tool.value);
-      for (const m of trees) m.detail = treeDetail(m.tree!, st.prefs.chopTool);
+    // The tree inspection's tool picker (see `toolPicker`) signals a new tool here.
+    chips.addEventListener("retool", () => {
+      for (const m of trees) m.detail = treeDetail(m.tree!, chopTool(st));
       treesChanged();
     });
-    chips.append(h("label", { class: "chip L-trees" }, "Chop with", tool));
   }
   return chips;
+}
+
+/** "Chop with" select for the tree inspection; changing it dispatches "retool" on `target`. */
+function toolPicker(st: State, target: () => Element | undefined): HTMLElement {
+  const owned = ownedTools(st.world.player.inventory);
+  const tools = Object.keys(CHOP_TOOLS).map(Number).sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
+  const tool = h(
+    "select",
+    { "aria-label": "Chopping tool for harvest costs" },
+    tools.map((t) =>
+      h(
+        "option",
+        { value: t, selected: t === chopTool(st) },
+        `${ITEM_NAMES[t] ?? `Item ${t}`} ×${CHOP_TOOLS[t]}${owned.includes(t) && t !== UNARMED ? " (carried)" : ""}`,
+      )
+    ),
+  ) as HTMLSelectElement;
+  tool.addEventListener("change", () => {
+    st.prefs.chopTool = { tool: Number(tool.value), owned: owned.join() };
+    target()?.dispatchEvent(new Event("retool"));
+  });
+  return h("label", { class: "chop-with" }, "Chop with ", tool);
 }
 
 const LAYER_TIPS: Partial<Record<Layer, string>> = {
@@ -750,7 +759,7 @@ const TRUNK_FILTERS: [number, string][] = [
 ];
 
 /** The tool chosen for harvest costs, else the best one the character carries. */
-const chopTool = (st: State) => st.prefs.chopTool ?? ownedTools(st.world.player.inventory)[0];
+const chopTool = (st: State) => chosenTool(ownedTools(st.world.player.inventory), st.prefs.chopTool);
 
 const treeLife = (m: Mark) => (m.tree && trunkOf(m.tree)?.life) ?? 2;
 
