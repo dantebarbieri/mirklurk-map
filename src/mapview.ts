@@ -110,18 +110,14 @@ export function treeIcon(kind: string): SVGElement[] {
     s("path", { class: "tree-detail", d: icon.detail }),
   ];
 }
-/** The player as a neutral pictogram (head + shoulders) filled with the save's hair colour (--hair). Origin is the torso, base at y=4. */
+/** A simple player pictogram, coloured by the character's hair (--hair). Origin is the torso, shoulders end at y=4. */
 export function personIcon(): SVGElement[] {
-  const shape = (cls: string) => [
-    s("circle", { class: cls, cx: 0, cy: -7, r: 3 }),
-    s("path", { class: cls, d: "M-5 4 A5 5.5 0 0 1 5 4 Z" }),
-  ];
-  return [...shape("you-halo"), ...shape("you-fill")];
+  const d = "M0 -8.5 A3 3 0 1 1 0 -2.5 A3 3 0 1 1 0 -8.5 Z M-5.5 4 A5.5 4.5 0 0 1 5.5 4 Z";
+  return [s("path", { class: "you-halo", d }), s("path", { class: "you-fill", d })];
 }
-
 /** Inline (HTML) person icon for the world grid and lists. */
 export const personSvg = () =>
-  s("svg", { class: "you-icon", viewBox: "-6.5 -12.5 13 18", "aria-hidden": "true" }, s("g", { class: "you" }, personIcon()));
+  s("svg", { class: "you-icon", viewBox: "-7 -10 14 15.5", "aria-hidden": "true" }, s("g", { class: "you" }, personIcon()));
 
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
 

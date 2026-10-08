@@ -155,7 +155,7 @@ export function renderWorld(st: State) {
   else root.removeProperty("--hair");
   const light = p.hairLight !== false;
   root.setProperty("--you-line", light ? "#120e0f" : "#f4efe6");
-  root.setProperty("--you-halo", light ? "rgb(244 239 230 / .45)" : "rgb(18 14 15 / .5)");
+  root.setProperty("--you-halo", light ? "#f4efe6" : "#120e0f");
   const here = w.zones[you.zone[1]]?.[you.zone[0]];
   const version = p.version === "0.8.1.5" ? "" : ` · made for game 0.8.1.5, this save is ${p.version}`;
   const summary = h(

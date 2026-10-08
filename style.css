@@ -863,21 +863,26 @@ svg.map:active {
 .marks .filtered {
   display: none;
 }
+.you .you-halo,
+.you .you-fill {
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
 .you .you-halo {
   fill: none;
-  stroke: var(--you-halo, rgb(244 239 230 / .45));
-  stroke-width: 3px;
-  stroke-linejoin: round;
+  stroke: var(--you-halo, #120e0f);
+  stroke-width: 2px;
+  stroke-opacity: .4;
 }
 .you .you-fill {
-  fill: var(--hair, #6b4a2b);
-  stroke: var(--you-line, #120e0f);
-  stroke-width: .9px;
-  stroke-linejoin: round;
+  fill: var(--hair, #3a353d);
+  stroke: var(--you-line, #f4efe6);
+  stroke-width: .8px;
 }
 .pt.you.sel .you-halo {
   stroke: #ffd34d;
   stroke-width: 4px;
+  stroke-opacity: 1;
 }
 .pt.you text {
   fill: #fff;
