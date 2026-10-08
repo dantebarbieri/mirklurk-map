@@ -34,12 +34,11 @@ function item(raw: unknown, depth: number): SavedItem {
   };
 }
 
-const sameRecord = (a: unknown, b: Record<string, unknown>) => record(a) && a.index === b.index && a.X === b.X && a.Y === b.Y;
-
 /**
  * GameMaker repeats each item in every occupied cell; only its X,Y origin counts.
  * The game can save a wrong origin (e.g. a bag stored inside its own pouch), so such
- * cells fall back to the top-left of their block of identical records.
+ * cells fall back to the top-left of their block of identical records. Every saved
+ * field, including nested contents, must match for cells to join one block.
  */
 export function parseInventoryGrid(raw: unknown, depth = 0): Inventory {
   if (raw === undefined) return { state: "unavailable", reason: "Contents were not recorded in this save." };
@@ -48,6 +47,13 @@ export function parseInventoryGrid(raw: unknown, depth = 0): Inventory {
   if (rows.some((row) => row.length !== (rows[0]?.length ?? 0))) throw new Error("Ragged inventory grid");
   const items: SavedItem[] = [];
   let repaired = false;
+  const keys = new Map<unknown, string>();
+  const key = (v: unknown) => {
+    let k = keys.get(v);
+    if (k === undefined) keys.set(v, k = JSON.stringify(v));
+    return k;
+  };
+  const sameRecord = (a: unknown, b: unknown) => record(a) && (a === b || key(a) === key(b));
   for (let y = 0; y < rows.length; y++) {
     for (let x = 0; x < rows[y].length; x++) {
       const cell = rows[y][x];

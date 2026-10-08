@@ -56,6 +56,10 @@ Deno.test("inventory: game-saved wrong origins recover by occupied cells with a 
   assert(outOfBounds.state === "saved");
   assertEquals(outOfBounds.items.length, 1);
   assertEquals((parseInventoryGrid([[item(3)]]) as { note?: string }).note, undefined);
+  const one = item(3, 10, 0, 1), two = item(3, 10, 0, 2), wetter = { ...item(3, 10, 0, 1), wet: 0.5 };
+  const adjacent = parseInventoryGrid([[one, one, two], [one, one, two], [wetter, wetter, two]]);
+  assert(adjacent.state === "saved");
+  assertEquals(adjacent.items.map((i) => [i.amount, i.wet]), [[1, 0.25], [2, 0.25], [1, 0.5]]);
 });
 
 Deno.test("inventory: corrupt grids and item records are explicit errors", async () => {
