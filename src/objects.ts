@@ -36,6 +36,8 @@ export interface Mark {
   explored?: boolean;
   inventory?: Inventory;
   tree?: Tree;
+  /** A neighbouring zone's marker, shifted by (ox, oy) into the shown zone's coordinates. */
+  away?: { zone: string; ox: number; oy: number };
 }
 
 const tile = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
@@ -224,4 +226,7 @@ export function treeDetail(t: Tree, tool?: number): string | undefined {
   return `${life}, ${partLabel(t.index, trunk.part).toLowerCase()} ${formatAp(cost)} AP`;
 }
 
-export const describe = (m: Mark) => `${m.name}${m.detail ? ` — ${m.detail}` : ""} (${tile(m.x, m.y)})`;
+export const describe = (m: Mark) =>
+  `${m.name}${m.detail ? ` — ${m.detail}` : ""} (${m.away ? `${m.away.zone}, ` : ""}${
+    tile(m.x - (m.away?.ox ?? 0), m.y - (m.away?.oy ?? 0))
+  })`;

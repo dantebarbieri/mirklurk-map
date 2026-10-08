@@ -1,4 +1,4 @@
-import { gestureView, mapBounds } from "../src/mapview.ts";
+import { gestureView, mapBounds, zonesInView } from "../src/mapview.ts";
 import { ROOM } from "../src/rules.ts";
 import { assert, assertEquals } from "./assert.ts";
 
@@ -40,4 +40,11 @@ Deno.test("map gestures: pinch anchors midpoint, pans, and clamps zoom without j
   assertEquals(gestureView(minimum, before, [{ x: 50, y: 150 }, { x: 250, y: 150 }], 300, 300, ROOM), minimum);
   const maximum = { x: 0, y: 0, size: ROOM };
   assertEquals(gestureView(maximum, before, [{ x: 125, y: 150 }, { x: 175, y: 150 }], 300, 300, ROOM), maximum);
+});
+
+Deno.test("zones in view: neighbours a viewport overlaps, clipped to the world", () => {
+  assertEquals(zonesInView([0, 0, ROOM], [2, 2]), []);
+  assertEquals(zonesInView([-1, 0, ROOM], [2, 2]), [[1, 2]]);
+  assertEquals(zonesInView([-ROOM, -ROOM, 3 * ROOM], [0, 0]), [[1, 0], [0, 1], [1, 1]]);
+  assertEquals(zonesInView([-4 * ROOM, -4 * ROOM, 5 * ROOM], [4, 4]).length, 24);
 });
