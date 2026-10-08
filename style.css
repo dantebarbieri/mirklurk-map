@@ -891,6 +891,9 @@ svg.map:active {
   stroke: #fff;
   stroke-width: 3px;
 }
+.marks .pt.sel.sel > :not(text) {
+  stroke: #fff;
+}
 .fp {
   vector-effect: non-scaling-stroke;
   stroke-width: 1px;
@@ -931,7 +934,8 @@ svg.map:active {
   fill: rgba(240, 180, 76, .3);
   stroke: #f0b44c;
 }
-.fp.hl {
+.fp.hl,
+.fp.sel {
   stroke: #fff;
   stroke-width: 2px;
 }

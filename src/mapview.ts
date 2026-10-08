@@ -137,6 +137,7 @@ export class MapView {
   private vw = ROOM;
   private home: [number, number, number];
   private k = 1;
+  private selected = -1;
   private bounds: [number, number, number];
   private observer: ResizeObserver;
   private canvas?: HTMLCanvasElement;
@@ -278,6 +279,14 @@ export class MapView {
     this.markLayer.querySelectorAll(`[data-i="${i}"]`).forEach((e) => e.classList.add("hl"));
   }
 
+  /** Persistently marks `m` as the clicked/inspected mark (white border, 1.1× size). */
+  select(m: Mark | null) {
+    this.markLayer.querySelectorAll(".sel").forEach((e) => e.classList.remove("sel"));
+    this.selected = m ? this.marks.indexOf(m) : -1;
+    if (this.selected >= 0) this.markLayer.querySelectorAll(`[data-i="${this.selected}"]`).forEach((e) => e.classList.add("sel"));
+    this.rescale();
+  }
+
   addMarks(marks: Mark[]) {
     const frag = document.createDocumentFragment();
     for (const m of marks) {
@@ -306,7 +315,10 @@ export class MapView {
   private rescale() {
     const w = this.svg.clientWidth || 600;
     this.k = this.vw / w;
-    for (const p of this.pts) p.g.setAttribute("transform", `translate(${p.x} ${p.y}) scale(${this.k})`);
+    for (const p of this.pts) {
+      const k = p.g.getAttribute("data-i") === String(this.selected) ? this.k * 1.1 : this.k;
+      p.g.setAttribute("transform", `translate(${p.x} ${p.y}) scale(${k})`);
+    }
     this.redraw();
   }
 
