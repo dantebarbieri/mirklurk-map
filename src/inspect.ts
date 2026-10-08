@@ -3,7 +3,7 @@ import { ITEM_NAMES } from "./gamedata.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { type Mark, markKey } from "./objects.ts";
 import type { Tree } from "./save.ts";
-import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, NATDEAD, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
+import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, NATDEAD, Nature, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
 import { entityWiki, itemWiki, wikiUrl, wikiVerified } from "./wiki.ts";
 
 export function wikiLink(url: string | undefined, label = "Wiki") {
@@ -68,7 +68,11 @@ export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>,
     h("h3", {}, m.name),
     h("p", { class: "muted" }, `Saved tile ${m.x >> 4},${m.y >> 4}${m.detail ? ` - ${m.detail}` : ""}`),
     entityLink(m),
-    ...(m.tree ? treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, expanded) : []),
+    ...(m.tree
+      ? (m.layer === "brambles"
+        ? brambleView(m.tree, tool ?? UNARMED)
+        : treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, expanded))
+      : []),
     ...(m.inventory
       ? [
         inventoryView(m.inventory, `inspection:${markKey(m)}`, expanded),
@@ -79,6 +83,38 @@ export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>,
 }
 
 const toolName = (tool: number) => ITEM_NAMES[tool] ?? `Item ${tool}`;
+
+/** The wiki's tree health page once the catalog knows it, else the harvesting drops page. */
+const treeGuide = () => {
+  const url = wikiUrl("Tree health and chopping") ?? wikiUrl("Tree and shrub harvesting");
+  return url ? h("p", {}, wikiLink(url, "How tree health and chopping work")) : null;
+};
+
+/** How a thorny plant hinders walking (scr_tiles_movement), and what cutting its stem costs. */
+function brambleView(plant: Tree, tool: number): HTMLElement[] {
+  const vine = plant.index === Nature.RiftVine;
+  const stem = trunkOf(plant);
+  return [
+    h(
+      "p",
+      {},
+      "Its stems turn the ground under them into ",
+      h("strong", {}, vine ? "rift vine" : "bramble"),
+      ` tiles (shaded on the map). Each step onto one costs more AP: the game divides a step's cost by the tile's footing, and ${
+        vine ? "rift vines take 0.6" : "brambles take 0.4"
+      } off it (sharp ground takes 1.0). Every step there also scratches you, costing a little wellbeing and wearing your gear. Each Wanderer skill level softens the slowdown by 8%.`,
+    ),
+    stem
+      ? h(
+        "p",
+        {},
+        "Cutting its main stem: ",
+        h("strong", {}, `${formatAp(harvestCost(plant.index, stem.part, CHOP_TOOLS[tool]))} AP`),
+        ` with ${toolName(tool)} (${FRESHNESS[stem.freshness].toLowerCase()}, ${Math.round(stem.life * 100)}% alive).`,
+      )
+      : null,
+  ].filter((e): e is HTMLElement => !!e);
+}
 
 /** Trunk liveliness, the game's harvest cost for the trunk with the chosen tool, and what it drops. */
 function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>): HTMLElement[] {
@@ -128,5 +164,6 @@ function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>)
         tools.map((t) => h("li", { class: t === tool ? "current" : "" }, `${toolName(t)} (×${CHOP_TOOLS[t]}): ${cost(t)} AP`)),
       ),
     ),
+    treeGuide(),
   ].filter((e): e is HTMLElement => !!e);
 }

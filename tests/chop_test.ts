@@ -14,7 +14,7 @@ import {
   trunkWood,
   UNARMED,
 } from "../src/chop.ts";
-import { treeDetail, treeMarks } from "../src/objects.ts";
+import { brambleMarks, treeDetail, treeMarks } from "../src/objects.ts";
 import type { Inventory } from "../src/inventory.ts";
 
 const IRON_HAND_AXE = 27, STEEL_FELLING_AXE = 30;
@@ -91,9 +91,16 @@ Deno.test("chop: the trunk is the root part and drives the marker", () => {
   assertEquals([trunk.life, trunk.freshness], [0.4, 2]);
   assertEquals(trunkOf({ ...tree, parts: [part(0.9, 0.4, 0, -4)] }), undefined);
   const [mark] = treeMarks([tree], IRON_HAND_AXE);
-  assertEquals(mark.kind, "tree f2");
+  assertEquals(mark.kind, "tree willow f2");
   assertEquals(mark.detail, "Half Dead (40% alive), trunk 5.4 AP");
   assertEquals(treeDetail(tree), "Half Dead (40% alive)");
+});
+
+Deno.test("chop: brambles and rift vines are their own layer, not trees", () => {
+  const plant = (index: number) => ({ index, x: 0, y: 0, parts: [part(0.5, 0.5)] });
+  const saved = [plant(Nature.Willow), plant(Nature.Brambles), plant(Nature.RiftVine), plant(Nature.Cypress)];
+  assertEquals(treeMarks(saved).map((m) => m.kind.split(" ")[1]), ["willow", "cypress"]);
+  assertEquals(brambleMarks(saved).map((m) => [m.layer, m.kind]), [["brambles", "bramble"], ["brambles", "bramble vine"]]);
 });
 
 Deno.test("chop: the default tool is the best one carried, even in a bag", () => {

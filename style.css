@@ -776,6 +776,31 @@ svg.map:active {
   background: var(--life, #7fae6a);
   border-radius: 50%;
 }
+.lists .sym-icon {
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.lists .sym-icon path {
+  fill: var(--life, #7fae6a);
+  stroke: #120e0f;
+  stroke-width: 1px;
+}
+.pt.bramble > :not(text) {
+  fill: none;
+  stroke: #c85abe;
+  stroke-width: 2px;
+}
+.pt.bramble.vine > :not(text) {
+  stroke: #9a5aeb;
+}
+.lists .sym.bramble {
+  background: #c85abe;
+}
+.lists .sym.bramble.vine {
+  background: #9a5aeb;
+}
 .freshness-tag {
   color: var(--life);
   font-weight: 600;
@@ -873,6 +898,7 @@ svg.hide-loot .L-loot,
 svg.hide-camp .L-camp,
 svg.hide-boulders .L-boulders,
 svg.hide-rocks .L-rocks,
-svg.hide-trees .L-trees {
+svg.hide-trees .L-trees,
+svg.hide-brambles .L-brambles {
   display: none;
 }

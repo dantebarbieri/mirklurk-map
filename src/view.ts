@@ -1,8 +1,19 @@
 // Page rendering: world grid, landmark list, zone and interior panels.
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
-import { MapView } from "./mapview.ts";
-import { detailMarks, type Layer, LAYERS, type Mark, markKey, sealedMarks, solidMarks, treeDetail, treeMarks } from "./objects.ts";
+import { MapView, TREE_ICONS } from "./mapview.ts";
+import {
+  brambleMarks,
+  detailMarks,
+  type Layer,
+  LAYERS,
+  type Mark,
+  markKey,
+  sealedMarks,
+  solidMarks,
+  treeDetail,
+  treeMarks,
+} from "./objects.ts";
 import { CHOP_TOOLS, ownedTools, trunkOf, UNARMED } from "./chop.ts";
 import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
@@ -502,25 +513,31 @@ function layerChips(
     const saved = await loadTrees(st.world, dir);
     if (current()) {
       trees = treeMarks(saved, chopTool(st));
-      map.addMarks(trees);
+      map.addMarks([...trees, ...brambleMarks(saved)]);
       treesChanged();
     }
   };
+  const setThorns = async () => {
+    const url = dir && st.prefs.layers.has("brambles") ? await thornsUrl(st.world, dir) : null;
+    if (current()) map.setOverlay("thorns", url);
+  };
   const boxes = new Map<Layer, HTMLInputElement>();
   for (const l of LAYERS) {
-    if (indoor && (l.id === "trees" || l.id === "boulders")) continue;
+    if (indoor && (l.id === "trees" || l.id === "boulders" || l.id === "brambles")) continue;
     const box = h("input", { type: "checkbox", checked: st.prefs.layers.has(l.id) }) as HTMLInputElement;
     box.addEventListener("change", () => {
       if (box.checked) st.prefs.layers.add(l.id);
       else st.prefs.layers.delete(l.id);
-      if (l.id === "trees" && box.checked) loadTreesOnce();
+      if ((l.id === "trees" || l.id === "brambles") && box.checked) loadTreesOnce();
+      if (l.id === "brambles") setThorns();
       map.setLayers(st.prefs.layers, all);
     });
     boxes.set(l.id, box);
-    chips.append(h("label", { class: `chip L-${l.id}` }, box, l.label));
+    chips.append(h("label", { class: `chip L-${l.id}`, title: LAYER_TIPS[l.id] ?? "" }, box, l.label));
   }
   if (dir && !indoor) {
-    if (st.prefs.layers.has("trees")) loadTreesOnce();
+    if (st.prefs.layers.has("trees") || st.prefs.layers.has("brambles")) loadTreesOnce();
+    if (st.prefs.layers.has("brambles")) setThorns();
     const box = h("input", { type: "checkbox", checked: st.prefs.water }) as HTMLInputElement;
     const setWater = async () => {
       const url = st.prefs.water ? await waterUrl(st.world, dir) : null;
@@ -573,6 +590,24 @@ function layerChips(
   return chips;
 }
 
+const LAYER_TIPS: Partial<Record<Layer, string>> = {
+  trees: "Willow, Cypress, Trollgnarl and Elderwort, coloured by how dead the trunk is",
+  brambles: "Brambles, Rift Vines and sharp ground: tiles that make each step cost more AP and scratch you",
+};
+
+/** Saved NatureData tiles that hinder walking: 1 brambles, 3 rift vine, 2 sharp ground. */
+async function thornsUrl(world: World, dir: string): Promise<string | null> {
+  const nd = await loadLayer(world, dir, "NatureData");
+  if (!nd) return null;
+  const colour: Record<number, number[]> = { 1: [200, 90, 190, 150], 3: [150, 90, 235, 160], 2: [230, 230, 230, 170] };
+  return tileImage((img) => {
+    for (let i = 0; i < TILES * TILES; i++) {
+      const c = colour[tileIndex(nd.data[i])];
+      if (c) img.data.set(c, i * 4);
+    }
+  });
+}
+
 const TRUNK_FILTERS: [number, string][] = [
   [0, "All"],
   [2, "Half Dead or drier"],
@@ -593,6 +628,14 @@ function areaWarnings(world: World) {
   return world.warnings.length ? h("p", { class: "warnings" }, world.warnings.join(" · ")) : null;
 }
 
+/** The map's tree silhouette, for list rows. */
+const treeSym = (kind: string) =>
+  s(
+    "svg",
+    { class: `sym-icon ${kind}`, viewBox: "-8 -11 16 16", "aria-hidden": "true" },
+    s("path", { d: TREE_ICONS[kind.split(" ")[1]] ?? TREE_ICONS.willow }),
+  );
+
 function markGroup(st: State, map: MapView, open: (m: Mark) => void, title: string, ms: Mark[], openByDefault = true) {
   if (!ms.length) return null;
   const rows = ms.map((m) =>
@@ -603,7 +646,7 @@ function markGroup(st: State, map: MapView, open: (m: Mark) => void, title: stri
         onmouseenter: () => map.highlight(m),
         onmouseleave: () => map.highlight(null),
       },
-      h("span", { class: `sym ${m.kind}` }),
+      m.layer === "trees" ? treeSym(m.kind) : h("span", { class: `sym ${m.kind}` }),
       m.interior ? h("button", { type: "button", class: "link", title: "Look inside", onclick: () => open(m) }, m.name) : h("button", {
         type: "button",
         class: "plain",

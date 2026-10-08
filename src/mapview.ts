@@ -71,7 +71,16 @@ const POINT: Record<string, (m: Mark) => SVGElement[]> = {
   storage: () => [s("rect", { x: -4, y: -4, width: 8, height: 8 })],
   camp: () => [s("path", { d: "M-4 3 L0 -5 L4 3 Z" })],
   rift: () => [s("rect", { x: -4, y: -4, width: 8, height: 8, transform: "rotate(45)" })],
-  tree: () => [s("circle", { r: 2.5 })],
+  tree: (m) => [s("path", { d: TREE_ICONS[m.kind.split(" ")[1]] ?? TREE_ICONS.willow })],
+  bramble: () => [s("path", { d: "M-5 0 H5 M0 -5 V5 M-3.6 -3.6 L3.6 3.6 M3.6 -3.6 L-3.6 3.6" })],
+};
+/** Tree silhouettes by species, drawn about 14px tall with the trunk base at the tree's position. */
+export const TREE_ICONS: Record<string, string> = {
+  willow: "M-1 4 L-1 -1 L-3 1.5 L-4 -1.5 L-6 1 C-7.5 -6 -4 -9 0 -9 C4 -9 7.5 -6 6 1 L4 -1.5 L3 1.5 L1 -1 L1 4 Z",
+  cypress: "M0 -10 C3 -6 3.6 -1 1.3 2 L1 4 L-1 4 L-1.3 2 C-3.6 -1 -3 -6 0 -10 Z",
+  trollgnarl:
+    "M-1.5 4 L-0.5 0 L-3 -1.5 L-6.5 -2 L-5 -5 L-2 -4.5 L-3 -8.5 L0 -6.5 L3 -9.5 L3.5 -5.5 L6.5 -5.5 L5 -2 L1.8 -1 L1 1.5 L2.5 4 Z",
+  elderwort: "M-6 4 C-7.5 0 -5 -2.5 -2.8 -1.5 C-2.5 -6 2.5 -6 2.8 -1.5 C5 -2.5 7.5 0 6 4 Z",
 };
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
 
