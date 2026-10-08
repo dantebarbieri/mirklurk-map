@@ -749,6 +749,67 @@ svg.map:active {
   fill: #7fae6a;
   stroke-width: .8px;
 }
+/* Trunk freshness, Very Fresh (f0) to Dead (f4); the drier, the cheaper to chop. */
+.tree.f0 {
+  --life: #5fae4f;
+}
+.tree.f1 {
+  --life: #a3c25a;
+}
+.tree.f2 {
+  --life: #e0c048;
+}
+.tree.f3 {
+  --life: #e58a3c;
+}
+.tree.f4 {
+  --life: #d9533e;
+}
+.pt.tree[class*=" f"] > :not(text) {
+  fill: var(--life);
+}
+.pt.tree.f3 > :not(text),
+.pt.tree.f4 > :not(text) {
+  stroke-width: 1.4px;
+}
+.lists .sym.tree {
+  background: var(--life, #7fae6a);
+  border-radius: 50%;
+}
+.freshness-tag {
+  color: var(--life);
+  font-weight: 600;
+}
+.life-bar {
+  display: inline-block;
+  width: 80px;
+  height: 6px;
+  margin-left: 8px;
+  vertical-align: 1px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.life-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--life);
+}
+.tool-costs {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+.tool-costs .current {
+  color: var(--gold);
+}
+.chip select {
+  font-size: 12px;
+  max-width: 14em;
+}
+.marks .filtered {
+  display: none;
+}
 .pt.you > :not(text) {
   fill: #fff;
   stroke: #000;

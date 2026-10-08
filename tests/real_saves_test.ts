@@ -9,6 +9,7 @@ import { loadDetail, loadLayer, loadTrees, loadWorld } from "../src/world.ts";
 import { areaLayers, ART, tileSource } from "../src/tiles.ts";
 import { captureSnapshot, type LiveDirectory, scanDirectory } from "../src/live.ts";
 import { detailMarks } from "../src/objects.ts";
+import { trunkOf } from "../src/chop.ts";
 
 const dir = Deno.env.get("MIRKLURK_SAVES") ??
   decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
@@ -130,7 +131,11 @@ Deno.test({ name: "real saves: all saved terrain and scenery have matching game 
         assert(!item.sprite || item.sprite === "spr_part_circles" || ART.sprites[item.sprite], `${area.dir}: ${item.sprite}`);
       }
       const trees = await loadTrees(world, area.dir);
-      for (const tree of trees) assert(tree.parts, `${area.dir}: saved tree geometry`);
+      for (const tree of trees) {
+        assert(tree.parts, `${area.dir}: saved tree geometry`);
+        const life = trunkOf(tree)?.life;
+        assert(life !== undefined && life >= 0 && life <= 1, `${area.dir}: trunk liveliness`);
+      }
     }
     assertEquals(world.warnings, [], c.name);
   }

@@ -6,6 +6,7 @@ import { centerpos, INTERIOR_NAMES, isOutside, LANDMARK_NAMES, NPC_BEINGS, Solid
 import type { Placed, Solid, Tree } from "./save.ts";
 import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
+import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, partLabel, trunkOf } from "./chop.ts";
 
 export type Layer = "places" | "npcs" | "creatures" | "loot" | "camp" | "boulders" | "rocks" | "trees";
 
@@ -33,6 +34,7 @@ export interface Mark {
   /** Entrance leading here: "explored" when the game has saved the interior. */
   explored?: boolean;
   inventory?: Inventory;
+  tree?: Tree;
 }
 
 const tile = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
@@ -177,7 +179,28 @@ export const sealedMarks = (interiors: Interior[]): Mark[] =>
     explored: true,
   }));
 
-export const treeMarks = (trees: Tree[]): Mark[] =>
-  trees.map((t) => ({ layer: "trees", kind: "tree", x: t.x, y: t.y, name: NATURE_NAMES[t.index] ?? "Tree" }));
+export const treeMarks = (trees: Tree[], tool?: number): Mark[] =>
+  trees.map((t) => {
+    const trunk = trunkOf(t);
+    return {
+      layer: "trees",
+      kind: trunk ? `tree f${trunk.freshness}` : "tree",
+      x: t.x,
+      y: t.y,
+      name: NATURE_NAMES[t.index] ?? "Tree",
+      detail: treeDetail(t, tool),
+      tree: t,
+    };
+  });
+
+/** "Half Dead (48% alive), trunk 4.2 AP" — the trunk's liveliness and its harvest cost with the tool. */
+export function treeDetail(t: Tree, tool?: number): string | undefined {
+  const trunk = trunkOf(t);
+  if (!trunk) return undefined;
+  const life = `${FRESHNESS[trunk.freshness]} (${Math.round(trunk.life * 100)}% alive)`;
+  if (tool === undefined) return life;
+  const cost = harvestCost(t.index, trunk.part, CHOP_TOOLS[tool] ?? 1);
+  return `${life}, ${partLabel(t.index, trunk.part).toLowerCase()} ${formatAp(cost)} AP`;
+}
 
 export const describe = (m: Mark) => `${m.name}${m.detail ? ` — ${m.detail}` : ""} (${tile(m.x, m.y)})`;

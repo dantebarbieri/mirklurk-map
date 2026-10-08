@@ -2,6 +2,8 @@ import { h } from "./dom.ts";
 import { ITEM_NAMES } from "./gamedata.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { type Mark, markKey } from "./objects.ts";
+import type { Tree } from "./save.ts";
+import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, NATDEAD, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
 import { entityWiki, itemWiki, wikiUrl, wikiVerified } from "./wiki.ts";
 
 export function wikiLink(url: string | undefined, label = "Wiki") {
@@ -60,12 +62,13 @@ export function entityLink(m: Mark) {
   );
 }
 
-export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>) {
+export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>, tool?: number) {
   panel.hidden = false;
   panel.replaceChildren(
     h("h3", {}, m.name),
     h("p", { class: "muted" }, `Saved tile ${m.x >> 4},${m.y >> 4}${m.detail ? ` - ${m.detail}` : ""}`),
     entityLink(m),
+    ...(m.tree ? treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, expanded) : []),
     ...(m.inventory
       ? [
         inventoryView(m.inventory, `inspection:${markKey(m)}`, expanded),
@@ -73,4 +76,57 @@ export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>)
       ]
       : []),
   );
+}
+
+const toolName = (tool: number) => ITEM_NAMES[tool] ?? `Item ${tool}`;
+
+/** Trunk liveliness, the game's harvest cost for the trunk with the chosen tool, and what it drops. */
+function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>): HTMLElement[] {
+  const trunk = trunkOf(tree);
+  if (!trunk) return [h("p", { class: "muted" }, "No standing trunk was saved for this plant.")];
+  const label = partLabel(tree.index, trunk.part);
+  const cost = (t: number) => formatAp(harvestCost(tree.index, trunk.part, CHOP_TOOLS[t]));
+  const wood = trunkWood(tree.index, trunk.size);
+  const wet = Math.max(0, trunk.life - 0.5);
+  const tools = Object.keys(CHOP_TOOLS).map(Number).sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
+  const branches = (tree.parts?.length ?? 1) - 1;
+  return [
+    h(
+      "p",
+      { class: `trunk-life tree f${trunk.freshness}` },
+      h("span", { class: "freshness-tag" }, FRESHNESS[trunk.freshness]),
+      ` trunk, ${Math.round(trunk.life * 100)}% alive`,
+      h("span", { class: "life-bar", "aria-hidden": "true" }, h("span", { style: `width: ${Math.round(trunk.life * 100)}%` })),
+      trunk.life < NATDEAD ? h("span", { class: "muted" }, " (leafless, no longer growing)") : null,
+    ),
+    h(
+      "p",
+      {},
+      `Harvest cost (${label}): `,
+      h("strong", {}, `${cost(tool)} AP`),
+      ` with ${toolName(tool)} (tool bonus ×${CHOP_TOOLS[tool]}).`,
+      tool !== UNARMED ? h("span", { class: "muted" }, ` Bare hands: ${cost(UNARMED)} AP.`) : null,
+    ),
+    wood
+      ? h(
+        "p",
+        {},
+        `Felled, it drops ${wood.count} × ${ITEM_NAMES[wood.item] ?? `Item ${wood.item}`} (${
+          wet > 0 ? `${Math.round(wet * 100)}% wet` : "dry"
+        })`,
+        branches ? `, and its ${branches} branch${branches === 1 ? "" : "es"} fall with it` : "",
+        ".",
+      )
+      : null,
+    h(
+      "details",
+      { "data-remember": `${key}/tools`, open: expanded?.has(`${key}/tools`) ?? false },
+      h("summary", {}, "Cost with every tool"),
+      h(
+        "ul",
+        { class: "tool-costs" },
+        tools.map((t) => h("li", { class: t === tool ? "current" : "" }, `${toolName(t)} (×${CHOP_TOOLS[t]}): ${cost(t)} AP`)),
+      ),
+    ),
+  ].filter((e): e is HTMLElement => !!e);
 }

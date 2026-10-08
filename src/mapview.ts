@@ -84,6 +84,7 @@ export class MapView {
   private overlay: SVGElement;
   private tip: HTMLElement;
   private marks: Mark[] = [];
+  private keep: ((m: Mark) => boolean) | null = null;
   private vx = 0;
   private vy = 0;
   private vw = ROOM;
@@ -209,6 +210,19 @@ export class MapView {
     for (const l of all) this.svg.classList.toggle(`hide-${l}`, !on.has(l));
   }
 
+  /** Hides the marks that fail `keep` (null shows all), including marks added later. */
+  setFilter(keep: ((m: Mark) => boolean) | null) {
+    this.keep = keep;
+    this.applyFilter();
+  }
+
+  private applyFilter() {
+    this.markLayer.querySelectorAll("[data-i]").forEach((e) => {
+      const m = this.marks[Number(e.getAttribute("data-i"))];
+      if (m) e.classList.toggle("filtered", !!this.keep && !this.keep(m));
+    });
+  }
+
   highlight(m: Mark | null) {
     this.markLayer.querySelectorAll(".hl").forEach((e) => e.classList.remove("hl"));
     if (!m) return;
@@ -231,6 +245,7 @@ export class MapView {
       this.addPoint(m.x, m.y, cls, sym, i, frag);
     }
     this.markLayer.append(frag);
+    if (this.keep) this.applyFilter();
     this.rescale();
   }
 

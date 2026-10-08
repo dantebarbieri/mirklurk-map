@@ -2,10 +2,11 @@
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
 import { MapView } from "./mapview.ts";
-import { detailMarks, type Layer, LAYERS, type Mark, markKey, sealedMarks, solidMarks, treeMarks } from "./objects.ts";
+import { detailMarks, type Layer, LAYERS, type Mark, markKey, sealedMarks, solidMarks, treeDetail, treeMarks } from "./objects.ts";
+import { CHOP_TOOLS, ownedTools, trunkOf, UNARMED } from "./chop.ts";
 import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
-import { BEING_NAMES } from "./gamedata.ts";
+import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import { entityLink, inspectMark, inventoryView, wikiLink } from "./inspect.ts";
 import { entityWiki } from "./wiki.ts";
@@ -26,7 +27,15 @@ export interface State {
   marks: Landmark[];
   mapUrls: Map<string, string>;
   /** Shared across characters and reloads. */
-  prefs: { layers: Set<Layer>; water: boolean; realistic: boolean };
+  prefs: {
+    layers: Set<Layer>;
+    water: boolean;
+    realistic: boolean;
+    /** Show only trees whose trunk freshness index is at least this (0 = all, 4 = dead only). */
+    treeMin: number;
+    /** Chopping tool item; undefined picks the best one the character carries. */
+    chopTool?: number;
+  };
   terrain: TerrainStore;
   cleanup?: () => void;
   selected?: [number, number];
@@ -400,7 +409,7 @@ async function renderZone(st: State, z: Zone) {
       renderInterior(st, z, m.interior, m.name);
     } else {
       st.inspected = markKey(m);
-      inspectMark(inspector, m);
+      inspectMark(inspector, m, undefined, chopTool(st));
     }
   };
   const map = new MapView({
@@ -424,10 +433,26 @@ async function renderZone(st: State, z: Zone) {
   if (st.viewport) map.restore(st.viewport);
   const restoreInspection = (available: Mark[]) => {
     const inspected = available.find((m) => markKey(m) === st.inspected);
-    if (inspected) inspectMark(inspector, inspected, st.expanded);
+    if (inspected) inspectMark(inspector, inspected, st.expanded, chopTool(st));
   };
   restoreInspection(marks);
-  const chips = layerChips(st, map, z.dir, () => my === token, false, restoreInspection);
+  const treeList = h("div", { class: "lists" });
+  const chips = layerChips(st, map, z.dir, () => my === token, false, (trees) => {
+    const open = trees.find((m) => markKey(m) === st.inspected);
+    if (open) {
+      // Re-rendering for a new tool keeps the inspection's open sections.
+      const expanded = inspector.hidden ? st.expanded : new Set(
+        Array.from(inspector.querySelectorAll<HTMLDetailsElement>("details[data-remember][open]")).map((el) => el.dataset.remember!),
+      );
+      inspectMark(inspector, open, expanded, chopTool(st));
+    }
+    const keep = treeKeep(st.prefs.treeMin);
+    const shown = trees.filter((m) => !keep || keep(m)).sort((a, b) => treeLife(a) - treeLife(b));
+    const wasOpen = treeList.querySelector("details")?.open;
+    treeList.replaceChildren(markGroup(st, map, openInterior, "Trees, deadest first", shown, false) ?? "");
+    const list = treeList.querySelector("details");
+    if (list && wasOpen !== undefined) list.open = wasOpen;
+  });
 
   const legend = heats.length
     ? h(
@@ -449,7 +474,7 @@ async function renderZone(st: State, z: Zone) {
 
   const lists = poiLists(st, marks, map, openInterior);
   panel.replaceChildren(
-    ...[panel.firstElementChild!, map.el, chips, legend, inspector, lists, areaWarnings(world)].filter((n): n is Element => !!n),
+    ...[panel.firstElementChild!, map.el, chips, legend, inspector, lists, treeList, areaWarnings(world)].filter((n): n is Element => !!n),
   );
 }
 
@@ -460,22 +485,28 @@ function layerChips(
   dir: string | undefined,
   current: () => boolean,
   indoor = false,
-  onAdded?: (marks: Mark[]) => void,
+  onTrees?: (trees: Mark[]) => void,
 ) {
   const all = LAYERS.map((l) => l.id);
   map.setLayers(st.prefs.layers, all);
+  map.setFilter(treeKeep(st.prefs.treeMin));
   const chips = h("div", { class: "layers" });
   let treesLoaded = false;
+  let trees: Mark[] = [];
+  const treesChanged = () => {
+    if (current() && treesLoaded) onTrees?.(trees);
+  };
   const loadTreesOnce = async () => {
     if (treesLoaded || !dir) return;
     treesLoaded = true;
-    const trees = await loadTrees(st.world, dir);
+    const saved = await loadTrees(st.world, dir);
     if (current()) {
-      const added = treeMarks(trees);
-      map.addMarks(added);
-      onAdded?.(added);
+      trees = treeMarks(saved, chopTool(st));
+      map.addMarks(trees);
+      treesChanged();
     }
   };
+  const boxes = new Map<Layer, HTMLInputElement>();
   for (const l of LAYERS) {
     if (indoor && (l.id === "trees" || l.id === "boulders")) continue;
     const box = h("input", { type: "checkbox", checked: st.prefs.layers.has(l.id) }) as HTMLInputElement;
@@ -485,6 +516,7 @@ function layerChips(
       if (l.id === "trees" && box.checked) loadTreesOnce();
       map.setLayers(st.prefs.layers, all);
     });
+    boxes.set(l.id, box);
     chips.append(h("label", { class: `chip L-${l.id}` }, box, l.label));
   }
   if (dir && !indoor) {
@@ -500,57 +532,112 @@ function layerChips(
     });
     chips.append(h("label", { class: "chip water" }, box, "Water"));
     if (st.prefs.water) setWater();
+
+    const trunks = h(
+      "select",
+      { "aria-label": "Show trees by trunk liveliness" },
+      TRUNK_FILTERS.map(([min, label]) => h("option", { value: min, selected: min === st.prefs.treeMin }, label)),
+    ) as HTMLSelectElement;
+    trunks.addEventListener("change", () => {
+      st.prefs.treeMin = Number(trunks.value);
+      map.setFilter(treeKeep(st.prefs.treeMin));
+      const treeBox = boxes.get("trees");
+      if (treeBox && !treeBox.checked) {
+        treeBox.checked = true;
+        treeBox.dispatchEvent(new Event("change"));
+      }
+      treesChanged();
+    });
+    chips.append(h("label", { class: "chip L-trees" }, "Trunks", trunks));
+
+    const owned = new Set(ownedTools(st.world.player.inventory));
+    const tools = Object.keys(CHOP_TOOLS).map(Number).sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
+    const tool = h(
+      "select",
+      { "aria-label": "Chopping tool for harvest costs" },
+      tools.map((t) =>
+        h(
+          "option",
+          { value: t, selected: t === chopTool(st) },
+          `${ITEM_NAMES[t] ?? `Item ${t}`} ×${CHOP_TOOLS[t]}${owned.has(t) && t !== UNARMED ? " (carried)" : ""}`,
+        )
+      ),
+    ) as HTMLSelectElement;
+    tool.addEventListener("change", () => {
+      st.prefs.chopTool = Number(tool.value);
+      for (const m of trees) m.detail = treeDetail(m.tree!, st.prefs.chopTool);
+      treesChanged();
+    });
+    chips.append(h("label", { class: "chip L-trees" }, "Chop with", tool));
   }
   return chips;
 }
+
+const TRUNK_FILTERS: [number, string][] = [
+  [0, "All"],
+  [2, "Half Dead or drier"],
+  [3, "Mostly Dead or drier"],
+  [4, "Dead only"],
+];
+
+/** The tool chosen for harvest costs, else the best one the character carries. */
+const chopTool = (st: State) => st.prefs.chopTool ?? ownedTools(st.world.player.inventory)[0];
+
+const treeLife = (m: Mark) => (m.tree && trunkOf(m.tree)?.life) ?? 2;
+
+/** Map filter for the trunk liveliness select: trees whose trunk is at least this dead. */
+const treeKeep = (min: number) =>
+  min > 0 ? (m: Mark) => m.layer !== "trees" || (m.tree ? (trunkOf(m.tree)?.freshness ?? -1) : -1) >= min : null;
 
 function areaWarnings(world: World) {
   return world.warnings.length ? h("p", { class: "warnings" }, world.warnings.join(" · ")) : null;
 }
 
-function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => void) {
-  const group = (title: string, ms: Mark[], openByDefault = true) => {
-    if (!ms.length) return null;
-    const rows = ms.map((m) =>
-      h(
-        "li",
-        {
-          class: `L-${m.layer} ${m.kind}`,
-          onmouseenter: () => map.highlight(m),
-          onmouseleave: () => map.highlight(null),
+function markGroup(st: State, map: MapView, open: (m: Mark) => void, title: string, ms: Mark[], openByDefault = true) {
+  if (!ms.length) return null;
+  const rows = ms.map((m) =>
+    h(
+      "li",
+      {
+        class: `L-${m.layer} ${m.kind}`,
+        onmouseenter: () => map.highlight(m),
+        onmouseleave: () => map.highlight(null),
+      },
+      h("span", { class: `sym ${m.kind}` }),
+      m.interior ? h("button", { type: "button", class: "link", title: "Look inside", onclick: () => open(m) }, m.name) : h("button", {
+        type: "button",
+        class: "plain",
+        title: "Show on map and inspect",
+        onclick: () => {
+          map.focus(m);
+          open(m);
         },
-        h("span", { class: `sym ${m.kind}` }),
-        m.interior ? h("button", { type: "button", class: "link", title: "Look inside", onclick: () => open(m) }, m.name) : h("button", {
-          type: "button",
-          class: "plain",
-          title: "Show on map and inspect",
-          onclick: () => {
-            map.focus(m);
-            open(m);
-          },
-        }, m.name),
-        entityLink(m),
-        m.detail ? h("span", { class: "muted" }, ` — ${m.detail}`) : "",
-        m.inventory
-          ? h(
-            "span",
-            { class: "muted" },
-            m.inventory.state === "saved"
-              ? ` - ${m.inventory.items.length ? `${m.inventory.items.length} saved stack(s)` : "empty when saved"}`
-              : m.inventory.state === "unrolled"
-              ? " - not rolled when saved"
-              : " - contents unavailable",
-          )
-          : null,
-      )
-    );
-    return h(
-      "details",
-      { "data-remember": title, open: st.expanded ? st.expanded.has(title) : openByDefault },
-      h("summary", {}, `${title} (${ms.length})`),
-      h("ul", {}, rows),
-    );
-  };
+      }, m.name),
+      entityLink(m),
+      m.detail ? h("span", { class: "muted" }, ` — ${m.detail}`) : "",
+      m.inventory
+        ? h(
+          "span",
+          { class: "muted" },
+          m.inventory.state === "saved"
+            ? ` - ${m.inventory.items.length ? `${m.inventory.items.length} saved stack(s)` : "empty when saved"}`
+            : m.inventory.state === "unrolled"
+            ? " - not rolled when saved"
+            : " - contents unavailable",
+        )
+        : null,
+    )
+  );
+  return h(
+    "details",
+    { "data-remember": title, open: st.expanded ? st.expanded.has(title) : openByDefault },
+    h("summary", {}, `${title} (${ms.length})`),
+    h("ul", {}, rows),
+  );
+}
+
+function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => void) {
+  const group = (title: string, ms: Mark[], openByDefault = true) => markGroup(st, map, open, title, ms, openByDefault);
   const places = marks.filter((m) => m.layer === "places" && m.kind !== "boat");
   places.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   const npcs = marks.filter((m) => m.layer === "npcs");
