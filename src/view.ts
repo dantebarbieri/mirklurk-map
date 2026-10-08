@@ -420,6 +420,7 @@ async function renderZone(st: State, z: Zone) {
       renderInterior(st, z, m.interior, m.name);
     } else {
       st.inspected = markKey(m);
+      map.select(m);
       inspectMark(inspector, m, undefined, chopTool(st));
     }
   };
@@ -444,7 +445,10 @@ async function renderZone(st: State, z: Zone) {
   if (st.viewport) map.restore(st.viewport);
   const restoreInspection = (available: Mark[]) => {
     const inspected = available.find((m) => markKey(m) === st.inspected);
-    if (inspected) inspectMark(inspector, inspected, st.expanded, chopTool(st));
+    if (inspected) {
+      map.select(inspected);
+      inspectMark(inspector, inspected, st.expanded, chopTool(st));
+    }
   };
   restoreInspection(marks);
   const treeList = h("div", { class: "lists" });
@@ -456,6 +460,7 @@ async function renderZone(st: State, z: Zone) {
         Array.from(inspector.querySelectorAll<HTMLDetailsElement>("details[data-remember][open]")).map((el) => el.dataset.remember!),
       );
       inspectMark(inspector, open, expanded, chopTool(st));
+      map.select(open);
     }
     const keep = treeKeep(st.prefs.treeMin);
     const shown = plants.filter((m) => m.layer === "trees" && (!keep || keep(m))).sort((a, b) => treeLife(a) - treeLife(b));
@@ -750,6 +755,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
       renderInterior(st, z, m.interior, m.name);
     } else {
       st.inspected = markKey(m);
+      map.select(m);
       inspectMark(inspector, m);
     }
   };
@@ -769,7 +775,10 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
   activeMap = map;
   if (st.viewport) map.restore(st.viewport);
   const inspected = marks.find((m) => markKey(m) === st.inspected);
-  if (inspected) inspectMark(inspector, inspected, st.expanded);
+  if (inspected) {
+    map.select(inspected);
+    inspectMark(inspector, inspected, st.expanded);
+  }
   const up = it.parent;
   const back = h(
     "button",
