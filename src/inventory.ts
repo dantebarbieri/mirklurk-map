@@ -7,7 +7,7 @@ export interface SavedItem {
 }
 
 export type Inventory =
-  | { state: "saved"; items: SavedItem[] }
+  | { state: "saved"; items: SavedItem[]; note?: string }
   | { state: "unrolled" | "unavailable"; reason: string };
 
 const record = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -34,13 +34,20 @@ function item(raw: unknown, depth: number): SavedItem {
   };
 }
 
-/** GameMaker repeats each item in every occupied cell; only its X,Y origin counts. */
+const sameRecord = (a: unknown, b: Record<string, unknown>) => record(a) && a.index === b.index && a.X === b.X && a.Y === b.Y;
+
+/**
+ * GameMaker repeats each item in every occupied cell; only its X,Y origin counts.
+ * The game can save a wrong origin (e.g. a bag stored inside its own pouch), so such
+ * cells fall back to the top-left of their block of identical records.
+ */
 export function parseInventoryGrid(raw: unknown, depth = 0): Inventory {
   if (raw === undefined) return { state: "unavailable", reason: "Contents were not recorded in this save." };
   if (!Array.isArray(raw) || raw.some((row) => !Array.isArray(row))) throw new Error("Invalid inventory grid");
   const rows: unknown[][] = raw;
   if (rows.some((row) => row.length !== (rows[0]?.length ?? 0))) throw new Error("Ragged inventory grid");
   const items: SavedItem[] = [];
+  let repaired = false;
   for (let y = 0; y < rows.length; y++) {
     for (let x = 0; x < rows[y].length; x++) {
       const cell = rows[y][x];
@@ -48,13 +55,17 @@ export function parseInventoryGrid(raw: unknown, depth = 0): Inventory {
       if (!record(cell) || !Number.isInteger(cell.X) || !Number.isInteger(cell.Y)) throw new Error("Invalid inventory cell");
       const ix = Number(cell.X), iy = Number(cell.Y);
       const origin = rows[iy]?.[ix];
-      if (!record(origin) || origin.X !== ix || origin.Y !== iy || origin.index !== cell.index) {
-        throw new Error("Inventory item has no matching origin");
+      if (record(origin) && origin.X === ix && origin.Y === iy && origin.index === cell.index) {
+        if (ix === x && iy === y) items.push(item(cell, depth));
+      } else {
+        repaired = true;
+        if (!sameRecord(rows[y][x - 1], cell) && !sameRecord(rows[y - 1]?.[x], cell)) items.push(item(cell, depth));
       }
-      if (ix === x && iy === y) items.push(item(cell, depth));
     }
   }
-  return { state: "saved", items };
+  return repaired
+    ? { state: "saved", items, note: "The game saved inconsistent item positions here; items are shown by occupied cells." }
+    : { state: "saved", items };
 }
 
 /** Equipment slots and LOOT-x_y files contain each item once, not a grid. */
