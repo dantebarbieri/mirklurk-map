@@ -51,12 +51,14 @@ docker exec "$name-uploads" test -w /data || fail "upload data volume is not wri
 
 curl -fsS "$base/healthz" | grep -qx ok || fail "/healthz"
 for _ in $(seq 1 30); do
-  if curl -fsS "$base/api/shares" >/dev/null; then break; fi
+  if curl -fsS "$base/api/config" >/dev/null; then break; fi
   sleep 1
 done
-curl -fsS "$base/api/shares" | grep -q '"maxActivePerIP":3' || fail "private upload service unavailable"
-[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/octet-stream' --data-binary invalid "$base/api/shares")" = 400 ] \
-  || fail "invalid uploads must be rejected"
+curl -fsS "$base/api/config" | grep -q '"worldsPerLibrary":5' || fail "private upload service unavailable"
+key=$(printf 'k%.0s' $(seq 1 43))
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X PUT -H "Authorization: Bearer $key" -H 'Content-Type: application/octet-stream' \
+  --data-binary invalid "$base/api/library/worlds/$(printf 'w%.0s' $(seq 1 22))")" = 400 ] || fail "invalid uploads must be rejected"
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$base/api/library")" = 401 ] || fail "libraries must require a key"
 
 headers=$(curl -fsSI "$base/")
 grep -qi "^content-security-policy: default-src 'none'" <<<"$headers" || fail "CSP missing on /"
