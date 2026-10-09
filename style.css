@@ -1110,6 +1110,10 @@ body.map-full .inspection > .close:hover {
 .lists .sym.carcass {
   background: #e06060;
 }
+.lists .sym.drop {
+  background: #d9c3a5;
+  border-radius: 50%;
+}
 .lists .sym.storage {
   background: var(--ihar);
 }
@@ -1376,6 +1380,7 @@ svg.hide-rifts .L-rifts,
 svg.hide-npcs .L-npcs,
 svg.hide-creatures .L-creatures,
 svg.hide-loot .L-loot,
+svg.hide-drops .L-drops,
 svg.hide-camp .L-camp,
 svg.hide-storage .L-storage,
 svg.hide-boulders .L-boulders,

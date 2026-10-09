@@ -18,6 +18,7 @@ export type Layer =
   | "npcs"
   | "creatures"
   | "loot"
+  | "drops"
   | "camp"
   | "storage"
   | "boulders"
@@ -36,6 +37,7 @@ export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "you", label: "You", on: true },
   { id: "npcs", label: "NPCs", on: true },
   { id: "loot", label: "Loot", on: true },
+  { id: "drops", label: "Dropped items", on: true },
   { id: "camp", label: "Camp", on: true },
   { id: "storage", label: "Storage", on: true },
   { id: "boulders", label: "Boulders", on: true },
@@ -196,12 +198,13 @@ export function detailMarks(d: ZoneDetail): Mark[] {
     } else if (c.status === -209 || c.status === -216) {
       out.push({ layer: "loot", kind: "carcass", ...at, name: `Carcass: ${BEING_NAMES[c.index] ?? "creature"}`, being: c.index });
     } else if (c.status === -205) {
-      out.push({ layer: "loot", kind: "drop", ...at, name: "Dropped items" });
+      // Items on the ground (yours, or wood from a felled tree) get their own layer: chopping leaves many.
+      out.push({ layer: "drops", kind: "drop", ...at, name: "Dropped items" });
     } else out.push({ layer: "loot", kind: "loot", ...at, name: ITEM_NAMES[c.index] ?? "Container", item });
   }
   for (const loot of d.groundLoot ?? []) {
     out.push({
-      layer: "loot",
+      layer: "drops",
       kind: "drop",
       name: "Ground loot",
       ...loot,

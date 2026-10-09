@@ -727,7 +727,7 @@ type Switch = Layer | "water";
 const LAYER_GROUPS: [string, Switch[]][] = [
   ["Locations", ["places", "caves", "ruins", "rifts"]],
   ["Entities", ["you", "npcs", "creatures"]],
-  ["Items", ["loot", "camp", "storage"]],
+  ["Items", ["loot", "drops", "camp", "storage"]],
   ["Terrain", ["boulders", "rubble", "rocks", "sharp", "water"]],
   ["Nature", ["trees", "brambles", "vines"]],
 ];
@@ -911,6 +911,7 @@ const SWITCH_ICON: Record<Switch, string> = {
   npcs: "npc",
   creatures: "creature",
   loot: "loot",
+  drops: "drop",
   camp: "camp",
   storage: "storage",
   boulders: "boulder",
@@ -1017,6 +1018,7 @@ const LAYER_TIPS: Partial<Record<Switch, string>> = {
   caves: "Cave entrances",
   ruins: "Ruin and ruin cellar entrances",
   rifts: "Rifts and the entrances to the rift depths",
+  drops: "Items lying on the ground: ones you dropped, wood from felled trees, and separately saved ground loot",
   camp: "Workstations and other camp items you have placed",
   storage:
     "Places to keep items: treasure chests (they stay after looting), Hidden Hollows, the Camp stash, and Clay's and Bhato's storage",
@@ -1113,6 +1115,7 @@ function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => voi
   places.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   const npcs = marks.filter((m) => m.layer === "npcs");
   const loot = marks.filter((m) => m.layer === "loot");
+  const drops = marks.filter((m) => m.layer === "drops");
   const camp = marks.filter((m) => m.layer === "camp");
   const storage = marks.filter((m) => m.layer === "storage");
   const creatures = marks.filter((m) => m.layer === "creatures");
@@ -1122,6 +1125,7 @@ function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => voi
     group("Places", places),
     group("NPCs", npcs),
     group("Loot", loot, loot.length <= 12),
+    group("Dropped items", drops, drops.length <= 12),
     group("Camp", camp),
     group("Storage", storage),
     group("Creatures when saved", creatures, false),

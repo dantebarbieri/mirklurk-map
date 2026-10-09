@@ -8,9 +8,9 @@ it shows:
 - where **Fort Solid, Ranger Bhato, the Library, Scaal, Gurb-Gurb and Ihar** are — or, where the game has not placed them yet, where its own
   placement rules can still put them, with probabilities;
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
-  loot, storage (treasure chests, which stay after looting, your Hidden Hollows, the Camp stash and Clay's and Bhato's storage), camp items,
-  rifts, large boulders and ruin rubble. Creatures, small rocks, trees, brambles, rift vines, sharp ground and a water overlay can be
-  switched on. Click an explored entrance to see the inside.
+  loot, dropped items (their own layer, as felling trees leaves many), storage (treasure chests, which stay after looting, your Hidden
+  Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees,
+  brambles, rift vines, sharp ground and a water overlay can be switched on. Click an explored entrance to see the inside.
 
 Save processing happens in the browser tab. Files stay local unless you explicitly upload a temporary shared copy. Realistic mode and the
 pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not have

@@ -85,7 +85,11 @@ export function inventoryView(inventory: Inventory | undefined, key = "inventory
 export const entityUrl = (m: Mark) =>
   entityWiki(
     m.name,
-    m.layer === "npcs" || m.layer === "creatures" ? "Bestiary" : m.layer === "loot" ? "Loot tables" : "World generation",
+    m.layer === "npcs" || m.layer === "creatures"
+      ? "Bestiary"
+      : m.layer === "loot" || m.layer === "drops"
+      ? "Loot tables"
+      : "World generation",
   );
 
 export const entityLink = (m: Mark) => wikiLink(entityUrl(m));
