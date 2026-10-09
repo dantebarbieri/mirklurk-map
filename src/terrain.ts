@@ -2,7 +2,7 @@ import { coordLabel, ROOM } from "./rules.ts";
 import { decodeTilemap, type Solid } from "./save.ts";
 import { areaLayers, ART, mipLevel, type Sprite, tileSource, tileTransform } from "./tiles.ts";
 import { loadDetail, loadTrees, type World } from "./world.ts";
-import type { Raster, Viewport } from "./mapview.ts";
+import type { Raster, Rect } from "./mapview.ts";
 
 export interface Scene {
   dir?: string;
@@ -265,12 +265,13 @@ export class TerrainRaster implements Raster {
     return this.store.subscribe(callback);
   }
 
-  paint(ctx: CanvasRenderingContext2D, view: Viewport) {
-    const scale = ctx.canvas.width / view.size;
+  paint(ctx: CanvasRenderingContext2D, view: Rect) {
+    const scale = ctx.canvas.width / view.width;
     const visible = this.scenes.filter((scene) =>
-      scene.x + ROOM > view.x && scene.y + ROOM > view.y && scene.x < view.x + view.size && scene.y < view.y + view.size
+      scene.x + ROOM > view.x && scene.y + ROOM > view.y && scene.x < view.x + view.width && scene.y < view.y + view.height
     );
-    const distance = (scene: Scene) => Math.hypot(scene.x + ROOM / 2 - view.x - view.size / 2, scene.y + ROOM / 2 - view.y - view.size / 2);
+    const distance = (scene: Scene) =>
+      Math.hypot(scene.x + ROOM / 2 - view.x - view.width / 2, scene.y + ROOM / 2 - view.y - view.height / 2);
     const detailed = new Set([...visible].sort((a, b) => distance(a) - distance(b)).slice(0, 4));
     for (const scene of visible) {
       const x = (scene.x - view.x) * scale, y = (scene.y - view.y) * scale, size = ROOM * scale;
@@ -288,7 +289,7 @@ export class TerrainRaster implements Raster {
         ctx.strokeStyle = "#cebbae88";
         ctx.lineWidth = devicePixelRatio;
         ctx.strokeRect(x, y, size, size);
-        if (size > 55 * devicePixelRatio && view.size > ROOM * 1.2) {
+        if (size > 55 * devicePixelRatio && Math.min(view.width, view.height) > ROOM * 1.2) {
           ctx.font = `${11 * devicePixelRatio}px system-ui`;
           ctx.fillStyle = "#120e0fcc";
           ctx.fillRect(x, y, size, 20 * devicePixelRatio);

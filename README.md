@@ -8,12 +8,13 @@ it shows:
 - where **Fort Solid, Ranger Bhato, the Library, Scaal, Gurb-Gurb and Ihar** are — or, where the game has not placed them yet, where its own
   placement rules can still put them, with probabilities;
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
-  loot, your stashes and camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees, brambles, rift vines, sharp
-  ground and a water overlay can be switched on. Click an explored entrance to see the inside.
+  loot, dropped items (their own layer, as felling trees leaves many), storage (treasure chests, which stay after looting, your Hidden
+  Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees,
+  brambles, rift vines, sharp ground and a water overlay can be switched on. Click an explored entrance to see the inside.
 
-Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode
-loads bundled art from the same site, never a third party. There is no world seed to type in — the game does not have a reusable one (see
-below).
+Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
+the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
+have a reusable one (see below).
 
 ## Using it
 
@@ -21,9 +22,27 @@ Save and quit to the menu, then pick `…\steamapps\common\Mirklurk Every Step M
 folder on the page, or open a `.zip` of it. Picking the whole `Saves` folder offers a character list. `Player.save` alone also works; zone
 maps and objects then stay empty.
 
-Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset. Pinching also pans around the fingers' midpoint. Tap a
-marker to inspect it, or hover for its name and tile; click a list entry to find it on the map. Touch gestures inside the map control the
-map, while outside it normal page scrolling and browser zoom remain available. Controls and panels adapt to narrow phone screens.
+Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset; **World** to fit the whole 5×5 world. Pinching also
+pans around the fingers' midpoint. Tap a marker to inspect it, or hover for its name and tile; click a list entry to find it on the map.
+Touch gestures inside the map control the map, while outside it normal page scrolling and browser zoom remain available. Controls and panels
+adapt to narrow phone screens.
+
+The corner button above `+` shows the map full screen, the easiest way to use it on a phone. It stays full screen while you pan into other
+zones, look inside entrances and come back, switch Realistic mode, or a live or shared save refreshes; the button, Escape or the browser's
+Back return to the page. Full screen fills the whole window, landscape or portrait, showing more of the world along the longer side. The
+zone's title, the way back from an interior and the shaded-area note float on the map, and tapping a marker opens its details in a card
+beside it that follows it as you pan (×, Escape or a tap on empty map closes it). Browsers without a Fullscreen API for pages, such as
+Safari on iPhone, get the same layout over the page.
+
+Whenever the map is at least 600 pixels wide, and always in full screen, a translucent legend floats in its corner: each layer's map symbol,
+tapped to show or hide it (a group's title switches the whole group), and Realistic mode. It mirrors the layer chips below the map, which
+still offer everything, and collapses to its title; it starts collapsed on small screens.
+
+The zone map continues into its neighbours, with their maps and the markers of the enabled layers (loaded as each zone first comes into
+view). Pan into a neighbour and the selection follows: once it fills two thirds of the map along the way you are panning, the grid, the
+title and the map's gold outline move to it, and its details open in place when you let go, keeping the view and any open inspection.
+Peeking over a border, or hovering on one, never flips the selection back and forth. Zoomed out beyond about one and a half zones the map is
+a survey and keeps the selection; zoom into a zone to select it, or click a neighbouring zone to jump to it.
 
 ### My worlds, sync and sharing (opt-in)
 
@@ -123,9 +142,15 @@ Creature corpse loot is rolled at death but is only visible here after saving. S
 loot window closes, so their age can differ from the player snapshot. Unsaved changes, future rolls, and later item decay cannot be
 inferred. The viewer never rolls loot itself.
 
-Item names and entity **Wiki** links open verified pages on `mirklurk.wiki` in a separate tab. Unrolled loot links to its source guide;
-entities without a dedicated known page use a relevant guide instead of a guessed article URL. The bundled public-title catalog is verified
-at development time, not by sending save data to the wiki; pages can change after verification.
+Item names, the titles of inspected markers and the zone's title (dotted like other links) open verified pages on `mirklurk.wiki` in a
+separate tab; the lists under the map keep a **Wiki** link beside each name, since clicking the name finds it on the map. Unrolled loot
+links to its source guide; entities without a dedicated known page use a relevant guide instead of a guessed article URL. The bundled
+public-title catalog is verified at development time, not by sending save data to the wiki; pages can change after verification.
+
+Inspecting a creature or NPC (or a carcass) shows the wiki's picture of it, NPCs as they look in the world, which matters because the map
+only draws them as dots. Placed items such as Hidden Hollows and workstations, and Bhato's hideout, Gurb-Gurb's hut and Ihar's shipwreck,
+show theirs too, and inventory rows show each item's icon. Treasure chests, remains and the Camp stash have no wiki picture yet. The
+pictures are downloaded from the wiki at development time (`deno task wiki`) and bundled with the site; it never contacts the wiki itself.
 
 **Realistic mode** is off by default; enable it with the **Realistic** toggle. It reconstructs explored zones and interiors from saved
 `.tmap` layers using the game's own tilesets, including animated-tile first frames, atlas borders, mirroring and rotation. Buildings, rocks,
@@ -134,15 +159,13 @@ daylight-like view, not a simulation of the game's lighting, weather, animation 
 informational markers, grouped as **Locations** (Places, Caves, Ruins, Rifts; indoor "Way out" exits always show), **Entities** (You, NPCs,
 Creatures), **Items**, **Terrain** (including Water) and **Nature**; each group's header checkbox (and the master **All**) toggles all its
 layers and shows a partial state when only some are on, and **Reset to defaults** restores the initial selection. They do not affect the
-scenery baked into the realistic map. Zooming out past the selected zone also shows other zones' markers for the enabled layers, loaded as
-each zone first comes into view. Switch **Realistic** off to return to the original overview.
+scenery baked into the realistic map. Switch **Realistic** off to return to the original overview.
 
 Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
-followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. **World** fits
-the whole 5×5 world into the map; click a neighbouring zone to inspect it. Only four full-resolution areas are retained, alongside small
-world previews. Switching realistic mode off cancels pending terrain work and releases its caches; switching it back on rebuilds them.
-Unexplored or missing terrain is labelled rather than invented: import the full character folder or ZIP for realistic terrain (`Player.save`
-or map PNGs alone are insufficient).
+followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. Only four
+full-resolution areas are retained, alongside small world previews. Switching realistic mode off cancels pending terrain work and releases
+its caches; switching it back on rebuilds them. Unexplored or missing terrain is labelled rather than invented: import the full character
+folder or ZIP for realistic terrain (`Player.save` or map PNGs alone are insufficient).
 
 ### Trees: trunk liveliness and chopping cost
 
@@ -155,8 +178,8 @@ pale stems on the other species are just a visual anchor, not a second health in
 beside a clicked tree's harvest cost, picks the tool used for costs; it defaults to the best chopping tool your character carries (equipped
 or in a bag), else bare hands, and a manual pick resets to that default once the carried tools change. Hovering a tree shows its freshness,
 % alive and trunk harvest cost; clicking it shows the cost with the chosen tool and every other tool, the logs the felled trunk drops, and a
-link to the wiki's _Tree health and chopping_ guide (linked ahead of that page's deployment, as its title is fixed). **Trees, deadest
-first** lists the zone's trees (respecting the filter), and the choices are kept across zones and characters.
+link to the wiki's _Tree health and chopping_ guide. **Trees, deadest first** lists the zone's trees (respecting the filter), and the
+choices are kept across zones and characters.
 
 Costs are the action points the game's harvest menu shows, at save time; trees keep growing and drying after that. The game refuses a chop
 that costs more than the player's maximum of 8 AP (`actionPointsMax` in `gml_Object_obj_player_Create_0`), and the inspector says so;
@@ -245,7 +268,7 @@ deno task dev      # http://127.0.0.1:8123 — also serves ../Saves read-only, s
 deno task test     # unit tests, plus checks against real saves in ../Saves (or $env:MIRKLURK_SAVES) when present
 deno task check    # type-check
 deno task build    # dist/: index.html + hashed app.*.js and style.*.css
-deno task wiki     # refresh src/wikidata.json from the public wiki; no saves or game data are sent
+deno task wiki     # refresh src/wikidata.json and the bundled pictures (assets/wiki/, src/wikiart.json) from the public wiki; no saves or game data are sent
 ```
 
 To exercise sharing locally, set `$env:ENABLE_UPLOADS = "true"` before `deno task dev`. Uploads are stored in the ignored `.uploads/`
@@ -314,5 +337,6 @@ update builds every service and stops at the first failure.
 For a local check where Docker is available: `docker compose up --build -d` (http://127.0.0.1:8098) or `bash tools/smoke.sh`. The build
 context is an allowlist (`.dockerignore`), so game files and saves cannot end up in the image.
 
-Unofficial fan tool. Mirklurk and the game art are by Edym Pixels. Selected game art is used on this site with the developer's permission;
-it remains the developer's copyrighted material and is not relicensed as part of the viewer's source code.
+Unofficial fan tool. Mirklurk and the game art are by Edym Pixels. Selected game art, including the pictures of creatures, NPCs, items and
+quest buildings taken from mirklurk.wiki, is used on this site with the developer's permission; it remains the developer's copyrighted
+material and is not relicensed as part of the viewer's source code.

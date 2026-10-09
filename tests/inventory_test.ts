@@ -82,6 +82,16 @@ Deno.test("markers: reopened chests, remains, corpses, storage and wood drops re
   assertEquals(marks.length, 6);
   assertEquals(marks.map((m) => m.inventory?.state), ["saved", "saved", "saved", "saved", "saved", "unrolled"]);
   assertEquals(marks[2].name, `Carcass: ${BEING_NAMES[31]}`);
+  // Stashes and treasure chests (opened or not) are storage, apart from camp items and loot.
+  assertEquals(marks.map((m) => m.layer), ["storage", "loot", "loot", "storage", "drops", "storage"]);
+  assertEquals([marks[0].kind, marks[3].kind], ["storage chest", "storage"]);
+  // Pictures: the carcass as its creature, the Hidden Hollow as its item.
+  assertEquals([marks[2].being, marks[3].item, marks[0].item], [31, 108, undefined]);
+});
+
+Deno.test("markers: an NPC's storage the player cannot use yet is still storage", () => {
+  const [chest] = detailMarks(detail(parseContainers([{ index: 109, status: -212, gridSave: [[item()]] }])));
+  assertEquals([chest.layer, chest.name, chest.detail], ["storage", "Storage chest", "not usable yet when saved"]);
 });
 
 Deno.test("ground loot: keep independently saved records visible at occupied container tiles", async () => {
@@ -106,6 +116,7 @@ Deno.test("ground loot: keep independently saved records visible at occupied con
     const marks = detailMarks(d);
     assertEquals(marks.length, 3);
     const ground = marks.find((m) => m.name === "Ground loot" && m.x === 24)!;
+    assertEquals([ground.layer, ground.kind], ["drops", "drop"]);
     assert(ground.inventory?.state === "saved");
     assertEquals(ground.inventory.items[0].index, 72);
     assert(ground.detail?.includes("LOOT-24_40.save"));

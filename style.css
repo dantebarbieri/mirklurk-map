@@ -14,6 +14,11 @@
   --scaal: #c79bff;
   --gurb: #ff9f5a;
   --ihar: #6fd3ff;
+  /* Translucent panels floating on the map. */
+  --glass: rgba(20, 15, 16, .72);
+  --glass-solid: rgba(24, 18, 19, .92);
+  --glass-edge: rgba(209, 183, 106, .3);
+  --glass-blur: blur(10px) saturate(1.2);
   color-scheme: dark;
 }
 
@@ -218,6 +223,32 @@ body.loaded main > * {
 .inspection h3 {
   margin: 0;
   color: var(--gold);
+}
+.inspect-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.inspect-head > div {
+  min-width: 0;
+}
+.inspect-head p {
+  margin: 4px 0 0;
+}
+/* Wiki pictures are pixel art: kept crisp, on a soft light ground so dark sprites read on the dark card. */
+.portrait {
+  flex: none;
+  box-sizing: content-box;
+  padding: 6px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  border-radius: 8px;
+  background: radial-gradient(closest-side, rgba(255, 243, 178, .16), rgba(255, 243, 178, .04));
+}
+.item-icon {
+  margin-right: 6px;
+  vertical-align: middle;
+  object-fit: contain;
 }
 .inventory-items {
   padding-left: 18px;
@@ -612,6 +643,21 @@ svg.map:active {
 .b-land {
   fill: #54443f;
 }
+.zone-edges,
+.zone-focus {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.zone-edges {
+  stroke: #cebbae88;
+  stroke-width: 1px;
+}
+/* The zone whose details are listed, coloured like the selected grid cell. */
+.zone-focus {
+  stroke: var(--gold);
+  stroke-width: 2px;
+}
 .heat {
   opacity: .9;
 }
@@ -679,6 +725,341 @@ svg.map:active {
 .picker button:hover,
 .picker button:focus-visible {
   background: rgba(255, 255, 255, .1);
+}
+
+/* Full-screen button: corners pointing out, or in while the map is full screen. */
+.zoom.full svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.zoom.full .leave,
+.zoom.full[aria-pressed="true"] .enter {
+  display: none;
+}
+.zoom.full[aria-pressed="true"] .leave {
+  display: inline;
+}
+
+/* Map legend: floats on a map at least 600px wide, and always in full screen. */
+.mapbox {
+  container: map / inline-size;
+}
+.map-legend {
+  position: absolute;
+  z-index: 1;
+  left: 8px;
+  bottom: 8px;
+  display: none;
+  flex-direction: column;
+  max-width: calc(100% - 16px);
+  max-height: calc(100% - 16px);
+  padding: 3px;
+  font-size: 12px;
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .4);
+  touch-action: pan-y;
+  user-select: none;
+}
+@container map (min-width: 600px) {
+  .map-legend {
+    display: flex;
+  }
+}
+body.map-full .map-legend {
+  display: flex;
+}
+.key-toggle,
+.key-title,
+.key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.key-toggle:hover,
+.key-title:hover,
+.key:hover,
+.key-toggle:focus-visible,
+.key-title:focus-visible,
+.key:focus-visible {
+  background: rgba(255, 255, 255, .08);
+}
+.key-toggle {
+  padding: 4px 8px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 600;
+}
+.key-toggle .sym-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3px;
+  stroke-linejoin: round;
+}
+.key-toggle::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin: 0 2px 0 auto;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(1px) rotate(-135deg);
+  opacity: .7;
+}
+.map-legend.open .key-toggle::after {
+  transform: translateY(-2px) rotate(45deg);
+}
+.map-legend:not(.open) .key-body {
+  display: none;
+}
+.key-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 2px 2px;
+}
+.key-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 2px;
+}
+.key-title {
+  grid-column: 1 / -1;
+  padding: 6px 6px 1px;
+  color: var(--gold2);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.key {
+  padding: 3px 8px 3px 5px;
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.map-legend .sym-icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  overflow: visible;
+}
+.key[aria-pressed="false"] {
+  color: var(--muted);
+}
+.key[aria-pressed="false"] .sym-icon {
+  opacity: .35;
+  filter: grayscale(1);
+}
+.key-group.settings {
+  margin-top: 4px;
+  padding-top: 3px;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+}
+.key .switch {
+  position: relative;
+  flex: none;
+  width: 24px;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--line);
+  transition: background .15s;
+}
+.key .switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform .15s, background .15s;
+}
+.key[aria-pressed="true"] .switch {
+  background: var(--gold2);
+}
+.key[aria-pressed="true"] .switch::after {
+  transform: translateX(10px);
+  background: #1b1516;
+}
+
+/*
+ * Full screen: the zone panel covers the window. The map fills it and the panel's own header, way back, shading note and
+ * inspection float on it as translucent cards (the inspection beside its mark, placed by MapView); the chips and lists
+ * below the map give way to the legend.
+ */
+:root:has(body.map-full),
+body.map-full {
+  overflow: hidden;
+}
+body.map-full #zone {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: max(8px, env(safe-area-inset-top)) calc(max(8px, env(safe-area-inset-right)) + 56px) 8px
+    max(8px, env(safe-area-inset-left));
+  background: #120e0f;
+  pointer-events: none;
+}
+body.map-full #zone > * {
+  position: relative;
+  z-index: 1;
+  max-width: min(460px, 100%);
+  margin: 0;
+  pointer-events: auto;
+  touch-action: pan-y;
+}
+body.map-full #zone > .mapbox {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: auto;
+  max-width: none;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+}
+body.map-full #zone > :is(.layers, .lists, .warnings) {
+  display: none;
+}
+body.map-full #zone > :is(header, .link, .legend, .loading),
+body.map-full .zoom {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .35);
+}
+body.map-full #zone > :is(header, .link, .legend, .loading) {
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+body.map-full #zone > header {
+  align-items: center;
+  gap: 2px 10px;
+}
+body.map-full #zone > .link {
+  text-decoration: none;
+}
+body.map-full #zone > .legend {
+  max-height: 6.4em;
+  overflow: auto;
+  overscroll-behavior: contain;
+  color: var(--text);
+}
+body.map-full .zooms {
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+}
+body.map-full .map-legend {
+  left: max(8px, env(safe-area-inset-left));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  max-height: calc(100% - 128px);
+}
+body.map-full #zone > .inspection {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  width: min(380px, calc(100% - 16px));
+  max-width: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px 12px;
+  background: var(--glass-solid);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(209, 183, 106, .55);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+}
+body.map-full #zone > .inspection.off {
+  visibility: hidden;
+}
+.inspection > .close {
+  display: none;
+}
+body.map-full .inspection > .close {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: block;
+  float: right;
+  width: 28px;
+  height: 28px;
+  margin: -4px -6px 0 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .08);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+body.map-full .inspection > .close:hover {
+  background: rgba(255, 255, 255, .16);
+}
+/* Points from the popup card to its mark (flipped when the card is below it). */
+.popup-tail {
+  position: absolute;
+  z-index: 4;
+  width: 16px;
+  height: 9px;
+  pointer-events: none;
+}
+.popup-tail svg {
+  display: block;
+  width: 16px;
+  height: 9px;
+  overflow: visible;
+  fill: var(--glass-solid);
+  stroke: rgba(209, 183, 106, .55);
+  stroke-width: 1px;
+}
+.popup-tail.below {
+  transform: scaleY(-1);
+}
+@media (pointer: coarse) {
+  body.map-full .zoom {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  body.map-full .inspection > .close {
+    width: 36px;
+    height: 36px;
+  }
+  .key,
+  .key-toggle {
+    min-height: 34px;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .map-legend,
+  body.map-full .zoom,
+  body.map-full #zone > :is(header, .link, .legend, .loading, .inspection) {
+    background: #1f1819;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 .layers {
@@ -783,6 +1164,10 @@ svg.map:active {
 .lists .sym.carcass {
   background: #e06060;
 }
+.lists .sym.drop {
+  background: #d9c3a5;
+  border-radius: 50%;
+}
 .lists .sym.storage {
   background: var(--ihar);
 }
@@ -834,9 +1219,6 @@ svg.map:active {
 .pt.loot > :not(text) {
   fill: #f0b44c;
 }
-.pt.loot.chest > :not(text) {
-  stroke: #fff;
-}
 .pt.carcass > :not(text) {
   stroke: #e06060;
   stroke-width: 2px;
@@ -846,6 +1228,10 @@ svg.map:active {
 }
 .pt.storage > :not(text) {
   fill: var(--ihar);
+}
+/* Treasure chests found in the world, apart from your own stashes. */
+.pt.storage.chest > :not(text) {
+  stroke: #fff;
 }
 .pt.camp > :not(text) {
   fill: var(--gurb);
@@ -1030,6 +1416,15 @@ svg.map:active {
   stroke: #fff;
   stroke-width: 2px;
 }
+/* Legend swatches for the water and sharp-ground overlays (see waterUrl and thornsUrl). */
+.fp.water {
+  fill: rgb(110, 180, 235);
+  stroke: rgb(40, 110, 200);
+}
+.fp.sharp {
+  fill: rgb(220, 220, 210);
+  stroke: none;
+}
 
 svg.hide-you .L-you,
 svg.hide-places .L-places,
@@ -1039,7 +1434,9 @@ svg.hide-rifts .L-rifts,
 svg.hide-npcs .L-npcs,
 svg.hide-creatures .L-creatures,
 svg.hide-loot .L-loot,
+svg.hide-drops .L-drops,
 svg.hide-camp .L-camp,
+svg.hide-storage .L-storage,
 svg.hide-boulders .L-boulders,
 svg.hide-rubble .L-rubble,
 svg.hide-rocks .L-rocks,
