@@ -1,14 +1,58 @@
-import { frame, MAX_UPLOAD, SHARE_INTERVAL, SHARE_LIFETIME, type SharedInfo, TOKEN, unpackSave } from "../src/sharing-format.ts";
+import {
+  frame,
+  LIBRARY_WORLDS,
+  libraryId,
+  MAX_UPLOAD,
+  newToken,
+  RETENTION,
+  SHARE_INTERVAL,
+  shareId,
+  shareKey,
+  unframe,
+  unpackSave,
+  validName,
+  worldId,
+  type WorldInfo,
+} from "../src/sharing-format.ts";
 
-interface RecordInfo extends SharedInfo {
+/** One stored world. Keys are never stored: a library is its sync key's hash, a share link its share key's hash. */
+interface WorldRecord {
+  key: string;
+  library: string;
+  id: string;
+  name: string;
   owner: string;
-  editHash: string;
+  created: number;
+  updated: number;
+  expires: number;
+  version: string;
   size: number;
-  deleted: boolean;
+  /** The share key derives from the sync key and this salt; a new salt revokes the old share link. */
+  salt: string;
+  view: string;
 }
+interface LibraryRecord {
+  id: string;
+  name: string;
+  owner: string;
+  updated: number;
+}
+
+const DAY = 86_400_000;
 const MAX_STORAGE = 1024 * 1024 * 1024;
-const MAX_ACTIVE = 128;
-const randomToken = () => [...crypto.getRandomValues(new Uint8Array(32))].map((n) => n.toString(16).padStart(2, "0")).join("");
+const MAX_WORLDS = 128;
+const MAX_LIBRARIES = 2048;
+/** Abuse guardrails per client network, on top of the per-library limit. */
+const NETWORK_WORLDS = 10;
+const NETWORK_DAILY = 10;
+const NETWORK_LIBRARIES = 10;
+export const LIMITS = {
+  worldsPerLibrary: LIBRARY_WORLDS,
+  retentionDays: RETENTION / DAY,
+  maxBytes: MAX_UPLOAD,
+  pollSeconds: SHARE_INTERVAL / 1000,
+};
+
 const digest = async (text: string) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((n) => n.toString(16).padStart(2, "0"))
     .join("");
@@ -36,14 +80,6 @@ class HttpError extends Error {
     super(message);
   }
 }
-const publicInfo = ({ id, name, created, updated, expires, version }: RecordInfo): SharedInfo => ({
-  id,
-  name,
-  created,
-  updated,
-  expires,
-  version,
-});
 
 async function readExactly(file: Deno.FsFile, size: number): Promise<Uint8Array> {
   const bytes = new Uint8Array(size);
@@ -56,38 +92,74 @@ async function readExactly(file: Deno.FsFile, size: number): Promise<Uint8Array>
   return bytes;
 }
 
+async function readHeader(file: Deno.FsFile): Promise<WorldRecord> {
+  const length = new DataView((await readExactly(file, 4)).buffer).getUint32(0);
+  if (length > 4096) throw new Error("Invalid stored record");
+  return JSON.parse(new TextDecoder().decode(await readExactly(file, length)));
+}
+
+async function removeIfPresent(path: string) {
+  try {
+    await Deno.remove(path);
+  } catch (e) {
+    if (!(e instanceof Deno.errors.NotFound)) throw e;
+  }
+}
+
 export class UploadStore {
-  private records = new Map<string, RecordInfo>();
+  private worlds = new Map<string, WorldRecord>();
+  private views = new Map<string, string>();
+  private libraries = new Map<string, LibraryRecord>();
+  private adds: { owner: string; at: number }[] = [];
   private rates = new Map<string, { count: number; until: number }>();
   private writing = false;
   private salt = "";
   constructor(private directory: string, private now = () => Date.now()) {}
 
   async init() {
-    await Deno.mkdir(this.directory, { recursive: true });
+    await Deno.mkdir(`${this.directory}/worlds`, { recursive: true });
+    await Deno.mkdir(`${this.directory}/libraries`, { recursive: true });
     try {
       this.salt = await Deno.readTextFile(`${this.directory}/salt`);
     } catch (e) {
       if (!(e instanceof Deno.errors.NotFound)) throw e;
-      this.salt = randomToken();
+      this.salt = newToken();
       await Deno.writeTextFile(`${this.directory}/salt`, this.salt, { createNew: true, mode: 0o600 });
     }
     for await (const entry of Deno.readDir(this.directory)) {
-      if (/^[a-f0-9]{64}\.tmp$/.test(entry.name)) {
+      // Uploads from the earlier one-link-per-upload format are not migrated; they expired within a week anyway.
+      if (/^[a-f0-9]{64}\.(bin|tmp)$/.test(entry.name) || entry.name === "adds.json.tmp") {
         await Deno.remove(`${this.directory}/${entry.name}`);
-      } else if (/^[a-f0-9]{64}\.bin$/.test(entry.name)) {
-        const file = await Deno.open(`${this.directory}/${entry.name}`);
+      }
+    }
+    for await (const entry of Deno.readDir(`${this.directory}/worlds`)) {
+      const path = `${this.directory}/worlds/${entry.name}`;
+      if (entry.name.endsWith(".tmp")) await Deno.remove(path);
+      else if (/^[a-f0-9]{64}\.bin$/.test(entry.name)) {
+        const file = await Deno.open(path);
         try {
-          const prefix = await readExactly(file, 4);
-          const length = new DataView(prefix.buffer).getUint32(0);
-          if (length > 4096) throw new Error("Invalid stored record");
-          const record: RecordInfo = JSON.parse(new TextDecoder().decode(await readExactly(file, length)));
-          if (record.id !== entry.name.slice(0, -4)) throw new Error("Stored record ID mismatch");
-          this.records.set(record.id, record);
+          const record = await readHeader(file);
+          if (record.key !== entry.name.slice(0, -4)) throw new Error("Stored record key mismatch");
+          this.worlds.set(record.key, record);
+          this.views.set(record.view, record.key);
         } finally {
           file.close();
         }
       }
+    }
+    for await (const entry of Deno.readDir(`${this.directory}/libraries`)) {
+      const path = `${this.directory}/libraries/${entry.name}`;
+      if (entry.name.endsWith(".tmp")) await Deno.remove(path);
+      else if (/^[a-f0-9]{64}\.json$/.test(entry.name)) {
+        const library: LibraryRecord = JSON.parse(await Deno.readTextFile(path));
+        if (library.id !== entry.name.slice(0, -5)) throw new Error("Stored library mismatch");
+        this.libraries.set(library.id, library);
+      }
+    }
+    try {
+      this.adds = JSON.parse(await Deno.readTextFile(`${this.directory}/adds.json`));
+    } catch (e) {
+      if (!(e instanceof Deno.errors.NotFound)) throw e;
     }
     await this.cleanup();
   }
@@ -96,23 +168,36 @@ export class UploadStore {
     if (this.writing) return;
     this.writing = true;
     try {
-      for (const [id, record] of this.records) {
-        if (record.expires <= this.now()) {
-          await Deno.remove(`${this.directory}/${id}.bin`);
-          this.records.delete(id);
+      const now = this.now();
+      for (const record of this.worlds.values()) if (record.expires <= now) await this.drop(record);
+      const used = new Set([...this.worlds.values()].map((w) => w.library));
+      for (const library of this.libraries.values()) {
+        if (library.updated + RETENTION <= now && !used.has(library.id)) {
+          await removeIfPresent(`${this.directory}/libraries/${library.id}.json`);
+          this.libraries.delete(library.id);
         }
       }
-      for (const [ip, rate] of this.rates) if (rate.until <= this.now()) this.rates.delete(ip);
+      const adds = this.adds.filter((a) => a.at > now - DAY);
+      if (adds.length !== this.adds.length) {
+        this.adds = adds;
+        await this.write(`${this.directory}/adds.json`, new TextEncoder().encode(JSON.stringify(adds)));
+      }
+      for (const [ip, rate] of this.rates) if (rate.until <= now) this.rates.delete(ip);
     } finally {
       this.writing = false;
     }
   }
 
-  private async save(record: RecordInfo, body: Uint8Array) {
-    const path = `${this.directory}/${record.id}`;
+  private async drop(record: WorldRecord) {
+    await removeIfPresent(`${this.directory}/worlds/${record.key}.bin`);
+    this.worlds.delete(record.key);
+    if (this.views.get(record.view) === record.key) this.views.delete(record.view);
+  }
+
+  private async write(path: string, bytes: Uint8Array) {
     try {
-      await Deno.writeFile(`${path}.tmp`, frame(record, body), { mode: 0o600 });
-      await Deno.rename(`${path}.tmp`, `${path}.bin`);
+      await Deno.writeFile(`${path}.tmp`, bytes, { mode: 0o600 });
+      await Deno.rename(`${path}.tmp`, path);
     } catch (e) {
       try {
         await Deno.remove(`${path}.tmp`);
@@ -121,7 +206,14 @@ export class UploadStore {
       }
       throw e;
     }
-    this.records.set(record.id, record);
+  }
+
+  private async store(record: WorldRecord, body: Uint8Array) {
+    await this.write(`${this.directory}/worlds/${record.key}.bin`, frame(record, body));
+    const old = this.worlds.get(record.key);
+    if (old && old.view !== record.view) this.views.delete(old.view);
+    this.worlds.set(record.key, record);
+    this.views.set(record.view, record.key);
   }
 
   async handle(request: Request, address: string): Promise<Response> {
@@ -140,6 +232,38 @@ export class UploadStore {
     }
   }
 
+  private key(request: Request): string {
+    const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.get("Authorization") ?? "");
+    if (!match) throw new HttpError(401, "Missing or invalid key");
+    return match[1];
+  }
+
+  /** Authorization headers and non-form content types already force a CORS preflight, which is never granted. */
+  private mutation(request: Request, type?: string) {
+    if (request.headers.get("Sec-Fetch-Site") === "cross-site") throw new HttpError(403, "Cross-site changes are not allowed");
+    if (type && request.headers.get("Content-Type") !== type) throw new HttpError(415, `Expected ${type}`);
+  }
+
+  private async exclusive<T>(run: () => Promise<T>): Promise<T> {
+    if (this.writing) throw new HttpError(503, "Another upload is in progress; retry shortly");
+    this.writing = true;
+    try {
+      return await run();
+    } finally {
+      this.writing = false;
+    }
+  }
+
+  private live(key: string | undefined): WorldRecord | undefined {
+    const record = key ? this.worlds.get(key) : undefined;
+    return record && record.expires > this.now() ? record : undefined;
+  }
+
+  private async info(record: WorldRecord, sync: string): Promise<WorldInfo> {
+    const { id, name, created, updated, expires, version, size } = record;
+    return { id, name, created, updated, expires, version, size, share: await shareKey(sync, record.salt) };
+  }
+
   private async route(request: Request, address: string): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/healthz" && request.method === "GET") return new Response("ok\n");
@@ -153,100 +277,186 @@ export class UploadStore {
       this.rates.set(owner, rate);
     }
     if (++rate.count > 60) throw new HttpError(429, "Too many requests; wait a minute");
-    if (url.pathname === "/api/shares" && request.method === "GET") {
-      return Response.json({ enabled: true, maxBytes: MAX_UPLOAD, maxActivePerIP: 3, lifetimeDays: 7, pollSeconds: 30 });
+    if (url.pathname === "/api/config" && request.method === "GET") return Response.json(LIMITS);
+
+    if (url.pathname === "/api/view/data") {
+      if (request.method !== "GET") throw new HttpError(405, "Shared worlds are read-only");
+      const record = this.live(this.views.get(await shareId(this.key(request))));
+      if (!record) throw new HttpError(404, "This shared world was deleted, expired, or its link was reset");
+      return this.data(request, record);
     }
-    const match = /^\/api\/shares\/([a-f0-9]{64})(\/data)?$/.exec(url.pathname);
-    const creating = url.pathname === "/api/shares" && request.method === "POST";
-    let record = match ? this.records.get(match[1]) : undefined;
-    if (!creating && (!record || record.deleted || record.expires <= now)) throw new HttpError(404, "Shared save expired or not found");
-    if (request.method === "GET" && record) {
-      if (!match?.[2]) return Response.json(publicInfo(record));
-      if (request.headers.get("If-None-Match") === `"${record.version}"`) return new Response(null, { status: 304 });
-      const file = await Deno.open(`${this.directory}/${record.id}.bin`);
-      try {
-        const prefix = await readExactly(file, 4);
-        const length = new DataView(prefix.buffer).getUint32(0);
-        if (length > 4096) throw new Error("Invalid stored record");
-        const stored: RecordInfo = JSON.parse(new TextDecoder().decode(await readExactly(file, length)));
-        if (stored.deleted || stored.expires <= this.now()) throw new HttpError(404, "Shared save expired or not found");
-        record = stored;
-      } catch (e) {
-        file.close();
-        throw e;
-      }
-      return new Response(file.readable, {
-        headers: { "Content-Type": "application/octet-stream", ETag: `"${record.version}"` },
+
+    const match = /^\/api\/library(?:\/worlds\/([A-Za-z0-9_-]{22})(\/data|\/share)?)?$/.exec(url.pathname);
+    if (!match) throw new HttpError(404, "Not found");
+    const sync = this.key(request);
+    const library = await libraryId(sync);
+    const [, id, action] = match;
+    if (!id && request.method === "GET") {
+      const worlds = [...this.worlds.values()].filter((w) => w.library === library && w.expires > now)
+        .sort((a, b) => b.updated - a.updated);
+      return Response.json({
+        name: this.libraries.get(library)?.name ?? "",
+        worlds: await Promise.all(worlds.map((w) => this.info(w, sync))),
+        limits: LIMITS,
       });
     }
-    if (!creating && (!["PUT", "DELETE"].includes(request.method) || match?.[2])) throw new HttpError(405, "Method not allowed");
-    // Custom content type + authorization prevent cross-origin form submissions; no CORS is granted.
-    if (request.headers.get("Sec-Fetch-Site") === "cross-site") throw new HttpError(403, "Cross-site uploads are not allowed");
-    if (request.headers.get("Content-Type") !== "application/octet-stream") throw new HttpError(415, "Expected a save package");
-    if (record) {
-      const edit = request.headers.get("Authorization")?.replace(/^Bearer /, "") ?? "";
-      if (!TOKEN.test(edit) || await digest(edit) !== record.editHash) throw new HttpError(403, "This device does not own the shared save");
+    if (!id && request.method === "PATCH") return this.rename(request, library, owner);
+    if (!id) throw new HttpError(405, "Method not allowed");
+    const key = await digest(`${library}/${id}`);
+    if (action === "/data" && request.method === "GET") {
+      const record = this.live(key);
+      if (!record) throw new HttpError(404, "This world was deleted or expired");
+      return this.data(request, record);
     }
-    if (this.writing) throw new HttpError(503, "Another upload is in progress; retry shortly");
-    this.writing = true;
-    try {
-      // Re-read after authorization's await: a concurrent write may have replaced the record.
-      if (record) {
-        record = this.records.get(record.id);
-        if (!record || record.deleted || record.expires <= this.now()) throw new HttpError(404, "Shared save expired or not found");
-      }
-      if (request.method === "DELETE" && record) {
-        await this.save({ ...record, deleted: true, size: 0 }, new Uint8Array());
+    if (action === "/share" && request.method === "POST") return this.reshare(request, key, sync);
+    if (!action && request.method === "PUT") return this.upsert(request, { key, library, id, owner, sync });
+    if (!action && request.method === "DELETE") {
+      this.mutation(request);
+      return this.exclusive(async () => {
+        const record = this.live(key);
+        if (!record) throw new HttpError(404, "This world was already deleted or expired");
+        await this.drop(record);
         return new Response(null, { status: 204 });
-      }
-      const active = [...this.records.values()].filter((r) => !r.deleted && r.expires > now);
-      if (creating) {
-        if (active.filter((r) => r.owner === owner).length >= 3) {
-          throw new HttpError(429, "Only three active shared saves per IP are allowed");
-        }
-        if ([...this.records.values()].filter((r) => r.owner === owner && r.created > now - 86_400_000).length >= 6) {
-          throw new HttpError(429, "Only six new shares per IP are allowed in 24 hours, including deleted shares");
-        }
-        if (active.length >= MAX_ACTIVE || this.records.size >= 2048) throw new HttpError(503, "Shared-save storage is full");
-      } else if (record && now - record.updated < SHARE_INTERVAL) {
-        throw new HttpError(429, "Wait 30 seconds between save updates");
-      }
-      const body = await this.readBody(request);
-      if (record && record.expires <= this.now()) throw new HttpError(404, "Shared save expired while uploading");
-      let name: string;
-      try {
-        name = unpackSave(body).name;
-      } catch (e) {
-        throw new HttpError(400, (e as Error).message);
-      }
-      if (active.reduce((sum, r) => sum + r.size, 0) - (record?.size ?? 0) + body.length > MAX_STORAGE) {
-        throw new HttpError(503, "Shared-save storage is full");
-      }
-      const edit = creating ? randomToken() : undefined;
-      const next: RecordInfo = {
-        id: record?.id ?? randomToken(),
-        owner: record?.owner ?? owner,
-        editHash: record?.editHash ?? await digest(edit!),
-        created: record?.created ?? now,
-        expires: record?.expires ?? now + SHARE_LIFETIME,
-        updated: now,
-        version: randomToken(),
-        name,
-        size: body.length,
-        deleted: false,
-      };
-      await this.save(next, body);
-      return Response.json({ ...publicInfo(next), ...(edit ? { edit } : {}) }, { status: creating ? 201 : 200 });
-    } finally {
-      this.writing = false;
+      });
+    }
+    throw new HttpError(405, "Method not allowed");
+  }
+
+  private async data(request: Request, record: WorldRecord): Promise<Response> {
+    if (request.headers.get("If-None-Match") === `"${record.version}"`) return new Response(null, { status: 304 });
+    const file = await Deno.open(`${this.directory}/worlds/${record.key}.bin`);
+    try {
+      // The file may have been replaced since the in-memory lookup; its own header describes these bytes.
+      const stored = await readHeader(file);
+      if (stored.expires <= this.now()) throw new HttpError(404, "This world was deleted or expired");
+      return new Response(file.readable, {
+        headers: {
+          "Content-Type": "application/octet-stream",
+          ETag: `"${stored.version}"`,
+          "Last-Modified": new Date(stored.updated).toUTCString(),
+        },
+      });
+    } catch (e) {
+      file.close();
+      throw e;
     }
   }
 
-  private async readBody(request: Request): Promise<Uint8Array> {
+  private async rename(request: Request, library: string, owner: string): Promise<Response> {
+    this.mutation(request, "application/json");
+    let name: unknown;
+    try {
+      name = JSON.parse(new TextDecoder().decode(await this.readBody(request, 1024))).name;
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
+      throw new HttpError(400, "Expected a JSON name");
+    }
+    if (!validName(name)) throw new HttpError(400, "Library names are at most 40 characters, without control characters");
+    return this.exclusive(async () => {
+      const path = `${this.directory}/libraries/${library}.json`;
+      const existing = this.libraries.get(library);
+      if (!name) {
+        // Unnamed is the default, so clearing a name frees its record.
+        await removeIfPresent(path);
+        this.libraries.delete(library);
+        return Response.json({ name });
+      }
+      if (!existing) {
+        if ([...this.libraries.values()].filter((l) => l.owner === owner).length >= NETWORK_LIBRARIES) {
+          throw new HttpError(429, `Only ${NETWORK_LIBRARIES} libraries can be named from one network`);
+        }
+        if (this.libraries.size >= MAX_LIBRARIES) throw new HttpError(503, "Library storage is full");
+      }
+      const record: LibraryRecord = { id: library, name, owner: existing?.owner ?? owner, updated: this.now() };
+      await this.write(path, new TextEncoder().encode(JSON.stringify(record)));
+      this.libraries.set(library, record);
+      return Response.json({ name });
+    });
+  }
+
+  private reshare(request: Request, key: string, sync: string): Promise<Response> {
+    this.mutation(request);
+    return this.exclusive(async () => {
+      const record = this.live(key);
+      if (!record) throw new HttpError(404, "This world was deleted or expired");
+      const { body } = unframe(await Deno.readFile(`${this.directory}/worlds/${key}.bin`));
+      const salt = newToken();
+      const next = { ...record, salt, view: await shareId(await shareKey(sync, salt)) };
+      await this.store(next, body);
+      return Response.json(await this.info(next, sync));
+    });
+  }
+
+  private upsert(
+    request: Request,
+    { key, library, id, owner, sync }: { key: string; library: string; id: string; owner: string; sync: string },
+  ): Promise<Response> {
+    this.mutation(request, "application/octet-stream");
+    return this.exclusive(async () => {
+      const now = this.now();
+      const record = this.live(key);
+      // "If-Match: *" marks an update: it must not quietly re-add a world deleted on another device.
+      if (!record && request.headers.get("If-Match") === "*") {
+        throw new HttpError(412, "This world is no longer in your library (it was deleted or expired). Add it again to keep it");
+      }
+      if (record && now - record.updated < SHARE_INTERVAL) throw new HttpError(429, "Wait 30 seconds between updates of a world");
+      const active = [...this.worlds.values()].filter((w) => w.expires > now);
+      if (!record) {
+        // Updating a world already in the library is always allowed; only adding one counts against limits.
+        if (active.filter((w) => w.library === library).length >= LIBRARY_WORLDS) {
+          throw new HttpError(409, `Your library is full (${LIBRARY_WORLDS} of ${LIBRARY_WORLDS} worlds). Delete a world to add this one.`);
+        }
+        if (active.filter((w) => w.owner === owner).length >= NETWORK_WORLDS) {
+          throw new HttpError(429, `Only ${NETWORK_WORLDS} worlds can be stored from one network at a time`);
+        }
+        if (this.adds.filter((a) => a.owner === owner && a.at > now - DAY).length >= NETWORK_DAILY) {
+          throw new HttpError(429, `Only ${NETWORK_DAILY} worlds can be added from one network per day, including deleted ones`);
+        }
+        if (active.length >= MAX_WORLDS) throw new HttpError(503, "Shared-save storage is full");
+      }
+      const body = await this.readBody(request, MAX_UPLOAD);
+      let unpacked: ReturnType<typeof unpackSave>;
+      try {
+        unpacked = unpackSave(body);
+      } catch (e) {
+        throw new HttpError(400, (e as Error).message);
+      }
+      if (await worldId(unpacked.name, unpacked.grid) !== id) {
+        throw new HttpError(409, "This save is a different world from the one it would update, so nothing was changed");
+      }
+      if (active.reduce((sum, w) => sum + w.size, 0) - (record?.size ?? 0) + body.length > MAX_STORAGE) {
+        throw new HttpError(503, "Shared-save storage is full");
+      }
+      const salt = record?.salt ?? newToken();
+      const next: WorldRecord = {
+        key,
+        library,
+        id,
+        name: unpacked.name,
+        owner: record?.owner ?? owner,
+        created: record?.created ?? now,
+        updated: now,
+        expires: now + RETENTION,
+        version: newToken(),
+        size: body.length,
+        salt,
+        view: record?.view ?? await shareId(await shareKey(sync, salt)),
+      };
+      await this.store(next, body);
+      if (!record) {
+        this.adds.push({ owner, at: now });
+        await this.write(`${this.directory}/adds.json`, new TextEncoder().encode(JSON.stringify(this.adds)));
+      }
+      return Response.json(await this.info(next, sync), { status: record ? 200 : 201 });
+    });
+  }
+
+  private async readBody(request: Request, max: number): Promise<Uint8Array> {
+    const limit = max === MAX_UPLOAD ? "64 MiB" : `${max} bytes`;
     const declared = request.headers.get("Content-Length");
-    if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_UPLOAD)) throw new HttpError(413, "Upload exceeds 64 MiB");
+    if (declared && (!/^\d+$/.test(declared) || Number(declared) > max)) throw new HttpError(413, `Upload exceeds ${limit}`);
     const reader = request.body?.getReader();
-    if (!reader) throw new HttpError(400, "Missing save package");
+    if (!reader) throw new HttpError(400, "Missing request body");
     let timer: number | undefined;
     let timedOut = false;
     const chunks: Uint8Array[] = [];
@@ -261,9 +471,9 @@ export class UploadStore {
         if (timedOut) throw new HttpError(408, "Upload timed out");
         if (done) break;
         size += value.length;
-        if (size > MAX_UPLOAD) {
+        if (size > max) {
           await reader.cancel();
-          throw new HttpError(413, "Upload exceeds 64 MiB");
+          throw new HttpError(413, `Upload exceeds ${limit}`);
         }
         chunks.push(value);
       }

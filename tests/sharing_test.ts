@@ -1,27 +1,50 @@
 import { type FileMap, findCharacters } from "../src/files.ts";
-import { frame, MAX_FILES, MAX_UPLOAD, packSave, SHARE_INTERVAL, SHARE_LIFETIME, unframe, unpackSave } from "../src/sharing-format.ts";
+import {
+  frame,
+  MAX_FILES,
+  MAX_UPLOAD,
+  newToken,
+  packSave,
+  RETENTION,
+  SHARE_INTERVAL,
+  TOKEN,
+  unframe,
+  unpackSave,
+  worldId,
+} from "../src/sharing-format.ts";
 import { ipBucket, UploadStore } from "../server/uploads.ts";
 import { assert, assertEquals, assertRejects } from "./assert.ts";
 
-function fixture(): FileMap {
-  const bytes = new TextEncoder().encode(JSON.stringify([{ worldGrid: Array.from({ length: 5 }, () => [1, 1, 1, 1, 1]) }]));
+const encode = (text: string) => new TextEncoder().encode(text);
+const grid = (cell: number) => Array.from({ length: 5 }, () => Array(5).fill(cell));
+function fixture(name = "Hero", cell = 1): FileMap {
+  const bytes = encode(JSON.stringify([{ worldGrid: grid(cell) }]));
   return new Map([
-    ["Saves/Hero/Player.save", { read: () => Promise.resolve(bytes), lastModified: 1234 }],
-    ["Saves/Hero/[ 0,0 ]/Containers.save", { read: () => Promise.resolve(new TextEncoder().encode("[]")) }],
+    [`Saves/${name}/Player.save`, { read: () => Promise.resolve(bytes), lastModified: 1234 }],
+    [`Saves/${name}/[ 0,0 ]/Containers.save`, { read: () => Promise.resolve(encode("[]")) }],
     ["Saves/Other/Player.save", { read: () => Promise.resolve(bytes) }],
   ]);
 }
-const packet = () => packSave(fixture(), { name: "Hero", root: "Saves/Hero/" });
+const packet = (name = "Hero", cell = 1) => packSave(fixture(name, cell), { name, root: `Saves/${name}/` });
+const idOf = (name = "Hero", cell = 1) => worldId(name, grid(cell));
 
 Deno.test("sharing: package only selected character with immutable file bytes and timestamps", async () => {
   const files = fixture();
   const bytes = await packet();
   const unpacked = unpackSave(bytes);
   assertEquals(unpacked.name, "Hero");
+  assertEquals(unpacked.grid, grid(1));
   assertEquals(findCharacters(unpacked.files), [{ name: "Shared", root: "Shared/" }]);
   assertEquals([...unpacked.files.keys()], ["Shared/Player.save", "Shared/[ 0,0 ]/Containers.save"]);
   assertEquals(unpacked.files.get("Shared/Player.save")!.lastModified, 1234);
   assertEquals([...await unpacked.files.get("Shared/Player.save")!.read()], [...await files.get("Saves/Hero/Player.save")!.read()]);
+});
+
+Deno.test("sharing: world identity is the character name and zone layout", async () => {
+  assert(TOKEN.test(newToken()) && newToken() !== newToken());
+  assertEquals(await idOf(), await idOf());
+  assert(await idOf("Hero", 1) !== await idOf("Hero", 2));
+  assert(await idOf("Hero", 1) !== await idOf("Other", 1));
 });
 
 Deno.test("sharing: reject path traversal, duplicates, multiple characters and malformed manifests", async () => {
@@ -34,9 +57,7 @@ Deno.test("sharing: reject path traversal, duplicates, multiple characters and m
   await assertRejects(() => unpackSave(frame({ name: "Hero", entries: Array(MAX_FILES + 1).fill({}) }, new Uint8Array())));
   await assertRejects(() => unpackSave(new Uint8Array(MAX_UPLOAD + 1)), /64 MiB/);
   await assertRejects(() => unpackSave(new Uint8Array([255, 255, 255, 255])), /manifest size/);
-  await assertRejects(() =>
-    unpackSave(frame({ name: "Hero", entries: [{ path: "Player.save", size: 2, modified: 0 }] }, new TextEncoder().encode("[]")))
-  );
+  await assertRejects(() => unpackSave(frame({ name: "Hero", entries: [{ path: "Player.save", size: 2, modified: 0 }] }, encode("[]"))));
   const { header, body } = unframe(await packet());
   assert(header && typeof header === "object" && "entries" in header && Array.isArray(header.entries));
   header.entries.push(header.entries[0]);
@@ -78,19 +99,42 @@ Deno.test("sharing: package byte and file-count limits accept their exact bounda
   );
 });
 
-async function withStore(
-  run: (context: {
-    store: UploadStore;
-    directory: string;
-    advance(ms: number): void;
-    request(method: string, path?: string, bytes?: Uint8Array, edit?: string, ip?: string): Promise<Response>;
-    restart(): Promise<void>;
-  }) => Promise<void>,
-) {
+interface Options {
+  body?: BodyInit;
+  key?: string;
+  ip?: string;
+  type?: string;
+  headers?: Record<string, string>;
+}
+interface Context {
+  store: UploadStore;
+  directory: string;
+  advance(ms: number): void;
+  request(method: string, path: string, options?: Options): Promise<Response>;
+  put(key: string, name?: string, cell?: number, ip?: string): Promise<Response>;
+  list(key: string): Promise<{ name: string; worlds: Record<string, unknown>[]; limits?: unknown }>;
+  restart(): Promise<void>;
+}
+
+async function withStore(run: (context: Context) => Promise<void>, before?: (directory: string) => Promise<void>) {
   const directory = await Deno.makeTempDir({ prefix: "mirklurk-sharing-" });
+  await before?.(directory);
   let now = 1_800_000_000_000;
   let store = new UploadStore(directory, () => now);
   await store.init();
+  const request = (method: string, path: string, { body, key, ip = "192.0.2.1", type, headers = {} }: Options = {}) =>
+    store.handle(
+      new Request(`http://localhost/api${path}`, {
+        method,
+        headers: {
+          ...(body !== undefined ? { "Content-Type": type ?? "application/octet-stream" } : {}),
+          ...(key ? { Authorization: `Bearer ${key}` } : {}),
+          ...headers,
+        },
+        body,
+      }),
+      ip,
+    );
   try {
     await run({
       get store() {
@@ -98,15 +142,10 @@ async function withStore(
       },
       directory,
       advance: (ms) => now += ms,
-      request: (method, path = "", bytes, edit, ip = "192.0.2.1") =>
-        store.handle(
-          new Request(`http://localhost/api/shares${path}`, {
-            method,
-            headers: { "Content-Type": "application/octet-stream", ...(edit ? { Authorization: `Bearer ${edit}` } : {}) },
-            body: bytes as BodyInit | undefined,
-          }),
-          ip,
-        ),
+      request,
+      put: async (key, name = "Hero", cell = 1, ip) =>
+        request("PUT", `/library/worlds/${await idOf(name, cell)}`, { key, ip, body: await packet(name, cell) as BodyInit }),
+      list: async (key) => (await request("GET", "/library", { key })).json(),
       restart: async () => {
         store = new UploadStore(directory, () => now);
         await store.init();
@@ -117,86 +156,215 @@ async function withStore(
   }
 }
 
-Deno.test("sharing service: private read capabilities, owner-only updates, fixed expiry, restart persistence", () =>
+Deno.test("sharing service: a world is added once, then updated in place with sliding retention, surviving restarts", () =>
   withStore(async (ctx) => {
+    const sync = newToken();
+    assertEquals(await ctx.list(sync), {
+      name: "",
+      worlds: [],
+      limits: { worldsPerLibrary: 5, retentionDays: 30, maxBytes: MAX_UPLOAD, pollSeconds: 30 },
+    });
     const bytes = await packet();
-    const created = await ctx.request("POST", "", bytes);
+    const created = await ctx.put(sync);
     assertEquals(created.status, 201);
     const info = await created.json();
-    assert(info.id !== info.edit);
-    assertEquals(info.expires - info.created, SHARE_LIFETIME);
-    const metadata = await (await ctx.request("GET", `/${info.id}`)).json();
-    assert(!("edit" in metadata) && !("editHash" in metadata) && !("owner" in metadata));
-    const data = await ctx.request("GET", `/${info.id}/data`);
+    assertEquals(info.id, await idOf());
+    assertEquals(info.name, "Hero");
+    assertEquals(info.expires - info.updated, RETENTION);
+    assert(TOKEN.test(info.share) && info.share !== sync);
+    const listed = (await ctx.list(sync)).worlds;
+    assertEquals(listed, [info]);
+    const data = await ctx.request("GET", `/library/worlds/${info.id}/data`, { key: sync });
     assertEquals(data.headers.get("cache-control"), "no-store");
+    assertEquals(Date.parse(data.headers.get("last-modified")!), Math.floor(info.updated / 1000) * 1000);
     const etag = data.headers.get("etag")!;
     assertEquals([...new Uint8Array(await data.arrayBuffer())], [...bytes]);
-    const unchanged = await ctx.store.handle(
-      new Request(`http://localhost/api/shares/${info.id}/data`, {
-        headers: { "If-None-Match": etag },
-      }),
-      "192.0.2.1",
-    );
+    const unchanged = await ctx.request("GET", `/library/worlds/${info.id}/data`, { key: sync, headers: { "If-None-Match": etag } });
     assertEquals(unchanged.status, 304);
-    assertEquals((await ctx.request("PUT", `/${info.id}`, bytes, info.id)).status, 403);
-    assertEquals((await ctx.request("PUT", `/${info.id}`, bytes, info.edit)).status, 429);
+
+    assertEquals((await ctx.put(sync)).status, 429);
     ctx.advance(SHARE_INTERVAL);
-    const updated = await ctx.request("PUT", `/${info.id}`, bytes, info.edit);
+    const updated = await ctx.put(sync);
     assertEquals(updated.status, 200);
     const newer = await updated.json();
-    assertEquals(newer.expires, info.expires);
+    assertEquals(newer.created, info.created);
+    assertEquals(newer.share, info.share);
+    assertEquals(newer.expires, info.expires + SHARE_INTERVAL);
     assert(newer.version !== info.version);
+    assertEquals((await ctx.list(sync)).worlds.length, 1);
+
     await ctx.restart();
-    assertEquals((await (await ctx.request("GET", `/${info.id}`)).json()).version, newer.version);
-    ctx.advance(SHARE_LIFETIME);
-    assertEquals((await ctx.request("GET", `/${info.id}`)).status, 404);
-    assertEquals((await ctx.request("GET", `/${info.id}/data`)).status, 404);
+    assertEquals((await ctx.list(sync)).worlds, [newer]);
+    ctx.advance(RETENTION - 1);
+    assertEquals((await ctx.request("GET", `/library/worlds/${info.id}/data`, { key: sync })).status, 200);
+    ctx.advance(1);
+    assertEquals((await ctx.request("GET", `/library/worlds/${info.id}/data`, { key: sync })).status, 404);
+    assertEquals((await ctx.list(sync)).worlds, []);
     await ctx.store.cleanup();
-    await assertRejects(() => Deno.stat(`${ctx.directory}/${info.id}.bin`), /cannot find|not found|No such file/i);
+    assertEquals([...Deno.readDirSync(`${ctx.directory}/worlds`)].length, 0);
   }));
 
-Deno.test("sharing service: three active saves per IP; deletion cannot bypass persistent daily creation limits", () =>
+Deno.test("sharing service: share keys are read-only, never sync keys, and resetting one revokes it; keys are not stored", () =>
   withStore(async (ctx) => {
-    const bytes = await packet();
-    const records = [];
-    for (let i = 0; i < 3; i++) records.push(await (await ctx.request("POST", "", bytes)).json());
-    assertEquals((await ctx.request("POST", "", bytes)).status, 429);
-    assertEquals((await ctx.request("POST", "", bytes, undefined, "192.0.2.2")).status, 201);
-    for (const record of records) {
-      assertEquals((await ctx.request("DELETE", `/${record.id}`, undefined, "0".repeat(64))).status, 403);
-      assertEquals((await ctx.request("DELETE", `/${record.id}`, undefined, record.edit)).status, 204);
-      assertEquals((await ctx.request("GET", `/${record.id}`)).status, 404);
-      assertEquals((await ctx.request("PUT", `/${record.id}`, bytes, record.edit)).status, 404);
-    }
-    for (let i = 0; i < 3; i++) {
-      const record = await (await ctx.request("POST", "", bytes)).json();
-      await ctx.request("DELETE", `/${record.id}`, undefined, record.edit);
-    }
+    const sync = newToken();
+    const info = await (await ctx.put(sync)).json();
+    const view = await ctx.request("GET", "/view/data", { key: info.share });
+    assertEquals(view.status, 200);
+    assertEquals([...new Uint8Array(await view.arrayBuffer())], [...await packet()]);
+    assertEquals((await ctx.request("PUT", "/view/data", { key: info.share, body: await packet() as BodyInit })).status, 405);
+
+    // A share key used as a sync key is just another, empty library.
+    assertEquals((await ctx.list(info.share)).worlds, []);
+    assertEquals((await ctx.request("DELETE", `/library/worlds/${info.id}`, { key: info.share })).status, 404);
+    assertEquals((await ctx.request("GET", `/library/worlds/${info.id}/data`, { key: info.share })).status, 404);
+    assertEquals((await ctx.request("POST", `/library/worlds/${info.id}/share`, { key: info.share })).status, 404);
+    assertEquals((await ctx.put(info.share)).status, 201);
+    assertEquals((await ctx.list(sync)).worlds, [info]);
+    assertEquals((await ctx.request("GET", "/library")).status, 401);
+    assertEquals((await ctx.request("GET", "/view/data", { key: "x".repeat(42) })).status, 401);
+    assertEquals((await ctx.request("GET", "/view/data", { key: sync })).status, 404);
+
+    const reset = await ctx.request("POST", `/library/worlds/${info.id}/share`, { key: sync });
+    assertEquals(reset.status, 200);
+    const fresh = await reset.json();
+    assert(TOKEN.test(fresh.share) && fresh.share !== info.share);
+    assertEquals(fresh.version, info.version);
+    assertEquals((await ctx.request("GET", "/view/data", { key: info.share })).status, 404);
     await ctx.restart();
-    assertEquals((await ctx.request("POST", "", bytes)).status, 429);
-    ctx.advance(86_400_001);
-    assertEquals((await ctx.request("POST", "", bytes)).status, 201);
+    assertEquals((await ctx.request("GET", "/view/data", { key: fresh.share })).status, 200);
+    assertEquals((await ctx.request("GET", "/view/data", { key: info.share })).status, 404);
+
+    const stored: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of Deno.readDirSync(dir)) {
+        if (entry.isDirectory) walk(`${dir}/${entry.name}`);
+        else stored.push(new TextDecoder().decode(Deno.readFileSync(`${dir}/${entry.name}`)));
+      }
+    };
+    walk(ctx.directory);
+    for (const key of [sync, info.share, fresh.share]) assert(!stored.some((text) => text.includes(key)), "a key was stored");
   }));
+
+Deno.test("sharing service: five worlds per library; updates bypass it; a mismatched update changes nothing", () =>
+  withStore(async (ctx) => {
+    const sync = newToken();
+    for (let i = 0; i < 5; i++) assertEquals((await ctx.put(sync, `Hero${i}`)).status, 201);
+    const full = await ctx.put(sync, "Hero5");
+    assertEquals(full.status, 409);
+    assert(/full \(5 of 5 worlds\)/.test((await full.json()).error));
+    ctx.advance(SHARE_INTERVAL);
+    assertEquals((await ctx.put(sync, "Hero0")).status, 200);
+
+    const before = (await ctx.list(sync)).worlds.find((w) => w.name === "Hero1");
+    const mismatch = await ctx.request("PUT", `/library/worlds/${await idOf("Hero1")}`, {
+      key: sync,
+      body: await packet("Hero1", 2) as BodyInit,
+    });
+    assertEquals(mismatch.status, 409);
+    assert(/different world/.test((await mismatch.json()).error));
+    assertEquals((await ctx.list(sync)).worlds.find((w) => w.name === "Hero1"), before);
+
+    assertEquals((await ctx.request("DELETE", `/library/worlds/${await idOf("Hero1")}`, { key: sync })).status, 204);
+    assertEquals((await ctx.request("DELETE", `/library/worlds/${await idOf("Hero1")}`, { key: sync })).status, 404);
+    // An update (If-Match: *) of a world deleted elsewhere is refused instead of re-adding it.
+    const stale = await ctx.request("PUT", `/library/worlds/${await idOf("Hero1")}`, {
+      key: sync,
+      body: await packet("Hero1") as BodyInit,
+      headers: { "If-Match": "*" },
+    });
+    assertEquals(stale.status, 412);
+    assert(/no longer in your library/.test((await stale.json()).error));
+    assertEquals((await ctx.list(sync)).worlds.length, 4);
+    ctx.advance(SHARE_INTERVAL);
+    const update = await ctx.request("PUT", `/library/worlds/${await idOf("Hero0")}`, {
+      key: sync,
+      body: await packet("Hero0") as BodyInit,
+      headers: { "If-Match": "*" },
+    });
+    assertEquals(update.status, 200);
+    assertEquals((await ctx.put(sync, "Hero5")).status, 201);
+    assertEquals((await ctx.list(sync)).worlds.length, 5);
+  }));
+
+Deno.test("sharing service: per-network guardrails count stored worlds and daily adds, including deleted ones", () =>
+  withStore(async (ctx) => {
+    const first = newToken(), second = newToken(), third = newToken();
+    for (let i = 0; i < 5; i++) {
+      assertEquals((await ctx.put(first, `A${i}`)).status, 201);
+      assertEquals((await ctx.put(second, `B${i}`)).status, 201);
+    }
+    assertEquals((await ctx.put(third)).status, 429);
+    assertEquals((await ctx.put(third, "Hero", 1, "192.0.2.2")).status, 201);
+    assertEquals((await ctx.request("DELETE", `/library/worlds/${await idOf("A0")}`, { key: first })).status, 204);
+    await ctx.restart();
+    const daily = await ctx.put(first, "A0");
+    assertEquals(daily.status, 429);
+    assert(/per day/.test((await daily.json()).error));
+    ctx.advance(SHARE_INTERVAL);
+    assertEquals((await ctx.put(first, "A1")).status, 200);
+    ctx.advance(86_400_001);
+    assertEquals((await ctx.put(first, "A0")).status, 201);
+  }));
+
+Deno.test("sharing service: library names are validated, persisted, returned to every synced device, and capped per network", () =>
+  withStore(async (ctx) => {
+    const sync = newToken();
+    const rename = (body: string, type = "application/json") => ctx.request("PATCH", "/library", { key: sync, body, type });
+    assertEquals((await rename(JSON.stringify({ name: "Dante's PCs" }))).status, 200);
+    assertEquals((await ctx.list(sync)).name, "Dante's PCs");
+    for (const name of ["x".repeat(41), "a\nb", " padded", 7]) assertEquals((await rename(JSON.stringify({ name }))).status, 400);
+    assertEquals((await rename("not json")).status, 400);
+    assertEquals((await rename(JSON.stringify({ name: "Form" }), "text/plain")).status, 415);
+    await ctx.restart();
+    assertEquals((await ctx.list(sync)).name, "Dante's PCs");
+    ctx.advance(RETENTION);
+    await ctx.store.cleanup();
+    assertEquals((await ctx.list(sync)).name, "");
+
+    // Naming is capped per network; clearing a name frees its slot.
+    const named = (key: string, name: string, ip = "192.0.2.1") =>
+      ctx.request("PATCH", "/library", { key, ip, body: JSON.stringify({ name }), type: "application/json" });
+    const keys = Array.from({ length: 10 }, () => newToken());
+    for (const key of keys) assertEquals((await named(key, "Mine")).status, 200);
+    assertEquals((await named(newToken(), "One too many")).status, 429);
+    assertEquals((await named(keys[0], "Renamed")).status, 200);
+    assertEquals((await named(newToken(), "Elsewhere", "192.0.2.2")).status, 200);
+    assertEquals((await named(keys[1], "")).status, 200);
+    assertEquals((await ctx.list(keys[1])).name, "");
+    assertEquals((await named(newToken(), "Fits again")).status, 200);
+  }));
+
+Deno.test("sharing service: uploads from the previous one-link format are removed on startup", () =>
+  withStore(async (ctx) => {
+    assertEquals([...Deno.readDirSync(ctx.directory)].map((e) => e.name).sort(), ["libraries", "salt", "worlds"]);
+    assertEquals(await (await ctx.request("GET", "/config")).json(), {
+      worldsPerLibrary: 5,
+      retentionDays: 30,
+      maxBytes: MAX_UPLOAD,
+      pollSeconds: 30,
+    });
+  }, (directory) => Deno.writeFile(`${directory}/${"a".repeat(64)}.bin`, new Uint8Array([0, 0, 0, 2, 123, 125]))));
 
 Deno.test("sharing service: invalid packages, cross-site writes, oversized bodies and request floods are rejected", () =>
   withStore(async (ctx) => {
-    assertEquals((await ctx.request("POST", "", new Uint8Array([1]))).status, 400);
-    const cross = new Request("http://localhost/api/shares", {
-      method: "POST",
-      headers: { "Content-Type": "application/octet-stream", "Sec-Fetch-Site": "cross-site" },
-      body: await packet() as BodyInit,
-    });
-    assertEquals((await ctx.store.handle(cross, "192.0.2.1")).status, 403);
-    const large = new Request("http://localhost/api/shares", {
-      method: "POST",
-      headers: { "Content-Type": "application/octet-stream", "Content-Length": String(MAX_UPLOAD + 1) },
+    const sync = newToken();
+    const path = `/library/worlds/${await idOf()}`;
+    assertEquals((await ctx.request("PUT", path, { key: sync, body: new Uint8Array([1]) })).status, 400);
+    assertEquals((await ctx.request("PUT", path, { key: sync, body: await packet() as BodyInit, type: "text/plain" })).status, 415);
+    const cross = { "Sec-Fetch-Site": "cross-site" };
+    assertEquals((await ctx.request("PUT", path, { key: sync, body: await packet() as BodyInit, headers: cross })).status, 403);
+    assertEquals((await ctx.put(sync)).status, 201);
+    assertEquals((await ctx.request("DELETE", path, { key: sync, headers: cross })).status, 403);
+    const large = await ctx.request("PUT", path.replace(/[^/]+$/, await idOf("Big")), {
+      key: sync,
       body: new Uint8Array(),
+      headers: { "Content-Length": String(MAX_UPLOAD + 1) },
     });
-    assertEquals((await ctx.store.handle(large, "192.0.2.1")).status, 413);
-    for (let i = 0; i < 60; i++) await ctx.request("GET");
-    assertEquals((await ctx.request("GET")).status, 429);
+    assertEquals(large.status, 413);
+    for (let i = 0; i < 54; i++) await ctx.request("GET", "/config");
+    assertEquals((await ctx.request("GET", "/config")).status, 429);
     ctx.advance(60_001);
-    assertEquals((await ctx.request("GET")).status, 200);
+    assertEquals((await ctx.request("GET", "/config")).status, 200);
   }));
 
 Deno.test("sharing service: only one upload body is admitted at a time", () =>
@@ -208,16 +376,10 @@ Deno.test("sharing service: only one upload body is admitted at a time", () =>
       start: (c) => controller = c,
       pull: () => admitted(),
     }, { highWaterMark: 0 });
-    const first = ctx.store.handle(
-      new Request("http://localhost/api/shares", {
-        method: "POST",
-        headers: { "Content-Type": "application/octet-stream" },
-        body: stream,
-      }),
-      "192.0.2.1",
-    );
+    const sync = newToken();
+    const first = ctx.request("PUT", `/library/worlds/${await idOf()}`, { key: sync, body: stream });
     await reading;
-    const next = await ctx.request("POST", "", await packet());
+    const next = await ctx.put(sync, "Other");
     controller.enqueue(await packet());
     controller.close();
     assertEquals((await first).status, 201);
@@ -236,15 +398,9 @@ Deno.test("sharing service: streamed bodies cannot bypass byte limits without Co
         cancelled = true;
       },
     });
-    const response = await ctx.store.handle(
-      new Request("http://localhost/api/shares", {
-        method: "POST",
-        headers: { "Content-Type": "application/octet-stream" },
-        body,
-      }),
-      "192.0.2.1",
-    );
+    const sync = newToken();
+    const response = await ctx.request("PUT", `/library/worlds/${await idOf()}`, { key: sync, body });
     assertEquals(response.status, 413);
     assert(cancelled);
-    assertEquals((await ctx.request("POST", "", await packet())).status, 201);
+    assertEquals((await ctx.put(sync)).status, 201);
   }));

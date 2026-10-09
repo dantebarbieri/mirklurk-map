@@ -1,27 +1,30 @@
 import { type ShareSource, Sharing } from "../src/sharing.ts";
-import { packSave, type SharedInfo, unpackSave } from "../src/sharing-format.ts";
+import { packSave, TOKEN, unpackSave, worldId, type WorldInfo } from "../src/sharing-format.ts";
 import { assert, assertEquals } from "./assert.ts";
 
-const storageKey = "mirklurk-shares-v1";
-const firstId = "a".repeat(64), secondId = "b".repeat(64), editKey = "c".repeat(64);
-const info = (id = firstId, version = "v1"): SharedInfo => ({
-  id,
-  name: id === firstId ? "Hero" : "Other",
-  version,
-  created: Date.now(),
-  updated: Date.now(),
-  expires: Date.now() + 86_400_000,
-});
-const source = (name = "Hero", session = 1): ShareSource => ({
+const storageKey = "mirklurk-library-v1";
+const keyA = "A".repeat(43), keyB = "B".repeat(43), shareKey = "S".repeat(43);
+const grid = Array.from({ length: 5 }, () => [1, 1, 1, 1, 1]);
+const playerBytes = new TextEncoder().encode(JSON.stringify([{ worldGrid: grid }]));
+const source = (name = "Hero", session = 1, live = false): ShareSource => ({
   character: { name, root: `${name}/` },
   session,
   revision: 1,
-  files: new Map([[`${name}/Player.save`, {
-    read: () =>
-      Promise.resolve(new TextEncoder().encode(JSON.stringify([{ worldGrid: Array.from({ length: 5 }, () => [1, 1, 1, 1, 1]) }]))),
-    lastModified: 1234,
-  }]]),
+  live,
+  files: new Map([[`${name}/Player.save`, { read: () => Promise.resolve(playerBytes), lastModified: 1234 }]]),
 });
+async function world(name = "Hero", version = "v1", updated = Date.now()): Promise<WorldInfo> {
+  return {
+    id: await worldId(name, grid),
+    name,
+    created: updated,
+    updated,
+    expires: updated + 30 * 86_400_000,
+    version,
+    size: 100,
+    share: name === "Hero" ? shareKey : "T".repeat(43),
+  };
+}
 
 /** Only the DOM surface used by Sharing; events still use real EventTarget dispatch. */
 class ElementStub extends EventTarget {
@@ -49,6 +52,7 @@ class ElementStub extends EventTarget {
   }
   setAttribute(name: string, value: string) {
     if (name === "disabled") this.disabled = true;
+    if (name === "hidden") this.hidden = true;
     if (name === "value") this.value = value;
   }
   append(child: ElementStub | string) {
@@ -61,12 +65,18 @@ class ElementStub extends EventTarget {
   click() {
     if (!this.disabled) this.dispatchEvent(new Event("click"));
   }
-  findButton(label: string): ElementStub | undefined {
-    if (this.tag === "button" && this.textContent === label) return this;
+  select() {}
+  find(match: (element: ElementStub) => boolean): ElementStub | undefined {
+    if (match(this)) return this;
     for (const child of this.children) {
-      const found = typeof child !== "string" && child.findButton(label);
+      const found = typeof child !== "string" && child.find(match);
       if (found) return found;
     }
+  }
+  button(label: string): ElementStub {
+    const found = this.find((e) => e.tag === "button" && e.textContent === label);
+    assert(found, `Missing button ${label}`);
+    return found;
   }
 }
 
@@ -79,10 +89,9 @@ interface PendingRequest {
   answered: boolean;
 }
 
-async function withBrowser(run: (browser: BrowserStub) => Promise<void>, remembered: object[] = []) {
-  const browser = new BrowserStub(remembered);
+async function withBrowser(run: (browser: BrowserStub) => Promise<void>, stored?: object, hash = "") {
+  const browser = new BrowserStub(stored, hash);
   try {
-    await browser.sharing.init();
     await run(browser);
   } finally {
     browser.restore();
@@ -92,52 +101,70 @@ async function withBrowser(run: (browser: BrowserStub) => Promise<void>, remembe
 class BrowserStub {
   private restorations: (() => void)[] = [];
   private elements = new Map<string, ElementStub>();
-  private storage = new Map<string, string>();
-  private timers: { callback: () => void; delay: number }[] = [];
+  private timers: (() => void)[] = [];
   private listeners = new Map<string, () => void>();
+  readonly storage = new Map<string, string>();
   readonly document = {
     hidden: false,
+    activeElement: undefined,
     querySelector: (selector: string) => this.el(selector),
     createElement: (tag: string) => new ElementStub(tag),
+    createElementNS: (_namespace: string, tag: string) => new ElementStub(tag),
   };
-  readonly location = { origin: "https://map.example", pathname: "/", hash: "" };
+  readonly location = { origin: "https://map.example", pathname: "/", search: "", hash: "" };
   readonly requests: PendingRequest[] = [];
   readonly displays: { name: string; refresh: boolean }[] = [];
-  current = source();
-  viewport = { x: 100, y: 200, size: 768 };
+  /** Library listings answered immediately, by sync key; other requests wait for `reply`. */
+  readonly server = new Map<string, { name: string; worlds: WorldInfo[] }>();
+  clipboard = "";
+  confirmAnswer = true;
+  readonly confirms: string[] = [];
+  current?: ShareSource;
   acceptDisplay = true;
   readonly sharing: Sharing;
 
-  constructor(remembered: object[]) {
-    this.storage.set(storageKey, JSON.stringify(remembered));
+  constructor(stored: object | undefined, hash: string) {
+    if (stored) this.storage.set(storageKey, JSON.stringify(stored));
+    this.location.hash = hash;
     this.install(globalThis, "document", this.document);
     this.install(globalThis, "location", this.location);
+    this.install(globalThis, "history", {
+      replaceState: (_state: unknown, _title: string, url: string) => this.location.hash = new URL(url, this.location.origin).hash,
+    });
     this.install(globalThis, "localStorage", {
       getItem: (key: string) => this.storage.get(key) ?? null,
       setItem: (key: string, value: string) => this.storage.set(key, value),
+      removeItem: (key: string) => this.storage.delete(key),
     });
-    this.install(globalThis, "setInterval", (callback: () => void, delay: number) => this.timers.push({ callback, delay }));
+    this.install(globalThis, "navigator", { clipboard: { writeText: (text: string) => Promise.resolve(void (this.clipboard = text)) } });
+    this.install(globalThis, "confirm", (message: string) => {
+      this.confirms.push(message);
+      return this.confirmAnswer;
+    });
+    this.install(globalThis, "setInterval", (callback: () => void) => this.timers.push(callback));
     this.install(globalThis, "addEventListener", (name: string, callback: () => void) => this.listeners.set(name, callback));
     this.install(AbortSignal, "timeout", () => new AbortController().signal);
     this.install(globalThis, "fetch", (path: string, init: RequestInit) => {
-      if (path === "/api/shares" && !init.method) return Promise.resolve(Response.json({ enabled: true }));
+      const method = init.method ?? "GET";
+      const headers = new Headers(init.headers);
+      const key = headers.get("Authorization")!.replace("Bearer ", "");
+      if (path === "/api/library" && method === "GET") {
+        const library = this.server.get(key) ?? { name: "", worlds: [] };
+        return Promise.resolve(Response.json({ ...library, limits: { worldsPerLibrary: 5, retentionDays: 30 } }));
+      }
       const pending = Promise.withResolvers<Response>();
-      this.requests.push({
-        path,
-        method: init.method ?? "GET",
-        headers: new Headers(init.headers),
-        body: init.body,
-        resolve: pending.resolve,
-        answered: false,
-      });
+      this.requests.push({ path, method, headers, body: init.body, resolve: pending.resolve, answered: false });
       return pending.promise;
     });
     this.sharing = new Sharing({
       current: () => this.sharing.isWatching ? undefined : this.current,
-      stopLocal: () => this.manual(source("Hero", this.current.session + 1)),
+      stopLocal: () => {
+        this.current = undefined;
+        this.sharing.stop();
+        this.sharing.changed();
+      },
       display: (_files, character, refresh) => {
         this.displays.push({ name: character.name, refresh });
-        if (this.acceptDisplay && !refresh) this.viewport = { x: 0, y: 0, size: 2560 };
         return Promise.resolve(this.acceptDisplay);
       },
     });
@@ -163,16 +190,25 @@ class BrowserStub {
     return element;
   }
 
-  // Complete promise/stream work without advancing the fake polling clock.
+  // Complete promise, hashing and stream work without advancing the fake polling clock.
   async settle() {
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    for (let i = 0; i < 10; i++) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+
+  async init() {
+    await this.sharing.init();
+    await this.settle();
   }
 
   async request(method: string, path: string): Promise<PendingRequest> {
     await this.settle();
-    const request = this.requests.find((r) => !r.answered && r.method === method && r.path === `/api/shares${path}`);
-    assert(request, `Missing ${method} ${path}`);
+    const request = this.requests.find((r) => !r.answered && r.method === method && r.path === `/api${path}`);
+    assert(request, `Missing ${method} ${path}; have ${this.requests.filter((r) => !r.answered).map((r) => `${r.method} ${r.path}`)}`);
     return request;
+  }
+
+  pending() {
+    return this.requests.filter((r) => !r.answered).length;
   }
 
   async reply(request: PendingRequest, response: Response) {
@@ -181,190 +217,358 @@ class BrowserStub {
     await this.settle();
   }
 
-  stored(): (SharedInfo & { edit?: string })[] {
-    return JSON.parse(this.storage.get(storageKey)!);
-  }
-
-  open(id = firstId) {
-    this.el("#share-link").value = `${this.location.origin}/#share=${id}`;
-    this.el("#open-share").dispatchEvent(new Event("submit", { cancelable: true }));
-  }
-
-  manual(next = source("Other", this.current.session + 1)) {
-    this.sharing.stop();
-    this.current = next;
-    this.sharing.changed();
-  }
-
-  async tick() {
-    assertEquals(this.timers.map((timer) => timer.delay), [30_000]);
-    this.timers[0].callback();
-    await this.settle();
-  }
-
-  async data(request: PendingRequest, id = firstId, version = "v1") {
-    const save = source(info(id).name);
+  async data(request: PendingRequest, name = "Hero", version = "v1") {
+    const save = source(name);
     await this.reply(request, new Response(await packSave(save.files, save.character) as BodyInit, { headers: { ETag: `"${version}"` } }));
   }
 
-  async snapshot(id = firstId, version = "v1") {
-    await this.data(await this.request("GET", `/${id}/data`), id, version);
-    await this.reply(await this.request("GET", `/${id}`), Response.json(info(id, version)));
+  stored(): { current: { key: string; name: string }; saved: { key: string; name: string }[]; opened?: string; auto: boolean } {
+    return JSON.parse(this.storage.get(storageKey)!);
+  }
+
+  status() {
+    return this.el("#share-status").textContent;
+  }
+
+  async load(next: ShareSource | undefined) {
+    this.sharing.stop();
+    this.current = next;
+    this.sharing.changed();
+    await this.settle();
+  }
+
+  async tick() {
+    assertEquals(this.timers.length, 1);
+    this.timers[0]();
+    await this.settle();
   }
 }
 
-Deno.test("sharing client: switching watches cancels a stale response and starts the newer poll without overlap", () =>
+Deno.test("sharing client: a first visit remembers a new private library without showing its key", () =>
   withBrowser(async (b) => {
-    b.open();
-    const old = await b.request("GET", `/${firstId}/data`);
-    b.open(secondId);
-    await b.tick();
-    assertEquals(b.requests.length, 1);
-    let cancelled = false;
-    await b.reply(
-      old,
-      new Response(
-        new ReadableStream({
-          cancel: () => {
-            cancelled = true;
-          },
-        }),
-      ),
-    );
-    assert(cancelled);
-    await b.snapshot(secondId);
-    assertEquals(b.displays, [{ name: "Other", refresh: false }]);
-    assertEquals(b.stored().map((r) => r.id), [secondId]);
-  }));
-
-Deno.test("sharing client: a manual import while metadata is pending cannot display or remember the stale save", () =>
-  withBrowser(async (b) => {
-    b.open();
-    await b.data(await b.request("GET", `/${firstId}/data`));
-    const metadata = await b.request("GET", `/${firstId}`);
-    b.manual();
-    await b.reply(metadata, Response.json(info()));
+    await b.init();
+    const { current, saved, auto } = b.stored();
+    assert(TOKEN.test(current.key));
+    assertEquals([current.name, saved, auto], ["", [], true]);
+    assertEquals(b.el("#library-usage").textContent, "0 of 5 worlds. Each is kept 30 days after its last update.");
+    assert(b.el("#save-world").disabled);
     assertEquals(b.displays, []);
-    assertEquals(b.stored(), []);
-    assert(!b.sharing.isWatching);
-    assert(b.el("#stop-watch").hidden);
+    assertEquals(b.pending(), 0);
   }));
 
-Deno.test("sharing client: initial display resets, accepted refresh preserves viewport, unchanged/error polls retain the snapshot", () =>
+Deno.test("sharing client: a returning browser reopens the world it followed last, falling back to the newest", async () =>
   withBrowser(async (b) => {
-    b.open();
-    await b.snapshot();
-    const viewport = b.viewport = { x: 600, y: 700, size: 512 };
-    await b.tick();
-    const unchanged = await b.request("GET", `/${firstId}/data`);
-    assertEquals(unchanged.headers.get("If-None-Match"), '"v1"');
-    await b.reply(unchanged, new Response(null, { status: 304 }));
-    assertEquals(b.displays.length, 1);
-    await b.tick();
-    await b.reply(await b.request("GET", `/${firstId}/data`), Response.json({ error: "Unavailable" }, { status: 503 }));
-    assert(b.el("#share-status").classList.contains("error"));
+    const older = await world("Hero", "v1", Date.now() - 60_000), newer = await world("Other");
+    b.server.set(keyA, { name: "Dante", worlds: [newer, older] });
+    await b.init();
+    const download = await b.request("GET", `/library/worlds/${older.id}/data`);
+    assertEquals(download.headers.get("Authorization"), `Bearer ${keyA}`);
+    await b.data(download);
+    assertEquals(b.displays, [{ name: "Hero", refresh: false }]);
     assert(b.sharing.isWatching);
-    assert(b.viewport === viewport);
-    await b.tick();
-    await b.snapshot(firstId, "v2");
-    assertEquals(b.displays, [{ name: "Hero", refresh: false }, { name: "Hero", refresh: true }]);
-    assert(b.viewport === viewport);
-    b.document.hidden = true;
-    const count = b.requests.length;
-    await b.tick();
-    assertEquals(b.requests.length, count);
-  }));
+    assert(!b.el("#viewing").hidden);
+    assertEquals(b.el("#viewing-text").textContent, "Following Hero from your library (updated just now).");
+    assertEquals(b.el("#library-name").value, "Dante");
+    assertEquals(b.el("#world-list").children.length, 2);
+  }, { current: { key: keyA, name: "" }, saved: [], opened: await worldId("Hero", grid), auto: true }));
 
-Deno.test("sharing client: failed display does not accept its ETag; expiry stops watching and retains the map", () =>
+Deno.test("sharing client: adding uploads the selected character; the same world then updates, and refusals are shown", () =>
   withBrowser(async (b) => {
-    b.open();
-    await b.snapshot();
-    const viewport = b.viewport;
-    b.acceptDisplay = false;
-    await b.tick();
-    await b.snapshot(firstId, "v2");
-    assert(b.el("#share-status").textContent.includes("could not be displayed"));
-    await b.tick();
-    const retry = await b.request("GET", `/${firstId}/data`);
-    assertEquals(retry.headers.get("If-None-Match"), '"v1"');
-    await b.reply(retry, Response.json({ error: "Expired" }, { status: 404 }));
-    assert(!b.sharing.isWatching);
-    assert(b.viewport === viewport);
-    assert(b.el("#follow-control").hidden);
-    const count = b.requests.length;
-    await b.tick();
-    assertEquals(b.requests.length, count);
-  }));
+    await b.init();
+    await b.load(source());
+    assertEquals(b.el("#save-world").textContent, "Add Hero to my worlds");
+    b.el("#save-world").click();
+    const add = await b.request("PUT", `/library/worlds/${await worldId("Hero", grid)}`);
+    assertEquals(add.headers.get("If-Match"), null);
+    assertEquals(add.headers.get("Authorization"), `Bearer ${keyA}`);
+    assertEquals(unpackSave(add.body as Uint8Array).name, "Hero");
+    b.el("#save-world").click();
+    assertEquals(b.pending(), 1);
+    await b.reply(add, Response.json(await world(), { status: 201 }));
+    assert(b.status().startsWith("Added Hero."));
+    assertEquals(b.el("#save-world").textContent, "Update Hero in my worlds");
+    assertEquals(b.el("#world-list").children.length, 1);
+    assertEquals(b.el("#world-list").find((e) => e.textContent === "this save")?.tag, "span");
 
-Deno.test("sharing client: cancel during packaging prevents an upload; switching session during POST retains its owner key only", () =>
+    b.el("#save-world").click();
+    const update = await b.request("PUT", `/library/worlds/${await worldId("Hero", grid)}`);
+    assertEquals(update.headers.get("If-Match"), "*");
+    await b.reply(
+      update,
+      Response.json({ error: "This save is a different world from the one it would update, so nothing was changed" }, { status: 409 }),
+    );
+    assertEquals(b.status(), "Could not update Hero: This save is a different world from the one it would update, so nothing was changed");
+    assert(b.el("#share-status").classList.contains("error"));
+
+    await b.load(source("Other", 2));
+    assertEquals(b.el("#save-world").textContent, "Add Other to my worlds");
+    b.el("#save-world").click();
+    await b.reply(
+      await b.request("PUT", `/library/worlds/${await worldId("Other", grid)}`),
+      Response.json({ error: "Your library is full (5 of 5 worlds). Delete a world to add this one." }, { status: 409 }),
+    );
+    assertEquals(b.status(), "Could not add Other: Your library is full (5 of 5 worlds). Delete a world to add this one.");
+  }, { current: { key: keyA, name: "" }, saved: [], auto: true }));
+
+Deno.test("sharing client: changing the source while packaging cancels the upload", () =>
   withBrowser(async (b) => {
-    const player = b.current.files.get("Hero/Player.save")!;
-    const bytes = await player.read();
+    await b.init();
+    await b.load(source());
+    const player = b.current!.files.get("Hero/Player.save")!;
     const read = Promise.withResolvers<Uint8Array>();
     player.read = () => read.promise;
-    b.el("#share-save").click();
-    b.manual();
-    read.resolve(bytes);
+    b.el("#save-world").click();
+    await b.load(source("Other", 2));
+    read.resolve(playerBytes);
     await b.settle();
-    assertEquals(b.requests.length, 0);
-    b.el("#share-save").click();
-    const uploading = await b.request("POST", "");
-    b.el("#share-save").click();
-    assertEquals(b.requests.length, 1);
-    assert(uploading.body instanceof Uint8Array);
-    assertEquals(unpackSave(uploading.body).name, "Other");
-    b.manual(source("Third", 3));
-    await b.reply(uploading, Response.json({ ...info(), name: "Other", edit: editKey }));
-    assertEquals(b.stored()[0].edit, editKey);
-    assert(b.el("#publish-live").disabled);
-    assert(!b.el("#publish-live").checked);
-    assertEquals(b.el("#share-link").value, "");
-    await b.tick();
-    assertEquals(b.requests.length, 1);
-  }));
+    assertEquals(b.pending(), 0);
+  }, { current: { key: keyA, name: "" }, saved: [], auto: true }));
 
-Deno.test("sharing client: changing character during POST does not bind publishing to the new character", () =>
-  withBrowser(async (b) => {
-    b.el("#share-save").click();
-    const uploading = await b.request("POST", "");
-    b.current = source("Other", b.current.session);
-    b.sharing.changed();
-    await b.reply(uploading, Response.json({ ...info(), edit: editKey }));
-    assertEquals(b.stored()[0].edit, editKey);
-    assert(b.el("#publish-live").disabled);
-    assert(!b.el("#publish-live").checked);
-    await b.tick();
-    assertEquals(b.requests.length, 1);
-  }));
+Deno.test("sharing client: a sync link joins that library, keeps the previous one, and leaves the address bar", () =>
+  withBrowser(
+    async (b) => {
+      const shared = await world();
+      b.server.set(keyA, { name: "Laptop", worlds: [await world("Other")] });
+      b.server.set(keyB, { name: "Dante", worlds: [shared] });
+      await b.init();
+      assertEquals(b.location.hash, "");
+      assertEquals(b.confirms, [
+        "Sync this browser with Dante (Hero)?\n\nOnly continue if you made this link yourself on one of your own devices: " +
+        "whoever made it can see and change every world you add or update here.\n\n" +
+        "Your current library, Laptop, will be saved so you can switch back.",
+      ]);
+      assertEquals(b.stored().current, { key: keyB, name: "Dante" });
+      assertEquals(b.stored().saved, [{ key: keyA, name: "Laptop" }]);
+      assertEquals(b.status(), "This browser now syncs Dante. Your previous library, Laptop, is saved below; switch back any time.");
+      const download = await b.request("GET", `/library/worlds/${shared.id}/data`);
+      assertEquals(download.headers.get("Authorization"), `Bearer ${keyB}`);
+      await b.data(download);
+      assertEquals(b.displays, [{ name: "Hero", refresh: false }]);
 
-Deno.test("sharing client: metadata and replacements retain owner keys; publishing requires opt-in and a changed revision", () =>
+      assert(!b.el("#saved-libraries").hidden);
+      b.el("#library-list").button("Switch to this library").click();
+      await b.settle();
+      assertEquals(b.stored().current, { key: keyA, name: "Laptop" });
+      assertEquals(b.stored().saved, [{ key: keyB, name: "Dante" }]);
+      assertEquals(b.el("#library-name").value, "Laptop");
+      const resumed = await b.request("GET", `/library/worlds/${(await world("Other")).id}/data`);
+      assertEquals(resumed.headers.get("Authorization"), `Bearer ${keyA}`);
+
+      b.confirmAnswer = false;
+      b.el("#library-list").button("Remove from this browser").click();
+      assertEquals(b.stored().saved.length, 1);
+      b.confirmAnswer = true;
+      b.el("#library-list").button("Remove from this browser").click();
+      assertEquals(b.stored().saved, []);
+      assert(b.el("#saved-libraries").hidden);
+    },
+    { current: { key: keyA, name: "Laptop" }, saved: [], auto: true },
+    `#sync=${keyB}`,
+  ));
+
+Deno.test("sharing client: an empty, unnamed library is replaced by a sync link instead of being kept", () =>
+  withBrowser(
+    async (b) => {
+      await b.init();
+      assertEquals(b.stored().current, { key: keyB, name: "" });
+      assertEquals(b.stored().saved, []);
+      assertEquals(b.status(), "This browser now syncs the same worlds as your other device.");
+      assert(b.el("#saved-libraries").hidden);
+    },
+    undefined,
+    `#sync=${keyB}`,
+  ));
+
+Deno.test("sharing client: declining a sync link keeps this browser's own library and still removes the link", () =>
+  withBrowser(
+    async (b) => {
+      const mine = await world("Other");
+      b.server.set(keyA, { name: "Mine", worlds: [mine] });
+      b.confirmAnswer = false;
+      await b.init();
+      assert(b.confirms[0].startsWith("Sync this browser with an unnamed library (no worlds yet)?"));
+      assertEquals(b.location.hash, "");
+      assertEquals(b.stored().current, { key: keyA, name: "Mine" });
+      assertEquals(b.stored().saved, []);
+      assertEquals(b.status(), "Sync link ignored. This browser keeps its own library.");
+      const download = await b.request("GET", `/library/worlds/${mine.id}/data`);
+      assertEquals(download.headers.get("Authorization"), `Bearer ${keyA}`);
+    },
+    { current: { key: keyA, name: "Mine" }, saved: [], auto: true },
+    `#sync=${keyB}`,
+  ));
+
+Deno.test("sharing client: a share link follows one world read-only and never touches the viewer's library", () =>
+  withBrowser(
+    async (b) => {
+      b.server.set(keyA, { name: "Mine", worlds: [await world("Other")] });
+      await b.init();
+      const download = await b.request("GET", "/view/data");
+      assertEquals(download.headers.get("Authorization"), `Bearer ${shareKey}`);
+      await b.data(download);
+      assertEquals(b.displays, [{ name: "Hero", refresh: false }]);
+      assertEquals(b.stored().current, { key: keyA, name: "Mine" });
+      assertEquals(
+        b.el("#viewing-text").textContent,
+        "Viewing Hero, shared with you read-only (updated just now). Your own worlds are unchanged.",
+      );
+      assert(b.el("#save-world").disabled);
+      assertEquals(b.location.hash, `#view=${shareKey}`);
+      b.el("#stop-watch").click();
+      assert(!b.sharing.isWatching);
+      assertEquals(b.location.hash, "");
+    },
+    { current: { key: keyA, name: "Mine" }, saved: [], auto: true },
+    `#view=${shareKey}`,
+  ));
+
+Deno.test("sharing client: Live saves keep an added world updated once per change, and only while enabled", () =>
   withBrowser(async (b) => {
-    b.open();
-    await b.snapshot();
-    assertEquals(b.stored()[0].edit, editKey);
-    b.manual(source());
-    const replace = b.el("#shared-list").findButton("Replace with selected save");
-    assert(replace);
-    replace.click();
-    const update = await b.request("PUT", `/${firstId}`);
-    assertEquals(update.headers.get("Authorization"), `Bearer ${editKey}`);
-    await b.reply(update, Response.json(info(firstId, "v2")));
-    assertEquals(b.stored()[0].edit, editKey);
-    assert(!b.el("#publish-live").disabled);
-    const count = b.requests.length;
-    ++b.current.revision;
+    const added = await world();
+    b.server.set(keyA, { name: "", worlds: [added] });
+    await b.init();
+    assertEquals(b.pending(), 1);
+    await b.reply(await b.request("GET", `/library/worlds/${added.id}/data`), Response.json({ error: "gone" }, { status: 503 }));
+    await b.load(source("Hero", 2, true));
     await b.tick();
-    assertEquals(b.requests.length, count);
-    b.el("#publish-live").checked = true;
+    const update = await b.request("PUT", `/library/worlds/${added.id}`);
+    assertEquals(update.headers.get("If-Match"), "*");
+    await b.reply(update, Response.json(await world("Hero", "v2")));
+    assert(b.status().startsWith("Updated Hero automatically"));
     await b.tick();
-    const published = await b.request("PUT", `/${firstId}`);
+    assertEquals(b.pending(), 0);
+    ++b.current!.revision;
     await b.tick();
-    assertEquals(b.requests.length, count + 1);
-    await b.reply(published, Response.json(info(firstId, "v3")));
+    const tooSoon = await b.request("PUT", `/library/worlds/${added.id}`);
+    await b.reply(tooSoon, Response.json({ error: "Wait 30 seconds between updates of a world" }, { status: 429 }));
+    assert(!b.el("#share-status").classList.contains("error"));
     await b.tick();
-    assertEquals(b.requests.length, count + 1);
-    b.current = source("Other", b.current.session);
-    b.sharing.changed();
-    assert(!b.el("#publish-live").checked);
-    assert(b.el("#publish-live").disabled);
-  }, [{ ...info(), edit: editKey }]));
+    await b.reply(await b.request("PUT", `/library/worlds/${added.id}`), Response.json(await world("Hero", "v3")));
+    ++b.current!.revision;
+    b.el("#auto-update").checked = false;
+    b.el("#auto-update").dispatchEvent(new Event("change"));
+    assertEquals(b.stored().auto, false);
+    await b.tick();
+    assertEquals(b.pending(), 0);
+
+    b.el("#auto-update").checked = true;
+    b.el("#auto-update").dispatchEvent(new Event("change"));
+    await b.load(source("Other", 3, true));
+    await b.tick();
+    assertEquals(b.pending(), 0);
+    await b.load(source("Hero", 4));
+    await b.tick();
+    assertEquals(b.pending(), 0);
+
+    // Deleted on another device while this tab still listed it: the update is refused, never re-added.
+    await b.load(source("Hero", 5, true));
+    await b.tick();
+    const deleted = await b.request("PUT", `/library/worlds/${added.id}`);
+    b.server.set(keyA, { name: "", worlds: [] });
+    await b.reply(deleted, Response.json({ error: "This world is no longer in your library" }, { status: 412 }));
+    assertEquals(b.status(), "Hero was removed from your library on another device, so it is no longer updated automatically.");
+    assertEquals(b.el("#save-world").textContent, "Add Hero to my worlds");
+    ++b.current!.revision;
+    await b.tick();
+    assertEquals(b.pending(), 0);
+  }, { current: { key: keyA, name: "" }, saved: [], auto: true }));
+
+Deno.test("sharing client: following polls with ETags, a stale response is cancelled, and deletion elsewhere keeps the map", () =>
+  withBrowser(async (b) => {
+    const hero = await world(), other = await world("Other", "v1", Date.now() - 1000);
+    b.server.set(keyA, { name: "", worlds: [hero, other] });
+    await b.init();
+    const stale = await b.request("GET", `/library/worlds/${hero.id}/data`);
+    b.el("#world-list").find((e) => e.tag === "li" && e.textContent.startsWith("Other"))!.button("Open").click();
+    await b.tick();
+    let cancelled = false;
+    await b.reply(stale, new Response(new ReadableStream({ cancel: () => void (cancelled = true) })));
+    assert(cancelled);
+    await b.data(await b.request("GET", `/library/worlds/${other.id}/data`), "Other");
+    assertEquals(b.displays, [{ name: "Other", refresh: false }]);
+    assertEquals(b.stored().opened, other.id);
+
+    await b.tick();
+    const unchanged = await b.request("GET", `/library/worlds/${other.id}/data`);
+    assertEquals(unchanged.headers.get("If-None-Match"), '"v1"');
+    await b.reply(unchanged, new Response(null, { status: 304 }));
+    await b.tick();
+    await b.reply(await b.request("GET", `/library/worlds/${other.id}/data`), Response.json({ error: "Busy" }, { status: 503 }));
+    assert(b.el("#share-status").classList.contains("error"));
+    assert(b.sharing.isWatching);
+    await b.tick();
+    await b.data(await b.request("GET", `/library/worlds/${other.id}/data`), "Other", "v2");
+    assertEquals(b.status(), "");
+    assertEquals(b.displays, [{ name: "Other", refresh: false }, { name: "Other", refresh: true }]);
+    b.document.hidden = true;
+    await b.tick();
+    assertEquals(b.pending(), 0);
+    b.document.hidden = false;
+    await b.tick();
+    await b.reply(
+      await b.request("GET", `/library/worlds/${other.id}/data`),
+      Response.json({ error: "This world was deleted or expired" }, { status: 404 }),
+    );
+    assert(!b.sharing.isWatching);
+    assert(b.el("#follow-control").hidden);
+    assertEquals(b.status(), "Could not refresh Other: This world was deleted or expired. The last snapshot stays on screen.");
+    assertEquals(b.displays.length, 2);
+  }, { current: { key: keyA, name: "" }, saved: [], auto: true }));
+
+Deno.test("sharing client: share and sync cards show a QR code and copy links; deleting asks first", () =>
+  withBrowser(async (b) => {
+    const hero = await world();
+    b.server.set(keyA, { name: "", worlds: [hero] });
+    await b.init();
+    await b.reply(await b.request("GET", `/library/worlds/${hero.id}/data`), Response.json({ error: "busy" }, { status: 503 }));
+    b.el("#world-list").button("Share...").click();
+    const card = b.el("#share-card");
+    assert(!card.hidden);
+    assert(card.find((e) => e.tag === "svg"));
+    assertEquals(card.find((e) => e.tag === "h3")?.textContent, "Share Hero (read-only)");
+    card.button("Copy link").click();
+    await b.settle();
+    assertEquals(b.clipboard, `https://map.example/#view=${shareKey}`);
+    card.button("Reset link").click();
+    const reset = await b.request("POST", `/library/worlds/${hero.id}/share`);
+    await b.reply(reset, Response.json({ ...hero, share: "N".repeat(43) }));
+    assert(b.status().startsWith("New share link ready for Hero."));
+    card.button("Copy link").click();
+    await b.settle();
+    assertEquals(b.clipboard, `https://map.example/#view=${"N".repeat(43)}`);
+    b.el("#sync-device").click();
+    assertEquals(card.find((e) => e.tag === "h3")?.textContent, "Sync another device");
+    card.button("Copy link").click();
+    await b.settle();
+    assertEquals(b.clipboard, `https://map.example/#sync=${keyA}`);
+    assert(!JSON.stringify(card.textContent).includes(keyA));
+    card.button("Close").click();
+    assert(card.hidden);
+
+    b.confirmAnswer = false;
+    b.el("#world-list").button("Delete").click();
+    await b.settle();
+    assertEquals(b.pending(), 0);
+    b.confirmAnswer = true;
+    b.el("#world-list").button("Delete").click();
+    await b.reply(await b.request("DELETE", `/library/worlds/${hero.id}`), new Response(null, { status: 204 }));
+    assertEquals(b.el("#world-list").children.length, 0);
+    assert(b.status().startsWith("Deleted Hero."));
+  }, { current: { key: keyA, name: "" }, saved: [], auto: true }));
+
+Deno.test("sharing client: renaming the library saves the friendly name for every synced device", () =>
+  withBrowser(async (b) => {
+    await b.init();
+    b.el("#library-name").value = "  Dante's PCs ";
+    b.el("#library-name").dispatchEvent(new Event("change"));
+    const rename = await b.request("PATCH", "/library");
+    assertEquals(rename.headers.get("Content-Type"), "application/json");
+    assertEquals(JSON.parse(rename.body as string), { name: "Dante's PCs" });
+    await b.reply(rename, Response.json({ name: "Dante's PCs" }));
+    assertEquals(b.stored().current.name, "Dante's PCs");
+    b.el("#library-name").value = "x".repeat(41);
+    b.el("#library-name").dispatchEvent(new Event("change"));
+    await b.settle();
+    assertEquals(b.pending(), 0);
+    assert(b.el("#share-status").classList.contains("error"));
+  }, { current: { key: keyA, name: "" }, saved: [], auto: true }));

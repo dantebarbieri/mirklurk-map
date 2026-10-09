@@ -11,8 +11,9 @@ it shows:
   loot, your stashes and camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees, brambles, rift vines, sharp
   ground and a water overlay can be switched on. Click an explored entrance to see the inside.
 
-Save processing happens in the browser tab. Files stay local unless you explicitly upload a temporary shared copy. Realistic mode loads
-bundled art from the same site, never a third party. There is no world seed to type in — the game does not have a reusable one (see below).
+Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode
+loads bundled art from the same site, never a third party. There is no world seed to type in — the game does not have a reusable one (see
+below).
 
 ## Using it
 
@@ -24,43 +25,55 @@ Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` 
 marker to inspect it, or hover for its name and tile; click a list entry to find it on the map. Touch gestures inside the map control the
 map, while outside it normal page scrolling and browser zoom remain available. Controls and panels adapt to narrow phone screens.
 
-### Temporary sharing (opt-in)
+### My worlds, sync and sharing (opt-in)
 
-Open a local save, expand **Shared saves / open on another device**, and click **Upload selected save for 7 days**. Only the selected
-character is uploaded, even when several characters were imported. Copy the generated private link to your phone and open it there, or paste
-it into the shared-save browser. The browser remembers links opened on that device, not a public list of everyone's saves. Private links
-contain unguessable read tokens in their URL fragment; treat them as secrets. Anyone given one can see the save, including inventory data.
+Expand **My worlds & sync**. Your browser keeps a private **library** of uploaded worlds: it is created and remembered automatically, and
+its key is never shown. Open a save and click **Add _character_ to my worlds** to upload only the selected character. A world is identified
+by its character name and zone layout, so adding a world that is already in your library **updates** it instead of adding a copy; the button
+then reads **Update _character_ in my worlds**. While **Live saves** runs, **Keep it updated while Live saves runs** (on by default) sends
+each settled change of a world that is already in your library, at most once every 30 seconds. Worlds you never added are never uploaded.
 
-For live sharing, first start **Live saves**, upload the selected character, then check **Publish saved changes to this link**. The desktop
-tab sends only accepted, settled snapshots, at most once every 30 seconds when they change. Keep that tab open with directory permission.
-The receiving device polls every 30 seconds while visible; unchanged versions are not downloaded. This follows saves, not live movement, and
-browser background throttling or suspension can delay updates. Switching source or character stops automatic publishing; stopping live saves
-also stops publishing. Viewing preserves map/inspection state unless **Follow saved location** moves to another area.
+Each world has **Open**, **Share...** and **Delete**. **Open** follows it: the map refreshes every 30 seconds while the page is visible,
+unchanged versions are not downloaded, and inspection state is kept unless **Follow saved location** moves to another area. A browser
+reopens the world it followed last when nothing else is on screen, so a phone that syncs your library shows your latest world on its own.
+**Delete** removes the world from every synced device and stops its share link; copies already downloaded cannot be revoked.
 
-The uploading browser keeps a separate owner key for replacing/deleting its upload; read links never grant write access. **Delete upload**
-immediately removes the server copy. **Forget link** only removes the device's saved shortcut (and owner key, if present). Clearing browser
-storage loses these keys. Neither deletion nor expiry can revoke a copy already downloaded by someone else. To reuse a remembered link after
-reloading the desktop tab, open the local save (or restart Live saves) and choose **Replace with selected save** beside that link. This
-retains its original expiry and lets you re-enable publishing without creating another upload.
+There are two kinds of link, each with its own key and QR code:
 
-Server defaults are deliberately bounded:
+- **Sync another device...** is for your own devices. Scan the QR code with your phone, or open the link on another PC. After confirming
+  (the prompt shows that library's name and worlds), that browser joins the same library: it sees, adds, updates and deletes the same
+  worlds. If it already had a library with worlds (or a name), that library is kept under **Other libraries saved in this browser** to
+  switch back to later. The link removes itself from the address bar. Anyone with it has full access to your library, and whoever made a
+  sync link receives everything you add or update after joining it, so only use links you made on your own devices. Name the library (for
+  example "Dante's PCs") to tell libraries apart.
+- **Share...** on a world is for other people. It opens that one world read-only and follows its updates. A share key is derived one-way
+  from the library key, so it can never be turned into a sync key; opening it does not change the viewer's own library. **Reset link** on
+  the share card stops the old link working.
 
-| Limit           | Default                                                                                                    |
-| --------------- | ---------------------------------------------------------------------------------------------------------- |
-| Active saves    | Three per client IP; IPv6 addresses in one /64 share a quota                                               |
-| New shares      | Six per IP in a rolling 24 hours, including subsequently deleted shares                                    |
-| Retention       | Seven days from creation; updates never extend expiry                                                      |
-| Save package    | One character, 64 MiB including manifest, at most 4,096 files; uncompressed to avoid ZIP expansion attacks |
-| Updates         | At most once per 30 seconds per share; only one upload body processed at a time globally                   |
-| API requests    | 60/minute per IP, plus nginx request/connection limits                                                     |
-| Storage         | 128 active saves, 1 GiB total payload; 2,048 records including deletion quota records                      |
-| Upload duration | 60 seconds                                                                                                 |
+The server stores only hashes of library and share keys, never the keys themselves. Keys travel in `Authorization` headers, never in API
+URLs, and links keep them in the URL fragment, which browsers do not send to the server. Clearing site data forgets the library on that
+browser; sync it again from another device to get it back. Links from the earlier seven-day sharing system no longer work.
 
-Requests for expired copies fail immediately; a minute-based sweep removes their files (or startup cleanup after downtime). Deletion keeps
-only quota metadata until the original expiry, not save bytes. Salted IP hashes are stored instead of raw IP addresses, and creation quotas
-survive service restarts. The in-memory short-term request limiter resets on restart. Shared networks/NATs share the same IP quota. These
-are abuse guardrails, not protection against a distributed attack; keep reverse-proxy bandwidth and resource limits in place. The package
-manifest is capped at 1 MiB, and `Player.save` at 4 MiB before JSON parsing, to bound validation memory use.
+Limits:
+
+| Limit           | Default                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Worlds          | Five per library. Updating a world that is already in the library never counts; adding a sixth is refused                 |
+| Retention       | A world is deleted 30 days after its last update                                                                          |
+| Save package    | One character, 64 MiB including manifest, at most 4,096 files; uncompressed to avoid ZIP expansion attacks                |
+| Updates         | At most once per 30 seconds per world; only one upload body processed at a time globally                                  |
+| Per network     | Ten stored worlds, ten new worlds per rolling 24 hours (deleted ones count), ten named libraries; IPv6 /64s share a quota |
+| API requests    | 60/minute per IP, plus nginx request/connection limits                                                                    |
+| Storage         | 128 worlds and 1 GiB in total; 2,048 named libraries (clearing a name frees it)                                           |
+| Upload duration | 60 seconds                                                                                                                |
+
+Refusals are shown in the panel: a full library, a too-early update, an update of a world that was deleted on another device (it is not
+quietly re-added), or an upload that claims to update a world but is a different world (the server recomputes the world from the uploaded
+`Player.save` and changes nothing). Requests for expired worlds fail immediately; a minute-based sweep removes their files (or startup
+cleanup after downtime). Salted IP hashes are stored instead of raw IP addresses, and daily quotas survive restarts. The in-memory
+short-term request limiter resets on restart. Shared networks/NATs share the same quota. These are abuse guardrails, not protection against
+a distributed attack; keep reverse-proxy bandwidth and resource limits in place. The package manifest is capped at 1 MiB, and `Player.save`
+at 4 MiB before JSON parsing, to bound validation memory use.
 
 ### Live saves (opt-in)
 
@@ -72,12 +85,12 @@ Browsers without the directory picker retain manual import.
 
 **This follows saved locations, not live movement.** The game saves before area transitions, on new-area generation, after normal sleep, at
 some story checkpoints, and when saving to the menu. Because a transition save is written while you still stand at the border or door, live
-mode (and watching a shared link) **estimates** where you went: a save within the travel strip at a zone edge, or within 3 tiles of an
-entrance, way out or stairs, moves you to the spot the game puts you on the other side (see _Where you are_ below). Estimates are labelled
-(est.), and hovering the person shows the basis and the true saved position. Manual imports, and stopping live saves, always show the saved
-position only. **Follow saved location** selects the player's (estimated) zone/interior on refresh; turn it off to keep inspecting another
-area. Zoom, inspection selection and expanded sections are retained on same-area refreshes. The snapshot label shows `Player.save`'s
-timestamp when available; ZIP imports do not currently expose one.
+mode (and following a world from your library or a share link) **estimates** where you went: a save within the travel strip at a zone edge,
+or within 3 tiles of an entrance, way out or stairs, moves you to the spot the game puts you on the other side (see _Where you are_ below).
+Estimates are labelled (est.), and hovering the person shows the basis and the true saved position. Manual imports, and stopping live saves,
+always show the saved position only. **Follow saved location** selects the player's (estimated) zone/interior on refresh; turn it off to
+keep inspecting another area. Zoom, inspection selection and expanded sections are retained on same-area refreshes. The snapshot label shows
+`Player.save`'s timestamp when available; ZIP imports do not currently expose one.
 
 The game writes a save over 19 game steps: player first, containers last. Live mode waits for at least 1.5 seconds of unchanged metadata,
 checks that the current area's container file is at least as recent as the player file, validates newly read data, then rechecks the
@@ -265,8 +278,8 @@ Sharing adds a second service built from the Dockerfile's **`uploads` target**, 
 **`/data`** owned by the image's `deno` user. `compose.yaml` is a complete local example. The web container forwards `/api/` to
 `uploads:8081` using Docker DNS; without that service only sharing is unavailable. The upload container needs no outbound network access,
 serves no public directory listing, and should never have a published host port. Use one upload-service instance per data volume; the
-atomic-file store and quota lock are intentionally single-process, not a distributed database. Do not back up save payloads if the seven-day
-retention promise must include backups.
+atomic-file store and quota lock are intentionally single-process, not a distributed database. Do not back up save payloads if the 30-day
+retention promise must include backups. Upgrading from the seven-day sharing format deletes its old uploads on startup.
 
 **Homeserver wiring is required for sharing.** Keep the existing web service, add the upload-target service and volume on a private network,
 and give that service the network alias `uploads`. `TRUST_UPLOAD_PROXY=true` accepts `X-Upload-IP` from the web container, which always
@@ -282,10 +295,10 @@ real_ip_recursive on;
 ```
 
 The TLS proxy must overwrite or correctly append the actual client IP, not trust arbitrary client-supplied forwarding headers. Never use
-`set_real_ip_from 0.0.0.0/0`. Without this configuration all visitors behind the proxy share its three-save quota (safe but restrictive).
+`set_real_ip_from 0.0.0.0/0`. Without this configuration all visitors behind the proxy share one per-network quota (safe but restrictive).
 Verify two distinct external client IPs are accounted separately before enabling public uploads. API access logs are disabled in the bundled
-nginx; also redact `/api/shares/*` URLs in upstream proxy/error logs because they contain read capabilities. The default CSP now permits
-same-origin API connections only. Keep a disk quota on the volume and the example CPU/memory limits.
+nginx. Library and share keys are sent in `Authorization` headers, never in API URLs; do not log request headers in upstream proxies. The
+default CSP now permits same-origin API connections only. Keep a disk quota on the volume and the example CPU/memory limits.
 
 The homeserver (`dantebarbieri/homeserver`, service `mirklurk-map`) builds this repository from a pinned commit on `main`, so a release is:
 push to `main`, wait for CI (`.github/workflows/ci.yml`: tests, then `tools/smoke.sh`, which builds the image and checks that contract),
