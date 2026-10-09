@@ -1,9 +1,9 @@
 import { type ShareSource, Sharing } from "../src/sharing.ts";
-import { packSave, TOKEN, unpackSave, worldId, type WorldInfo } from "../src/sharing-format.ts";
+import { linkKey, packSave, TOKEN, unpackSave, worldId, type WorldInfo } from "../src/sharing-format.ts";
 import { assert, assertEquals } from "./assert.ts";
 
 const storageKey = "mirklurk-library-v1";
-const keyA = "A".repeat(43), keyB = "B".repeat(43), shareKey = "S".repeat(43);
+const keyA = "A".repeat(43), keyB = "E".repeat(43), shareKey = "Q".repeat(43);
 const grid = Array.from({ length: 5 }, () => [1, 1, 1, 1, 1]);
 const playerBytes = new TextEncoder().encode(JSON.stringify([{ worldGrid: grid }]));
 const source = (name = "Hero", session = 1, live = false): ShareSource => ({
@@ -22,7 +22,7 @@ async function world(name = "Hero", version = "v1", updated = Date.now()): Promi
     expires: updated + 30 * 86_400_000,
     version,
     size: 100,
-    share: name === "Hero" ? shareKey : "T".repeat(43),
+    share: name === "Hero" ? shareKey : "U".repeat(43),
   };
 }
 
@@ -363,7 +363,7 @@ Deno.test("sharing client: a sync link joins that library, keeps the previous on
       assert(b.el("#saved-libraries").hidden);
     },
     { current: { key: keyA, name: "Laptop" }, saved: [], auto: true },
-    `#sync=${keyB}`,
+    `#s=${linkKey(keyB)}`,
   ));
 
 Deno.test("sharing client: an empty, unnamed library is replaced by a sync link instead of being kept", () =>
@@ -376,7 +376,20 @@ Deno.test("sharing client: an empty, unnamed library is replaced by a sync link 
       assert(b.el("#saved-libraries").hidden);
     },
     undefined,
-    `#sync=${keyB}`,
+    `#s=${linkKey(keyB)}`,
+  ));
+
+Deno.test("sharing client: a truncated sync link is reported and changes nothing", () =>
+  withBrowser(
+    async (b) => {
+      await b.init();
+      assertEquals(b.status(), "This sync link is incomplete. Copy the whole link again.");
+      assertEquals(b.stored().current, { key: keyA, name: "" });
+      assertEquals(b.location.hash, "");
+      assertEquals(b.confirms, []);
+    },
+    { current: { key: keyA, name: "" }, saved: [], auto: true },
+    `#s=${linkKey(keyB).slice(0, 70)}`,
   ));
 
 Deno.test("sharing client: declining a sync link keeps this browser's own library and still removes the link", () =>
@@ -395,7 +408,7 @@ Deno.test("sharing client: declining a sync link keeps this browser's own librar
       assertEquals(download.headers.get("Authorization"), `Bearer ${keyA}`);
     },
     { current: { key: keyA, name: "Mine" }, saved: [], auto: true },
-    `#sync=${keyB}`,
+    `#s=${linkKey(keyB)}`,
   ));
 
 Deno.test("sharing client: a share link follows one world read-only and never touches the viewer's library", () =>
@@ -413,13 +426,13 @@ Deno.test("sharing client: a share link follows one world read-only and never to
         "Viewing Hero, shared with you read-only (updated just now). Your own worlds are unchanged.",
       );
       assert(b.el("#save-world").disabled);
-      assertEquals(b.location.hash, `#view=${shareKey}`);
+      assertEquals(b.location.hash, `#v=${linkKey(shareKey)}`);
       b.el("#stop-watch").click();
       assert(!b.sharing.isWatching);
       assertEquals(b.location.hash, "");
     },
     { current: { key: keyA, name: "Mine" }, saved: [], auto: true },
-    `#view=${shareKey}`,
+    `#v=${linkKey(shareKey)}`,
   ));
 
 Deno.test("sharing client: Live saves keep an added world updated once per change, and only while enabled", () =>
@@ -528,19 +541,19 @@ Deno.test("sharing client: share and sync cards show a QR code and copy links; d
     assertEquals(card.find((e) => e.tag === "h3")?.textContent, "Share Hero (read-only)");
     card.button("Copy link").click();
     await b.settle();
-    assertEquals(b.clipboard, `https://map.example/#view=${shareKey}`);
+    assertEquals(b.clipboard, `https://map.example/#v=${linkKey(shareKey)}`);
     card.button("Reset link").click();
     const reset = await b.request("POST", `/library/worlds/${hero.id}/share`);
-    await b.reply(reset, Response.json({ ...hero, share: "N".repeat(43) }));
+    await b.reply(reset, Response.json({ ...hero, share: "M".repeat(43) }));
     assert(b.status().startsWith("New share link ready for Hero."));
     card.button("Copy link").click();
     await b.settle();
-    assertEquals(b.clipboard, `https://map.example/#view=${"N".repeat(43)}`);
+    assertEquals(b.clipboard, `https://map.example/#v=${linkKey("M".repeat(43))}`);
     b.el("#sync-device").click();
     assertEquals(card.find((e) => e.tag === "h3")?.textContent, "Sync another device");
     card.button("Copy link").click();
     await b.settle();
-    assertEquals(b.clipboard, `https://map.example/#sync=${keyA}`);
+    assertEquals(b.clipboard, `https://map.example/#s=${linkKey(keyA)}`);
     assert(!JSON.stringify(card.textContent).includes(keyA));
     card.button("Close").click();
     assert(card.hidden);

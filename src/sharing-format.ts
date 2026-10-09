@@ -9,8 +9,8 @@ export const LIBRARY_WORLDS = 5;
 export const RETENTION = 30 * 24 * 60 * 60 * 1000;
 export const SHARE_INTERVAL = 30_000;
 export const NAME_LENGTH = 40;
-/** Sync keys and read-only share keys: 32 random bytes, base64url. */
-export const TOKEN = /^[A-Za-z0-9_-]{43}$/;
+/** Sync keys and read-only share keys: 32 random bytes, canonical base64url (the last character carries 4 bits, so its low 2 are zero). */
+export const TOKEN = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
 export const WORLD_ID = /^[A-Za-z0-9_-]{22}$/;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -44,6 +44,21 @@ export const worldId = async (name: string, grid: number[][]) =>
 
 export function validName(name: unknown): name is string {
   return typeof name === "string" && name.length <= NAME_LENGTH && name === name.trim() && !hasControl(name);
+}
+
+/**
+ * Links carry a key as 78 decimal digits rather than base64url: a QR code stores digits in numeric mode at 3.3 bits each, against 8 bits
+ * for every base64url character, which keeps sharing QR codes one size smaller.
+ */
+export function linkKey(key: string): string {
+  const bytes = Uint8Array.from(atob(key.replace(/-/g, "+").replace(/_/g, "/") + "="), (c) => c.charCodeAt(0));
+  return BigInt(`0x${hex(bytes)}`).toString().padStart(78, "0");
+}
+export function keyFromLink(digits: string): string | undefined {
+  if (!/^\d{78}$/.test(digits)) return undefined;
+  const value = BigInt(digits);
+  if (value >> 256n) return undefined;
+  return base64url(Uint8Array.from(value.toString(16).padStart(64, "0").match(/../g)!, (b) => parseInt(b, 16)));
 }
 
 export function frame(header: unknown, body: Uint8Array): Uint8Array {

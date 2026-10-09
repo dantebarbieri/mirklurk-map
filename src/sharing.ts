@@ -6,7 +6,9 @@ import type { Character, FileMap } from "./files.ts";
 import { qrSvg } from "./qr.ts";
 import {
   identify,
+  keyFromLink,
   LIBRARY_WORLDS,
+  linkKey,
   MAX_UPLOAD,
   newToken,
   packSave,
@@ -122,7 +124,7 @@ export class Sharing {
     if (this.watching) $("#live-status").textContent = "Stopped following. The last snapshot stays on screen.";
     ++this.generation;
     this.watching = undefined;
-    if (new URLSearchParams(location.hash.slice(1)).has("view")) history.replaceState(null, "", location.pathname + location.search);
+    if (new URLSearchParams(location.hash.slice(1)).has("v")) history.replaceState(null, "", location.pathname + location.search);
     this.render();
   }
 
@@ -187,25 +189,27 @@ export class Sharing {
     }
   }
 
-  /** `#sync=` joins a library (then leaves the address bar); `#view=` follows one shared world read-only. */
+  /** `#s=` joins a library (then leaves the address bar); `#v=` follows one shared world read-only. Keys are written as digits. */
   private async openHash(): Promise<boolean> {
     const params = new URLSearchParams(location.hash.slice(1));
-    const sync = params.get("sync"), view = params.get("view");
+    const sync = params.get("s"), view = params.get("v");
     if (sync !== null) {
       history.replaceState(null, "", location.pathname + location.search);
-      if (!TOKEN.test(sync)) {
+      const key = keyFromLink(sync);
+      if (!key) {
         this.report("This sync link is incomplete. Copy the whole link again.", true);
         return false;
       }
-      await this.join(sync);
+      await this.join(key);
       return true;
     }
     if (view !== null) {
-      if (!TOKEN.test(view)) {
+      const key = keyFromLink(view);
+      if (!key) {
         this.report("This share link is incomplete. Copy the whole link again.", true);
         return false;
       }
-      if (this.watching?.kind !== "view" || this.watching.key !== view) this.watch({ kind: "view", key: view, name: "the shared world" });
+      if (this.watching?.kind !== "view" || this.watching.key !== key) this.watch({ kind: "view", key, name: "the shared world" });
       return true;
     }
     if (params.has("share")) {
@@ -218,7 +222,7 @@ export class Sharing {
   private async join(key: string) {
     const previous = this.remembered.current;
     if (key === previous.key) {
-      this.report(`This browser already syncs ${label(previous)}.`);
+      this.report(`This browser already syncs ${previous.name || "this library"}.`);
       this.autoOpen();
       return;
     }
@@ -494,7 +498,8 @@ export class Sharing {
       return;
     }
     const sync = card.kind === "sync";
-    const link = `${location.origin}${location.pathname}#${sync ? `sync=${this.remembered.current.key}` : `view=${world!.share}`}`;
+    const fragment = `#${sync ? "s" : "v"}=${linkKey(sync ? this.remembered.current.key : world!.share)}`;
+    const link = `${location.origin}${location.pathname}${fragment}`;
     const title = sync
       ? `Sync another device${this.remembered.current.name ? ` with ${this.remembered.current.name}` : ""}`
       : `Share ${world!.name} (read-only)`;
@@ -511,7 +516,11 @@ export class Sharing {
       h("button", { type: "button", class: primary ? "button" : "button subtle", onclick: action }, text);
     el.replaceChildren(
       h("h3", {}, title),
-      qrSvg(link, sync ? "QR code for the sync link" : `QR code for viewing ${world!.name}`),
+      // Scheme and host are case-insensitive; in capitals they fit the QR code's compact alphanumeric mode.
+      qrSvg(
+        `${location.origin.toUpperCase()}${location.pathname}${fragment}`,
+        sync ? "QR code for the sync link" : `QR code for viewing ${world!.name}`,
+      ),
       h(
         "div",
         {},
@@ -621,7 +630,7 @@ export class Sharing {
       this.remembered.opened = target.id;
       this.persist();
     } else {
-      history.replaceState(null, "", `${location.pathname}${location.search}#view=${target.key}`);
+      history.replaceState(null, "", `${location.pathname}${location.search}#v=${linkKey(target.key)}`);
     }
     $("#follow-control").hidden = false;
     $("#live-status").textContent = target.kind === "view"

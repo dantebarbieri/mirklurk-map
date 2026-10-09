@@ -1,5 +1,6 @@
-// QR Code (ISO/IEC 18004) encoder for sharing links: byte mode, error-correction level M, versions 1–10
-// (up to 213 bytes). No dependencies; renders as SVG so the strict CSP needs no canvas or data: images.
+// QR Code (ISO/IEC 18004) encoder for sharing links: error-correction level M, versions 1–10. Text is split into the cheapest mix of
+// numeric (3.3 bits/digit), alphanumeric (5.5 bits/char: 0–9, A–Z, space and $%*+-./:) and byte (8 bits/byte, UTF-8) segments.
+// No dependencies; renders as SVG so the strict CSP needs no canvas or data: images.
 
 import { s } from "./dom.ts";
 
@@ -55,15 +56,109 @@ function rawModules(version: number): number {
 }
 const dataCodewords = (version: number) => Math.floor(rawModules(version) / 8) - ECC_PER_BLOCK[version - 1] * BLOCKS[version - 1];
 
-function codewords(bytes: Uint8Array, version: number): number[] {
+const NUMERIC = 0, ALPHANUMERIC = 1, BYTE = 2;
+type Mode = typeof NUMERIC | typeof ALPHANUMERIC | typeof BYTE;
+const MODES: Mode[] = [NUMERIC, ALPHANUMERIC, BYTE];
+const INDICATOR = [0b0001, 0b0010, 0b0100];
+const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
+const encoder = new TextEncoder();
+/** Character-count field width, which grows from version 10. */
+const countBits = (mode: Mode, version: number) => (version < 10 ? [10, 9, 8] : [12, 11, 16])[mode];
+export interface Segment {
+  mode: "numeric" | "alphanumeric" | "byte";
+  text: string;
+}
+const NAMES: Segment["mode"][] = ["numeric", "alphanumeric", "byte"];
+
+/**
+ * The cheapest segmentation, by dynamic programming over characters. Costs are in sixths of a bit so numeric (10 bits per 3 digits)
+ * and alphanumeric (11 bits per 2 characters) runs stay exact; closing a segment rounds its partial group up to whole bits.
+ */
+function segment(text: string, version: number): { mode: Mode; text: string }[] {
+  const chars = [...text];
+  const allowed = (mode: Mode, c: string) =>
+    mode === BYTE || (mode === NUMERIC ? c >= "0" && c <= "9" : c.length === 1 && ALPHABET.includes(c));
+  const charCost = (mode: Mode, c: string) => mode === NUMERIC ? 20 : mode === ALPHANUMERIC ? 33 : encoder.encode(c).length * 48;
+  const header = (mode: Mode) => (4 + countBits(mode, version)) * 6;
+  const close = (cost: number) => Math.ceil(cost / 6) * 6;
+  let cost = [Infinity, Infinity, Infinity];
+  const previous: Mode[][] = [];
+  chars.forEach((c, i) => {
+    const next = [Infinity, Infinity, Infinity], from: Mode[] = [NUMERIC, ALPHANUMERIC, BYTE];
+    for (const mode of MODES) {
+      if (!allowed(mode, c)) continue;
+      for (const before of i ? MODES : [mode]) {
+        const start = i === 0 ? header(mode) : before === mode ? cost[before] : close(cost[before]) + header(mode);
+        if (start + charCost(mode, c) < next[mode]) (next[mode] = start + charCost(mode, c)), (from[mode] = before);
+      }
+    }
+    cost = next;
+    previous.push(from);
+  });
+  let mode = MODES.reduce((best, m) => close(cost[m]) < close(cost[best]) ? m : best, BYTE);
+  const modes: Mode[] = [];
+  for (let i = chars.length - 1; i >= 0; i--) {
+    modes[i] = mode;
+    mode = previous[i][mode];
+  }
+  const result: { mode: Mode; text: string }[] = [];
+  chars.forEach((c, i) => {
+    const last = result.at(-1);
+    if (last?.mode === modes[i]) last.text += c;
+    else result.push({ mode: modes[i], text: c });
+  });
+  return result;
+}
+
+function segmentBits({ mode, text }: { mode: Mode; text: string }, version: number): number {
+  const n = mode === BYTE ? encoder.encode(text).length : text.length;
+  const data = mode === NUMERIC
+    ? 10 * Math.floor(n / 3) + [0, 4, 7][n % 3]
+    : mode === ALPHANUMERIC
+    ? 11 * Math.floor(n / 2) + 6 * (n % 2)
+    : 8 * n;
+  return 4 + countBits(mode, version) + data;
+}
+
+/** The smallest version and its segments; exported so tests can check the chosen modes. */
+export function plan(text: string): { version: number; segments: Segment[] } {
+  for (let version = 1; version <= MAX_VERSION; version++) {
+    const parts = segment(text, version);
+    if (parts.reduce((sum, part) => sum + segmentBits(part, version), 0) <= dataCodewords(version) * 8) {
+      return { version, segments: parts.map(({ mode, text }) => ({ mode: NAMES[mode], text })) };
+    }
+  }
+  throw new Error("Text is too long for a QR code");
+}
+
+function codewords(segments: Segment[], version: number): number[] {
   const capacity = dataCodewords(version);
   const bits: number[] = [];
   const put = (value: number, length: number) => {
     for (let i = length - 1; i >= 0; i--) bits.push((value >>> i) & 1);
   };
-  put(0b0100, 4);
-  put(bytes.length, version < 10 ? 8 : 16);
-  bytes.forEach((b) => put(b, 8));
+  for (const { mode: name, text } of segments) {
+    const mode = NAMES.indexOf(name) as Mode;
+    put(INDICATOR[mode], 4);
+    if (mode === BYTE) {
+      const bytes = encoder.encode(text);
+      put(bytes.length, countBits(mode, version));
+      bytes.forEach((b) => put(b, 8));
+    } else if (mode === NUMERIC) {
+      put(text.length, countBits(mode, version));
+      for (let i = 0; i < text.length; i += 3) {
+        const group = text.slice(i, i + 3);
+        put(Number(group), [0, 4, 7, 10][group.length]);
+      }
+    } else {
+      put(text.length, countBits(mode, version));
+      for (let i = 0; i < text.length; i += 2) {
+        const a = ALPHABET.indexOf(text[i]);
+        if (i + 1 < text.length) put(a * 45 + ALPHABET.indexOf(text[i + 1]), 11);
+        else put(a, 6);
+      }
+    }
+  }
   put(0, Math.min(4, capacity * 8 - bits.length));
   put(0, (8 - bits.length % 8) % 8);
   const data: number[] = [];
@@ -127,11 +222,7 @@ function penalty(grid: boolean[][]): number {
 
 /** Dark modules, [y][x], without the quiet zone. `mask` forces a mask pattern (tests compare against references). */
 export function qrMatrix(text: string, mask?: number): boolean[][] {
-  const bytes = new TextEncoder().encode(text);
-  let version = 1;
-  while (4 + (version < 10 ? 8 : 16) + bytes.length * 8 > dataCodewords(version) * 8) {
-    if (++version > MAX_VERSION) throw new Error("Text is too long for a QR code");
-  }
+  const { version, segments } = plan(text);
   const n = size(version);
   const modules = Array.from({ length: n }, () => Array<boolean>(n).fill(false));
   const fixed = Array.from({ length: n }, () => Array<boolean>(n).fill(false));
@@ -186,7 +277,7 @@ export function qrMatrix(text: string, mask?: number): boolean[][] {
     }
   }
 
-  const data = codewords(bytes, version);
+  const data = codewords(segments, version);
   let i = 0;
   for (let right = n - 1; right >= 1; right -= 2) {
     if (right === 6) right = 5;

@@ -1,6 +1,8 @@
 import { type FileMap, findCharacters } from "../src/files.ts";
 import {
   frame,
+  keyFromLink,
+  linkKey,
   MAX_FILES,
   MAX_UPLOAD,
   newToken,
@@ -45,6 +47,23 @@ Deno.test("sharing: world identity is the character name and zone layout", async
   assertEquals(await idOf(), await idOf());
   assert(await idOf("Hero", 1) !== await idOf("Hero", 2));
   assert(await idOf("Hero", 1) !== await idOf("Other", 1));
+});
+
+Deno.test("sharing: links carry keys as 78 digits that round-trip exactly", () => {
+  for (let i = 0; i < 200; i++) {
+    const key = newToken();
+    assert(TOKEN.test(key), key);
+    const digits = linkKey(key);
+    assert(/^\d{78}$/.test(digits));
+    assertEquals(keyFromLink(digits), key);
+  }
+  assertEquals(linkKey("A".repeat(43)), "0".repeat(78));
+  const max = ((1n << 256n) - 1n).toString();
+  assertEquals(keyFromLink(max), `${"_".repeat(42)}8`);
+  assertEquals(keyFromLink((1n << 256n).toString()), undefined);
+  for (const bad of ["1".repeat(77), "1".repeat(79), `${"1".repeat(77)}x`, ""]) assertEquals(keyFromLink(bad), undefined);
+  // Only canonical base64url is a key, so every key has exactly one link form.
+  assert(!TOKEN.test(`${"A".repeat(42)}B`));
 });
 
 Deno.test("sharing: reject path traversal, duplicates, multiple characters and malformed manifests", async () => {

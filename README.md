@@ -54,6 +54,12 @@ The server stores only hashes of library and share keys, never the keys themselv
 URLs, and links keep them in the URL fragment, which browsers do not send to the server. Clearing site data forgets the library on that
 browser; sync it again from another device to get it back. Links from the earlier seven-day sharing system no longer work.
 
+QR codes use the most compact encoding the link allows. A QR code can mix numeric (3.3 bits per digit), alphanumeric (5.5 bits per
+character, capitals only) and byte (8 bits) segments, and the encoder picks the cheapest mix. Links therefore write keys as 78 digits (`#s=`
+to sync, `#v=` to view), and QR codes spell the case-insensitive scheme and host in capitals (`HTTPS://MAP.MIRKLURK.DANTEB.COM/`). A sync or
+share code is 33×33 modules instead of the 37×37 that the same link would need in byte mode, so each module prints larger and the code scans
+more easily.
+
 Limits:
 
 | Limit           | Default                                                                                                                   |

@@ -8,6 +8,7 @@ import {
   SHARE_INTERVAL,
   shareId,
   shareKey,
+  TOKEN,
   unframe,
   unpackSave,
   validName,
@@ -233,9 +234,10 @@ export class UploadStore {
   }
 
   private key(request: Request): string {
-    const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.get("Authorization") ?? "");
-    if (!match) throw new HttpError(401, "Missing or invalid key");
-    return match[1];
+    const header = request.headers.get("Authorization") ?? "";
+    const key = header.startsWith("Bearer ") ? header.slice(7) : "";
+    if (!TOKEN.test(key)) throw new HttpError(401, "Missing or invalid key");
+    return key;
   }
 
   /** Authorization headers and non-form content types already force a CORS preflight, which is never granted. */
