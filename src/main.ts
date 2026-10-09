@@ -30,7 +30,8 @@ let sourceToken = 0;
 let follow = true;
 let revision = 0;
 const sharing: Sharing = new Sharing({
-  current: () => files && !sharing.isWatching ? { files, character: chars[activeCharacter], revision, session: sourceToken } : undefined,
+  current: () =>
+    files && !sharing.isWatching ? { files, character: chars[activeCharacter], revision, session: sourceToken, live: !!reader } : undefined,
   stopLocal: stopLive,
   display: (map, character, refresh) => show(0, map, [character], refresh),
 });

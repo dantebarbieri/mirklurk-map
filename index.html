@@ -23,24 +23,31 @@
     </header>
     <p id="live-status" class="live-status muted" role="status">Live saves off. Manual imports are snapshots.</p>
     <details class="sharing">
-      <summary>Shared saves / open on another device</summary>
-      <p>Uploads are optional. Share only the selected character (64 MiB maximum); up to three active saves per IP.
-        Copies expire seven days after creation, even when updated. Anyone with the private link can read your character and inventory.</p>
-      <div class="share-actions">
-        <button id="share-save" class="button" type="button" disabled>Upload selected save for 7 days</button>
-        <label><input id="publish-live" type="checkbox" disabled> Publish saved changes to this link (every 30 seconds)</label>
-        <button id="stop-watch" class="button subtle" type="button" hidden>Stop watching shared save</button>
+      <summary>My worlds &amp; sync</summary>
+      <div id="viewing" class="viewing share-actions" hidden>
+        <span id="viewing-text"></span>
+        <button id="stop-watch" class="button subtle" type="button">Stop following</button>
       </div>
-      <p class="muted">For ongoing updates, start Live saves first, upload, then enable publishing. Keep that desktop tab open.
-        Links below are remembered only on this device; they are not a public directory. Forgetting a link does not delete its upload.</p>
-      <form id="open-share" class="share-actions">
-        <label for="share-link">Private sharing link</label>
-        <input id="share-link" type="text" autocomplete="off" spellcheck="false"
-          placeholder="Paste a sharing link or copy the generated link">
-        <button class="button" type="submit">Open / watch</button>
-      </form>
+      <div class="share-actions">
+        <button id="save-world" class="button" type="button" disabled>Add this world to my worlds</button>
+        <label><input id="auto-update" type="checkbox" checked> Keep it updated while Live saves runs</label>
+      </div>
+      <p id="library-usage" class="muted"></p>
       <p id="share-status" class="live-status" role="status"></p>
-      <ul id="shared-list"></ul>
+      <ul id="world-list" class="world-list"></ul>
+      <div class="share-actions">
+        <label for="library-name">Library name</label>
+        <input id="library-name" class="library-name" type="text" maxlength="40" autocomplete="off" placeholder="Unnamed library" disabled>
+        <button id="sync-device" class="button subtle" type="button" disabled>Sync another device...</button>
+      </div>
+      <section id="share-card" class="share-card" aria-live="polite" hidden></section>
+      <section id="saved-libraries" hidden>
+        <h3>Other libraries saved in this browser</h3>
+        <ul id="library-list" class="world-list"></ul>
+      </section>
+      <p class="muted">This browser remembers your library. Sync your other PCs and your phone to see and update the same worlds;
+        share a single world read-only with friends. Adding a world uploads only the selected character; adding one that is
+        already in your library updates it instead.</p>
     </details>
     <main id="app">
       <section class="intro">
@@ -51,7 +58,7 @@
         <code>…\steamapps\common\Mirklurk Every Step Matters\Saves\YourName</code> — or drop it anywhere on this page.
         Picking the whole <code>Saves</code> folder, or a .zip of it, works too.</p>
         <p
-          class="muted">Your files stay in this browser unless you explicitly upload a shared copy.
+          class="muted">Your files stay in this browser unless you add a world to your library.
           Save and quit to the menu first so the files are current.</p>
         <p>Or opt into <b>Live saves</b> in desktop Chrome/Edge: choose the folder once for read-only monitoring.
         The map refreshes after the game saves, not every movement. Stop monitoring at any time.

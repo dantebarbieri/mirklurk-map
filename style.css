@@ -116,18 +116,72 @@ select {
   align-items: center;
   gap: 8px;
 }
-#share-link {
-  flex: 1 1 240px;
+.library-name,
+.share-link {
+  flex: 0 1 260px;
   min-width: 0;
-  padding: 8px;
+  padding: 6px 8px;
   background: var(--panel);
   border: 1px solid var(--line);
+  border-radius: 4px;
 }
-#shared-list {
+.share-link {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+.world-list {
   padding-left: 20px;
 }
-#shared-list li {
+.world-list li {
   margin: 12px 0;
+}
+.sharing h3 {
+  margin: 12px 0 6px;
+  font-size: 14px;
+  color: var(--gold2);
+}
+.tag {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.viewing {
+  padding: 6px 0;
+  color: var(--gold);
+}
+.share-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-start;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--gold2);
+  border-radius: 4px;
+}
+.share-card h3 {
+  flex-basis: 100%;
+  margin: 0;
+}
+.share-card > div {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.share-card p {
+  margin-top: 0;
+}
+.qr {
+  width: 200px;
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+.warning {
+  color: #ffb74d;
 }
 body.loaded main > * {
   min-width: 0;

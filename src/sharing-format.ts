@@ -3,20 +3,62 @@ import { decodeJson, parsePlayer } from "./save.ts";
 
 export const MAX_UPLOAD = 64 * 1024 * 1024;
 export const MAX_FILES = 4096;
-export const SHARE_LIFETIME = 7 * 24 * 60 * 60 * 1000;
+/** Worlds one library may hold; updating a world already in it never counts. */
+export const LIBRARY_WORLDS = 5;
+/** A world is deleted this long after its last update. */
+export const RETENTION = 30 * 24 * 60 * 60 * 1000;
 export const SHARE_INTERVAL = 30_000;
-export const TOKEN = /^[a-f0-9]{64}$/;
+export const NAME_LENGTH = 40;
+/** Sync keys and read-only share keys: 32 random bytes, canonical base64url (the last character carries 4 bits, so its low 2 are zero). */
+export const TOKEN = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
+export const WORLD_ID = /^[A-Za-z0-9_-]{22}$/;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const hasControl = (text: string) => [...text].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127);
 
-export interface SharedInfo {
+/** A world as listed to sync-key holders; `share` is its current read-only key. */
+export interface WorldInfo {
   id: string;
   name: string;
   created: number;
   updated: number;
   expires: number;
   version: string;
+  size: number;
+  share: string;
+}
+
+const base64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const hex = (bytes: Uint8Array) => [...bytes].map((n) => n.toString(16).padStart(2, "0")).join("");
+const sha256 = async (text: string) => new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(text)));
+
+export const newToken = () => base64url(crypto.getRandomValues(new Uint8Array(32)));
+/** The server stores only hashes: a library is found by its sync key's hash, a shared world by its share key's hash. */
+export const libraryId = async (sync: string) => hex(await sha256(`mirklurk/library\n${sync}`));
+/** Read-only keys derive one-way from the sync key and a per-world salt, so a share key can never become a sync key. */
+export const shareKey = async (sync: string, salt: string) => base64url(await sha256(`mirklurk/share\n${sync}\n${salt}`));
+export const shareId = async (share: string) => hex(await sha256(`mirklurk/view\n${share}`));
+/** Same character name and zone layout = same world, so uploading it again updates it instead of adding a copy. */
+export const worldId = async (name: string, grid: number[][]) =>
+  base64url(await sha256(`mirklurk/world\n${JSON.stringify([name, grid])}`)).slice(0, 22);
+
+export function validName(name: unknown): name is string {
+  return typeof name === "string" && name.length <= NAME_LENGTH && name === name.trim() && !hasControl(name);
+}
+
+/**
+ * Links carry a key as 78 decimal digits rather than base64url: a QR code stores digits in numeric mode at 3.3 bits each, against 8 bits
+ * for every base64url character, which keeps sharing QR codes one size smaller.
+ */
+export function linkKey(key: string): string {
+  const bytes = Uint8Array.from(atob(key.replace(/-/g, "+").replace(/_/g, "/") + "="), (c) => c.charCodeAt(0));
+  return BigInt(`0x${hex(bytes)}`).toString().padStart(78, "0");
+}
+export function keyFromLink(digits: string): string | undefined {
+  if (!/^\d{78}$/.test(digits)) return undefined;
+  const value = BigInt(digits);
+  if (value >> 256n) return undefined;
+  return base64url(Uint8Array.from(value.toString(16).padStart(64, "0").match(/../g)!, (b) => parseInt(b, 16)));
 }
 
 export function frame(header: unknown, body: Uint8Array): Uint8Array {
@@ -67,7 +109,7 @@ export async function packSave(files: FileMap, character: Character): Promise<Ui
   return result;
 }
 
-export function unpackSave(bytes: Uint8Array): { name: string; files: FileMap } {
+export function unpackSave(bytes: Uint8Array): { name: string; files: FileMap; grid: number[][] } {
   if (bytes.length > MAX_UPLOAD) throw new Error("Save exceeds the 64 MiB sharing limit");
   const { header, body } = unframe(bytes);
   if (!header || typeof header !== "object" || !("name" in header) || !("entries" in header)) {
@@ -103,6 +145,13 @@ export function unpackSave(bytes: Uint8Array): { name: string; files: FileMap } 
     if (entry === player) break;
     start += entry.size;
   }
-  parsePlayer(decodeJson(body.subarray(start, start + player.size)));
-  return { name, files };
+  const { grid } = parsePlayer(decodeJson(body.subarray(start, start + player.size)));
+  return { name, files, grid };
+}
+
+/** The world ID the server will compute for this character's package. */
+export async function identify(files: FileMap, character: Character): Promise<string> {
+  const player = files.get(`${character.root}Player.save`);
+  if (!player) throw new Error("Player.save is required");
+  return worldId(character.name, parsePlayer(decodeJson(await player.read())).grid);
 }
