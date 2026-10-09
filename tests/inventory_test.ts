@@ -82,6 +82,8 @@ Deno.test("markers: reopened chests, remains, corpses, storage and wood drops re
   assertEquals(marks.length, 6);
   assertEquals(marks.map((m) => m.inventory?.state), ["saved", "saved", "saved", "saved", "saved", "unrolled"]);
   assertEquals(marks[2].name, `Carcass: ${BEING_NAMES[31]}`);
+  // Stashes are their own layer, apart from camp items.
+  assertEquals([marks[3].layer, marks[3].kind], ["storage", "storage"]);
 });
 
 Deno.test("ground loot: keep independently saved records visible at occupied container tiles", async () => {

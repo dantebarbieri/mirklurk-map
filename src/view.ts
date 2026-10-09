@@ -728,7 +728,7 @@ type Switch = Layer | "water";
 const LAYER_GROUPS: [string, Switch[]][] = [
   ["Locations", ["places", "caves", "ruins", "rifts"]],
   ["Entities", ["you", "npcs", "creatures"]],
-  ["Items", ["loot", "camp"]],
+  ["Items", ["loot", "camp", "storage"]],
   ["Terrain", ["boulders", "rubble", "rocks", "sharp", "water"]],
   ["Nature", ["trees", "brambles", "vines"]],
 ];
@@ -913,6 +913,7 @@ const SWITCH_ICON: Record<Switch, string> = {
   creatures: "creature",
   loot: "loot",
   camp: "camp",
+  storage: "storage",
   boulders: "boulder",
   rubble: "ruin",
   rocks: "rock",
@@ -1017,6 +1018,8 @@ const LAYER_TIPS: Partial<Record<Switch, string>> = {
   caves: "Cave entrances",
   ruins: "Ruin and ruin cellar entrances",
   rifts: "Rifts and the entrances to the rift depths",
+  camp: "Workstations and other camp items you have placed",
+  storage: "Your stashes: storage chests and Hidden Hollows",
   trees: "Willow, Cypress, Trollgnarl and Elderwort, coloured by how dead the trunk is",
   boulders: "Boulders and large boulders",
   rubble: "Ruin footprints and blocks that cannot be entered",
@@ -1111,6 +1114,7 @@ function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => voi
   const npcs = marks.filter((m) => m.layer === "npcs");
   const loot = marks.filter((m) => m.layer === "loot");
   const camp = marks.filter((m) => m.layer === "camp");
+  const storage = marks.filter((m) => m.layer === "storage");
   const creatures = marks.filter((m) => m.layer === "creatures");
   return h(
     "div",
@@ -1118,7 +1122,8 @@ function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => voi
     group("Places", places),
     group("NPCs", npcs),
     group("Loot", loot, loot.length <= 12),
-    group("Camp & storage", camp),
+    group("Camp", camp),
+    group("Storage", storage),
     group("Creatures when saved", creatures, false),
   );
 }

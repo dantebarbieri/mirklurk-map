@@ -19,6 +19,7 @@ export type Layer =
   | "creatures"
   | "loot"
   | "camp"
+  | "storage"
   | "boulders"
   | "rubble"
   | "rocks"
@@ -35,7 +36,8 @@ export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "you", label: "You", on: true },
   { id: "npcs", label: "NPCs", on: true },
   { id: "loot", label: "Loot", on: true },
-  { id: "camp", label: "Camp & storage", on: true },
+  { id: "camp", label: "Camp", on: true },
+  { id: "storage", label: "Storage", on: true },
   { id: "boulders", label: "Boulders", on: true },
   { id: "rubble", label: "Rubble", on: true },
   { id: "creatures", label: "Creatures", on: false },
@@ -175,7 +177,7 @@ export function detailMarks(d: ZoneDetail): Mark[] {
     else if (CHEST[c.index]) out.push({ layer: "loot", kind: "loot chest", ...at, name: CHEST[c.index] });
     else if (c.status === -215) out.push({ layer: "loot", kind: "loot", ...at, name: "Supplies" });
     else if (c.status === -211) {
-      out.push({ layer: "camp", kind: "storage", ...at, name: c.index === 108 ? ITEM_NAMES[108] ?? "Hidden Hollow" : "Storage chest" });
+      out.push({ layer: "storage", kind: "storage", ...at, name: c.index === 108 ? ITEM_NAMES[108] ?? "Hidden Hollow" : "Storage chest" });
     } else if (c.status === -209 || c.status === -216) {
       out.push({ layer: "loot", kind: "carcass", ...at, name: `Carcass: ${BEING_NAMES[c.index] ?? "creature"}` });
     } else if (c.status === -205) {
