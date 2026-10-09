@@ -63,9 +63,20 @@ export function entityLink(m: Mark) {
   );
 }
 
-export function inspectMark(panel: HTMLElement, m: Mark, expanded?: Set<string>, tool?: number, picker?: HTMLElement) {
+export interface InspectOptions {
+  /** Open sections to restore. */
+  expanded?: Set<string>;
+  /** Chopping tool for tree costs, and the select that changes it. */
+  tool?: number;
+  picker?: HTMLElement;
+  /** Closes the inspection; its button shows when the card floats over a full-screen map. */
+  close?: () => void;
+}
+
+export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close }: InspectOptions = {}) {
   panel.hidden = false;
   panel.replaceChildren(
+    ...(close ? [h("button", { type: "button", class: "close", "aria-label": "Close", title: "Close (Esc)", onclick: close }, "×")] : []),
     h("h3", {}, m.name),
     h(
       "p",

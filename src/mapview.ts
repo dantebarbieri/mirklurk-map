@@ -1,14 +1,27 @@
 // Interactive zone map: an SVG in game units (0–2560) with zoom, pan and constant-size markers.
 
 import { h, s } from "./dom.ts";
+import { isFullMap, onFullMap, setFullMap } from "./fullscreen.ts";
 import type { Layer, Mark } from "./objects.ts";
 import { describe } from "./objects.ts";
 import { ROOM } from "./rules.ts";
 
+/**
+ * The map's view: a square of the world in game units. It fits the map's shorter side, centred, and a map that is not
+ * square (full screen) shows more of the world along its longer side, as SVG's default `xMidYMid meet` draws it.
+ */
 export interface Viewport {
   x: number;
   y: number;
   size: number;
+}
+
+/** A rectangle of the world in game units. */
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface TouchPoint {
@@ -16,7 +29,30 @@ export interface TouchPoint {
   y: number;
 }
 
-/** Keep the world point under the gesture midpoint fixed while the fingers move and scale. */
+/** What a width×height map shows of view [x, y, size], as [x, y, width, height] in game units (see `Viewport`). */
+export function visibleRect([x, y, size]: [number, number, number], width: number, height: number): [number, number, number, number] {
+  const short = Math.min(width, height);
+  const w = size * width / short, h = size * height / short;
+  return [x - (w - size) / 2, y - (h - size) / 2, w, h];
+}
+
+/**
+ * Clamps a view of a width×height map to bounds [left, top, max]: its size to 96…max, and what it shows to the bounds, or,
+ * along a side that shows more than the bounds, the bounds to what it shows.
+ */
+export function clampView(
+  view: [number, number, number],
+  [left, top, max]: [number, number, number],
+  width: number,
+  height: number,
+): [number, number, number] {
+  const size = Math.min(Math.max(view[2], 96), max);
+  const [x, y, w, h] = visibleRect([view[0], view[1], size], width, height);
+  const fit = (v: number, span: number, lo: number) => Math.min(Math.max(v, Math.min(lo, lo + max - span)), Math.max(lo, lo + max - span));
+  return [fit(x, w, left) + (w - size) / 2, fit(y, h, top) + (h - size) / 2, size];
+}
+
+/** Keep the world point under the gesture midpoint fixed while the fingers move and scale (points relative to the map). */
 export function gestureView(
   view: Viewport,
   before: TouchPoint[],
@@ -33,11 +69,44 @@ export function gestureView(
   const distance = (points: TouchPoint[]) => Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
   const factor = before.length === 2 && after.length === 2 ? Math.max(1, distance(before)) / Math.max(1, distance(after)) : 1;
   const size = Math.min(max, Math.max(96, view.size * factor));
-  return { x: view.x + a.x / width * view.size - b.x / width * size, y: view.y + a.y / height * view.size - b.y / height * size, size };
+  // The view square sits centred on the shorter side.
+  const short = Math.min(width, height), ox = (width - short) / 2, oy = (height - short) / 2;
+  return {
+    x: view.x + (a.x - ox) / short * view.size - (b.x - ox) / short * size,
+    y: view.y + (a.y - oy) / short * view.size - (b.y - oy) / short * size,
+    size,
+  };
+}
+
+export interface Placement {
+  left: number;
+  top: number;
+  /** The most height the card may take on its side. */
+  room: number;
+  below: boolean;
+  /** The point is off the map. */
+  off: boolean;
+}
+
+/**
+ * Where a w×h popup card goes beside point (x, y) of an areaW×areaH map: centred on the point within the margins, below it
+ * unless it only fits above (or there is more room above), and no taller than the room on that side.
+ */
+export function cardPlace(x: number, y: number, w: number, h: number, areaW: number, areaH: number, gap = 16, pad = 8): Placement {
+  const roomBelow = areaH - y - gap - pad, roomAbove = y - gap - pad;
+  const below = h <= roomBelow || roomBelow >= roomAbove;
+  const room = Math.max(0, below ? roomBelow : roomAbove);
+  return {
+    left: Math.max(pad, Math.min(x - w / 2, areaW - w - pad)),
+    top: below ? y + gap : y - gap - Math.min(h, room),
+    room,
+    below,
+    off: x < 0 || y < 0 || x > areaW || y > areaH,
+  };
 }
 
 export interface Raster {
-  paint(ctx: CanvasRenderingContext2D, view: Viewport): void;
+  paint(ctx: CanvasRenderingContext2D, view: Rect): void;
   subscribe(callback: () => void): () => void;
 }
 
@@ -57,6 +126,11 @@ export interface MapSpec {
   onView?: (view: [number, number, number]) => void;
   /** Called once the view comes to rest: when the last finger or button lifts after moving it, or shortly after a wheel or button zoom. */
   onSettle?: () => void;
+  /**
+   * Details of the selected mark. In full screen the card floats beside the mark as it moves (style.css positions it
+   * absolutely), and Escape or a tap on the empty map calls `close`.
+   */
+  popup?: { card: HTMLElement; close: () => void };
 }
 
 /** How much of the map, along the axis panned across, the next zone must fill before panning selects it. */
@@ -82,13 +156,13 @@ export function focusZone(
   return next[0] === current[0] && next[1] === current[1] ? current : next;
 }
 
-/** Zones of an n×n world, other than origin, that a viewport in origin's coordinates overlaps. */
-export function zonesInView([x, y, size]: [number, number, number], [ox, oy]: [number, number], n = 5): [number, number][] {
+/** Zones of an n×n world, other than origin, that a shown area [x, y, width, height] in origin's coordinates overlaps. */
+export function zonesInView([x, y, w, h]: [number, number, number, number], [ox, oy]: [number, number], n = 5): [number, number][] {
   const out: [number, number][] = [];
   const lo = (v: number, o: number) => Math.max(0, o + Math.floor(v / ROOM));
-  const hi = (v: number, o: number) => Math.min(n - 1, o + Math.ceil((v + size) / ROOM) - 1);
-  for (let zy = lo(y, oy); zy <= hi(y, oy); zy++) {
-    for (let zx = lo(x, ox); zx <= hi(x, ox); zx++) if (zx !== ox || zy !== oy) out.push([zx, zy]);
+  const hi = (v: number, span: number, o: number) => Math.min(n - 1, o + Math.ceil((v + span) / ROOM) - 1);
+  for (let zy = lo(y, oy); zy <= hi(y, h, oy); zy++) {
+    for (let zx = lo(x, ox); zx <= hi(x, w, ox); zx++) if (zx !== ox || zy !== oy) out.push([zx, zy]);
   }
   return out;
 }
@@ -159,6 +233,22 @@ export const personSvg = () =>
 
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
 
+/**
+ * A mark kind's map symbol as a small inline icon, for list rows and the legend. Footprint-only kinds, and the "water"
+ * and "sharp" ground overlays, are drawn as a swatch.
+ */
+export function markIcon(kind: string): SVGElement {
+  const k = kind.split(" ")[0];
+  const swatch = FOOTPRINT_ONLY.has(k) || k === "water" || k === "sharp";
+  return s(
+    "svg",
+    { class: "sym-icon", viewBox: k === "tree" || k === "you" ? "-8 -11 16 16" : "-8 -8 16 16", "aria-hidden": "true" },
+    swatch
+      ? s("rect", { class: `fp ${kind}`, x: -6, y: -6, width: 12, height: 12, rx: 2 })
+      : s("g", { class: `pt ${kind}` }, k === "you" ? personIcon() : (POINT[k] ?? POINT.loot)({ kind } as Mark)),
+  );
+}
+
 /** Quiet time after a wheel or button zoom before the view counts as settled (wheels have no end event). */
 const SETTLE_MS = 250;
 
@@ -190,6 +280,8 @@ export class MapView {
   private vx = 0;
   private vy = 0;
   private vw = ROOM;
+  /** The view as last set; the map shows it clamped to its current size, so a resize (full screen) leaves it as it was. */
+  private asked: [number, number, number];
   private home: [number, number, number];
   private k = 1;
   private selected = -1;
@@ -205,11 +297,25 @@ export class MapView {
   private moved = false;
   private settleTimer = 0;
   private waiting: (() => void)[] = [];
+  private popup?: { card: HTMLElement; close: () => void };
+  /** The popup card's pointer at its mark; drawn here, as the card itself scrolls and would clip it. */
+  private tail: HTMLElement;
+  private fullButton: HTMLElement;
+  private unfull: () => void;
+  private onKey = (e: KeyboardEvent) => {
+    if (e.key !== "Escape" || e.defaultPrevented || !isFullMap()) return;
+    // An open choice menu closes itself first; full screen stays.
+    if (!this.picker.hidden) e.preventDefault();
+    else if (this.showing) {
+      e.preventDefault();
+      this.popup!.close();
+    }
+  };
 
   constructor(spec: MapSpec) {
     this.home = spec.view ?? [0, 0, ROOM];
     this.bounds = spec.bounds ?? mapBounds(this.home);
-    [this.vx, this.vy, this.vw] = this.home;
+    [this.vx, this.vy, this.vw] = this.asked = this.home;
     this.svg = s("svg", { class: "map", viewBox: this.viewBox(), role: "img" }) as SVGSVGElement;
     const base = s("g", { class: "base" }, spec.base);
     this.heatLayer = s("g", { class: "heats" });
@@ -235,6 +341,21 @@ export class MapView {
     }
     const zoomBtn = (label: string, f: number) =>
       h("button", { class: "zoom", type: "button", "aria-label": label, onclick: () => this.zoomBy(f) }, label === "Zoom in" ? "+" : "−");
+    this.fullButton = h(
+      "button",
+      { class: "zoom full", type: "button", "aria-label": "Full screen", onclick: () => setFullMap(!isFullMap()) },
+      s(
+        "svg",
+        { viewBox: "0 0 16 16", "aria-hidden": "true" },
+        s("path", { class: "enter", d: "M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" }),
+        s("path", { class: "leave", d: "M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4" }),
+      ),
+    );
+    this.tail = h(
+      "div",
+      { class: "popup-tail", hidden: true, "aria-hidden": "true" },
+      s("svg", { viewBox: "0 0 16 9" }, s("path", { d: "M0 0L8 9L16 0" })),
+    );
     this.el = h(
       "div",
       { class: "mapbox" },
@@ -243,6 +364,7 @@ export class MapView {
       h(
         "div",
         { class: "zooms" },
+        this.fullButton,
         zoomBtn("Zoom in", 0.6),
         zoomBtn("Zoom out", 1 / 0.6),
         h("button", {
@@ -261,23 +383,32 @@ export class MapView {
       ),
       this.tip,
       this.picker,
+      this.tail,
     );
     this.addMarks(spec.marks);
     if (spec.player) {
       this.youTitle = spec.player.title;
       this.addPoint(spec.player.x, spec.player.y, "you L-you", [...personIcon(), s("text", { y: -14 }, spec.player.label)], -1);
     }
+    this.popup = spec.popup;
     this.rescale();
     this.onView = spec.onView;
     this.onSettle = spec.onSettle;
     this.wire(spec.onOpen, spec.onMapClick);
-    this.observer = new ResizeObserver(() => this.rescale());
+    // A new map size shows a different area, so it counts as a view change (neighbours load, the raster repaints).
+    this.observer = new ResizeObserver((entries) => entries.some((e) => e.target === this.svg) ? this.apply(true) : this.place());
     this.observer.observe(this.svg);
+    if (this.popup) this.observer.observe(this.popup.card);
+    this.unfull = onFullMap(() => this.full());
+    this.full();
+    document.addEventListener("keydown", this.onKey);
   }
 
   dispose() {
     this.observer.disconnect();
     this.unsubscribe?.();
+    this.unfull();
+    document.removeEventListener("keydown", this.onKey);
     cancelAnimationFrame(this.frame);
     clearTimeout(this.settleTimer);
     this.onSettle = undefined;
@@ -286,6 +417,70 @@ export class MapView {
 
   get viewport(): [number, number, number] {
     return [this.vx, this.vy, this.vw];
+  }
+
+  /** The view to keep when the map is drawn again: as last set, before fitting this map's size. */
+  get requested(): [number, number, number] {
+    return this.asked;
+  }
+
+  /** What the map shows, [x, y, width, height] in game units: more than `viewport` along the longer side of a map that is not square. */
+  get visible(): [number, number, number, number] {
+    const [w, h] = this.screen();
+    return visibleRect(this.viewport, w, h);
+  }
+
+  /** The map's size in CSS pixels (a square guess until it is laid out). */
+  private screen(): [number, number] {
+    const w = this.svg.clientWidth || 600;
+    return [w, this.svg.clientHeight || w];
+  }
+
+  private full() {
+    const on = isFullMap();
+    this.fullButton.setAttribute("aria-pressed", String(on));
+    this.fullButton.title = on ? "Exit full screen (Esc)" : "Full screen";
+    this.place();
+  }
+
+  /** The popup card floats beside the selected mark (full screen only). */
+  private get floating() {
+    return !!this.popup && !this.popup.card.hidden && isFullMap();
+  }
+
+  /** The floating card is in sight (its mark is on the map), so Escape or a tap on the empty map closes it. */
+  private get showing() {
+    return this.floating && !this.popup!.card.classList.contains("off");
+  }
+
+  /** Keeps the floating popup card beside its mark; outside full screen it returns to the page's flow. */
+  private place() {
+    if (!this.popup) return;
+    const card = this.popup.card;
+    const m = this.selection;
+    if (!this.floating || !m) {
+      this.tail.hidden = true;
+      if (card.style.length) card.style.cssText = "";
+      card.classList.remove("off");
+      return;
+    }
+    const map = this.svg.getBoundingClientRect();
+    const host = (card.offsetParent ?? document.body).getBoundingClientRect();
+    const [vx, vy, vw] = this.visible;
+    const k = map.width / vw;
+    const x = (m.x - vx) * k, y = (m.y - vy) * k;
+    const at = cardPlace(x, y, card.offsetWidth, card.scrollHeight + 2, map.width, map.height);
+    card.classList.toggle("off", at.off);
+    card.style.left = `${map.left - host.left + at.left}px`;
+    card.style.top = `${map.top - host.top + at.top}px`;
+    card.style.maxHeight = `${at.room}px`;
+    this.tail.hidden = at.off;
+    if (at.off) return;
+    const box = this.el.getBoundingClientRect();
+    const tx = Math.max(at.left + 12, Math.min(x, at.left + card.offsetWidth - 12));
+    this.tail.classList.toggle("below", at.below);
+    this.tail.style.left = `${map.left - box.left + tx - 8}px`;
+    this.tail.style.top = `${map.top - box.top + (at.below ? at.top - 8 : at.top + card.offsetHeight - 1)}px`;
   }
 
   /** The mark last passed to `select`. */
@@ -319,11 +514,12 @@ export class MapView {
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
       const canvas = this.canvas!;
-      const size = Math.max(1, Math.round(this.svg.clientWidth * devicePixelRatio));
-      if (canvas.width !== size) canvas.width = canvas.height = size;
+      const [w, h] = this.screen().map((v) => Math.max(1, Math.round(v * devicePixelRatio)));
+      if (canvas.width !== w || canvas.height !== h) [canvas.width, canvas.height] = [w, h];
       const ctx = canvas.getContext("2d")!;
-      ctx.clearRect(0, 0, size, size);
-      this.raster!.paint(ctx, { x: this.vx, y: this.vy, size: this.vw });
+      ctx.clearRect(0, 0, w, h);
+      const [x, y, width, height] = this.visible;
+      this.raster!.paint(ctx, { x, y, width, height });
     });
   }
 
@@ -411,24 +607,25 @@ export class MapView {
   }
 
   private rescale() {
-    const w = this.svg.clientWidth || 600;
-    this.k = this.vw / w;
+    const [w, h] = this.screen();
+    this.k = this.vw / Math.min(w, h);
     for (const p of this.pts) {
       const k = p.g.getAttribute("data-i") === String(this.selected) ? this.k * 1.1 : this.k;
       p.g.setAttribute("transform", `translate(${p.x} ${p.y}) scale(${k})`);
     }
     this.redraw();
+    this.place();
   }
 
   private viewBox() {
     return `${this.vx} ${this.vy} ${this.vw} ${this.vw}`;
   }
 
-  private apply() {
-    const [left, top, max] = this.bounds;
-    this.vw = Math.min(Math.max(this.vw, 96), max);
-    this.vx = Math.min(Math.max(this.vx, left), left + max - this.vw);
-    this.vy = Math.min(Math.max(this.vy, top), top + max - this.vw);
+  /** Shows the view as set (or, after a resize, as last set), clamped to the bounds for the map's size. */
+  private apply(resized = false) {
+    const [w, h] = this.screen();
+    if (!resized) this.asked = this.viewport;
+    [this.vx, this.vy, this.vw] = clampView(this.asked, this.bounds, w, h);
     this.svg.setAttribute("viewBox", this.viewBox());
     this.rescale();
     this.onView?.(this.viewport);
@@ -462,7 +659,9 @@ export class MapView {
 
   private toGame(e: { clientX: number; clientY: number }) {
     const r = this.svg.getBoundingClientRect();
-    return [this.vx + (e.clientX - r.left) / r.width * this.vw, this.vy + (e.clientY - r.top) / r.height * this.vw];
+    const [x, y, w] = visibleRect(this.viewport, r.width || 1, r.height || 1);
+    const k = w / (r.width || 1);
+    return [x + (e.clientX - r.left) * k, y + (e.clientY - r.top) * k];
   }
 
   private wire(onOpen?: (m: Mark) => void, onMapClick?: (x: number, y: number) => void) {
@@ -547,6 +746,8 @@ export class MapView {
         const stack = stackAt(this.marks, m).filter((o) => o === m || this.shown(o));
         if (stack.length > 1) this.pick(stack, e, onOpen);
         else onOpen(m);
+      } else if (!m && this.showing) {
+        this.popup!.close();
       } else if (!m && onMapClick) {
         const [x, y] = this.toGame(e);
         onMapClick(x, y);

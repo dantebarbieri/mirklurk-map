@@ -25,6 +25,17 @@ pans around the fingers' midpoint. Tap a marker to inspect it, or hover for its 
 Touch gestures inside the map control the map, while outside it normal page scrolling and browser zoom remain available. Controls and panels
 adapt to narrow phone screens.
 
+The corner button above `+` shows the map full screen, the easiest way to use it on a phone. It stays full screen while you pan into other
+zones, look inside entrances and come back, switch Realistic mode, or a live or shared save refreshes; the button, Escape or the browser's
+Back return to the page. Full screen fills the whole window, landscape or portrait, showing more of the world along the longer side. The
+zone's title, the way back from an interior and the shaded-area note float on the map, and tapping a marker opens its details in a card
+beside it that follows it as you pan (×, Escape or a tap on empty map closes it). Browsers without a Fullscreen API for pages, such as
+Safari on iPhone, get the same layout over the page.
+
+Whenever the map is at least 600 pixels wide, and always in full screen, a translucent legend floats in its corner: each layer's map symbol,
+tapped to show or hide it (a group's title switches the whole group), and Realistic mode. It mirrors the layer chips below the map, which
+still offer everything, and collapses to its title; it starts collapsed on small screens.
+
 The zone map continues into its neighbours, with their maps and the markers of the enabled layers (loaded as each zone first comes into
 view). Pan into a neighbour and the selection follows: once it fills two thirds of the map along the way you are panning, the grid, the
 title and the map's gold outline move to it, and its details open in place when you let go, keeping the view and any open inspection.
