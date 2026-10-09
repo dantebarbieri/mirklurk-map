@@ -174,10 +174,18 @@ export function detailMarks(d: ZoneDetail): Mark[] {
       inventory: c.inventory ?? { state: "unavailable" as const, reason: "Contents were not recorded in this save." },
     };
     if (c.index === 152) out.push({ layer: "loot", kind: "loot", ...at, name: c.status === -214 ? "Unsearched remains" : "Remains" });
-    else if (CHEST[c.index]) out.push({ layer: "loot", kind: "loot chest", ...at, name: CHEST[c.index] });
+    // Treasure chests stay after looting and can hold your items, unlike remains, so they count as storage.
+    else if (CHEST[c.index]) out.push({ layer: "storage", kind: "storage chest", ...at, name: CHEST[c.index] });
     else if (c.status === -215) out.push({ layer: "loot", kind: "loot", ...at, name: "Supplies" });
-    else if (c.status === -211) {
-      out.push({ layer: "storage", kind: "storage", ...at, name: c.index === 108 ? ITEM_NAMES[108] ?? "Hidden Hollow" : "Storage chest" });
+    // -212: seen on Magus Clay's storage chest in one save, presumably before he lets you use it.
+    else if (c.status === -211 || c.status === -212) {
+      out.push({
+        layer: "storage",
+        kind: "storage",
+        ...at,
+        name: c.index === 108 ? ITEM_NAMES[108] ?? "Hidden Hollow" : "Storage chest",
+        detail: c.status === -212 ? "not usable yet when saved" : undefined,
+      });
     } else if (c.status === -209 || c.status === -216) {
       out.push({ layer: "loot", kind: "carcass", ...at, name: `Carcass: ${BEING_NAMES[c.index] ?? "creature"}` });
     } else if (c.status === -205) {

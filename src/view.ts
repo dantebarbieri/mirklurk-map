@@ -1019,7 +1019,8 @@ const LAYER_TIPS: Partial<Record<Switch, string>> = {
   ruins: "Ruin and ruin cellar entrances",
   rifts: "Rifts and the entrances to the rift depths",
   camp: "Workstations and other camp items you have placed",
-  storage: "Your stashes: storage chests and Hidden Hollows",
+  storage:
+    "Places to keep items: treasure chests (they stay after looting), Hidden Hollows, the Camp stash, and Clay's and Bhato's storage",
   trees: "Willow, Cypress, Trollgnarl and Elderwort, coloured by how dead the trunk is",
   boulders: "Boulders and large boulders",
   rubble: "Ruin footprints and blocks that cannot be entered",

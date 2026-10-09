@@ -1135,9 +1135,6 @@ body.map-full .inspection > .close:hover {
 .pt.loot > :not(text) {
   fill: #f0b44c;
 }
-.pt.loot.chest > :not(text) {
-  stroke: #fff;
-}
 .pt.carcass > :not(text) {
   stroke: #e06060;
   stroke-width: 2px;
@@ -1147,6 +1144,10 @@ body.map-full .inspection > .close:hover {
 }
 .pt.storage > :not(text) {
   fill: var(--ihar);
+}
+/* Treasure chests found in the world, apart from your own stashes. */
+.pt.storage.chest > :not(text) {
+  stroke: #fff;
 }
 .pt.camp > :not(text) {
   fill: var(--gurb);
