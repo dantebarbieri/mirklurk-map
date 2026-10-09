@@ -8,6 +8,8 @@
 !assets/
 !assets/game/
 !assets/game/*.png
+!assets/wiki/
+!assets/wiki/*.png
 !tools/build.ts
 !deploy/nginx.conf
 !server/

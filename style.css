@@ -170,6 +170,32 @@ body.loaded main > * {
   margin: 0;
   color: var(--gold);
 }
+.inspect-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.inspect-head > div {
+  min-width: 0;
+}
+.inspect-head p {
+  margin: 4px 0 0;
+}
+/* Wiki pictures are pixel art: kept crisp, on a soft light ground so dark sprites read on the dark card. */
+.portrait {
+  flex: none;
+  box-sizing: content-box;
+  padding: 6px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  border-radius: 8px;
+  background: radial-gradient(closest-side, rgba(255, 243, 178, .16), rgba(255, 243, 178, .04));
+}
+.item-icon {
+  margin-right: 6px;
+  vertical-align: middle;
+  object-fit: contain;
+}
 .inventory-items {
   padding-left: 18px;
 }

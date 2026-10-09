@@ -85,6 +85,8 @@ Deno.test("markers: reopened chests, remains, corpses, storage and wood drops re
   // Stashes and treasure chests (opened or not) are storage, apart from camp items and loot.
   assertEquals(marks.map((m) => m.layer), ["storage", "loot", "loot", "storage", "loot", "storage"]);
   assertEquals([marks[0].kind, marks[3].kind], ["storage chest", "storage"]);
+  // Pictures: the carcass as its creature, the Hidden Hollow as its item.
+  assertEquals([marks[2].being, marks[3].item, marks[0].item], [31, 108, undefined]);
 });
 
 Deno.test("markers: an NPC's storage the player cannot use yet is still storage", () => {

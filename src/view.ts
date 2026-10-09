@@ -20,7 +20,7 @@ import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./pre
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
-import { entityLink, inspectMark, inventoryView, wikiLink } from "./inspect.ts";
+import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts";
 import { entityWiki } from "./wiki.ts";
 import {
   type Interior,
@@ -382,9 +382,8 @@ function zoneHeader(z: Zone) {
   return h(
     "header",
     {},
-    h("h2", {}, h("span", { class: "coord" }, coordLabel(z.x, z.y)), " ", z.name),
+    h("h2", {}, h("span", { class: "coord" }, coordLabel(z.x, z.y)), " ", wikiTitle(entityWiki(z.name), z.name)),
     h("span", { class: "muted" }, visit),
-    wikiLink(entityWiki(z.name)),
   );
 }
 

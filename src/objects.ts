@@ -67,6 +67,10 @@ export interface Mark {
   tree?: Tree;
   /** A neighbouring zone's marker, shifted by (ox, oy) into the shown zone's coordinates. */
   away?: { zone: string; ox: number; oy: number };
+  /** The creature or NPC it is (or the creature a carcass was), by being index, for its picture. */
+  being?: number;
+  /** The item it is (a placed item such as a Hidden Hollow or a workstation), for its picture. */
+  item?: number;
 }
 
 const tile = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
@@ -165,7 +169,7 @@ export function detailMarks(d: ZoneDetail): Mark[] {
     const name = BEING_NAMES[b.index] ?? `Being ${b.index}`;
     const npc = NPC_BEINGS.has(b.index);
     const label = npc && b.index !== 5 ? name : undefined;
-    out.push({ layer: npc ? "npcs" : "creatures", kind: npc ? "npc" : "creature", x: b.x, y: b.y, name, label });
+    out.push({ layer: npc ? "npcs" : "creatures", kind: npc ? "npc" : "creature", x: b.x, y: b.y, name, label, being: b.index });
   }
   for (const c of d.containers) {
     const at = {
@@ -173,6 +177,8 @@ export function detailMarks(d: ZoneDetail): Mark[] {
       y: c.y,
       inventory: c.inventory ?? { state: "unavailable" as const, reason: "Contents were not recorded in this save." },
     };
+    // Containers that are items (a placed Hidden Hollow, say) are pictured as that item.
+    const item = ITEM_NAMES[c.index] ? c.index : undefined;
     if (c.index === 152) out.push({ layer: "loot", kind: "loot", ...at, name: c.status === -214 ? "Unsearched remains" : "Remains" });
     // Treasure chests stay after looting and can hold your items, unlike remains, so they count as storage.
     else if (CHEST[c.index]) out.push({ layer: "storage", kind: "storage chest", ...at, name: CHEST[c.index] });
@@ -185,12 +191,13 @@ export function detailMarks(d: ZoneDetail): Mark[] {
         ...at,
         name: c.index === 108 ? ITEM_NAMES[108] ?? "Hidden Hollow" : "Storage chest",
         detail: c.status === -212 ? "not usable yet when saved" : undefined,
+        item,
       });
     } else if (c.status === -209 || c.status === -216) {
-      out.push({ layer: "loot", kind: "carcass", ...at, name: `Carcass: ${BEING_NAMES[c.index] ?? "creature"}` });
+      out.push({ layer: "loot", kind: "carcass", ...at, name: `Carcass: ${BEING_NAMES[c.index] ?? "creature"}`, being: c.index });
     } else if (c.status === -205) {
       out.push({ layer: "loot", kind: "drop", ...at, name: "Dropped items" });
-    } else out.push({ layer: "loot", kind: "loot", ...at, name: ITEM_NAMES[c.index] ?? "Container" });
+    } else out.push({ layer: "loot", kind: "loot", ...at, name: ITEM_NAMES[c.index] ?? "Container", item });
   }
   for (const loot of d.groundLoot ?? []) {
     out.push({
@@ -220,7 +227,7 @@ export const riftRadius = (sprite: string) => sprite.endsWith("_dead") ? 0 : 24 
 
 function stationMark(s: Placed): Mark {
   const name = ITEM_NAMES[s.index] ?? "Workstation";
-  return { layer: "camp", kind: "camp", x: s.x, y: s.y, name };
+  return { layer: "camp", kind: "camp", x: s.x, y: s.y, name, item: ITEM_NAMES[s.index] ? s.index : undefined };
 }
 
 /** Saved interiors whose entrance no longer exists (so they get a marker of their own). */

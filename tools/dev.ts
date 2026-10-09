@@ -49,7 +49,7 @@ Deno.serve({ hostname: "127.0.0.1", port }, async (req, info) => {
   }
   try {
     if (path === "/app.js") return await bundle();
-    if (/^\/assets\/game\/[a-z0-9_.]+\.png$/.test(path)) {
+    if (/^\/assets\/(game|wiki)\/[a-z0-9_.]+\.png$/.test(path)) {
       return new Response(await Deno.readFile(new URL(path.slice(1), root)), {
         headers: { "content-type": "image/png", "cache-control": "public, max-age=31536000, immutable" },
       });

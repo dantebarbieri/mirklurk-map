@@ -7,7 +7,7 @@
     "dev": "deno run --allow-net=127.0.0.1 --allow-read --allow-write=.uploads --allow-run --allow-env tools/dev.ts",
     "build": "deno run --allow-read --allow-write --allow-run --allow-env tools/build.ts",
     "check": "deno check src/main.ts server/uploads.ts tools/build.ts tools/dev.ts tools/gamedata.ts tools/wiki.ts tests/",
-    "wiki": "deno run --allow-net=mirklurk.wiki --allow-write=src/wikidata.json tools/wiki.ts",
+    "wiki": "deno run --allow-net=mirklurk.wiki --allow-read=assets/wiki --allow-write=src/wikidata.json,src/wikiart.json,assets/wiki tools/wiki.ts",
     "test": "deno test --allow-read --allow-write --allow-env tests/"
   },
   "fmt": { "lineWidth": 140 },

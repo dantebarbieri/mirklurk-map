@@ -3,6 +3,7 @@ WORKDIR /app
 COPY deno.json index.html style.css ./
 COPY src ./src
 COPY assets/game ./assets/game
+COPY assets/wiki ./assets/wiki
 COPY tools/build.ts ./tools/build.ts
 RUN deno run --allow-read --allow-write --allow-run --allow-env tools/build.ts
 

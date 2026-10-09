@@ -4,23 +4,49 @@ import type { Inventory, SavedItem } from "./inventory.ts";
 import { type Mark, markKey } from "./objects.ts";
 import type { Tree } from "./save.ts";
 import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, MAX_AP, NATDEAD, Nature, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
-import { entityWiki, itemWiki, wikiUrl, wikiVerified } from "./wiki.ts";
+import { beingImage, entityWiki, itemImage, itemWiki, placeImage, type WikiImage, wikiUrl, wikiVerified } from "./wiki.ts";
+
+const wikiAnchor = (url: string, cls: string, label: string) =>
+  h("a", {
+    class: cls,
+    href: url,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    title: `Wiki page verified ${wikiVerified}; opens in a new tab`,
+  }, label);
 
 export function wikiLink(url: string | undefined, label = "Wiki") {
-  return url
-    ? h("a", {
-      class: "link wiki",
-      href: url,
-      target: "_blank",
-      rel: "noopener noreferrer",
-      title: `Wiki page verified ${wikiVerified}; opens in a new tab`,
-    }, label)
-    : h("span", { class: "muted" }, "No verified wiki page");
+  return url ? wikiAnchor(url, "link wiki", label) : h("span", { class: "muted" }, "No verified wiki page");
 }
+
+/** A heading's text as the link to its wiki page (dotted like other links), or plain text without one. */
+export const wikiTitle = (url: string | undefined, text: string) => url ? wikiAnchor(url, "link", text) : text;
+
+/**
+ * A wiki picture fitted to a w×h box, never enlarged past whole pixels so the pixel art stays crisp; `fill` keeps the
+ * whole box (the picture centred in it) so a column of them lines up.
+ */
+function picture(img: WikiImage, alt: string, cls: string, w: number, h_: number, fill = false) {
+  const fit = Math.min(w / img.w, h_ / img.h);
+  const k = fit >= 1 ? Math.floor(fit) : fit;
+  return h("img", {
+    class: cls,
+    src: img.file,
+    width: fill ? w : Math.round(img.w * k),
+    height: fill ? h_ : Math.round(img.h * k),
+    alt,
+    decoding: "async",
+    title: alt ? `${alt} (picture from the wiki)` : undefined,
+  });
+}
+
+/** The wiki's picture of what a mark is: a creature or NPC, an item, or a quest building. */
+const markImage = (m: Mark) => m.being !== undefined ? beingImage(m.being) : m.item !== undefined ? itemImage(m.item) : placeImage(m.name);
 
 function itemRow(item: SavedItem, key: string, expanded?: Set<string>): HTMLElement {
   const name = ITEM_NAMES[item.index] ?? `Item ${item.index}`;
   const url = itemWiki(name);
+  const icon = itemImage(item.index);
   const condition = [
     item.durability !== undefined ? `durability ${Math.round(item.durability * 100) / 100}` : "",
     item.wet !== undefined && item.wet > 0 ? `wet ${Math.round(item.wet * 100)}%` : "",
@@ -28,6 +54,7 @@ function itemRow(item: SavedItem, key: string, expanded?: Set<string>): HTMLElem
   return h(
     "li",
     {},
+    icon ? picture(icon, "", "item-icon", 24, 20, true) : null,
     url ? wikiLink(url, name) : name,
     ` x${item.amount}`,
     condition ? h("span", { class: "muted" }, ` (${condition})`) : null,
@@ -54,14 +81,14 @@ export function inventoryView(inventory: Inventory | undefined, key = "inventory
   return inventory.note ? h("div", {}, h("p", { class: "muted" }, inventory.note), list) : list;
 }
 
-export function entityLink(m: Mark) {
-  return wikiLink(
-    entityWiki(
-      m.name,
-      m.layer === "npcs" || m.layer === "creatures" ? "Bestiary" : m.layer === "loot" ? "Loot tables" : "World generation",
-    ),
+/** The wiki page for a mark: its own, else a guide to its kind. */
+export const entityUrl = (m: Mark) =>
+  entityWiki(
+    m.name,
+    m.layer === "npcs" || m.layer === "creatures" ? "Bestiary" : m.layer === "loot" ? "Loot tables" : "World generation",
   );
-}
+
+export const entityLink = (m: Mark) => wikiLink(entityUrl(m));
 
 export interface InspectOptions {
   /** Open sections to restore. */
@@ -75,17 +102,26 @@ export interface InspectOptions {
 
 export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close }: InspectOptions = {}) {
   panel.hidden = false;
+  const img = markImage(m);
   panel.replaceChildren(
     ...(close ? [h("button", { type: "button", class: "close", "aria-label": "Close", title: "Close (Esc)", onclick: close }, "×")] : []),
-    h("h3", {}, m.name),
     h(
-      "p",
-      { class: "muted" },
-      `${m.away ? `${m.away.zone}, saved` : "Saved"} tile ${(m.x - (m.away?.ox ?? 0)) >> 4},${(m.y - (m.away?.oy ?? 0)) >> 4}${
-        m.detail ? ` - ${m.detail}` : ""
-      }`,
+      "div",
+      { class: "inspect-head" },
+      img ? picture(img, m.name, "portrait", 112, 88) : null,
+      h(
+        "div",
+        {},
+        h("h3", {}, wikiTitle(entityUrl(m), m.name)),
+        h(
+          "p",
+          { class: "muted" },
+          `${m.away ? `${m.away.zone}, saved` : "Saved"} tile ${(m.x - (m.away?.ox ?? 0)) >> 4},${(m.y - (m.away?.oy ?? 0)) >> 4}${
+            m.detail ? ` - ${m.detail}` : ""
+          }`,
+        ),
+      ),
     ),
-    entityLink(m),
     ...(m.tree
       ? (m.layer === "brambles" || m.layer === "vines"
         ? brambleView(m.tree, tool ?? UNARMED)

@@ -71,10 +71,11 @@ asset=$(curl -fsSI "$base/$js")
 grep -qi '^cache-control: public, max-age=31536000, immutable' <<<"$asset" || fail "$js is not immutable"
 grep -Eqi '^content-type: (application|text)/javascript' <<<"$asset" || fail "$js has the wrong type"
 curl -fsSI "$base/$css" | grep -qi '^content-type: text/css' || fail "$css has the wrong type"
-game_art=$(grep -o 'assets/game/[a-z0-9_]*\.[0-9a-f]*\.png' src/artdata.json | sort -u)
+game_art=$(grep -ho 'assets/\(game\|wiki\)/[a-z0-9_]*\.[0-9a-f]*\.png' src/artdata.json src/wikiart.json | sort -u)
 [ -n "$game_art" ] || fail "art manifest contains no images"
-packaged_art=$(docker exec "$name" find /usr/share/nginx/html/assets/game -type f | sed 's@^/usr/share/nginx/html/@@' | sort)
-[ "$game_art" = "$packaged_art" ] || fail "packaged art does not match the manifest"
+grep -q 'assets/wiki/' <<<"$game_art" || fail "wiki art manifest contains no images"
+packaged_art=$(docker exec "$name" find /usr/share/nginx/html/assets -type f | sed 's@^/usr/share/nginx/html/@@' | sort)
+[ "$game_art" = "$packaged_art" ] || fail "packaged art does not match the manifests"
 while IFS= read -r art; do
   asset=$(curl -fsSI "$base/$art")
   grep -qi '^content-type: image/png' <<<"$asset" || fail "$art has the wrong type"
