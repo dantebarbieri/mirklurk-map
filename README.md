@@ -20,9 +20,16 @@ Save and quit to the menu, then pick `…\steamapps\common\Mirklurk Every Step M
 folder on the page, or open a `.zip` of it. Picking the whole `Saves` folder offers a character list. `Player.save` alone also works; zone
 maps and objects then stay empty.
 
-Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset. Pinching also pans around the fingers' midpoint. Tap a
-marker to inspect it, or hover for its name and tile; click a list entry to find it on the map. Touch gestures inside the map control the
-map, while outside it normal page scrolling and browser zoom remain available. Controls and panels adapt to narrow phone screens.
+Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset; **World** to fit the whole 5×5 world. Pinching also
+pans around the fingers' midpoint. Tap a marker to inspect it, or hover for its name and tile; click a list entry to find it on the map.
+Touch gestures inside the map control the map, while outside it normal page scrolling and browser zoom remain available. Controls and panels
+adapt to narrow phone screens.
+
+The zone map continues into its neighbours, with their maps and the markers of the enabled layers (loaded as each zone first comes into
+view). Pan into a neighbour and the selection follows: once it fills two thirds of the map along the way you are panning, the grid, the
+title and the map's gold outline move to it, and its details open in place when you let go, keeping the view and any open inspection.
+Peeking over a border, or hovering on one, never flips the selection back and forth. Zoomed out beyond about one and a half zones the map is
+a survey and keeps the selection; zoom into a zone to select it, or click a neighbouring zone to jump to it.
 
 ### Temporary sharing (opt-in)
 
@@ -115,15 +122,13 @@ daylight-like view, not a simulation of the game's lighting, weather, animation 
 informational markers, grouped as **Locations** (Places, Caves, Ruins, Rifts; indoor "Way out" exits always show), **Entities** (You, NPCs,
 Creatures), **Items**, **Terrain** (including Water) and **Nature**; each group's header checkbox (and the master **All**) toggles all its
 layers and shows a partial state when only some are on, and **Reset to defaults** restores the initial selection. They do not affect the
-scenery baked into the realistic map. Zooming out past the selected zone also shows other zones' markers for the enabled layers, loaded as
-each zone first comes into view. Switch **Realistic** off to return to the original overview.
+scenery baked into the realistic map. Switch **Realistic** off to return to the original overview.
 
 Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
-followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. **World** fits
-the whole 5×5 world into the map; click a neighbouring zone to inspect it. Only four full-resolution areas are retained, alongside small
-world previews. Switching realistic mode off cancels pending terrain work and releases its caches; switching it back on rebuilds them.
-Unexplored or missing terrain is labelled rather than invented: import the full character folder or ZIP for realistic terrain (`Player.save`
-or map PNGs alone are insufficient).
+followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. Only four
+full-resolution areas are retained, alongside small world previews. Switching realistic mode off cancels pending terrain work and releases
+its caches; switching it back on rebuilds them. Unexplored or missing terrain is labelled rather than invented: import the full character
+folder or ZIP for realistic terrain (`Player.save` or map PNGs alone are insufficient).
 
 ### Trees: trunk liveliness and chopping cost
 

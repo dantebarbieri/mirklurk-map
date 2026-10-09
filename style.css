@@ -558,6 +558,21 @@ svg.map:active {
 .b-land {
   fill: #54443f;
 }
+.zone-edges,
+.zone-focus {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.zone-edges {
+  stroke: #cebbae88;
+  stroke-width: 1px;
+}
+/* The zone whose details are listed, coloured like the selected grid cell. */
+.zone-focus {
+  stroke: var(--gold);
+  stroke-width: 2px;
+}
 .heat {
   opacity: .9;
 }

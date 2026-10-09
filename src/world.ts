@@ -245,7 +245,16 @@ async function loadGroundLoot(world: World, dir: string): Promise<NonNullable<Zo
   return out;
 }
 
-export const loadTrees = (world: World, dir: string): Promise<Tree[]> => tryList(world, `${dir}Trees.save`, parseTrees);
+const treeCache = new WeakMap<object, Map<string, Promise<Tree[]>>>();
+
+/** Saved plants of an area folder, parsed once per world like `loadDetail`. */
+export function loadTrees(world: World, dir: string): Promise<Tree[]> {
+  let cache = treeCache.get(world);
+  if (!cache) treeCache.set(world, cache = new Map());
+  let p = cache.get(dir);
+  if (!p) cache.set(dir, p = tryList(world, `${dir}Trees.save`, parseTrees));
+  return p;
+}
 
 export async function loadLayer(world: World, dir: string, layer: string): Promise<Grid<Uint32Array> | null> {
   const src = world.files.get(`${dir}${layer}.tmap`);

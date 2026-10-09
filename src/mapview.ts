@@ -55,6 +55,31 @@ export interface MapSpec {
   onOpen?: (m: Mark) => void;
   /** Called after every zoom or pan. */
   onView?: (view: [number, number, number]) => void;
+  /** Called once the view comes to rest: when the last finger or button lifts after moving it, or shortly after a wheel or button zoom. */
+  onSettle?: () => void;
+}
+
+/** How much of the map, along the axis panned across, the next zone must fill before panning selects it. */
+export const FOCUS_SHARE = 2 / 3;
+
+/**
+ * The zone of an n×n world that a viewport (in origin's coordinates) is about, given the zone it was about: per axis,
+ * the zone under the viewport's centre once it fills FOCUS_SHARE of the view, else the current one. The band between
+ * the two keeps the selection from flickering near a border, and a view too zoomed out for any zone to fill that share
+ * is a survey of several zones, so it keeps the current one too.
+ */
+export function focusZone(
+  [x, y, size]: [number, number, number],
+  [ox, oy]: [number, number],
+  current: [number, number],
+  n = 5,
+): [number, number] {
+  if (size * FOCUS_SHARE > ROOM) return current;
+  const margin = (FOCUS_SHARE - 0.5) * size;
+  const axis = (centre: number, at: number) =>
+    centre >= at * ROOM - margin && centre < (at + 1) * ROOM + margin ? at : Math.min(n - 1, Math.max(0, Math.floor(centre / ROOM)));
+  const next: [number, number] = [axis(x + size / 2 + ox * ROOM, current[0]), axis(y + size / 2 + oy * ROOM, current[1])];
+  return next[0] === current[0] && next[1] === current[1] ? current : next;
 }
 
 /** Zones of an n×n world, other than origin, that a viewport in origin's coordinates overlaps. */
@@ -134,6 +159,9 @@ export const personSvg = () =>
 
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
 
+/** Quiet time after a wheel or button zoom before the view counts as settled (wheels have no end event). */
+const SETTLE_MS = 250;
+
 type Box = [number, number, number, number];
 export const boxArea = ([l, t, r, b]: Box) => (r - l + 1) * (b - t + 1);
 
@@ -172,6 +200,11 @@ export class MapView {
   private unsubscribe?: () => void;
   private frame = 0;
   private onView?: (view: [number, number, number]) => void;
+  private onSettle?: () => void;
+  private pointers = new Map<number, TouchPoint>();
+  private moved = false;
+  private settleTimer = 0;
+  private waiting: (() => void)[] = [];
 
   constructor(spec: MapSpec) {
     this.home = spec.view ?? [0, 0, ROOM];
@@ -236,6 +269,7 @@ export class MapView {
     }
     this.rescale();
     this.onView = spec.onView;
+    this.onSettle = spec.onSettle;
     this.wire(spec.onOpen, spec.onMapClick);
     this.observer = new ResizeObserver(() => this.rescale());
     this.observer.observe(this.svg);
@@ -245,10 +279,34 @@ export class MapView {
     this.observer.disconnect();
     this.unsubscribe?.();
     cancelAnimationFrame(this.frame);
+    clearTimeout(this.settleTimer);
+    this.onSettle = undefined;
+    this.release();
   }
 
   get viewport(): [number, number, number] {
     return [this.vx, this.vy, this.vw];
+  }
+
+  /** The mark last passed to `select`. */
+  get selection(): Mark | undefined {
+    return this.marks[this.selected];
+  }
+
+  /** Resolves once no finger or button holds the map, at once when none does. */
+  released(): Promise<void> {
+    return this.pointers.size ? new Promise((resolve) => this.waiting.push(resolve)) : Promise.resolve();
+  }
+
+  private release() {
+    for (const resolve of this.waiting.splice(0)) resolve();
+  }
+
+  private settle() {
+    clearTimeout(this.settleTimer);
+    if (this.pointers.size || !this.moved) return;
+    this.moved = false;
+    this.onSettle?.();
   }
 
   restore(view: [number, number, number]) {
@@ -374,6 +432,9 @@ export class MapView {
     this.svg.setAttribute("viewBox", this.viewBox());
     this.rescale();
     this.onView?.(this.viewport);
+    this.moved = true;
+    clearTimeout(this.settleTimer);
+    this.settleTimer = setTimeout(() => this.settle(), SETTLE_MS);
   }
 
   zoomBy(f: number, cx = this.vx + this.vw / 2, cy = this.vy + this.vw / 2) {
@@ -411,7 +472,7 @@ export class MapView {
       const [x, y] = this.toGame(e);
       this.zoomBy(Math.exp(Math.max(-1, Math.min(1, e.deltaY / 200)) * 0.5), x, y);
     }, { passive: false });
-    const pointers = new Map<number, TouchPoint>();
+    const pointers = this.pointers;
     let origin: TouchPoint | undefined;
     let suppressClick = false;
     let tapTarget: EventTarget | null = null;
@@ -458,15 +519,24 @@ export class MapView {
       this.tip.style.left = `${Math.min(x + 14, box.width - this.tip.offsetWidth - 4)}px`;
       this.tip.style.top = `${y + 16 + this.tip.offsetHeight > box.height ? y - this.tip.offsetHeight - 8 : y + 16}px`;
     });
+    const lifted = () => {
+      if (pointers.size) return;
+      this.settle();
+      this.release();
+    };
     const end = (e: PointerEvent) => {
       pointers.delete(e.pointerId);
       if (e.type === "pointercancel") suppressClick = true;
       if (svg.hasPointerCapture(e.pointerId)) svg.releasePointerCapture(e.pointerId);
+      lifted();
     };
     svg.addEventListener("pointerup", end);
     svg.addEventListener("pointercancel", end);
     svg.addEventListener("lostpointercapture", (e) => {
-      if (pointers.delete(e.pointerId)) suppressClick = true;
+      if (pointers.delete(e.pointerId)) {
+        suppressClick = true;
+        lifted();
+      }
     });
     svg.addEventListener("pointerleave", () => (this.tip.hidden = true));
     svg.addEventListener("click", (e) => {

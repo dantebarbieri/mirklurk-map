@@ -1,4 +1,4 @@
-import { boxArea, footprintOrder, gestureView, mapBounds, stackAt, zonesInView } from "../src/mapview.ts";
+import { boxArea, FOCUS_SHARE, focusZone, footprintOrder, gestureView, mapBounds, stackAt, zonesInView } from "../src/mapview.ts";
 import type { Mark } from "../src/objects.ts";
 import { ROOM } from "../src/rules.ts";
 import { assert, assertEquals } from "./assert.ts";
@@ -59,4 +59,30 @@ Deno.test("zones in view: neighbours a viewport overlaps, clipped to the world",
   assertEquals(zonesInView([-1, 0, ROOM], [2, 2]), [[1, 2]]);
   assertEquals(zonesInView([-ROOM, -ROOM, 3 * ROOM], [0, 0]), [[1, 0], [0, 1], [1, 1]]);
   assertEquals(zonesInView([-4 * ROOM, -4 * ROOM, 5 * ROOM], [4, 4]).length, 24);
+});
+
+Deno.test("focus zone: follows the centre past a hysteresis band, per axis, only when zoomed in on about one zone", () => {
+  // A view of `size` centred at (cx, cy), in the coordinates of zone (2,2).
+  const at = (cx: number, cy: number, size = ROOM): [number, number, number] => [cx - size / 2, cy - size / 2, size];
+  const home: [number, number] = [2, 2];
+  const band = (FOCUS_SHARE - 0.5) * ROOM;
+  assertEquals(focusZone(at(ROOM / 2, ROOM / 2), home, home), home);
+  // Peeking into the east neighbour keeps the zone until that neighbour fills two thirds of the view.
+  assertEquals(focusZone(at(ROOM + band - 1, ROOM / 2), home, home), home);
+  assertEquals(focusZone(at(ROOM + band + 1, ROOM / 2), home, home), [3, 2]);
+  // Coming back needs the same margin the other way, so hovering on the border cannot flicker.
+  assertEquals(focusZone(at(ROOM - band + 1, ROOM / 2), home, [3, 2]), [3, 2]);
+  assertEquals(focusZone(at(ROOM - band - 1, ROOM / 2), home, [3, 2]), home);
+  // Panning east while drifting slightly south changes only the column.
+  assertEquals(focusZone(at(ROOM + band + 1, ROOM + band - 1), home, home), [3, 2]);
+  assertEquals(focusZone(at(ROOM + band + 1, ROOM + band + 1), home, home), [3, 3]);
+  // The band scales with the view, so it is the same share of the screen at any zoom.
+  assertEquals(focusZone(at(-17, ROOM / 2, 96), home, home), [1, 2]);
+  assertEquals(focusZone(at(-15, ROOM / 2, 96), home, home), home);
+  // Zoomed out so no zone can fill two thirds of the view: a survey, which keeps the selection.
+  assertEquals(focusZone(at(1.5 * ROOM, 1.5 * ROOM, 1.5 * ROOM + 1), home, home), home);
+  assertEquals(focusZone(at(1.5 * ROOM, 1.5 * ROOM, 1.5 * ROOM), home, home), [3, 3]);
+  assertEquals(focusZone([-2 * ROOM, -2 * ROOM, 5 * ROOM], home, home), home);
+  // The centre is clamped to the world.
+  assertEquals(focusZone(at(-ROOM / 2, ROOM / 2), [0, 2], [0, 2]), [0, 2]);
 });

@@ -1,7 +1,7 @@
 // Page rendering: world grid, landmark list, zone and interior panels.
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
-import { MapView, personSvg, treeIcon, zonesInView } from "./mapview.ts";
+import { focusZone, MapView, personSvg, treeIcon, zonesInView } from "./mapview.ts";
 import type { Estimate } from "./estimate.ts";
 import {
   brambleMarks,
@@ -71,6 +71,8 @@ const HEAT_COLOR: Record<LandmarkId, string> = {
 const key = (x: number, y: number) => `${x},${y}`;
 let token = 0;
 let activeMap: MapView | undefined;
+/** The zone whose coordinates `activeMap` uses; undefined while it shows an interior. */
+let activeZone: [number, number] | undefined;
 
 export function rememberView(st: State) {
   st.viewport = activeMap?.viewport;
@@ -92,6 +94,7 @@ export function disposeView(st: State) {
   ++token;
   activeMap?.dispose();
   activeMap = undefined;
+  activeZone = undefined;
   st.cleanup?.();
   st.terrain.dispose();
 }
@@ -228,7 +231,7 @@ export function renderWorld(st: State) {
       ? "No saved terrain available. Open the full character folder or ZIP, including its area folders, for realistic mode."
       : ready < saved.length
       ? `Rendering saved terrain (${ready}/${saved.length})...`
-      : "Game terrain and saved scenery. Wheel to zoom, drag to pan, World to fit all zones. Click a neighbouring zone to inspect it. NPCs, creatures and carcasses remain markers; lighting and animation are not simulated.";
+      : "Game terrain and saved scenery. Wheel to zoom, drag to pan, World to fit all zones. Pan a neighbouring zone into view, or click it, to inspect it. NPCs, creatures and carcasses remain markers; lighting and animation are not simulated.";
     artStatus.classList.toggle("error", problems.length > 0);
   };
   st.cleanup = st.terrain.subscribe(updateArt);
@@ -371,6 +374,62 @@ function markCell(x: number, y: number) {
   document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`)?.classList.add("sel");
 }
 
+function zoneHeader(z: Zone) {
+  const visit = z.lastVisit ? `last here on day ${Math.floor(z.lastVisit[0])}` : z.explored ? "explored" : "not explored yet";
+  return h(
+    "header",
+    {},
+    h("h2", {}, h("span", { class: "coord" }, coordLabel(z.x, z.y)), " ", z.name),
+    h("span", { class: "muted" }, visit),
+    wikiLink(entityWiki(z.name)),
+  );
+}
+
+/**
+ * Lets the zone map pan into its neighbours. While the view moves, the zone it is about (`focusZone`) is previewed at
+ * once in the grid, the title and the map's outline; its details open in place only when the view comes to rest, so a
+ * pan across several zones loads just the last one and never interrupts the gesture.
+ */
+function zoneFollower(st: State, z: Zone, outline: SVGElement) {
+  let focus: [number, number] = [z.x, z.y], committed = focus;
+  return {
+    view(view: [number, number, number]) {
+      const next = focusZone(view, [z.x, z.y], focus);
+      if (next === focus) return;
+      focus = next;
+      const n = st.world.zones[focus[1]][focus[0]];
+      markCell(n.x, n.y);
+      $("#zone > header")?.replaceWith(zoneHeader(n));
+      outline.setAttribute("x", String((n.x - z.x) * ROOM));
+      outline.setAttribute("y", String((n.y - z.y) * ROOM));
+    },
+    settle() {
+      if (focus[0] === committed[0] && focus[1] === committed[1]) return;
+      committed = focus;
+      renderZone(st, st.world.zones[focus[1]][focus[0]], true);
+    },
+  };
+}
+
+/** Every zone's own map (or its water and land sketch) and the zone borders, laid out around z. */
+function worldBase(st: State, z: Zone): SVGElement[] {
+  const zones = st.world.zones.flat().map((n) => {
+    const url = st.mapUrls.get(key(n.x, n.y));
+    return s(
+      "g",
+      { transform: `translate(${(n.x - z.x) * ROOM} ${(n.y - z.y) * ROOM})` },
+      url
+        ? s("image", { href: url, x: 0, y: 0, width: ROOM, height: ROOM, class: "b-map", preserveAspectRatio: "none" })
+        : blankBase(st.world, n),
+    );
+  });
+  const lines = Array.from(
+    { length: 6 },
+    (_, i) => `M${-z.x * ROOM} ${(i - z.y) * ROOM}h${5 * ROOM}M${(i - z.x) * ROOM} ${-z.y * ROOM}v${5 * ROOM}`,
+  ).join("");
+  return [...zones, s("path", { class: "zone-edges", d: lines })];
+}
+
 function blankBase(world: World, z: Zone): SVGElement[] {
   const sh = shores(world, z.x, z.y);
   const inset = ROOM * 0.12;
@@ -430,23 +489,23 @@ function insideSummary(d: ZoneDetail): string {
   return parts.length ? parts.join(", ") : "nothing left";
 }
 
-async function renderZone(st: State, z: Zone) {
+/**
+ * Shows zone z. With `glide` (panning into it from the current zone map) the map stays on screen until the new one is
+ * built, and the new one takes over the same view, inspection and open sections, so the move is seamless.
+ */
+async function renderZone(st: State, z: Zone, glide = false) {
   const my = ++token;
-  activeMap?.dispose();
   const world = st.world;
   st.interiorDir = undefined;
   const panel = $("#zone");
-  const visit = z.lastVisit ? `last here on day ${Math.floor(z.lastVisit[0])}` : z.explored ? "explored" : "not explored yet";
-  panel.replaceChildren(
-    h(
-      "header",
-      {},
-      h("h2", {}, h("span", { class: "coord" }, coordLabel(z.x, z.y)), " ", z.name),
-      h("span", { class: "muted" }, visit),
-      wikiLink(entityWiki(z.name)),
-    ),
-    h("p", { class: "muted loading" }, "Loading…"),
-  );
+  const header = zoneHeader(z);
+  const gliding = glide && !!activeMap && !!activeZone;
+  if (gliding) $("#zone > header")?.replaceWith(header);
+  else {
+    activeMap?.dispose();
+    activeMap = activeZone = undefined;
+    panel.replaceChildren(header, h("p", { class: "muted loading" }, "Loading…"));
+  }
 
   const detail = z.dir ? await loadDetail(world, z.dir) : null;
   const inners = interiorsOf(world, z.x, z.y);
@@ -462,6 +521,20 @@ async function renderZone(st: State, z: Zone) {
     ...(z.dir && candidateHere("gurb") && standingHere ? { trees: await loadTrees(world, z.dir) } : {}),
   };
   if (my !== token) return;
+  if (gliding) {
+    // Swapping maps under a finger would drop the gesture, so a still-held map is replaced once it is let go.
+    await activeMap!.released();
+    if (my !== token) return;
+    const [dx, dy] = [(activeZone![0] - z.x) * ROOM, (activeZone![1] - z.y) * ROOM];
+    rememberView(st);
+    const [vx, vy, vw] = st.viewport!;
+    st.viewport = [vx + dx, vy + dy, vw];
+    const open = activeMap!.selection;
+    st.inspected = open ? markKey({ ...open, x: open.x + dx, y: open.y + dy }) : undefined;
+    st.selected = [z.x, z.y];
+    markCell(z.x, z.y);
+    activeMap!.dispose();
+  }
 
   const marks: Mark[] = [...solidMarks(z.solids, inners), ...sealedMarks(inners), ...(detail ? detailMarks(detail) : [])];
   for (const m of marks) {
@@ -470,17 +543,13 @@ async function renderZone(st: State, z: Zone) {
   }
   const heats = zoneHeat(world, st.marks, z, { ...tiles, beings: detail?.beings });
   const you = playerSpot(st);
-  const url = st.mapUrls.get(key(z.x, z.y));
-  const base = url
-    ? [s("image", { href: url, x: 0, y: 0, width: ROOM, height: ROOM, class: "b-map", preserveAspectRatio: "none" })]
-    : blankBase(world, z);
   const inspector = h("section", { class: "inspection", hidden: true, "aria-live": "polite" });
   const picker = () => toolPicker(st, () => chips);
   const openInterior = (m: Mark) => {
     if (m.interior) {
       st.viewport = undefined;
       st.inspected = undefined;
-      const at = around?.zoneOf.get(m) ?? z;
+      const at = around.zoneOf.get(m) ?? z;
       st.selected = [at.x, at.y];
       markCell(at.x, at.y);
       renderInterior(st, at, m.interior, m.name);
@@ -490,38 +559,39 @@ async function renderZone(st: State, z: Zone) {
       inspectMark(inspector, m, undefined, chopTool(st), picker());
     }
   };
+  // Both modes span the world: the zone sits at the origin, its neighbours around it.
+  const outline = s("rect", { class: "zone-focus", x: 0, y: 0, width: ROOM, height: ROOM });
+  const follow = zoneFollower(st, z, outline);
   const map = new MapView({
-    base: st.prefs.realistic ? [] : base,
-    ...(st.prefs.realistic
-      ? {
-        raster: new TerrainRaster(st.terrain, worldScenes(world, z.x, z.y)),
-        bounds: [-z.x * ROOM, -z.y * ROOM, 5 * ROOM] as [number, number, number],
-        onMapClick: (px: number, py: number) => {
-          const x = z.x + Math.floor(px / ROOM), y = z.y + Math.floor(py / ROOM);
-          if (x >= 0 && x < 5 && y >= 0 && y < 5 && (x !== z.x || y !== z.y)) selectZone(st, x, y);
-        },
-      }
-      : {}),
+    base: [...(st.prefs.realistic ? [] : worldBase(st, z)), outline],
+    raster: st.prefs.realistic ? new TerrainRaster(st.terrain, worldScenes(world, z.x, z.y)) : undefined,
+    bounds: [-z.x * ROOM, -z.y * ROOM, 5 * ROOM],
+    onMapClick: (px: number, py: number) => {
+      const x = z.x + Math.floor(px / ROOM), y = z.y + Math.floor(py / ROOM);
+      if (x >= 0 && x < 5 && y >= 0 && y < 5 && (x !== z.x || y !== z.y)) selectZone(st, x, y);
+    },
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
-    // Realistic mode spans the world, so the player shows even from a neighbouring zone.
-    player: st.prefs.realistic || (you.zone[0] === z.x && you.zone[1] === z.y)
-      ? {
-        x: you.x + (you.zone[0] - z.x) * ROOM,
-        y: you.y + (you.zone[1] - z.y) * ROOM,
-        label: youLabel(st, you, you.inside),
-        title: you.title,
-      }
-      : undefined,
+    // The map spans the world, so the player shows even from a neighbouring zone.
+    player: {
+      x: you.x + (you.zone[0] - z.x) * ROOM,
+      y: you.y + (you.zone[1] - z.y) * ROOM,
+      label: youLabel(st, you, you.inside),
+      title: you.title,
+    },
     onOpen: openInterior,
-    onView: () => around?.refresh(),
+    onView: (view) => {
+      around.refresh();
+      follow.view(view);
+    },
+    onSettle: follow.settle,
   });
   activeMap = map;
-  const around: ReturnType<typeof neighbourMarks> | undefined = st.prefs.realistic
-    ? neighbourMarks(st, map, z, () => my === token, (added) => restoreInspection(added))
-    : undefined;
+  activeZone = [z.x, z.y];
+  const around = neighbourMarks(st, map, z, () => my === token, (added) => restoreInspection(added));
   if (st.viewport) map.restore(st.viewport);
-  around?.refresh();
+  // At once rather than debounced, so neighbours already on screen do not blink when gliding in.
+  around.load();
   const restoreInspection = (available: Mark[]) => {
     const inspected = available.find((m) => markKey(m) === st.inspected);
     if (inspected) {
@@ -550,8 +620,8 @@ async function renderZone(st: State, z: Zone) {
   });
 
   const retool = () => {
-    around?.refresh(true);
-    const open = around?.trees.find((m) => markKey(m) === st.inspected);
+    around.refresh(true);
+    const open = around.trees.find((m) => markKey(m) === st.inspected);
     if (open && !inspector.hidden) {
       const expanded = new Set(
         Array.from(inspector.querySelectorAll<HTMLDetailsElement>("details[data-remember][open]")).map((el) => el.dataset.remember!),
@@ -561,7 +631,7 @@ async function renderZone(st: State, z: Zone) {
     }
   };
   chips.addEventListener("retool", retool);
-  chips.addEventListener("change", () => around?.refresh());
+  chips.addEventListener("change", () => around.refresh());
 
   const legend = heats.length
     ? h(
@@ -583,11 +653,11 @@ async function renderZone(st: State, z: Zone) {
 
   const lists = poiLists(st, marks, map, openInterior);
   panel.replaceChildren(
-    ...[panel.firstElementChild!, map.el, chips, legend, inspector, lists, treeList, areaWarnings(world)].filter((n): n is Element => !!n),
+    ...[header, map.el, chips, legend, inspector, lists, treeList, areaWarnings(world)].filter((n): n is HTMLElement => !!n),
   );
 }
 
-/** Realistic mode: other zones' markers, loaded once each zone first scrolls into view (trees only while shown). */
+/** Other zones' markers, loaded once each zone first scrolls into view (trees only while shown). */
 function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean, onAdd: (marks: Mark[]) => void) {
   const world = st.world;
   const loaded = new Set<string>(), treesLoaded = new Set<string>();
@@ -632,6 +702,10 @@ function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean
   return {
     zoneOf,
     trees,
+    load() {
+      clearTimeout(timer);
+      load();
+    },
     /** Debounced; settings also refreshes neighbour tree costs after the chopping tool changes. */
     refresh(settings = false) {
       if (settings) { for (const m of trees) m.detail = treeDetail(m.tree!, chopTool(st)); }
@@ -939,6 +1013,7 @@ const rank = (m: Mark) => (m.kind === "landmark" ? 0 : m.kind.startsWith("entran
 async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
   const my = ++token;
   activeMap?.dispose();
+  activeZone = undefined;
   const world = st.world;
   st.interiorDir = it.dir;
   const panel = $("#zone");
