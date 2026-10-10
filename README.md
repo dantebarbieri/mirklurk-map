@@ -172,14 +172,15 @@ folder or ZIP for realistic terrain (`Player.save` or map PNGs alone are insuffi
 ### Creatures, merchants and you
 
 Click a living creature or NPC to see what the game's own examine card does, plus its saved hit points. **Hit points** draws the grid saved
-in `Beings.save` square by square (armor layers, lost and burned points, poison stacks and bleeding with the way it spreads) and compares it
-with a freshly spawned one ("Full health: 8 hit points, 4 armor; down 2 hit points and 2 armor"); a being saved without one shows that fresh
-shape instead. **Attack** draws its attack pattern with each cell's damage ("2", or "1–2" for one to two) under a badge in the colour of its
-damage class (Sharp, Blunt, Force, Piercing, Poison, Fire or Weak) with what that class does, then the total, its reach in tiles, its AP
-cost and its intelligence for the save's difficulty. The Sceetler, Scaalmyr Geomancer, Scaal, Soldier, Magus Clay, Ranger Bhato and Wilda
-also shoot, with another pattern, class and reach: a **Melee / Ranged** toggle switches between the two and stays on your choice for the
-next being. **Behaviour** lists movement, hostility, dodge and attack-of-opportunity chances and the XP for the kill. Commander Tain and the
-Dead Unwanted never attack, and NPCs and the Unwanted Guard never target you.
+in `Beings.save` square by square (armor as a bronze, silver or gold shield, larger for each of 1–3 layers; lost and burned points, poison
+stacks and bleeding with the way it spreads) and compares it with a freshly spawned one ("Full health: 8 hit points, 4 armor; down 2 hit
+points and 2 armor"); a being saved without one shows that fresh shape instead. **Attack** draws its attack pattern with each cell's damage
+("2", or "1–2" for one to two) under a badge in the colour of its damage class (Sharp, Blunt, Force, Piercing, Poison, Fire or Weak) with
+what that class does, then the total, its reach in tiles, its AP cost and its intelligence for the save's difficulty. The Sceetler, Scaalmyr
+Geomancer, Scaal, Soldier, Magus Clay, Ranger Bhato and Wilda also shoot, with another pattern, class and reach: a **Melee / Ranged** toggle
+switches between the two and stays on your choice for the next being. **Behaviour** lists movement, hostility, dodge and
+attack-of-opportunity chances and the XP for the kill. Commander Tain and the Dead Unwanted never attack, and NPCs and the Unwanted Guard
+never target you.
 
 A merchant (Magus Clay, Ranger Bhato, Viend, Commander Tain, Gurb-Gurb or Ihar) leads with **Wares**, since you trade with them rather than
 fight them: each ware's icon, its name linked to the wiki and the price of one in gold, silver and copper, in the order the game's trade

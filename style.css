@@ -269,7 +269,6 @@ body.loaded main > * {
 .hp-legend {
   --hp-cell: 18px;
   --hp-flesh: #c9574d;
-  --hp-armor: #c9d3db;
   --hp-poison: #8fd14f;
   --hp-bleed: #ff6b5e;
 }
@@ -304,15 +303,43 @@ body.loaded main > * {
   visibility: hidden;
 }
 .hp-cell.armor1 {
-  box-shadow: inset 0 0 0 2px var(--hp-armor);
+  --hp-shield-size: 67%;
+  --hp-shield-fill: #ae7846;
+  --hp-shield-edge: #e7b57d;
 }
 .hp-cell.armor2 {
-  box-shadow: inset 0 0 0 2px var(--hp-armor), inset 0 0 0 4px rgba(0, 0, 0, .35);
-  background: linear-gradient(var(--hp-armor), var(--hp-armor)) center / 6px 2px no-repeat, var(--hp-flesh);
+  --hp-shield-size: 81%;
+  --hp-shield-fill: #b8c7d4;
+  --hp-shield-edge: #eef6fc;
 }
 .hp-cell.armor3 {
-  box-shadow: inset 0 0 0 3px var(--hp-armor);
-  background: linear-gradient(var(--hp-armor), var(--hp-armor)) center / 8px 4px no-repeat, var(--hp-flesh);
+  --hp-shield-size: 95%;
+  --hp-shield-fill: #f7dc75;
+  --hp-shield-edge: #fff3b2;
+}
+.hp-shield {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  width: var(--hp-shield-size);
+  height: var(--hp-shield-size);
+  transform: translate(-50%, -50%);
+  fill: var(--hp-shield-fill);
+  stroke: #120e0f;
+  stroke-width: 1;
+  stroke-linejoin: round;
+  shape-rendering: geometricPrecision;
+  pointer-events: none;
+}
+.hp-shield path {
+  vector-effect: non-scaling-stroke;
+}
+.hp-shield-rim {
+  fill: none;
+  stroke: var(--hp-shield-edge);
+  stroke-width: .75;
+  stroke-linecap: round;
 }
 .hp-cell.poisoned {
   outline: 1px solid var(--hp-poison);
@@ -323,6 +350,7 @@ body.loaded main > * {
 .hp-poison,
 .hp-bleed {
   position: absolute;
+  z-index: 1;
   padding: 0 2px;
   border-radius: 3px;
   font: 600 9px/11px system-ui, sans-serif;

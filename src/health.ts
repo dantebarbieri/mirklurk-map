@@ -2,7 +2,7 @@
 // Sources: attack_lands and the turn-start poison/bleed effects in gml_GlobalScript_scr_basic_useful, hpcell_draw in
 // gml_GlobalScript_scr_gui_general, statusgrid_get in gml_GlobalScript_scr_gen_ingamers, being_initiate's armor.
 
-import { h } from "./dom.ts";
+import { h, s } from "./dom.ts";
 
 /** Lasting statusgrid entries; the others (hit, miss and armor-break flashes) are animations that fade within a second. */
 export const Status = { Poison: 2, BleedUp: 10, BleedRight: 11, BleedDown: 12, BleedLeft: 13, Stunned: 23 } as const;
@@ -128,6 +128,15 @@ function cellTitle(c: HealthCell): string {
   ].filter(Boolean).join(", ");
 }
 
+function armorShield(): SVGElement {
+  return s(
+    "svg",
+    { class: "hp-shield", viewBox: "0 0 16 16", "aria-hidden": "true", focusable: "false" },
+    s("path", { d: "M3 1.25h10L14.75 3v3.5c0 3.3-2.4 6-6.75 8.25C3.65 12.5 1.25 9.8 1.25 6.5V3Z" }),
+    s("path", { class: "hp-shield-rim", d: "M4 4h8" }),
+  );
+}
+
 /** One cell, also used by the legend. */
 function cellView(c: HealthCell): HTMLElement {
   const kind = cellKind(c);
@@ -138,6 +147,7 @@ function cellView(c: HealthCell): HTMLElement {
       class: `hp-cell ${kind}${armor ? ` armor${armor}` : ""}${c.poison ? " poisoned" : ""}${cellBleed(c) ? " bleeding" : ""}`,
       title: kind === "none" ? undefined : cellTitle(c),
     },
+    armor ? armorShield() : null,
     c.poison ? h("span", { class: "hp-poison" }, c.poison) : null,
     cellBleed(c) ? h("span", { class: "hp-bleed" }, c.bleed.map((n, i) => n ? `${ARROWS[i]}${n > 1 ? n : ""}` : "").join("")) : null,
   );
@@ -161,14 +171,17 @@ const cell = (hp: number, extra: Partial<HealthCell> = {}): HealthCell => ({ hp,
 
 /** Swatches for the states in `g` (all of them when omitted). */
 export function healthLegend(g?: HealthGrid): HTMLElement {
-  const s = g && summarize(g);
+  const sum = g && summarize(g);
+  const armorLevels = new Set(g?.cells.flat().map(cellArmor));
   const items: [boolean, HealthCell, string][] = [
     [true, cell(1), "healthy"],
-    [!s || s.armor > 0, cell(2), "armor (1–3 layers)"],
-    [!s || s.lost > 0, cell(0), "lost"],
-    [!s || s.burned > 0, cell(-1), "burned"],
-    [!s || s.poison > 0, cell(1, { poison: 1 }), "poisoned (stacks)"],
-    [!s || s.bleed > 0, cell(1, { bleed: [0, 1, 0, 0] }), "bleeding (spreads that way)"],
+    [!g || armorLevels.has(1), cell(2), "1 armor (bronze)"],
+    [!g || armorLevels.has(2), cell(3), "2 armor (silver)"],
+    [!g || armorLevels.has(3), cell(4), "3 armor (gold)"],
+    [!sum || sum.lost > 0, cell(0), "lost"],
+    [!sum || sum.burned > 0, cell(-1), "burned"],
+    [!sum || sum.poison > 0, cell(1, { poison: 1 }), "poisoned (stacks)"],
+    [!sum || sum.bleed > 0, cell(1, { bleed: [0, 1, 0, 0] }), "bleeding (spreads that way)"],
   ];
   return h(
     "ul",
