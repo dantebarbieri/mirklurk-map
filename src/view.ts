@@ -21,6 +21,7 @@ import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, 
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts";
+import { coinRollup } from "./player.ts";
 import { entityWiki } from "./wiki.ts";
 import {
   type Interior,
@@ -158,8 +159,8 @@ export function playerSpot(st: State): Spot {
 const youLabel = (st: State, you: Spot, inside: boolean) =>
   `${st.world.character}${inside ? " (inside)" : ""}${you.estimated ? " (est.)" : ""}`;
 
-/** The player's clickable map marker, carrying the save for their inspection. */
-const youMark = (st: State, you: Spot, x: number, y: number, label: string): { mark: Mark; title: string } => ({
+/** The player's clickable map marker, carrying the save for their inspection; `away` when drawn from a neighbouring zone. */
+const youMark = (st: State, you: Spot, x: number, y: number, label: string, away?: Mark["away"]): { mark: Mark; title: string } => ({
   mark: {
     layer: "you",
     kind: "you",
@@ -168,6 +169,7 @@ const youMark = (st: State, you: Spot, x: number, y: number, label: string): { m
     name: st.world.character,
     label,
     detail: you.estimated ? `probably here (${you.estimated})` : undefined,
+    away,
     player: st.world.player,
   },
   title: you.title,
@@ -256,6 +258,7 @@ export function renderWorld(st: State) {
         "details",
         { class: "inventory-panel", "data-remember": "player", open: st.expanded?.has("player") },
         h("summary", {}, "Saved equipment & inventory"),
+        coinRollup(p.inventory),
         inventoryView(p.inventory, "player", st.expanded),
       ),
       warn,
@@ -560,12 +563,14 @@ async function renderZone(st: State, z: Zone, glide = false) {
   }
   const heats = zoneHeat(world, st.marks, z, { ...tiles, beings: detail?.beings });
   const you = playerSpot(st);
+  const [youOx, youOy] = [(you.zone[0] - z.x) * ROOM, (you.zone[1] - z.y) * ROOM];
+  const youAway = youOx || youOy ? { zone: world.zones[you.zone[1]][you.zone[0]].name, ox: youOx, oy: youOy } : undefined;
   const inspector = h("section", { class: "inspection", hidden: true, "aria-live": "polite" });
   const picker = () => toolPicker(st, () => chips);
   const close = () => closeInspection(st, map, inspector);
   const inspect = (m: Mark, expanded?: Set<string>) => {
     map.select(m);
-    inspectMark(inspector, m, { expanded, tool: chopTool(st), picker: picker(), close });
+    inspectMark(inspector, m, { expanded, tool: chopTool(st), picker: picker(), close, difficulty: world.player.difficulty });
   };
   const openInterior = (m: Mark) => {
     if (m.interior) {
@@ -594,13 +599,7 @@ async function renderZone(st: State, z: Zone, glide = false) {
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
     // The map spans the world, so the player shows even from a neighbouring zone.
-    player: youMark(
-      st,
-      you,
-      you.x + (you.zone[0] - z.x) * ROOM,
-      you.y + (you.zone[1] - z.y) * ROOM,
-      youLabel(st, you, you.inside),
-    ),
+    player: youMark(st, you, you.x + youOx, you.y + youOy, youLabel(st, you, you.inside), youAway),
     onOpen: openInterior,
     onView: (view) => {
       around.refresh();
@@ -616,10 +615,11 @@ async function renderZone(st: State, z: Zone, glide = false) {
   // At once rather than debounced, so neighbours already on screen do not blink when gliding in.
   around.load();
   const restoreInspection = (available: Mark[]) => {
-    const inspected = [...available, ...(map.you ? [map.you] : [])].find((m) => markKey(m) === st.inspected);
+    const inspected = available.find((m) => markKey(m) === st.inspected);
     if (inspected) inspect(inspected, st.expanded);
   };
-  restoreInspection(marks);
+  // The player only on this first pass: neighbours' batches arrive later and must not rebuild an open card of them.
+  restoreInspection(map.you ? [...marks, map.you] : marks);
   const treeList = h("div", { class: "lists" });
   const layers = mapLayers(st, map, z.dir, () => my === token, false, (plants) => {
     const open = plants.find((m) => markKey(m) === st.inspected);
@@ -1194,7 +1194,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
   const close = () => closeInspection(st, map, inspector);
   const inspect = (m: Mark, expanded?: Set<string>) => {
     map.select(m);
-    inspectMark(inspector, m, { expanded, close });
+    inspectMark(inspector, m, { expanded, close, difficulty: st.world.player.difficulty });
   };
   const open = (m: Mark) => {
     if (m.interior) {

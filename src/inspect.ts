@@ -101,6 +101,8 @@ export const entityLink = (m: Mark) => wikiLink(entityUrl(m));
 export interface SectionContext {
   key: string;
   expanded?: Set<string>;
+  /** The save's difficulty (PlayerSave.difficulty), when known. */
+  difficulty?: number;
 }
 
 /** A collapsible section that stays open across re-renders (see `openSections` in view.ts). */
@@ -117,12 +119,14 @@ export interface InspectOptions {
   picker?: HTMLElement;
   /** Closes the inspection; its button shows when the card floats over a full-screen map. */
   close?: () => void;
+  /** The save's difficulty, for how well beings aim. */
+  difficulty?: number;
 }
 
-export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close }: InspectOptions = {}) {
+export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close, difficulty }: InspectOptions = {}) {
   panel.hidden = false;
   const img = markImage(m);
-  const ctx: SectionContext = { key: `inspection:${markKey(m)}`, expanded };
+  const ctx: SectionContext = { key: `inspection:${markKey(m)}`, expanded, difficulty };
   // Carcasses carry their creature's index too, but they are loot, not a living being.
   const being = m.being !== undefined && !m.inventory ? m.being : undefined;
   panel.replaceChildren(
@@ -148,7 +152,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
     ...(being === undefined
       ? []
       : sells(being)
-      ? [...merchantView(being, ctx), section(ctx, "combat", "If it comes to a fight", false, ...creatureView(being, m.health, ctx))]
+      ? [...merchantView(being, ctx), section(ctx, "combat", "Hit points and attacks", false, ...creatureView(being, m.health, ctx))]
       : creatureView(being, m.health, ctx)),
     ...(m.tree
       ? (m.layer === "brambles" || m.layer === "vines"

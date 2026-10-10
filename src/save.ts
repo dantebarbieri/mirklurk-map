@@ -102,6 +102,8 @@ export interface PlayerSave {
   restedTime: number;
   /** Clothing wetness per body part, 0–1 (wetness). */
   wetness: number[];
+  /** global.GAMEDIFF (myDiff): 3 is Hard, where beings aim one intelligence level better. */
+  difficulty?: number;
 }
 
 /** obj_player's haelth, focus, energy, hunger and warmth, as the circle bar shows them (gml_Object_UI_Draw_64). */
@@ -154,6 +156,7 @@ export function parsePlayer(raw: unknown): PlayerSave {
     warmthTime: num(p.warmthTime),
     restedTime: num(p.restedTime),
     wetness: Array.isArray(p.wetness) ? p.wetness.map((v) => num(v)) : [],
+    difficulty: typeof p.myDiff === "number" && Number.isInteger(p.myDiff) ? p.myDiff : undefined,
   };
 }
 

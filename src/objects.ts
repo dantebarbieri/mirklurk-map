@@ -94,9 +94,11 @@ export const locationLayer = (kind: number | null | undefined): Layer =>
     ? "rifts"
     : "places";
 
-/** The player's key is fixed, so an open inspection of them survives moving (live saves, estimates). */
+/** The player's inspection key: fixed, so an open card of them survives moving (live saves, estimates, other zones). */
+export const PLAYER_KEY = "you";
+
 export const markKey = (m: Mark) =>
-  m.layer === "you" ? "you" : `${m.layer}:${m.x}:${m.y}:${m.name === "Unsearched remains" ? "Remains" : m.name}`;
+  m.layer === "you" ? PLAYER_KEY : `${m.layer}:${m.x}:${m.y}:${m.name === "Unsearched remains" ? "Remains" : m.name}`;
 
 /** The saved interior a transition leads to (folder "[ zx,zy,ex,ey ]", or RW1–RW3 for the rift depths). */
 function interiorFor(tp: number[], interiors: Interior[]): Interior | undefined {
