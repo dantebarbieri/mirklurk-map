@@ -261,6 +261,121 @@ body.loaded main > * {
   font-size: inherit;
 }
 
+/* Hit-point grids (health.ts): one square per hit point, as the game draws them. */
+.hp,
+.hp-legend {
+  --hp-cell: 18px;
+  --hp-flesh: #c9574d;
+  --hp-armor: #c9d3db;
+  --hp-poison: #8fd14f;
+  --hp-bleed: #ff6b5e;
+}
+.hp {
+  margin: 8px 0;
+}
+.hp-grid {
+  display: grid;
+  gap: 2px;
+  width: max-content;
+}
+.hp-cell {
+  position: relative;
+  display: inline-block;
+  width: var(--hp-cell);
+  height: var(--hp-cell);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.hp-cell.healthy {
+  background: var(--hp-flesh);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+}
+.hp-cell.lost {
+  border: 1px dashed var(--muted);
+}
+.hp-cell.burned {
+  background: repeating-linear-gradient(135deg, #2b1f1a 0 3px, #5a2d16 3px 5px);
+  box-shadow: inset 0 0 0 1px #e07a2f;
+}
+.hp-cell.none {
+  visibility: hidden;
+}
+.hp-cell.armor1 {
+  box-shadow: inset 0 0 0 2px var(--hp-armor);
+}
+.hp-cell.armor2 {
+  box-shadow: inset 0 0 0 2px var(--hp-armor), inset 0 0 0 4px rgba(0, 0, 0, .35);
+  background: linear-gradient(var(--hp-armor), var(--hp-armor)) center / 6px 2px no-repeat, var(--hp-flesh);
+}
+.hp-cell.armor3 {
+  box-shadow: inset 0 0 0 3px var(--hp-armor);
+  background: linear-gradient(var(--hp-armor), var(--hp-armor)) center / 8px 4px no-repeat, var(--hp-flesh);
+}
+.hp-cell.poisoned {
+  outline: 1px solid var(--hp-poison);
+}
+.hp-cell.bleeding {
+  outline: 1px solid var(--hp-bleed);
+}
+.hp-poison,
+.hp-bleed {
+  position: absolute;
+  padding: 0 2px;
+  border-radius: 3px;
+  font: 600 9px/11px system-ui, sans-serif;
+  color: #120e0f;
+  white-space: nowrap;
+}
+.hp-poison {
+  right: -3px;
+  bottom: -3px;
+  background: var(--hp-poison);
+}
+.hp-bleed {
+  left: -3px;
+  top: -3px;
+  background: var(--hp-bleed);
+}
+.hp figcaption {
+  margin-top: 4px;
+  font-size: 12px;
+}
+.hp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.hp-legend li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.hp-legend .hp-cell {
+  --hp-cell: 14px;
+}
+
+/* Coin amounts (coins.ts). */
+.coins {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  font-variant-numeric: tabular-nums;
+}
+.coin {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.coin-icon {
+  image-rendering: pixelated;
+}
+
 .intro {
   max-width: 720px;
   margin: 48px auto;

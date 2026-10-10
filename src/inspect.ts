@@ -5,6 +5,9 @@ import { type Mark, markKey } from "./objects.ts";
 import type { Tree } from "./save.ts";
 import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, MAX_AP, NATDEAD, Nature, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
 import { beingImage, entityWiki, itemImage, itemWiki, placeImage, type WikiImage, wikiUrl, wikiVerified } from "./wiki.ts";
+import { creatureView } from "./creature.ts";
+import { merchantView, sells } from "./merchants.ts";
+import { playerView } from "./player.ts";
 
 const wikiAnchor = (url: string, cls: string, label: string) =>
   h("a", {
@@ -26,7 +29,7 @@ export const wikiTitle = (url: string | undefined, text: string) => url ? wikiAn
  * A wiki picture fitted to a w×h box, never enlarged past whole pixels so the pixel art stays crisp; `fill` keeps the
  * whole box (the picture centred in it) so a column of them lines up.
  */
-function picture(img: WikiImage, alt: string, cls: string, w: number, h_: number, fill = false) {
+export function picture(img: WikiImage, alt: string, cls: string, w: number, h_: number, fill = false) {
   const fit = Math.min(w / img.w, h_ / img.h);
   const k = fit >= 1 ? Math.floor(fit) : fit;
   return h("img", {
@@ -81,9 +84,9 @@ export function inventoryView(inventory: Inventory | undefined, key = "inventory
   return inventory.note ? h("div", {}, h("p", { class: "muted" }, inventory.note), list) : list;
 }
 
-/** The wiki page for a mark: its own, else a guide to its kind. */
+/** The wiki page for a mark: its own, else a guide to its kind. The player has none. */
 export const entityUrl = (m: Mark) =>
-  entityWiki(
+  m.layer === "you" ? undefined : entityWiki(
     m.name,
     m.layer === "npcs" || m.layer === "creatures"
       ? "Bestiary"
@@ -93,6 +96,18 @@ export const entityUrl = (m: Mark) =>
   );
 
 export const entityLink = (m: Mark) => wikiLink(entityUrl(m));
+
+/** Where an inspection section keeps its state: `key` prefixes its `data-remember` names, `expanded` lists the open ones. */
+export interface SectionContext {
+  key: string;
+  expanded?: Set<string>;
+}
+
+/** A collapsible section that stays open across re-renders (see `openSections` in view.ts). */
+export function section(ctx: SectionContext, id: string, title: string, open: boolean, ...body: (HTMLElement | null)[]) {
+  const key = `${ctx.key}/${id}`;
+  return h("details", { "data-remember": key, open: ctx.expanded ? ctx.expanded.has(key) : open }, h("summary", {}, title), body);
+}
 
 export interface InspectOptions {
   /** Open sections to restore. */
@@ -107,6 +122,9 @@ export interface InspectOptions {
 export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close }: InspectOptions = {}) {
   panel.hidden = false;
   const img = markImage(m);
+  const ctx: SectionContext = { key: `inspection:${markKey(m)}`, expanded };
+  // Carcasses carry their creature's index too, but they are loot, not a living being.
+  const being = m.being !== undefined && !m.inventory ? m.being : undefined;
   panel.replaceChildren(
     ...(close ? [h("button", { type: "button", class: "close", "aria-label": "Close", title: "Close (Esc)", onclick: close }, "×")] : []),
     h(
@@ -126,6 +144,12 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
         ),
       ),
     ),
+    ...(m.player ? playerView(m.player, ctx) : []),
+    ...(being === undefined
+      ? []
+      : sells(being)
+      ? [...merchantView(being, ctx), section(ctx, "combat", "If it comes to a fight", false, ...creatureView(being, m.health, ctx))]
+      : creatureView(being, m.health, ctx)),
     ...(m.tree
       ? (m.layer === "brambles" || m.layer === "vines"
         ? brambleView(m.tree, tool ?? UNARMED)

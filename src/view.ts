@@ -158,6 +158,21 @@ export function playerSpot(st: State): Spot {
 const youLabel = (st: State, you: Spot, inside: boolean) =>
   `${st.world.character}${inside ? " (inside)" : ""}${you.estimated ? " (est.)" : ""}`;
 
+/** The player's clickable map marker, carrying the save for their inspection. */
+const youMark = (st: State, you: Spot, x: number, y: number, label: string): { mark: Mark; title: string } => ({
+  mark: {
+    layer: "you",
+    kind: "you",
+    x,
+    y,
+    name: st.world.character,
+    label,
+    detail: you.estimated ? `probably here (${you.estimated})` : undefined,
+    player: st.world.player,
+  },
+  title: you.title,
+});
+
 export function renderWorld(st: State) {
   st.cleanup?.();
   const w = st.world, p = w.player;
@@ -579,12 +594,13 @@ async function renderZone(st: State, z: Zone, glide = false) {
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
     // The map spans the world, so the player shows even from a neighbouring zone.
-    player: {
-      x: you.x + (you.zone[0] - z.x) * ROOM,
-      y: you.y + (you.zone[1] - z.y) * ROOM,
-      label: youLabel(st, you, you.inside),
-      title: you.title,
-    },
+    player: youMark(
+      st,
+      you,
+      you.x + (you.zone[0] - z.x) * ROOM,
+      you.y + (you.zone[1] - z.y) * ROOM,
+      youLabel(st, you, you.inside),
+    ),
     onOpen: openInterior,
     onView: (view) => {
       around.refresh();
@@ -600,7 +616,7 @@ async function renderZone(st: State, z: Zone, glide = false) {
   // At once rather than debounced, so neighbours already on screen do not blink when gliding in.
   around.load();
   const restoreInspection = (available: Mark[]) => {
-    const inspected = available.find((m) => markKey(m) === st.inspected);
+    const inspected = [...available, ...(map.you ? [map.you] : [])].find((m) => markKey(m) === st.inspected);
     if (inspected) inspect(inspected, st.expanded);
   };
   restoreInspection(marks);
@@ -1200,15 +1216,13 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     view,
     marks,
     heats: [],
-    player: you.interior === it.dir && you.at
-      ? { x: you.at[0], y: you.at[1], label: youLabel(st, you, false), title: you.title }
-      : undefined,
+    player: you.interior === it.dir && you.at ? youMark(st, you, you.at[0], you.at[1], youLabel(st, you, false)) : undefined,
     onOpen: open,
     popup: { card: inspector, close },
   });
   activeMap = map;
   if (st.viewport) map.restore(st.viewport);
-  const inspected = marks.find((m) => markKey(m) === st.inspected);
+  const inspected = [...marks, ...(map.you ? [map.you] : [])].find((m) => markKey(m) === st.inspected);
   if (inspected) inspect(inspected, st.expanded);
   const layers = mapLayers(st, map, undefined, () => my === token, true);
   map.el.append(mapLegend(st, layers));

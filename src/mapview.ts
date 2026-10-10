@@ -119,8 +119,8 @@ export interface MapSpec {
   onMapClick?: (x: number, y: number) => void;
   marks: Mark[];
   heats: { cls: string; url: string; bounds?: [number, number, number, number] | null }[];
-  /** The player's spot; `title` is its hover text (saved or estimated position). */
-  player?: { x: number; y: number; label: string; title: string };
+  /** The player's marker (layer "you", labelled by `mark.label`); `title` is its hover text (saved or estimated position). */
+  player?: { mark: Mark; title: string };
   onOpen?: (m: Mark) => void;
   /** Called after every zoom or pan. */
   onView?: (view: [number, number, number]) => void;
@@ -275,6 +275,8 @@ export class MapView {
   private overlay: SVGElement;
   private tip: HTMLElement;
   private youTitle = "";
+  /** The player's marker, when the map shows them. */
+  you?: Mark;
   private marks: Mark[] = [];
   private keep: ((m: Mark) => boolean) | null = null;
   private vx = 0;
@@ -387,8 +389,9 @@ export class MapView {
     );
     this.addMarks(spec.marks);
     if (spec.player) {
+      const me = this.you = spec.player.mark;
       this.youTitle = spec.player.title;
-      this.addPoint(spec.player.x, spec.player.y, "you L-you", [...personIcon(), s("text", { y: -14 }, spec.player.label)], -1);
+      this.addPoint(me.x, me.y, "you L-you", [...personIcon(), s("text", { y: -14 }, me.label ?? me.name)], this.marks.push(me) - 1);
     }
     this.popup = spec.popup;
     this.rescale();
@@ -704,15 +707,13 @@ export class MapView {
         return;
       }
       const m = this.markAt(e.target);
-      const you = !m && (e.target as Element | null)?.closest?.(".pt.you");
-      if (!m && !you) {
+      if (!m) {
         this.tip.hidden = true;
         return;
       }
       const box = this.el.getBoundingClientRect();
-      this.tip.textContent = m
-        ? describe(m) + (onOpen ? (m.interior ? " — click to look inside" : " — click to inspect") : "")
-        : this.youTitle;
+      const what = m.layer === "you" ? this.youTitle : describe(m);
+      this.tip.textContent = what + (onOpen ? (m.interior ? " — click to look inside" : " — click to inspect") : "");
       this.tip.hidden = false;
       const x = e.clientX - box.left, y = e.clientY - box.top;
       this.tip.style.left = `${Math.min(x + 14, box.width - this.tip.offsetWidth - 4)}px`;

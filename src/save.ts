@@ -2,6 +2,7 @@
 
 import { TILES } from "./rules.ts";
 import { containerInventory, type Inventory, parseItemList } from "./inventory.ts";
+import { type HealthGrid, parseHealth } from "./health.ts";
 
 /** save_datajson: UTF-8 JSON written with buffer_string, so it ends in one NUL byte. */
 export function decodeJson(bytes: Uint8Array): unknown {
@@ -83,6 +84,34 @@ export interface PlayerSave {
   /** Hair colour is perceived as light (outline goes dark). */
   hairLight?: boolean;
   inventory?: Inventory;
+  /** Hit points at save time (hpgrid / statusgrid). */
+  health?: HealthGrid;
+  /** Wellbeing and the four stats it depends on, each 0–1; absent if any is missing from the save. */
+  vitals?: Vitals;
+  /** Active conditions (aeList): indices into UI.ini [AEs], such as 17–19 for sickness or 24–26 for overburdened. */
+  effects: number[];
+  level: number;
+  xp: number;
+  skillPoints: number;
+  /** New hit points from levelling up that are not placed on the grid yet (hpAddPoints). */
+  newHitPoints: number;
+  /** Turns of sickness left (sickTime). */
+  sickTime: number;
+  /** Turns left of being warm to the core (warmthTime) and well rested (restedTime); each adds 1% wellbeing per turn. */
+  warmthTime: number;
+  restedTime: number;
+  /** Clothing wetness per body part, 0–1 (wetness). */
+  wetness: number[];
+}
+
+/** obj_player's haelth, focus, energy, hunger and warmth, as the circle bar shows them (gml_Object_UI_Draw_64). */
+export interface Vitals {
+  wellbeing: number;
+  focus: number;
+  stamina: number;
+  satiation: number;
+  /** 0 freezing to 1 overheating; 0.4–0.6 is comfortable (global.warmthLoseLow / warmthLoseHigh). */
+  warmth: number;
 }
 
 export function parsePlayer(raw: unknown): PlayerSave {
@@ -112,6 +141,19 @@ export function parsePlayer(raw: unknown): PlayerSave {
     hair: typeof p.hairBlend === "number" ? bgr(p.hairBlend) : undefined,
     hairLight: typeof p.hairBlend === "number" ? isLight(p.hairBlend) : undefined,
     inventory: parseItemList(p.myEquips),
+    health: parseHealth(p.hpgrid, p.statusgrid),
+    vitals: [p.haelth, p.focus, p.energy, p.hunger, p.warmth].every((v) => typeof v === "number" && Number.isFinite(v))
+      ? { wellbeing: num(p.haelth), focus: num(p.focus), stamina: num(p.energy), satiation: num(p.hunger), warmth: num(p.warmth) }
+      : undefined,
+    effects: Array.isArray(p.aeList) ? p.aeList.filter((v): v is number => typeof v === "number" && Number.isInteger(v)) : [],
+    level: num(p.level, 1),
+    xp: num(p.xp),
+    skillPoints: num(p.skillPoints),
+    newHitPoints: num(p.hpAddPoints),
+    sickTime: num(p.sickTime),
+    warmthTime: num(p.warmthTime),
+    restedTime: num(p.restedTime),
+    wetness: Array.isArray(p.wetness) ? p.wetness.map((v) => num(v)) : [],
   };
 }
 
@@ -129,6 +171,8 @@ export interface Being {
   state: number;
   x: number;
   y: number;
+  /** Its hit points at save time; undefined when not saved or unreadable. */
+  health?: HealthGrid;
 }
 
 export interface Placed {
@@ -164,7 +208,13 @@ export const parseSolids = (raw: unknown): Solid[] =>
   }));
 
 export const parseBeings = (raw: unknown): Being[] =>
-  list(raw).map((b) => ({ index: num(b.index, -1), state: num(b.state), x: num(b.x), y: num(b.y) }));
+  list(raw).map((b) => ({
+    index: num(b.index, -1),
+    state: num(b.state),
+    x: num(b.x),
+    y: num(b.y),
+    health: parseHealth(b.hpgrid, b.statusgrid),
+  }));
 
 /** Containers, stations, interactables and decorations share this shape. */
 export const parsePlaced = (raw: unknown): Placed[] =>

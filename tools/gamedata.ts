@@ -69,6 +69,9 @@ export const NATURE_NAMES: Record<number, string> = ${table(numbered(nature.get(
 /** [ItemTitles] in Items.ini: item names keyed by item index (placed stations use these). */
 export const ITEM_NAMES: Record<number, string> = ${table(numbered(items.get("ItemTitles")))};
 
+/** [DamageClasses] in UI.ini: damage class names keyed by damageClass value. */
+export const DAMAGE_CLASS_NAMES: Record<number, string> = ${table(numbered(ui.get("DamageClasses")))};
+
 /** Sprite geometry: [width, height, originX, originY, bboxLeft, bboxRight, bboxTop, bboxBottom]. */
 export const SPRITES: Record<string, readonly number[]> = ${table(spriteTable)};
 `;

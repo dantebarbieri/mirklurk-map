@@ -331,6 +331,17 @@ export const ITEM_NAMES: Record<number, string> = {
   257: "Improvised Bedroll",
 };
 
+/** [DamageClasses] in UI.ini: damage class names keyed by damageClass value. */
+export const DAMAGE_CLASS_NAMES: Record<number, string> = {
+  2: "Poison",
+  14: "Sharp",
+  15: "Blunt",
+  16: "Force",
+  17: "Piercing",
+  18: "Fire",
+  24: "Weak",
+};
+
 /** Sprite geometry: [width, height, originX, originY, bboxLeft, bboxRight, bboxTop, bboxBottom]. */
 export const SPRITES: Record<string, readonly number[]> = {
   "spr_boulders_128x128": [128, 160, 0, 160, 0, 127, 32, 159],
