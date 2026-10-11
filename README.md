@@ -58,10 +58,11 @@ by its character name and zone layout, so adding a world that is already in your
 then reads **Update _character_ in my worlds**. While **Live saves** runs, **Keep it updated while Live saves runs** (on by default) sends
 each settled change of a world that is already in your library, at most once every 30 seconds. Worlds you never added are never uploaded.
 
-Each world has **Open**, **Share...** and **Delete**. **Open** follows it: the map refreshes every 30 seconds while the page is visible,
-unchanged versions are not downloaded, and inspection state is kept unless **Follow saved location** moves to another area. A browser
-reopens the world it followed last when nothing else is on screen, so a phone that syncs your library shows your latest world on its own.
-**Delete** removes the world from every synced device and stops its share link; copies already downloaded cannot be revoked.
+Each world has **Open**, **Share...**, **Download** and **Delete**. **Open** follows it: the map refreshes every 30 seconds while the page
+is visible, unchanged versions are not downloaded, and inspection state is kept unless **Follow saved location** moves to another area. A
+browser reopens the world it followed last when nothing else is on screen, so a phone that syncs your library shows your latest world on its
+own. **Delete** removes the world from every synced device and stops its share link; copies already downloaded cannot be revoked.
+**Download** saves it as a save you can play (below).
 
 There are two kinds of link, each with its own key and QR code:
 
@@ -113,6 +114,33 @@ cleanup after downtime). Salted IP hashes are stored instead of raw IP addresses
 short-term request limiter resets on restart. Shared networks/NATs share the same quota. These are abuse guardrails, not protection against
 a distributed attack; keep reverse-proxy bandwidth and resource limits in place. The package manifest is capped at 1 MiB, and `Player.save`
 at 4 MiB before JSON parsing, to bound validation memory use.
+
+### Downloading a world to play it
+
+**Download** saves a world as a `.zip` you can play, for example to move a character between PCs. **Download save**, next to **Stop
+following**, does the same for the world you are following or viewing from a share link (the version on screen). The ZIP holds the
+character's folder, byte-for-byte as it was added: every `.save`, `.tmap`, `.ini` and map `.png` the game wrote, with their saved times. Put
+that folder (for example `Hero`) into the game's `Saves` folder, so that `Saves\Hero\Player.save` exists, and load it in the game. Open the
+ZIP in Explorer and drag the folder in, or use **Extract All...** with `Saves` itself as the destination (Explorer suggests a new folder
+named after the ZIP). MirkMap can also open the ZIP directly with **Open .zip**.
+
+The game names a character after its folder, so the folder is the character's name. If `Saves` already has a folder of that name, move the
+old one out first: extracting over it would mix two versions, and files the newer save no longer has (the game deletes the file of an item
+pile when you pick it up) would bring those items back.
+
+A world downloaded from a **share link** is someone else's: its ZIP is named `Hero (From Share).zip`, keeps the folder name `Hero`, and
+before downloading MirkMap warns that putting it into a `Saves` folder that already has a character called Hero overwrites that character.
+To keep both, rename one of the two folders first. The download carries `from_share=1` in a hidden `MirkMap.ini` next to `Player.save`, so
+MirkMap shows the world as **Hero (From Share)** with an **S** badge, both when the folder or ZIP is opened and in a library it is added to.
+The game never reads, lists or removes that file, so it survives playing; delete it (or its `from_share` line) to drop the badge. Downloads
+from your own library are not marked, but keep any `MirkMap.ini` the world already had.
+
+`MirkMap.ini` is MirkMap's own notes about a world: a plain INI file (UTF-8, CRLF) with one `[MirkMap]` section that any MirkMap feature can
+add keys to, keeping the others. Downloads give it the Windows hidden attribute, which Explorer applies when extracting. Downloads are built
+in the browser from the package MirkMap already fetches to show the world, so they add no server storage or new endpoint, and the server
+records only a `fromShare` flag (from the uploaded `MirkMap.ini`, read again on every upload) in the world's small metadata record. Uploads
+stay uncompressed; the ZIP is deflated to 12-18% of the world's size (a new character's 2 MB to about 250 KB, a 58 MB world to 8.5 MB, built
+in about a second).
 
 ### As an app, and offline
 

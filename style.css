@@ -177,6 +177,24 @@ select {
   font-size: 12px;
   color: var(--muted);
 }
+/* A letter badge after a world's name, explained by its tooltip and the text beside it. */
+.badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  text-decoration: none;
+  vertical-align: 1px;
+  cursor: help;
+}
+.badge-share {
+  background: #7fb8ff;
+  color: #10131a;
+}
 .viewing {
   padding: 6px 0;
   color: var(--gold);
