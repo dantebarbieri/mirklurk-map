@@ -2,6 +2,7 @@ import {
   boxArea,
   cardPlace,
   clampView,
+  CREATURE_ICONS,
   dragsSheet,
   FOCUS_SHARE,
   focusZone,
@@ -82,6 +83,99 @@ Deno.test("touch picking: the nearest symbol within reach, inside counting as ze
   assertEquals(nearestBox([creature, loot], 100, 100 + 3 + TOUCH_REACH + 1, TOUCH_REACH), -1, "out of reach");
   assertEquals(nearestBox([creature, dot(101, 100)], 100, 100, TOUCH_REACH), 1, "overlapping: the one drawn on top");
   assertEquals(nearestBox([], 0, 0, TOUCH_REACH), -1);
+});
+
+/** Points along an SVG path (absolute or relative M L H V Q T C S A Z), sampled finely enough to bound it. */
+function pathPoints(d: string): [number, number][] {
+  const tok = d.match(/[a-z]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi) ?? [];
+  const pts: [number, number][] = [];
+  let i = 0, cmd = "", last = "", x = 0, y = 0, sx = 0, sy = 0, kx = 0, ky = 0;
+  const n = () => Number(tok[i++]);
+  const sample = (f: (t: number) => [number, number]) => {
+    for (let k = 1; k <= 32; k++) pts.push(f(k / 32));
+  };
+  while (i < tok.length) {
+    if (/[a-z]/i.test(tok[i])) cmd = tok[i++];
+    const C = cmd.toUpperCase(), ox = cmd === C ? 0 : x, oy = cmd === C ? 0 : y;
+    let nx = x, ny = y;
+    if (C === "Z") {
+      [nx, ny] = [sx, sy];
+      if (i < tok.length && !/[a-z]/i.test(tok[i])) throw new Error(`number after Z in ${d}`);
+    } else if (C === "M" || C === "L") {
+      [nx, ny] = [ox + n(), oy + n()];
+      if (C === "M") [sx, sy, cmd] = [nx, ny, cmd === "M" ? "L" : "l"];
+    } else if (C === "H") nx = ox + n();
+    else if (C === "V") ny = oy + n();
+    else if (C === "Q" || C === "T") {
+      const [ax, ay] = C === "Q" ? [ox + n(), oy + n()] : /[QT]/.test(last) ? [2 * x - kx, 2 * y - ky] : [x, y];
+      [nx, ny] = [ox + n(), oy + n()];
+      const [x0, y0, x2, y2] = [x, y, nx, ny];
+      sample((t) => [(1 - t) ** 2 * x0 + 2 * t * (1 - t) * ax + t * t * x2, (1 - t) ** 2 * y0 + 2 * t * (1 - t) * ay + t * t * y2]);
+      [kx, ky] = [ax, ay];
+    } else if (C === "C" || C === "S") {
+      const [ax, ay] = C === "C" ? [ox + n(), oy + n()] : /[CS]/.test(last) ? [2 * x - kx, 2 * y - ky] : [x, y];
+      const [bx, by] = [ox + n(), oy + n()];
+      [nx, ny] = [ox + n(), oy + n()];
+      const [x0, y0, x3, y3] = [x, y, nx, ny];
+      const bez = (p0: number, p1: number, p2: number, p3: number, t: number) =>
+        (1 - t) ** 3 * p0 + 3 * t * (1 - t) ** 2 * p1 + 3 * t * t * (1 - t) * p2 + t ** 3 * p3;
+      sample((t) => [bez(x0, ax, bx, x3, t), bez(y0, ay, by, y3, t)]);
+      [kx, ky] = [bx, by];
+    } else if (C === "A") {
+      // Endpoint to centre parameterisation, as in the SVG spec's implementation notes.
+      let [rx, ry] = [Math.abs(n()), Math.abs(n())];
+      const phi = n() * Math.PI / 180, large = n(), sweep = n();
+      [nx, ny] = [ox + n(), oy + n()];
+      if (rx && ry && (nx !== x || ny !== y)) {
+        const [cos, sin] = [Math.cos(phi), Math.sin(phi)];
+        const [hx, hy] = [(x - nx) / 2, (y - ny) / 2];
+        const [px, py] = [cos * hx + sin * hy, -sin * hx + cos * hy];
+        const grow = Math.sqrt(Math.max(1, px * px / (rx * rx) + py * py / (ry * ry)));
+        [rx, ry] = [rx * grow, ry * grow];
+        const sq = (rx * rx * ry * ry - rx * rx * py * py - ry * ry * px * px) / (rx * rx * py * py + ry * ry * px * px);
+        const co = (large === sweep ? -1 : 1) * Math.sqrt(Math.max(0, sq));
+        const [qx, qy] = [co * rx * py / ry, -co * ry * px / rx];
+        const [cx, cy] = [cos * qx - sin * qy + (x + nx) / 2, sin * qx + cos * qy + (y + ny) / 2];
+        const angle = (ux: number, uy: number, vx: number, vy: number) => Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy);
+        const [ux, uy, vx, vy] = [(px - qx) / rx, (py - qy) / ry, (-px - qx) / rx, (-py - qy) / ry];
+        const start = angle(1, 0, ux, uy);
+        let sweepAngle = angle(ux, uy, vx, vy);
+        if (!sweep && sweepAngle > 0) sweepAngle -= 2 * Math.PI;
+        if (sweep && sweepAngle < 0) sweepAngle += 2 * Math.PI;
+        sample((t) => {
+          const [ex, ey] = [rx * Math.cos(start + sweepAngle * t), ry * Math.sin(start + sweepAngle * t)];
+          return [cos * ex - sin * ey + cx, sin * ex + cos * ey + cy];
+        });
+      }
+    } else throw new Error(`unsupported path command ${cmd} in ${d}`);
+    pts.push([nx, ny]);
+    [last, x, y] = [C, nx, ny];
+  }
+  return pts;
+}
+
+const extent = (pts: [number, number][]) => {
+  const [xs, ys] = [pts.map((p) => p[0]), pts.map((p) => p[1])];
+  return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
+};
+
+Deno.test("path bounds: lines, curves and arcs are measured along the drawn path", () => {
+  const near = (a: number, b: number) => Math.abs(a - b) < 0.01;
+  const circle = extent(pathPoints("M-3 1 a3 3 0 1 1 6 0 A3 3 0 1 1 -3 1 Z"));
+  assert(near(circle.left, -3) && near(circle.right, 3) && near(circle.top, -2) && near(circle.bottom, 4), JSON.stringify(circle));
+  const curve = extent(pathPoints("M0 0 Q2 -4 4 0 c0 2 -4 2 -4 0 h1 v-1 L0 0"));
+  assert(near(curve.top, -2) && near(curve.bottom, 1.5) && near(curve.right, 4), JSON.stringify(curve));
+});
+
+Deno.test("creature icons: bigger than the old dot, inside the 16px symbol box and centred on the creature", () => {
+  for (const [name, icon] of Object.entries(CREATURE_ICONS)) {
+    const body = extent(pathPoints(icon.body));
+    const all = extent([icon.body, icon.detail ?? "", icon.eye ?? ""].flatMap(pathPoints));
+    // The outline (0.45px either side) still fits the -8..8 viewBox of legend and list icons.
+    assert(Math.max(-all.left, -all.top, all.right, all.bottom) <= 7.5, `${name} fits: ${JSON.stringify(all)}`);
+    assert(Math.abs(body.left + body.right) <= 2 && Math.abs(body.top + body.bottom) <= 2, `${name} centred: ${JSON.stringify(body)}`);
+    assert(Math.max(body.right - body.left, body.bottom - body.top) >= 10, `${name} is an icon, not a dot`);
+  }
 });
 
 Deno.test("bottom sheet: half and full heights fit the content and leave the top strip", () => {

@@ -22,6 +22,7 @@ import {
   type Tree,
 } from "./save.ts";
 import { type Inventory, parseItemList } from "./inventory.ts";
+import { isFromShare } from "./marker.ts";
 import { isCheated } from "./cheated.ts";
 
 export interface Zone {
@@ -75,6 +76,8 @@ export interface World {
   warnings: string[];
   files: FileMap;
   savedAt?: number;
+  /** Downloaded from a share link: MirkMap.ini says from_share=1. */
+  fromShare?: boolean;
   /** Changed with the save editor: MirkMap.ini says cheated=1, or this browser saved edits to it (main.ts). */
   cheated?: boolean;
 }
@@ -190,6 +193,7 @@ export async function loadWorld(files: FileMap, root: string, character: string)
     warnings,
     files,
     savedAt: files.get(`${root}Player.save`)?.lastModified,
+    fromShare: await isFromShare(files, root),
     cheated: await isCheated(files, root),
   };
 }

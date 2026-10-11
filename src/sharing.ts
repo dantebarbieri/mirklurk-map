@@ -2,7 +2,9 @@
 // sync link (full access, for your own devices); single worlds are shared with read-only links.
 
 import { $, h } from "./dom.ts";
-import { cheatedTag } from "./badges.ts";
+import { cheatedTag, fromShareTag } from "./badges.ts";
+import { ask } from "./dialog.ts";
+import { folderName, offerDownload, saveZip } from "./download.ts";
 import { knownCheated, withCheatedMarker } from "./cheated.ts";
 import type { Character, FileMap } from "./files.ts";
 import { qrSvg } from "./qr.ts";
@@ -56,8 +58,10 @@ interface Remembered {
   auto: boolean;
 }
 type Watch =
-  & { name: string; version?: string; updated?: number }
+  & { name: string; version?: string; updated?: number; snapshot?: Snapshot }
   & ({ kind: "world"; id: string } | { kind: "view"; key: string });
+/** The files of the version on screen, kept for downloading it. */
+type Snapshot = { name: string; files: FileMap };
 type Card = { kind: "sync" } | { kind: "share"; id: string };
 /** The one-time code shown on the sync card, for the library it was made for. */
 interface Pair {
@@ -118,6 +122,7 @@ export class Sharing {
   private published = new Map<string, string>();
   private generation = 0;
   private uploading = false;
+  private downloading = false;
   private polling = false;
   private pollFailed = false;
   /** The library could not be reached; cleared once it can. */
@@ -172,6 +177,9 @@ export class Sharing {
       $("#follow-control").hidden = true;
       this.changed();
       this.report("Stopped following. The last snapshot stays on screen.");
+    });
+    $("#download-world").addEventListener("click", () => {
+      if (this.watching) void this.download(this.watching);
     });
     setInterval(() => {
       void this.autoPublish();
@@ -493,6 +501,75 @@ export class Sharing {
     }
   }
 
+  /**
+   * Downloads a world as a ZIP the game can load. The version on screen is used when this world is open; another library world is
+   * fetched first. A world from a share link keeps its folder (= character) name and is marked from_share in MirkMap.ini, after a
+   * warning that it would replace a character of the same name.
+   */
+  private async download(target: Watch) {
+    if (this.downloading) return;
+    if (target.kind === "view") {
+      const folder = folderName(target.snapshot?.name ?? target.name);
+      const go = await ask({
+        title: `Download ${folder} to play it?`,
+        body: [
+          h(
+            "p",
+            {},
+            `${folder} is someone else's world. It downloads as `,
+            h("b", {}, `${folder} (From Share).zip`),
+            ", and MirkMap marks it",
+            fromShareTag(),
+            ".",
+          ),
+          h(
+            "p",
+            { class: "warning" },
+            `If your game's Saves folder already has a character called ${folder}, putting this one there overwrites it.`,
+          ),
+          h("p", {}, "To keep both, rename one of the two folders first: the game names each character after its folder."),
+        ],
+        confirm: "Download",
+      });
+      if (!go || this.downloading) return;
+    }
+    const share = target.kind === "view";
+    const open = target === this.watching ? target.snapshot : undefined;
+    const name = open?.name ?? target.name;
+    this.downloading = true;
+    this.render();
+    const key = this.remembered.current.key;
+    try {
+      this.report(`Preparing ${name} for download...`);
+      let snapshot = open;
+      if (!snapshot) {
+        const response = await api(
+          target.kind === "world" ? `/library/worlds/${target.id}/data` : "/view/data",
+          target.kind === "world" ? key : target.key,
+        );
+        const length = response.headers.get("Content-Length");
+        if (length && Number(length) > MAX_UPLOAD) {
+          await response.body?.cancel();
+          throw new Error("Shared save is too large");
+        }
+        snapshot = unpackSave(new Uint8Array(await response.arrayBuffer()));
+      }
+      const zip = await saveZip(snapshot.name, snapshot.files, "Shared/", share ? new Date() : undefined);
+      offerDownload(zip);
+      this.report(
+        `Downloaded ${zip.filename}. To play it, put its ${zip.folder} folder into the game's Saves folder and load ${zip.folder}. ` +
+          (share
+            ? `If Saves already has a ${zip.folder} folder, that character would be overwritten: rename one of the folders first.`
+            : `If Saves already has an older ${zip.folder} folder, move it out first rather than mixing the two.`),
+      );
+    } catch (e) {
+      this.report(`Could not download ${name}: ${(e as Error).message}`, true);
+    } finally {
+      this.downloading = false;
+      this.render();
+    }
+  }
+
   private async remove(world: WorldInfo) {
     if (!confirm(`Delete ${world.name}? It disappears from all your synced devices, and its share link stops working.`)) return;
     const key = this.remembered.current.key;
@@ -725,6 +802,7 @@ export class Sharing {
         "li",
         {},
         h("b", {}, world.name),
+        world.fromShare ? fromShareTag() : null,
         world.cheated ? cheatedTag() : null,
         open ? h("span", { class: "tag" }, "open") : null,
         world.id === localId ? h("span", { class: "tag" }, "this save") : null,
@@ -734,6 +812,11 @@ export class Sharing {
           { class: "share-actions" },
           button(open ? "Following" : "Open", () => this.watch({ kind: "world", id: world.id, name: world.name }), open),
           button("Share...", () => this.show({ kind: "share", id: world.id })),
+          button(
+            "Download",
+            () => void this.download(open && watching ? watching : { kind: "world", id: world.id, name: world.name }),
+            this.downloading,
+          ),
           button("Delete", () => void this.remove(world)),
         ),
       );
@@ -748,6 +831,8 @@ export class Sharing {
       : watching.kind === "view"
       ? `Viewing ${watching.name}, shared with you read-only${updated}. Your own worlds are unchanged.`
       : `Following ${watching.name} from your library${updated}.`;
+    // Not disabled while a download is packaged (the download guards itself), so focus stays on it after the dialog.
+    $<HTMLButtonElement>("#download-world").disabled = !watching?.snapshot;
 
     const saved = this.remembered.saved;
     $("#saved-libraries").hidden = !saved.length;
@@ -779,7 +864,7 @@ export class Sharing {
     }
     $("#follow-control").hidden = false;
     $("#live-status").textContent = target.kind === "view"
-      ? "Viewing a shared world. Local folder monitoring is off."
+      ? "Viewing a shared world. Local folder monitoring is off. To play it yourself, download it under My worlds & sync."
       : "Following a world from your library. Local folder monitoring is off.";
     this.changed();
     void this.poll();
@@ -816,6 +901,7 @@ export class Sharing {
       if (watch !== this.watching) return;
       watch.version = response.headers.get("ETag") ?? undefined;
       watch.name = snapshot.name;
+      watch.snapshot = { name: snapshot.name, files: snapshot.files };
       watch.updated = Date.parse(response.headers.get("Last-Modified") ?? "") || Date.now();
       this.recovered();
       this.render();

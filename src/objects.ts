@@ -2,11 +2,12 @@
 
 import { BEING_NAMES, ITEM_NAMES, MAP_LABELS, NATURE_NAMES } from "./gamedata.ts";
 import { spriteBox } from "./predict.ts";
-import { centerpos, INTERIOR_NAMES, isOutside, LANDMARK_NAMES, NPC_BEINGS, SolidId } from "./rules.ts";
+import { centerpos, INTERIOR_NAMES, isOutside, LANDMARK_NAMES, NPC_MARKERS, SolidId } from "./rules.ts";
 import type { Placed, PlayerSave, Solid, Tree } from "./save.ts";
 import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
 import type { HealthGrid } from "./health.ts";
+import type { Gather } from "./gather.ts";
 import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, isTree, Nature, partLabel, trunkOf } from "./chop.ts";
 
 export type Layer =
@@ -28,7 +29,15 @@ export type Layer =
   | "trees"
   | "brambles"
   | "vines"
-  | "sharp";
+  | "sharp"
+  | "calmia"
+  | "turnips"
+  | "cranberries"
+  | "watercress"
+  | "lilies"
+  | "bulbs"
+  | "nests"
+  | "ferns";
 
 export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "places", label: "Places", on: true },
@@ -49,6 +58,14 @@ export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "brambles", label: "Brambles", on: false },
   { id: "vines", label: "Rift Vines", on: false },
   { id: "sharp", label: "Sharp ground", on: false },
+  { id: "calmia", label: "Calmia", on: false },
+  { id: "turnips", label: "Turnips", on: false },
+  { id: "cranberries", label: "Cranberries", on: false },
+  { id: "watercress", label: "Watercress", on: false },
+  { id: "lilies", label: "Water Lilies", on: false },
+  { id: "bulbs", label: "Vile Bulbs", on: false },
+  { id: "nests", label: "Bird nests", on: false },
+  { id: "ferns", label: "Ferns", on: false },
 ];
 
 export interface Mark {
@@ -68,6 +85,8 @@ export interface Mark {
   explored?: boolean;
   inventory?: Inventory;
   tree?: Tree;
+  /** A gatherable plant or bird nest: what it gives. */
+  gather?: Gather;
   /** A neighbouring zone's marker, shifted by (ox, oy) into the shown zone's coordinates. */
   away?: { zone: string; ox: number; oy: number };
   /** The creature or NPC it is (or the creature a carcass was), by being index, for its picture. */
@@ -173,16 +192,48 @@ export function solidMarks(solids: Solid[], interiors: Interior[], current?: Int
 
 const CHEST: Record<number, string> = { 149: "Chest", 150: "Chest (better loot)", 151: "Chest (best loot)" };
 
+/** The map icon of each creature (by being index): kinds that look alike in the game share one. */
+export const CREATURE_ICON: Record<number, string> = {
+  1: "fly", // Dreadfly
+  2: "fly", // Giant Gnat
+  25: "fly", // Deathfly
+  27: "louse", // Firelouse
+  13: "sceetler",
+  7: "crab", // Boulder Crab
+  30: "crab", // Titanspine Crab
+  28: "nightmare",
+  4: "snake", // Mire Serpent
+  10: "snake", // Viper
+  23: "snake", // Red Fang
+  0: "slug", // Giant Slug
+  17: "fish", // Mudfin
+  24: "fish", // Razorfin
+  11: "rodent", // Mirk Runner
+  29: "rodent", // Mirk Mauler
+  3: "troll", // Swamp Troll
+  18: "troll", // Cave Troll
+  21: "toad", // Toadkin
+  14: "scaalmyr", // Grunt
+  15: "scaalmyr", // Warrior
+  16: "scaalmyr", // Geomancer
+  22: "scaal",
+  9: "unwanted", // Dead Unwanted
+  31: "unwanted", // Raving Unwanted
+  32: "unwanted", // Mutated Unwanted
+};
+
 export function detailMarks(d: ZoneDetail): Mark[] {
   const out: Mark[] = [];
   for (const b of d.beings) {
     if (b.state === 1) continue;
     const name = BEING_NAMES[b.index] ?? `Being ${b.index}`;
-    const npc = NPC_BEINGS.has(b.index);
-    const label = npc && b.index !== 5 ? name : undefined;
+    const npc = NPC_MARKERS.has(b.index);
+    // Soldiers and Unwanted Guards come in numbers, so only the named NPCs are labelled.
+    const label = npc && b.index !== 5 && b.index !== 35 ? name : undefined;
+    const icon = CREATURE_ICON[b.index];
     out.push({
       layer: npc ? "npcs" : "creatures",
-      kind: npc ? "npc" : "creature",
+      kind: npc ? "npc" : icon ? `creature ${icon}` : "creature",
       x: b.x,
       y: b.y,
       name,

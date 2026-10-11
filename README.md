@@ -10,8 +10,9 @@ save folder and it shows:
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
   loot, dropped items (their own layer, as felling trees leaves many), storage (treasure chests, which stay after looting, your Hidden
   Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees,
-  brambles, rift vines, sharp ground and a water overlay can be switched on. Click an explored entrance to see the inside, or a creature,
-  NPC or your own marker to see hit points, attacks, a merchant's wares or your wellbeing and inventory.
+  brambles, rift vines, sharp ground, a water overlay and gatherables (Calmia, Turnips, Cranberries, Watercress, Water Lilies, Vile Bulbs,
+  bird nests and ferns) can be switched on. Click an explored entrance to see the inside, or a creature, NPC or your own marker to see hit
+  points, attacks, a merchant's wares or your wellbeing and inventory.
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -61,10 +62,11 @@ by its character name and zone layout, so adding a world that is already in your
 then reads **Update _character_ in my worlds**. While **Live saves** runs, **Keep it updated while Live saves runs** (on by default) sends
 each settled change of a world that is already in your library, at most once every 30 seconds. Worlds you never added are never uploaded.
 
-Each world has **Open**, **Share...** and **Delete**. **Open** follows it: the map refreshes every 30 seconds while the page is visible,
-unchanged versions are not downloaded, and inspection state is kept unless **Follow saved location** moves to another area. A browser
-reopens the world it followed last when nothing else is on screen, so a phone that syncs your library shows your latest world on its own.
-**Delete** removes the world from every synced device and stops its share link; copies already downloaded cannot be revoked.
+Each world has **Open**, **Share...**, **Download** and **Delete**. **Open** follows it: the map refreshes every 30 seconds while the page
+is visible, unchanged versions are not downloaded, and inspection state is kept unless **Follow saved location** moves to another area. A
+browser reopens the world it followed last when nothing else is on screen, so a phone that syncs your library shows your latest world on its
+own. **Delete** removes the world from every synced device and stops its share link; copies already downloaded cannot be revoked.
+**Download** saves it as a save you can play (below).
 
 There are two kinds of link, each with its own key and QR code:
 
@@ -117,6 +119,34 @@ short-term request limiter resets on restart. Shared networks/NATs share the sam
 a distributed attack; keep reverse-proxy bandwidth and resource limits in place. The package manifest is capped at 1 MiB, and `Player.save`
 at 4 MiB before JSON parsing, to bound validation memory use.
 
+### Downloading a world to play it
+
+**Download** saves a world as a `.zip` you can play, for example to move a character between PCs. **Download save**, next to **Stop
+following**, does the same for the world you are following or viewing from a share link (the version on screen). The ZIP holds the
+character's folder, byte-for-byte as it was added: every `.save`, `.tmap`, `.ini` and map `.png` the game wrote, with their saved times. Put
+that folder (for example `Hero`) into the game's `Saves` folder, so that `Saves\Hero\Player.save` exists, and load it in the game. Open the
+ZIP in Explorer and drag the folder in, or use **Extract All...** with `Saves` itself as the destination (Explorer suggests a new folder
+named after the ZIP). MirkMap can also open the ZIP directly with **Open .zip**.
+
+The game names a character after its folder, so the folder is the character's name. If `Saves` already has a folder of that name, move the
+old one out first: extracting over it would mix two versions, and files the newer save no longer has (the game deletes the file of an item
+pile when you pick it up) would bring those items back.
+
+A world downloaded from a **share link** is someone else's: its ZIP is named `Hero (From Share).zip` and keeps the folder name `Hero`.
+Before it downloads, a dialog warns that putting it into a `Saves` folder that already has a character called Hero overwrites that
+character; to keep both, rename one of the two folders first. **Download** goes ahead; **Cancel**, Escape or a click outside the dialog
+backs out, and focus returns to **Download save**. The download carries `from_share=1` in a hidden `MirkMap.ini` next to `Player.save`, so
+MirkMap shows the world as **Hero (From Share)** with an **S** badge, both when the folder or ZIP is opened and in a library it is added to.
+The game never reads, lists or removes that file, so it survives playing; delete it (or its `from_share` line) to drop the badge. Downloads
+from your own library are not marked, but keep any `MirkMap.ini` the world already had.
+
+`MirkMap.ini` is MirkMap's own notes about a world: a plain INI file (UTF-8, CRLF) with one `[MirkMap]` section that any MirkMap feature can
+add keys to, keeping the others. Downloads give it the Windows hidden attribute, which Explorer applies when extracting. Downloads are built
+in the browser from the package MirkMap already fetches to show the world, so they add no server storage or new endpoint, and the server
+records only a `fromShare` flag (from the uploaded `MirkMap.ini`, read again on every upload) in the world's small metadata record. Uploads
+stay uncompressed; the ZIP is deflated to 12-18% of the world's size (a new character's 2 MB to about 250 KB, a 58 MB world to 8.5 MB, built
+in about a second).
+
 ### As an app, and offline
 
 MirkMap can be installed: **Add to Home Screen** in Safari's share menu on iPhone or iPad, **Install app** / **Add to Home screen** in
@@ -154,6 +184,24 @@ directory before publishing immutable file contents. Interrupted writes or lost 
 error/retry notice. This is a best-effort coherent disk snapshot, not a game-provided atomic transaction. When monitoring several characters
 together, an incomplete character save delays the folder snapshot; choose a single character folder to isolate it.
 
+### Time and weather
+
+Under the summary line, three rows show the sky as saved. **Time**: the clock in your browser's own format (12- or 24-hour, as your locale
+prefers), the game's own label for that hour (Dawn, Sunrise, Morning, Midday, Afternoon, Sunset, Dusk or Night) and the turns until the next
+label and until Dusk (by day, when sleeping until sunrise becomes possible) or Sunrise (by night), the countdown the game's day-cycle dial
+shows on hover. **Weather**: Clear, Cloudy, Light rain, Rain or Heavy rain, or Rain easing off / Clearing while rain fades out; the
+temperature word from the game's thermometer; and the odds that it changes at the next hour, the only time it can. **Rain balance**: the
+game's counter that keeps it from raining or staying dry for ever. After a dry spell clouds and rain come more readily, after a wet one rain
+starts less often and stops sooner; a bar shows where it stands and which way it is moving, with the turns until it is even again if the
+weather holds. On the full-screen map the zone's floating title adds the clock and weather icons. Icons were designed by Astra (GPT-6
+Astra).
+
+**Weather is global, not per zone.** The game keeps one clock and one sky for the whole world, saved once per character in `Player.save`;
+where you stand only decides how much of it reaches you. Every zone of the 5×5 world is outdoors and gets the rain and its wetness. In the
+fort, Bhato's hideout, Gurb-Gurb's hut and the shipwreck the light follows the day but no rain falls on you. Underground (caves, ruin
+interiors and cellars, the Undercroft, the Library and Scaal's depths) the dial reads _Unknown Time_, no weather reaches you and the air is
+always Cold. Everything is the state at save time; see _Time and weather_ below for the rules.
+
 ### Inventory, containers and wiki
 
 Expand **Saved equipment & inventory** to see equipped items and nested bag contents, stack quantities, saved durability values (not
@@ -180,7 +228,7 @@ links to its source guide; entities without a dedicated known page use a relevan
 public-title catalog is verified at development time, not by sending save data to the wiki; pages can change after verification.
 
 Inspecting a creature or NPC (or a carcass) shows the wiki's picture of it, NPCs as they look in the world, which matters because the map
-only draws them as dots. Placed items such as Hidden Hollows and workstations, and Bhato's hideout, Gurb-Gurb's hut and Ihar's shipwreck,
+draws NPCs only as dots. Placed items such as Hidden Hollows and workstations, and Bhato's hideout, Gurb-Gurb's hut and Ihar's shipwreck,
 show theirs too, and inventory rows show each item's icon. Treasure chests, remains and the Camp stash have no wiki picture yet. The
 pictures are downloaded from the wiki at development time (`deno task wiki`) and bundled with the site; it never contacts the wiki itself.
 
@@ -189,9 +237,10 @@ pictures are downloaded from the wiki at development time (`deno task wiki`) and
 placed objects and procedural trees use their saved sprites/geometry. NPCs, creatures and carcasses remain markers; this is a static
 daylight-like view, not a simulation of the game's lighting, weather, animation or camera-dependent roof fading. Layer chips control
 informational markers, grouped as **Locations** (Places, Caves, Ruins, Rifts; indoor "Way out" exits always show), **Entities** (You, NPCs,
-Creatures), **Items**, **Terrain** (including Water) and **Nature**; each group's header checkbox (and the master **All**) toggles all its
-layers and shows a partial state when only some are on, and **Reset to defaults** restores the initial selection. They do not affect the
-scenery baked into the realistic map. Switch **Realistic** off to return to the original overview.
+Creatures), **Items**, **Terrain** (including Water), **Nature** and **Gatherables**; each group's header checkbox (and the master **All**)
+toggles all its layers and shows a partial state when only some are on, and **Reset to defaults** restores the initial selection. They do
+not affect the scenery baked into the realistic map, which draws the gatherable plants too. Switch **Realistic** off to return to the
+original overview.
 
 Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
 followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. Only four
@@ -200,6 +249,13 @@ its caches; switching it back on rebuilds them. Unexplored or missing terrain is
 folder or ZIP for realistic terrain (`Player.save` or map PNGs alone are insufficient).
 
 ### Creatures, merchants and you
+
+Switch on **Creatures** to draw each living creature as a small red silhouette of its kind: flies (Dreadfly, Giant Gnat, Deathfly), the
+Firelouse, the Sceetler, crabs (Boulder and Titanspine Crab), the Nightmare, snakes (Mire Serpent, Viper, Red Fang), the Giant Slug, fish
+(Mudfin, Razorfin), rats (Mirk Runner, Mirk Mauler), trolls (Swamp and Cave Troll), the Toadkin, the Scaalmyr (Grunt, Warrior, Geomancer),
+the Scaal and the Unwanted (Raving, Mutated and Dead). Kinds that look alike in the game share a shape, so hover or tap one for its exact
+name. Map markers, the legend and the **Creatures when saved** list share the same hand-drawn shapes; NPCs keep their gold dot, and so does
+the Unwanted Guard, which is on their team and never targets you.
 
 Click a living creature or NPC to see what the game's own examine card does, plus its saved hit points. **Hit points** draws the grid saved
 in `Beings.save` square by square (armor as a bronze, silver or gold shield, larger for each of 1–3 layers; lost and burned points, poison
@@ -263,6 +319,26 @@ ground by 1.0 (`tile_get_moment` in `gml_GlobalScript_scr_tiles_movement`), and 
 **Rifts** are drawn with a dashed circle showing how far they reach: 24 × a base radius of 8 (192 px, 12 tiles) for the large rift or 2.5
 (60 px) for the small one, measured from the sprite centre. Within it a rift withers tree parts, spreads rift grass and poisons you; a rift
 that hits you in your sleep takes up to half a health point, less further out. Dead rifts do nothing (`gml_Object_obj_rift_Alarm_0`).
+
+### Gatherables
+
+The **Gatherables** layers mark what you can pick or search for food and crafting, each kind with its own small symbol in the colours of
+what it gives: **Calmia** (pink flowers over an orange root; Calmia Root), **Turnips**, **Cranberries** (red berries on a teal shrub; young
+shrubs without berries are drawn bare), **Watercress** and **Water Lilies** (only flowering lilypads give lilies) in shallow water, **Vile
+Bulbs** (Mushrooms), which grow only in caves, and **Bird nests** (Feathers and Eggs; a searched nest is drawn empty). Each plant is one
+marker on its tile. Hovering one shows what harvesting it gives at its growth stage, such as "Cranberries x3–8 (grown)"; clicking it adds
+the item's picture, how the amount grows over the plant's five stages, how the kind comes back, and a link to the wiki's _Plant harvesting_
+guide. Lists under the map give each shown kind, the most to take first. Plants you harvested but did not empty say so: the game keeps what
+you left on the ground (the **Ground loot** marker on the same tile), and harvesting again gives you that instead of a new roll. A searched
+nest shows about how many days are left until it refills.
+
+**Ferns** (Plant Fiber) grow on hundreds of tiles in every zone, so instead of markers that layer shades the ground they cover, green and
+deeper the bigger the fern: one harvest gives 1–2 fibers from the smallest up to 5–14 from the biggest. Like Sharp ground, it shades the
+selected zone only.
+
+Mirklurk 0.8.1.5 has no tomatoes. Bramble Berries, Riftvine Berries and Elderwort Berries are not picked from the ground: they fall, by
+chance, from the stems you cut on the **Brambles**, **Rift Vines** and Elderwort Shrubs (**Trees**). The layers show the plants as saved;
+they keep growing, spreading and dying back as turns pass and when you come back to a zone.
 
 ## Save editor
 
@@ -355,6 +431,22 @@ Cypress and 2 for Trollgnarl, divided by the tool's `chopMod` (`gml_Object_datab
 bare hands 1), and rounded to 0.2 AP (at least 0.2). A felled trunk drops `ceil(size × trunk sprite height ÷ 16) + 1` logs, or branches when
 its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by `life − 0.5`, so dead wood is dry.
 
+**Gatherables** (`src/gather.ts`). They are tiles of the saved `Hinderance` layer, which `tile_is_harvestable`
+(`gml_GlobalScript_scr_tiles_autotiling`) and `tile_to_enum` (`gml_GlobalScript_scr_tiles_finders`) read: 147 Calmia, 148 Vile Bulb, 150–159
+Turnip and 170–179 Watercress (two looks of five growth stages each), 160–164 Cranberry, the flowering lilypads 73–74 and 78–79, and bird
+nests, 146 full and 145 searched; ferns are 80–89. Harvesting rolls `loot_generate` (`gml_GlobalScript_scr_items`): Calmia Root 1–3, Vile
+Bulbs 1–2, one Turnip or two from stage 4, Cranberries `(n, 2n)` with n = 2, 3 or 4 from stage 3 (none before), Watercress
+`(n, round(1.5n))` with n = stage (rounded half to even), Plant Fiber `(n, 2n)` with n = the fern's stage, one or two Water Lilies at stages
+4 and 5, and from a nest 1–7 Feathers with a 40% chance of 1–3 Eggs. Ranges are `loot_amountchances(a, b)`, which picks one of `a…a`,
+`a…a+1`, …, `a…a+b−1`, so `a` to `a+b−1` with low counts likelier; Green Fingers adds one with a chance. Picking everything clears the tile;
+leaving some sets `LootData` 99 and saves the rest to `LOOT-x_y.save` (`gml_GlobalScript_scr_menu_related`). Emptying a nest turns it into
+145 with `LootData` 4–12, days that count down each midnight and by the days you were away, after which it refills
+(`gml_Object_manager_area_Step_0`). New zones other than the Rift Mire get 8–32 Calmia, 5–13 Turnips and 10–26 Cranberry plants spread into
+patches, by area type, and every new zone up to 320 fern patches of 8–64 steps each (64 in the Rift Mire, 196 in the Withered Mire)
+(`gml_Object_manager_area_Alarm_2`); on each return two Calmia sprout outdoors (again not in the Rift Mire), and one Vile Bulb in a cave,
+per day or part of a day you were away (`gml_Object_obj_screenfader_Step_0`), and plants grow and spread with every turn's growth ticks
+(`nature_grow` in `gml_GlobalScript_scr_nature`).
+
 **Hit-point grids** (`src/health.ts`). `Player.save` and each being in `Beings.save` store `hpgrid` and `statusgrid` row by row. In
 `hpgrid`, −4 is no hit point, −1 burned (fire destroyed it; it cannot heal until treated), 0 lost, 1 healthy and 2–4 healthy under 1–3 armor
 layers (`attack_lands` in `gml_GlobalScript_scr_basic_useful`, `hpcell_draw` in `gml_GlobalScript_scr_gui_general`). Each `statusgrid` cell
@@ -399,6 +491,27 @@ point every third level (`gml_Object_obj_player_Step_1`). Conditions are the sav
 here. The coin roll-up counts every coin in your equipment and bags; **Minimum coins** converts by value as `item_draw_cost`
 (`gml_GlobalScript_scr_items`) splits a price: 1 gold = 10 silver = 1,000 copper.
 
+**Time and weather** (`src/weather.ts`). `manager_day` holds one clock and one sky for the whole world; `Player.save` stores them as
+`MDminute`, `MDday`, `MDtemperature`, `MDweather`, `MDcloud`, `MDrain` and `MDrainBalance` (`gml_GlobalScript_scr_saveload`), with no zone
+of their own. Every turn `player_endturn` (`gml_GlobalScript_scr_basic_useful`) adds 8 minutes; a new game starts at 07:00
+(`gml_Object_manager_day_Create_0`), and at hour 24 `gml_Object_manager_day_Step_0` sets the minute to 0 and starts a new day, dropping day
+1's leftover 4 minutes, so from day 2 every minute is a multiple of 8. The labels are the dial tooltip's (`gml_Object_UI_Draw_64`,
+`UI.ini [Time]`): Dawn from 04:00, Sunrise 06:00, Morning 08:00, Midday 11:00, Afternoon 14:00, Sunset 17:00, Dusk 20:00 and Night 22:00, or
+_Unknown Time_ in `area_is_dungeonlike` areas. Its countdown is to Dusk from 06:00 to 20:00 and to Sunrise otherwise; the game rounds
+minutes ÷ 8 down, so on day 1 it reads one turn short, and the viewer counts the turns it really takes. "Sleep until Sunrise" is offered
+from 20:00 to 06:00 (`gml_GlobalScript_scr_menu_related`). `localWeather` is 0 clear, 1 cloudy or 2 rain, with `cloudPower` 1 while cloudy
+or raining. Each turn the rain balance rises by 1/180 while `rainPower > 0` and falls by 1/360 otherwise, within −1…1, so it settles where
+about a third of turns are rainy. Only when the hour ticks over may the weather change, with `b` that balance: Clear turns Cloudy with
+max(2%, 12% × (1 − b)); Cloudy clears with max(2%, 10% × (1 + b)), else rain starts with max(2%, 30% × (1 − b)) at a strength of 0.08–1
+(never while `daysAlive` is under 2 on Easy or Medium); Rain eases back to Cloudy with max(1%, 25% × (1 + b)), else clears at once with
+max(1%, 5% × (1 + b)), else its strength drifts by up to ±0.1. Leaving Rain fades the rain out over a few turns (`rainFadePower`, which is
+not saved: a save made mid-fade keeps that drizzle until the weather next changes). The odds shown use the balance as it will be at that
+hour's turn. Rain is called light up to 0.2 (the soft rain sound) and heavy from 0.725 (the largest splashes,
+`gml_Object_manager_day_Step_0`). Rain only wets you, and your containers' contents, in `area_is_outside` areas (`player_rained_upon`,
+`gml_Object_obj_container_Alarm_1`; `gml_GlobalScript_scr_map_and_weather`); the temperature word is `temperature_get_label` on
+`MDtemperature`, and the thermometer's colour is the game's frame `floor(6.99 × temperature)`; underground the air is always 0.35, Cold
+(`player_gets_all_wet`).
+
 **Armor and equipment** (`src/armor.ts`). `Player.save` lists the 16 equipment slots of `myEquips` in order (two weapon sets of main and off
 hand, then helmet, hood, shirt, vest, backpack, belt, pants, leg armor, gloves, cloak, socks and footwear;
 `gml_Object_obj_player_Create_0`), with `actives` naming the weapon set in hand. A two-handed melee weapon is saved in its off-hand slot as
@@ -422,9 +535,10 @@ Alarm_3) are recognised and not read as another departure.
 The base is the game's own map (land, water, slopes, big boulders; drawn when the zone was generated, so later changes such as the hut are
 overlays). Markers come from the zone folder: `Solids.save` (buildings, entrances with their `transPoint`, boulders and ruins with real
 sprite bounds), `Beings.save`, `Containers.save`, `Stations.save`, `Interactables.save` (rifts), `Trees.save` (loaded only when trees,
-brambles or rift vines are switched on), `NatureData.tmap` for thorny ground and `Water1.tmap` / `Ygrid.save` for the water overlay.
-Interiors (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn from their
-`Data`/`Lower`/`OnLower`/`Water1` layers.
+brambles or rift vines are switched on), `NatureData.tmap` for thorny ground, `Hinderance.tmap` and `LootData.tmap` for gatherables (loaded
+only when one is switched on, in interiors too; `Hinderance.tmap` alone for the fern overlay) and `Water1.tmap` / `Ygrid.save` for the water
+overlay. Interiors (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn
+from their `Data`/`Lower`/`OnLower`/`Water1` layers.
 
 ## Development
 

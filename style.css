@@ -177,6 +177,56 @@ select {
   font-size: 12px;
   color: var(--muted);
 }
+/* A letter badge after a world's name, explained by its tooltip and the text beside it. */
+.badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  text-decoration: none;
+  vertical-align: 1px;
+  cursor: help;
+}
+.badge-share {
+  background: #7fb8ff;
+  color: #10131a;
+}
+/* Modal questions (src/dialog.ts). The content fills the dialog, so a click on the dialog itself is a click on the backdrop. */
+.dialog {
+  width: min(460px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--gold2);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+}
+.dialog::backdrop {
+  background: rgba(10, 7, 8, .7);
+}
+.dialog-content {
+  padding: 16px 18px;
+}
+.dialog h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: var(--gold);
+}
+.dialog p {
+  margin: 0 0 10px;
+}
+.dialog-actions {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.dialog .button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
 .viewing {
   padding: 6px 0;
   color: var(--gold);
@@ -972,6 +1022,85 @@ body.loaded main {
 
 .summary {
   margin: 0 0 10px;
+}
+
+/* Time and weather (skyview.ts) */
+.sky {
+  margin: -4px 0 10px;
+}
+.sky-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 3px;
+}
+.sky-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+.sky-row > .sky-icon {
+  margin-top: -.5px;
+}
+.sky-temp {
+  white-space: nowrap;
+}
+.sky-temp .sky-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 2px;
+  vertical-align: -3px;
+}
+.sky-note {
+  margin: 0 0 0 26px;
+  font-size: 12px;
+}
+/* Rain balance −1…1: dry spell (left) to wet spell (right), the mark showing where it is and which way it moves. */
+.balance-meter {
+  position: relative;
+  display: inline-block;
+  width: 64px;
+  height: 6px;
+  margin: 0 4px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #f5a430, #5b4c4e 50%, #42bfe8);
+  vertical-align: middle;
+}
+.balance-mark {
+  position: absolute;
+  top: -3px;
+  width: 4px;
+  height: 12px;
+  margin-left: -2px;
+  border: 1px solid #120e0f;
+  border-radius: 2px;
+  background: var(--gold);
+}
+.balance-mark.up::after,
+.balance-mark.down::after {
+  position: absolute;
+  top: 1px;
+  color: var(--gold);
+  font-size: 9px;
+  line-height: 8px;
+}
+.balance-mark.up::after {
+  content: "▸";
+  left: 4px;
+}
+.balance-mark.down::after {
+  content: "◂";
+  right: 4px;
+}
+/* The clock and weather at a glance: only on the full-screen map, where the world summary is out of sight. */
+.sky-chip {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+body.map-full .sky-chip {
+  display: inline-flex;
 }
 
 /* World grid */
@@ -1911,8 +2040,22 @@ body.map-full #zone > .inspection.sheet > .close {
   fill: var(--gold);
 }
 .pt.creature > :not(text) {
+  stroke-width: .9px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+/* Every creature icon is the same red, so the layer reads at a glance; the silhouette tells the kind. */
+.creature .creature-body {
   fill: #e06060;
-  stroke-width: 1px;
+}
+.pt.creature > .creature-detail {
+  fill: none;
+  stroke-width: .65px;
+  stroke-opacity: .7;
+}
+.pt.creature > .creature-eye {
+  fill: #ffe27a;
+  stroke-width: 0;
 }
 .pt.loot > :not(text) {
   fill: #f0b44c;
@@ -1996,6 +2139,67 @@ body.map-full #zone > .inspection.sheet > .close {
 .lists .sym.bramble.vine {
   background: #eb6eaa;
 }
+/* Gatherables: each part is coloured by its role, each kind by --leaf, --fruit and --root. */
+.pt.gather > :not(text) {
+  stroke: #120e0f;
+  stroke-width: .9px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.gather .g-leaf {
+  fill: var(--leaf);
+}
+.gather .g-fruit {
+  fill: var(--fruit);
+}
+.gather .g-root {
+  fill: var(--root);
+}
+.pt.gather > .g-detail {
+  fill: none;
+  stroke: var(--detail, #120e0f);
+  stroke-width: .65px;
+  stroke-opacity: .65;
+}
+/* Young cranberries have no berries yet, and searched nests no eggs. */
+.gather.unripe .g-fruit,
+.gather.empty .g-fruit {
+  display: none;
+}
+/* Colours picked by Astra with the icons. */
+.gather.calmia {
+  --leaf: #71885e;
+  --fruit: #d992cf;
+  --root: #bb793e;
+}
+.gather.turnip {
+  --leaf: #a3ae61;
+  --fruit: #ead9c2;
+  --root: #bd8ba9;
+}
+.gather.cranberry {
+  --leaf: #578a76;
+  --fruit: #e36359;
+}
+.gather.cress {
+  --leaf: #a4af62;
+  --root: #9caf75;
+}
+.gather.lily {
+  --leaf: #8fa65a;
+  --fruit: #df90c6;
+  --root: #ebc56e;
+}
+.gather.bulb {
+  --leaf: #8ca384;
+  --fruit: #dce0c6;
+}
+.gather.nest {
+  --leaf: #af764c;
+  --fruit: #f1dfb8;
+  --root: #574031;
+  --detail: #eed0a0;
+}
 .freshness-tag {
   color: var(--life);
   font-weight: 600;
@@ -2062,6 +2266,14 @@ body.map-full #zone > .inspection.sheet > .close {
   stroke: #fff;
   stroke-width: 3px;
 }
+/* A creature's silhouette is too small to lose to the highlight, so it becomes a halo behind the fill. */
+.pt.creature.hl > .creature-body {
+  paint-order: stroke;
+}
+.pt.creature.hl > .creature-detail,
+.marks .pt.creature.sel.sel > .creature-detail {
+  stroke: #120e0f;
+}
 .marks .pt.sel.sel > :not(text) {
   stroke: #fff;
 }
@@ -2118,13 +2330,17 @@ body.map-full #zone > .inspection.sheet > .close {
   stroke: #fff;
   stroke-width: 2px;
 }
-/* Legend swatches for the water and sharp-ground overlays (see waterUrl and thornsUrl). */
+/* Legend swatches for the water, sharp-ground and fern overlays (see waterUrl, thornsUrl and fernsUrl). */
 .fp.water {
   fill: rgb(110, 180, 235);
   stroke: rgb(40, 110, 200);
 }
 .fp.sharp {
   fill: rgb(220, 220, 210);
+  stroke: none;
+}
+.fp.fern {
+  fill: rgb(150, 205, 60);
   stroke: none;
 }
 
@@ -2144,7 +2360,14 @@ svg.hide-rubble .L-rubble,
 svg.hide-rocks .L-rocks,
 svg.hide-trees .L-trees,
 svg.hide-brambles .L-brambles,
-svg.hide-vines .L-vines {
+svg.hide-vines .L-vines,
+svg.hide-calmia .L-calmia,
+svg.hide-turnips .L-turnips,
+svg.hide-cranberries .L-cranberries,
+svg.hide-watercress .L-watercress,
+svg.hide-lilies .L-lilies,
+svg.hide-bulbs .L-bulbs,
+svg.hide-nests .L-nests {
   display: none;
 }
 .hide-you .you-dot {
@@ -2153,15 +2376,6 @@ svg.hide-vines .L-vines {
 
 /* The Cheated mark (src/cheated.ts): a world changed with the save editor. */
 .badge-cheated {
-  display: inline-block;
-  min-width: 1.5em;
-  padding: 0 4px;
-  border: 1px solid #ff8a80;
-  border-radius: 3px;
-  color: #ff8a80;
-  font: 700 11px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
-  text-align: center;
-  text-decoration: none;
-  vertical-align: middle;
-  cursor: help;
+  background: #ff8a80;
+  color: #1b1516;
 }

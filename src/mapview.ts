@@ -227,7 +227,7 @@ const POINT: Record<string, (m: Mark) => SVGElement[]> = {
   entrance: () => [s("path", { d: "M-6 4 L0 -6 L6 4 Z" })],
   exit: () => [s("path", { d: "M-5 3 L0 -5 L5 3 Z" })],
   npc: () => [s("circle", { r: 5 })],
-  creature: () => [s("circle", { r: 3 })],
+  creature: (m) => creatureIcon(m.kind),
   loot: () => [s("rect", { x: -3.5, y: -3.5, width: 7, height: 7 })],
   carcass: () => [s("path", { d: "M-3 -3 L3 3 M3 -3 L-3 3" })],
   drop: () => [s("circle", { r: 2.5 })],
@@ -236,6 +236,7 @@ const POINT: Record<string, (m: Mark) => SVGElement[]> = {
   rift: () => [s("rect", { x: -4, y: -4, width: 8, height: 8, transform: "rotate(45)" })],
   tree: (m) => treeIcon(m.kind),
   bramble: () => [s("path", { d: "M-5 0 H5 M0 -5 V5 M-3.6 -3.6 L3.6 3.6 M3.6 -3.6 L-3.6 3.6" })],
+  gather: (m) => gatherIcon(m.kind),
 };
 /** Hand-drawn, game-shaped silhouettes in screen pixels; roots end at y=4. */
 const TREE_ICONS: Record<string, { wood?: string; crown: string; detail: string }> = {
@@ -272,6 +273,181 @@ export function treeIcon(kind: string): SVGElement[] {
     s("path", { class: "tree-detail", d: icon.detail }),
   ];
 }
+
+type GatherPart = [tag: "path" | "circle" | "ellipse", cls: "leaf" | "fruit" | "root" | "detail", attrs: Record<string, number | string>];
+
+/**
+ * Gatherables' symbols, centred on their tile, in screen pixels like the trees (drawn by Astra from the game's tiles
+ * and the wiki's item pictures). Each part is coloured by its class (style.css): leaf, fruit (the harvested part,
+ * hidden on young cranberries and searched nests), root and detail.
+ */
+const GATHER_ICONS: Record<string, GatherPart[]> = {
+  calmia: [
+    ["path", "root", { d: "M-1.7 -.3 Q1.5 -1.3 2.9 .9 Q4.5 3.6 .7 5.8 L-.8 6.2 L-.3 4.5 Q-3.6 4.8 -3.3 2 Q-3.3 .6 -1.7 -.3 Z" }],
+    ["path", "leaf", {
+      d: "M-1.4 1.5 Q-4.9 .9 -4.9 -1.6 Q-2.8 -2.2 -1 -.3 L-1.8 -3.5 L-.9 -3.8 L.1 -.7 L1.8 -4.3 L2.6 -3.9 L1.3 -.8 Q3 -2.2 4.6 -1.3 Q4.1 1.1 1.2 1.4 Z",
+    }],
+    ["path", "fruit", {
+      d: "M-4.8 -3.1 Q-5.7 -4.8 -3.8 -4.9 Q-3.3 -6.4 -2.2 -5.4 Q-.4 -5.8 -.5 -4.1 Q.3 -2.8 -1.3 -2.3 Q-2.3 -.9 -3.2 -2.3 Q-4.7 -1.7 -4.8 -3.1 Z",
+    }],
+    ["path", "fruit", {
+      d: "M.7 -4.1 Q-.1 -5.6 1.5 -5.7 Q2.1 -6.5 3 -5.7 Q4.8 -5.9 4.6 -4.5 Q5.3 -3 3.7 -2.7 Q2.8 -1.6 1.9 -2.7 Q.5 -2.3 .7 -4.1 Z",
+    }],
+  ],
+  turnip: [
+    ["path", "fruit", { d: "M-3.6 -.5 Q-.2 -1.9 3.5 -.5 Q4.5 2.4 .9 4.6 L-.2 6.2 L-.8 4.7 Q-4.6 2.7 -3.6 -.5 Z" }],
+    ["path", "root", { d: "M-3.6 -.5 Q-.2 -1.9 3.5 -.5 L3.7 .8 Q2.1 1.6 .1 .7 Q-1.9 1.6 -3.8 .7 Z" }],
+    ["path", "leaf", {
+      d: "M-.9 -.3 L-1.5 -2 Q-4.7 -2.7 -4.8 -5.1 Q-2.1 -5.9 -.7 -3.1 L-.7 -5.6 L1 -6 L1.1 -2.6 Q2.3 -5.1 4.8 -4.8 Q4.8 -2.1 1.2 -1.3 L.8 -.3 Z",
+    }],
+  ],
+  cranberry: [
+    ["path", "leaf", {
+      d: "M-6.1 1.6 Q-6.2 -1.5 -3.4 -2.8 Q-1.9 -3.1 -1.2 -1.5 Q-.4 -4.4 2.1 -3.8 Q3.4 -2.9 2.7 -1.1 Q5.4 -2.4 6.1 .2 Q5.6 3.1 2.9 2.9 Q.5 4.8 -1.3 3 Q-4.2 4 -6.1 1.6 Z",
+    }],
+    ["circle", "fruit", { cx: -3.2, cy: .3, r: 1.15 }],
+    ["circle", "fruit", { cx: .3, cy: 1.7, r: 1.15 }],
+    ["circle", "fruit", { cx: 3.5, cy: .2, r: 1.15 }],
+  ],
+  cress: [
+    ["path", "root", {
+      d: "M-.8 5.5 L-.4 3 L-3.5 3.4 L-3.6 2.5 L-.3 2.1 L-.1 .4 L-3.9 -1.2 L-3.5 -2 L0 -.7 L-.3 -4.3 L.5 -4.4 L.9 -.3 L3.4 -1.6 L3.8 -.8 L.9 .7 L.5 3.1 L2.9 3 L3 3.9 L.4 4 L.1 5.6 Z",
+    }],
+    ["circle", "leaf", { cx: .1, cy: -4.3, r: 1.65 }],
+    ["circle", "leaf", { cx: -3.6, cy: -1.8, r: 1.75 }],
+    ["circle", "leaf", { cx: 3.6, cy: -1, r: 1.8 }],
+    ["circle", "leaf", { cx: -3.2, cy: 2.8, r: 1.9 }],
+    ["circle", "leaf", { cx: 2.6, cy: 3.8, r: 1.8 }],
+  ],
+  lily: [
+    ["path", "leaf", { d: "M.3 .9 L4.9 -2.9 C2.5 -5.2 -2.6 -4.4 -4.7 -2 C-7.3 .9 -5.7 4.9 -1.7 5.7 C1.7 6.3 5.6 4.3 5.9 1 L.3 .9 Z" }],
+    ["path", "fruit", {
+      d: "M-3.4 -.8 Q-5 -2.1 -4.5 -4.2 Q-3 -4.5 -2.1 -3.4 L-1.1 -5.9 Q.7 -5.2 1 -3.5 Q2.6 -4.3 3.3 -3.1 Q3.4 -1.3 1.5 -.6 Q-.8 1 -3.4 -.8 Z",
+    }],
+    ["ellipse", "root", { cx: -.8, cy: -1.7, rx: .95, ry: .8 }],
+  ],
+  bulb: [
+    ["path", "leaf", { d: "M-3.8 .1 L-1.7 .1 L-1.4 3.5 L-.5 4.8 L-3.6 4.9 L-3.2 3 Z M1.4 1.8 L3.4 1.7 L3.3 4 L4.4 4.8 L1.1 5 L1.7 3.7 Z" }],
+    ["path", "fruit", { d: "M-5.7 .5 C-5.6 -2.6 -4.3 -5.8 -2.8 -5.8 C-1 -5.8 .2 -2.8 .2 -.2 Q.3 1 -1.3 1 L-4.2 1.1 Q-5.4 1.5 -5.7 .5 Z" }],
+    ["path", "fruit", { d: "M.2 2 C-.2 -.1 1.2 -3.4 3 -3.4 C4.7 -3.4 5.9 -1.1 5.6 1.5 Q5.4 2.5 3.5 2.5 L1.3 2.7 Q.4 2.7 .2 2 Z" }],
+  ],
+  nest: [
+    ["path", "leaf", {
+      d: "M-6.1 -1.1 L-4.6 -2 L-5.2 -3.1 L-2.8 -2.7 Q.3 -4.2 3.6 -2.6 L5.9 -3.1 L5.2 -1.4 L6.2 -.6 Q6.2 3.7 2.2 5.1 Q-2.4 6 -5.4 2.7 Z",
+    }],
+    ["ellipse", "root", { cx: 0, cy: -1, rx: 4.8, ry: 2.2 }],
+    ["path", "fruit", { d: "M-3.9 -.4 C-4.4 -2.2 -3.7 -5 -2.1 -5 C-.7 -4.8 .1 -2.2 -.6 -.7 Q-1.7 .8 -3.9 -.4 Z" }],
+    ["path", "fruit", { d: "M.3 -.5 C-.1 -1.9 1.1 -4.1 2.3 -4 C3.6 -3.6 4.3 -1.5 3.5 -.3 Q2.1 .8 .3 -.5 Z" }],
+    ["path", "leaf", { d: "M-5.7 -.2 Q.1 2.1 5.8 -.5 Q5.2 3.3 1.8 4.6 Q-2.3 5.1 -5.2 2.3 Z" }],
+    ["path", "detail", { d: "M-4.5 .8 Q-1.2 3.2 2.8 3 M-2.2 3.5 Q1.1 1.8 4.5 1.1" }],
+  ],
+};
+
+/** Shared by map markers, list rows and the legend; the kind's second word picks the plant. */
+export function gatherIcon(kind: string): SVGElement[] {
+  return (GATHER_ICONS[kind.split(" ")[1]] ?? GATHER_ICONS.calmia).map(([tag, cls, attrs]) => s(tag, { class: `g-${cls}`, ...attrs }));
+}
+
+/**
+ * Creature silhouettes by icon family (`CREATURE_ICON` in objects.ts), in screen pixels centred on where the creature
+ * stands, within ±7.5: a filled body, optional inner detail strokes and optional glowing eyes.
+ */
+export const CREATURE_ICONS: Record<string, { body: string; detail?: string; eye?: string }> = {
+  fly: {
+    body:
+      "M-1 -1 Q-5 0 -6.5 -5 Q-7 -7 -5 -6.5 Q-2 -5 -1 -1 Z M1 -1 Q2 -5 5 -6.5 Q7 -7 6.5 -5 Q5 0 1 -1 Z M-2 -1 Q0 -2.5 2 -1 L2.5 1 L5 2.5 L4.5 4 L2 2.5 L1.5 4 L3 5.5 L2 6.5 L0 5 L-2 6.5 L-3 5.5 L-1.5 4 L-2 2.5 L-4.5 4 L-5 2.5 L-2.5 1 Z",
+    detail: "M-5 -5 L-2.5 -2.5 M5 -5 L2.5 -2.5 M-1 3 L1 3",
+    eye: "M-1.5 -.5 L-.5 -.5 L-.5 .5 L-1.5 .5 Z M.5 -.5 L1.5 -.5 L1.5 .5 L.5 .5 Z",
+  },
+  louse: {
+    body:
+      "M-6 1 L-7 .5 L-6.5 -1 L-5.5 -1.5 Q-5.5 -4 -3 -4.5 L-2.5 -5.5 L-1 -5 Q2 -5 3.5 -2 L5 -2.5 L6.5 -1 L6 1 L6.5 2 L5 2.5 L5 4 L3.5 4 L3 2.5 L1.5 3 L1 4.5 L-.5 4.5 L-1 3 L-2.5 3 L-3 4 L-4.5 3.5 L-4 2 L-5 2 L-6 3 L-7 2 Z",
+    detail: "M-3 -3.5 Q-4 -1.5 -3 1 M-.5 -3.5 Q-1.5 -1 -.5 1.5 M2 -1.5 L2.5 .5",
+    eye: "M4 -.5 L5 -.5 L5 .5 L4 .5 Z",
+  },
+  sceetler: {
+    body:
+      "M1 1 Q2 -1 -.5 -2.5 Q-4 -3.5 -4 -5 Q-4 -6.5 -1.5 -6.5 Q1 -6.5 1.5 -5 L.5 -3.5 L-1 -4 L-.5 -5 Q-2 -5.5 -2.5 -4.5 Q-2 -3.5 .5 -3 Q3.5 -2.5 3 1 L5 1.5 L6 6.5 L4.5 6.5 L3.5 3 L1 2.5 L1 6 L-.5 6 L-.5 2.5 L-3.5 2 L-4.5 6.5 L-6 6 L-5 0 L-2 .5 Q-1 -1 1 1 Z",
+    detail: "M-3.3 -5.4 L-2.8 -5 M.2 -2.1 L.9 -2.8 M1.8 -.1 L2.6 -.4",
+    eye: "M0 -5 L.8 -4.8 L.4 -4 L-.4 -4.2 Z",
+  },
+  crab: {
+    body:
+      "M-4 0 L-5 -.5 Q-7 -1 -7 -3.5 L-6 -4.5 L-5.5 -2.5 L-4.5 -4 L-3.5 -3 L-4 -1.5 Q0 -3 4 -1.5 L3.5 -3 L4.5 -4 L5.5 -2.5 L6 -4.5 L7 -3.5 Q7 -1 5 -.5 L4 0 L6.5 1 L6.5 2.5 L4 1.5 L3 2.5 L5.5 3.5 L4.5 4.5 L2 3 L1 3.5 L-1 3.5 L-2 3 L-4.5 4.5 L-5.5 3.5 L-3 2.5 L-4 1.5 L-6.5 2.5 L-6.5 1 Z",
+    detail: "M-3 .5 Q0 -1 3 .5 M-2 2 Q0 2.5 2 2",
+    eye: "M-.8 -.5 Q0 -1.2 .8 -.5 L.8 .5 Q0 1.2 -.8 .5 Z",
+  },
+  nightmare: {
+    body:
+      "M-2.5 -7 L-1 -7 -.5 -5.5 .5 -5.5 1 -7 2.5 -7 2.5 -5 5.5 -6 6.5 -4.5 2.5 -3.5 1 -3 2 -2.5 6.5 -3 7 -1.5 2 -1 1 -.5 2 0 7 0 7 1.5 2 1.5 1 2 2 2.5 6.5 3 6 4.5 2 4 1 4.5 1.5 5 4.5 5.5 3.5 7 1 6.5 Q0 7 -1 6.5 L-3.5 7 -4.5 5.5 -1.5 5 -1 4.5 -2 4 -6 4.5 -6.5 3 -2 2.5 -1 2 -2 1.5 -7 1.5 -7 0 -2 0 -1 -.5 -2 -1 -7 -1.5 -6.5 -3 -2 -2.5 -1 -3 -2.5 -3.5 -6.5 -4.5 -5.5 -6 -2.5 -5 Z",
+    eye: "M-1.5 -5 L-.5 -5 -.5 -4 -1.5 -4 Z M.5 -5 L1.5 -5 1.5 -4 .5 -4 Z",
+  },
+  snake: {
+    body:
+      "M-5.5 6 C-3 5 -1 4.5 -1 3 C-1 1 -5 1 -5 -2 C-5 -5 -2 -6 0 -5.5 L1 -6.5 Q4 -7 6 -5.5 L6 -3.5 Q4.5 -2 2 -3 L.5 -4 C-1.5 -4.5 -3 -4 -3 -2.5 C-3 -.5 1.5 -.5 1.5 2.5 C1.5 5.5 -2.5 6.5 -5.5 6 Z",
+    detail: "M3 -3.5 L5.5 -4 M-3.5 -2 Q-3.5 0 -.5 1.5 Q1 3 -.5 4.5",
+    eye: "M3.5 -5.5 L5 -5.5 L4.5 -4.5 L3.5 -4.5 Z",
+  },
+  slug: {
+    body:
+      "M-6.5 4 C-4 3 -5 -1 -1.5 -1 Q.5 -1 2 .5 L2 -2 L1 -3.5 Q1 -4.5 2.5 -4.5 Q4 -4 3 -2.5 L3.5 0 L4 -.5 L4.5 -3 Q4 -4.5 5.5 -4.5 Q7 -4 6 -2.5 L5.5 .5 Q7 1.5 6.5 3.5 Q1 5 -6.5 4 Z",
+    detail: "M-2.5 0 Q-1 2 2 2.5 M-3.5 3 Q0 4 4.5 3",
+    eye: "M1.5 -4 L2.5 -4 L2.5 -3 L1.5 -3 Z M5 -4 L6 -4 L6 -3 L5 -3 Z",
+  },
+  fish: {
+    body:
+      "M-3 -1.5 L-6.5 -4 L-4.5 0 L-6.5 4 L-3 1.5 Q-1.5 3 .5 3.5 L2 5 L3 2.5 Q5.5 2 6.5 .5 Q5.5 -1.5 3.5 -2 Q2 -2.5 1 -2.5 L-.5 -5.5 Q-2 -4.5 -2 -2.5 Z",
+    detail: "M2 -1 Q1 0 2 2 M-4 -1 L-3.5 0 L-4 1 M0 1 L-1.5 1.5",
+    eye: "M4 -.5 L5 .5 L4.5 1.5 L3.5 .5 Z",
+  },
+  rodent: {
+    body:
+      "M-5 .5 C-5 -2 -3.5 -3.5 -2 -3.5 C0 -3.5 1 -2.5 2 -2.5 Q4 -2 7 .5 L3 2 L3 3.5 L1.5 3.5 L1.5 2.5 Q0 3 -1.5 2.5 L-1 3.5 L-2.5 3.5 L-3 2.5 L-4.5 2 C-6 2.5 -6 3.5 -4.5 4 Q-4 4.5 -3.5 4 L-3.5 5.5 Q-5 5.5 -6 4.5 Q-7 4 -7 2.5 Q-7 1 -5 .5 Z M2 -2.5 C2 -3.5 3.5 -3.5 3.5 -2.5 C3.5 -1.5 2 -1.5 2 -2.5 Z",
+    eye: "M4.5 -.5 L5 0 L4.5 .5 L4 0 Z",
+  },
+  troll: {
+    body:
+      "M-7 3.5 L-6.5 -1 Q-6.5 -4 -3.5 -6.5 Q-1 -7 0 -4.5 Q2 -6 4.5 -4.5 L6.5 -5 L6 -2.5 L5 -1.5 Q5 0 5.5 1.5 L6.5 4.5 Q5 5.5 3.5 4.5 L3 1.5 Q3 3 2 4 L3 5.5 H4 V7 H.5 L-.5 4.5 H-1.5 L-2 7 H-5 L-4 3.5 L-4.5 1 V4.5 Q-6 5 -7 3.5 Z",
+    detail: "M0 -3.5 L-2 -5 L-1.5 -2.5 Q-1 0 1.5 .5 Q4 .5 4.5 -1.5 M1.5 -1 H3.5 M-1.5 1.5 Q0 3.5 1.5 2.5 M-4 -3 Q-5 -1 -5 .5",
+    eye: "M.5 -3.5 L2 -3 V-2 H.5 Z M3 -3 L4.5 -3.5 V-2 H3 Z",
+  },
+  toad: {
+    body:
+      "M-6.5 -6.5 L-5 -6.5 L-4 6.5 H-5.5 Z M-2 -3.5 Q-2.5 -6 -.5 -6 Q1 -6 1 -4.5 H3 Q3 -6.5 4.5 -6 Q6 -5.5 5 -3.5 L5 -2 Q4.5 -1 3.5 -.5 Q5 .5 4.5 2 L6.5 3.5 L6 6 L3 6.5 L3 5 L4.5 4.5 L3 3.5 Q1.5 5 -1 3.5 L-2.5 4.5 L-1 5 L-1 6.5 L-4 6 L-4.5 3.5 L-3 2 Q-3.5 1 -2.5 0 L-5 0 L-5 -1.5 L-2 -2 L-2.5 -3 Z",
+    detail: "M-1 -2.5 Q1.5 -1.5 4 -2.5 M-.5 .5 Q-1 3 1 3 Q3 3 3.5 1",
+    eye: "M-.8 -5 H.4 V-3.8 H-.8 Z M3.6 -5 H4.8 V-3.8 H3.6 Z",
+  },
+  scaalmyr: {
+    body:
+      "M-2 -3 L-2.5 -4.5 L-4.5 -5.5 L-4 -6.5 L-3 -6 L-3 -7 L-1.5 -7 L-1.5 -5.5 L-.5 -4.5 H.5 L1.5 -5.5 L1.5 -7 H3 L3 -6 L4 -6.5 L4.5 -5.5 L2.5 -4.5 L2 -3 L1.5 -2 Q3 -1 3.5 .5 L4.5 4 L3 4.5 L2.5 1 L1.5 .5 L1 2.5 L2.5 6.5 H.5 L0 3.5 L-.5 6.5 H-2.5 L-1 2.5 L-1.5 .5 L-2.5 1 L-3 4.5 L-4.5 4 L-3.5 .5 Q-3 -1 -1.5 -2 Z",
+    detail: "M-1 -.5 H1 M-1 1 H1",
+    eye: "M-1.5 -3.5 H-.5 V-2.5 H-1.5 Z M.5 -3.5 H1.5 V-2.5 H.5 Z",
+  },
+  scaal: {
+    body:
+      "M0 -7 Q3.5 -6.5 4.5 -4 Q6 -2 4.5 .5 Q6 1.5 6.5 4.5 Q6 5.5 5 5 Q5 3 3.5 2.5 L3 3.5 Q2.5 5 3.5 6.5 L2 7 Q.5 5.5 1.5 3.5 H-1.5 Q-.5 5.5 -2 7 L-3.5 6.5 Q-2.5 5 -3 3.5 L-3.5 2.5 Q-5 3 -5 5 Q-6 5.5 -6.5 4.5 Q-6 1.5 -4.5 .5 Q-6 -2 -4.5 -4 Q-3.5 -6.5 0 -7 Z",
+    detail: "M0 -5.5 Q-1 -3.5 0 -.5 M-1.5 2.5 Q0 1.5 1.5 2.5",
+    eye:
+      "M-2.7 -3.5 H-1.5 V-2.4 H-2.7 Z M1.5 -3.5 H2.7 V-2.4 H1.5 Z M-3.8 -1.5 H-2.6 V-.4 H-3.8 Z M2.6 -1.5 H3.8 V-.4 H2.6 Z M-2.1 .5 H-.9 V1.6 H-2.1 Z M.9 .5 H2.1 V1.6 H.9 Z",
+  },
+  unwanted: {
+    body:
+      "M2 -5 Q4 -3.5 3.5 -1 L4.5 1 V4 L3 4.5 L2.5 3 V1 L1 .5 L1.5 2 H.5 L1 3 L3.5 5 L6 5.5 L5.5 7 H2.5 L0 4.5 L-1 3.5 L-2.5 4.5 L-2 5.5 L0 6 L-.5 7 H-3.5 L-4 4 L-2.5 2.5 H-3 L-2.5 1 L-3 .5 L-2 -1 L-4 .5 L-5 3 L-5.5 4.5 L-7 4 L-6.5 2.5 L-5.5 -.5 L-4 -2 L-5 -2.5 L-5.5 -4 L-4.5 -4.5 L-6 -5 L-4.5 -5.5 V-6.5 L-3 -5.5 L-2 -7 L-1.5 -5.5 L0 -6 L-.5 -4.5 L.5 -4 Z",
+    detail: "M1 -3.5 Q2 -2.5 2 -1.5 M-1 .5 L0 1.5",
+    eye: "M-4.5 -4 H-3.5 V-3 H-4.5 Z M-2.5 -3.5 H-1.5 V-2.5 H-2.5 Z",
+  },
+};
+
+/** A creature's map symbol by its kind ("creature fly"); a plain dot for a being without an icon. */
+export function creatureIcon(kind: string): SVGElement[] {
+  const icon = CREATURE_ICONS[kind.split(" ")[1]];
+  if (!icon) return [s("circle", { class: "creature-body", r: 3 })];
+  return [
+    s("path", { class: "creature-body", d: icon.body }),
+    ...(icon.detail ? [s("path", { class: "creature-detail", d: icon.detail })] : []),
+    ...(icon.eye ? [s("path", { class: "creature-eye", d: icon.eye })] : []),
+  ];
+}
 /** A simple player pictogram, coloured by the character's hair (--hair). Origin is the torso, shoulders end at y=4. */
 export function personIcon(): SVGElement[] {
   const d = "M0 -8.5 A3 3 0 1 1 0 -2.5 A3 3 0 1 1 0 -8.5 Z M-5.5 4 A5.5 4.5 0 0 1 5.5 4 Z";
@@ -284,12 +460,12 @@ export const personSvg = () =>
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
 
 /**
- * A mark kind's map symbol as a small inline icon, for list rows and the legend. Footprint-only kinds, and the "water"
- * and "sharp" ground overlays, are drawn as a swatch.
+ * A mark kind's map symbol as a small inline icon, for list rows and the legend. Footprint-only kinds, and the "water",
+ * "sharp" and "fern" ground overlays, are drawn as a swatch.
  */
 export function markIcon(kind: string): SVGElement {
   const k = kind.split(" ")[0];
-  const swatch = FOOTPRINT_ONLY.has(k) || k === "water" || k === "sharp";
+  const swatch = FOOTPRINT_ONLY.has(k) || k === "water" || k === "sharp" || k === "fern";
   return s(
     "svg",
     { class: "sym-icon", viewBox: k === "tree" || k === "you" ? "-8 -11 16 16" : "-8 -8 16 16", "aria-hidden": "true" },

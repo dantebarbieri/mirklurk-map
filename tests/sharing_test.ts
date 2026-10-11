@@ -299,6 +299,41 @@ Deno.test("sharing service: share keys are read-only, never sync keys, and reset
     for (const key of [sync, info.share, fresh.share]) assert(!stored.some((text) => text.includes(key)), "a key was stored");
   }));
 
+Deno.test("sharing service: a world whose MirkMap.ini says from_share is listed as From Share, read again on every upload", () =>
+  withStore(async (ctx) => {
+    const sync = newToken();
+    const marked = (marker?: string) => {
+      const files = fixture();
+      if (marker !== undefined) files.set("Saves/Hero/MirkMap.ini", { read: () => Promise.resolve(encode(marker)) });
+      return packSave(files, { name: "Hero", root: "Saves/Hero/" });
+    };
+    const put = async (marker?: string) => {
+      const response = await ctx.request("PUT", `/library/worlds/${await idOf()}`, { key: sync, body: await marked(marker) as BodyInit });
+      ctx.advance(SHARE_INTERVAL);
+      return response;
+    };
+    const fromShare = "; from a share\r\n[MirkMap]\r\nFrom_Share=1\r\ncheated=1\r\n";
+    const added = await put(fromShare);
+    assertEquals(added.status, 201);
+    const info = await added.json();
+    assertEquals(info.fromShare, true);
+    assertEquals((await ctx.list(sync)).worlds, [info]);
+    // The marker travels in the package unchanged.
+    const data = await ctx.request("GET", `/library/worlds/${info.id}/data`, { key: sync });
+    assertEquals([...new Uint8Array(await data.arrayBuffer())], [...await marked(fromShare)]);
+    await ctx.restart();
+    assertEquals((await ctx.list(sync)).worlds[0].fromShare, true);
+    const reset = await (await ctx.request("POST", `/library/worlds/${info.id}/share`, { key: sync })).json();
+    assertEquals(reset.fromShare, true);
+
+    for (const marker of [undefined, "[MirkMap]\r\nfrom_share=0\r\n", "[Other]\r\nfrom_share=1\r\n"]) {
+      const updated = await put(marker);
+      assertEquals(updated.status, 200);
+      assertEquals("fromShare" in await updated.json(), false, String(marker));
+    }
+    assertEquals("fromShare" in (await ctx.list(sync)).worlds[0], false);
+  }));
+
 Deno.test("sharing service: five worlds per library; updates bypass it; a mismatched update changes nothing", () =>
   withStore(async (ctx) => {
     const sync = newToken();

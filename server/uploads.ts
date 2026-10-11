@@ -19,6 +19,7 @@ import {
   worldId,
   type WorldInfo,
 } from "../src/sharing-format.ts";
+import { isFromShare } from "../src/marker.ts";
 import { isCheated, withCheatedMarker } from "../src/cheated.ts";
 
 /** One stored world. Keys are never stored: a library is its sync key's hash, a share link its share key's hash. */
@@ -36,6 +37,8 @@ interface WorldRecord {
   /** The share key derives from the sync key and this salt; a new salt revokes the old share link. */
   salt: string;
   view: string;
+  /** The package's MirkMap.ini says from_share=1; read again on every upload. */
+  fromShare?: true;
   /** Edited with the save editor (src/cheated.ts); the stored package always carries the mark in its MirkMap.ini. */
   cheated?: true;
 }
@@ -297,7 +300,7 @@ export class UploadStore {
   }
 
   private async info(record: WorldRecord, sync: string): Promise<WorldInfo> {
-    const { id, name, created, updated, expires, version, size, cheated } = record;
+    const { id, name, created, updated, expires, version, size, fromShare, cheated } = record;
     return {
       id,
       name,
@@ -307,6 +310,7 @@ export class UploadStore {
       version,
       size,
       share: await shareKey(sync, record.salt),
+      ...(fromShare ? { fromShare } : {}),
       ...(cheated ? { cheated } : {}),
     };
   }
@@ -575,6 +579,7 @@ export class UploadStore {
         size: stored.length,
         salt,
         view: record?.view ?? await shareId(await shareKey(sync, salt)),
+        ...(await isFromShare(unpacked.files, "Shared/") ? { fromShare: true as const } : {}),
         ...(cheated ? { cheated: true as const } : {}),
       };
       await this.store(next, stored);

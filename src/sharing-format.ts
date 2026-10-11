@@ -26,6 +26,8 @@ export interface WorldInfo {
   version: string;
   size: number;
   share: string;
+  /** Its MirkMap.ini says it was downloaded from a share link; sent only when true. */
+  fromShare?: true;
   /** Edited with the save editor at some point (src/cheated.ts); sent only when true, and never cleared. */
   cheated?: true;
 }
