@@ -217,7 +217,6 @@ export const CREATURE_ICON: Record<number, string> = {
   15: "scaalmyr", // Warrior
   16: "scaalmyr", // Geomancer
   22: "scaal",
-  9: "unwanted", // Dead Unwanted
   31: "unwanted", // Raving Unwanted
   32: "unwanted", // Mutated Unwanted
 };
