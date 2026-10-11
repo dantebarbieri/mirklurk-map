@@ -11,6 +11,7 @@ import {
   worldId,
   type WorldInfo,
 } from "../src/sharing-format.ts";
+import { readZip } from "../src/zip.ts";
 import { assert, assertEquals } from "./assert.ts";
 
 const storageKey = "mirklurk-library-v1";
@@ -37,14 +38,24 @@ async function world(name = "Hero", version = "v1", updated = Date.now()): Promi
   };
 }
 
+/** Where focus() reports to; set by the BrowserStub in use. */
+let focusing: ((element: ElementStub) => void) | undefined;
+/** Disabling the focused element moves focus away from it, as browsers do. */
+let blurring: ((element: ElementStub) => void) | undefined;
+
 /** Only the DOM surface used by Sharing; events still use real EventTarget dispatch. */
 class ElementStub extends EventTarget {
   children: (ElementStub | string)[] = [];
-  disabled = false;
+  parent?: ElementStub;
+  readonly attributes = new Map<string, string>();
+  private off = false;
   checked = false;
   hidden = false;
   open = false;
   value = "";
+  returnValue = "";
+  download?: string;
+  href?: string;
   private text = "";
   private classes = new Set<string>();
   classList = {
@@ -54,6 +65,13 @@ class ElementStub extends EventTarget {
   constructor(readonly tag = "div") {
     super();
   }
+  get disabled() {
+    return this.off;
+  }
+  set disabled(value: boolean) {
+    this.off = value;
+    if (value) blurring?.(this);
+  }
   get textContent(): string {
     return this.text + this.children.map((c) => typeof c === "string" ? c : c.textContent).join("");
   }
@@ -62,11 +80,13 @@ class ElementStub extends EventTarget {
     this.children = [];
   }
   setAttribute(name: string, value: string) {
+    this.attributes.set(name, value);
     if (name === "disabled") this.disabled = true;
     if (name === "hidden") this.hidden = true;
     if (name === "value") this.value = value;
   }
   append(child: ElementStub | string) {
+    if (typeof child !== "string") child.parent = this;
     this.children.push(child);
   }
   replaceChildren(...children: ElementStub[]) {
@@ -76,7 +96,29 @@ class ElementStub extends EventTarget {
   click() {
     if (!this.disabled) this.dispatchEvent(new Event("click"));
   }
+  remove() {
+    if (this.parent) this.parent.children = this.parent.children.filter((c) => c !== this);
+    this.parent = undefined;
+  }
   select() {}
+  focus() {
+    focusing?.(this);
+  }
+  /** A native modal <dialog>: open, with focus on its autofocus control. */
+  showModal() {
+    this.open = true;
+    this.find((e) => e.attributes.has("autofocus"))?.focus();
+  }
+  close(value?: string) {
+    if (!this.open) return;
+    this.open = false;
+    if (value !== undefined) this.returnValue = value;
+    this.dispatchEvent(new Event("close"));
+  }
+  /** What Escape does to an open modal dialog. */
+  escape() {
+    if (this.dispatchEvent(new Event("cancel", { cancelable: true }))) this.close();
+  }
   find(match: (element: ElementStub) => boolean): ElementStub | undefined {
     if (match(this)) return this;
     for (const child of this.children) {
@@ -115,13 +157,24 @@ class BrowserStub {
   private timers: (() => void)[] = [];
   private listeners = new Map<string, () => void>();
   readonly storage = new Map<string, string>();
+  /** The page body: download links and dialogs are appended here. */
+  readonly body = new ElementStub("body");
   readonly document = {
     hidden: false,
-    activeElement: undefined,
+    activeElement: undefined as ElementStub | undefined,
     querySelector: (selector: string) => this.el(selector),
     createElement: (tag: string) => new ElementStub(tag),
     createElementNS: (_namespace: string, tag: string) => new ElementStub(tag),
+    body: {
+      append: (element: ElementStub) => {
+        if (element.tag === "a") this.links.push(element);
+        this.body.append(element);
+      },
+    },
   };
+  /** Links handed to the browser to download, and the blobs behind their blob: URLs. */
+  readonly links: ElementStub[] = [];
+  readonly blobs = new Map<string, Blob>();
   readonly location = { origin: "https://map.example", pathname: "/", search: "", hash: "" };
   readonly requests: PendingRequest[] = [];
   readonly displays: { name: string; refresh: boolean }[] = [];
@@ -155,6 +208,18 @@ class BrowserStub {
       return this.confirmAnswer;
     });
     this.install(globalThis, "setInterval", (callback: () => void) => this.timers.push(callback));
+    focusing = (element) => this.document.activeElement = element;
+    blurring = (element) => this.document.activeElement === element && (this.document.activeElement = this.body);
+    this.restorations.push(() => focusing = blurring = undefined);
+    // Long timers (such as revoking a download's blob: URL) never fire in a test; short ones still settle promises.
+    const setTimeout = globalThis.setTimeout;
+    this.install(globalThis, "setTimeout", (callback: () => void, ms = 0) => ms >= 1000 ? 0 : setTimeout(callback, ms));
+    this.install(URL, "createObjectURL", (blob: Blob) => {
+      const url = `blob:${this.location.origin}/${this.blobs.size}`;
+      this.blobs.set(url, blob);
+      return url;
+    });
+    this.install(URL, "revokeObjectURL", () => {});
     this.install(globalThis, "addEventListener", (name: string, callback: () => void) => this.listeners.set(name, callback));
     this.install(AbortSignal, "timeout", () => new AbortController().signal);
     this.install(globalThis, "fetch", (path: string, init: RequestInit) => {
@@ -255,6 +320,18 @@ class BrowserStub {
     assertEquals(this.timers.length, 1);
     this.timers[0]();
     await this.settle();
+  }
+
+  /** Waits for packaging (file reads and compression) to hand the browser `count` downloads in all. */
+  async downloaded(count: number) {
+    for (let i = 0; i < 50 && this.links.length < count; i++) await this.settle();
+    assertEquals(this.links.length, count);
+    await this.settle();
+  }
+
+  /** The modal dialog on the page, if one is open. */
+  dialog(): ElementStub | undefined {
+    return this.body.children.find((e): e is ElementStub => typeof e !== "string" && e.tag === "dialog" && e.open);
   }
 
   async fire(event: string) {
@@ -453,6 +530,100 @@ Deno.test("sharing client: a share link follows one world read-only and never to
     { current: { key: keyA, name: "Mine" }, saved: [], auto: true },
     `#v=${linkKey(shareKey)}`,
   ));
+
+Deno.test("sharing client: a shared world downloads as a playable save marked From Share, after a warning dialog", () =>
+  withBrowser(
+    async (b) => {
+      await b.init();
+      assert(b.el("#download-world").disabled);
+      // The sharer's own MirkMap.ini keys (here a save editor's) survive the download.
+      const files = new Map(source().files);
+      files.set("Hero/MirkMap.ini", { read: () => Promise.resolve(new TextEncoder().encode("[MirkMap]\r\ncheated=1\r\n")) });
+      const packed = await packSave(files, { name: "Hero", root: "Hero/" });
+      await b.reply(await b.request("GET", "/view/data"), new Response(packed as BodyInit, { headers: { ETag: '"v1"' } }));
+      assert(!b.el("#download-world").disabled);
+
+      // A modal dialog asks first: focus moves into it, and Escape declines and puts focus back.
+      const trigger = b.el("#download-world");
+      trigger.focus();
+      trigger.click();
+      const dialog = b.dialog();
+      assert(dialog, "no dialog opened");
+      const title = dialog.find((e) => e.tag === "h2")!;
+      assertEquals(title.textContent, "Download Hero to play it?");
+      assertEquals(dialog.attributes.get("aria-labelledby"), title.attributes.get("id"));
+      assert(
+        dialog.textContent.includes("It downloads as Hero (From Share).zip, and MirkMap marks it S (From Share)."),
+        dialog.textContent,
+      );
+      const warning = dialog.find((e) => e.tag === "p" && e.attributes.get("class") === "warning");
+      assertEquals(
+        warning?.textContent,
+        "If your game's Saves folder already has a character called Hero, putting this one there overwrites it.",
+      );
+      assert(dialog.textContent.includes("To keep both, rename one of the two folders first"), dialog.textContent);
+      assert(b.document.activeElement === dialog.button("Download"), "focus is on Download");
+      dialog.escape();
+      await b.settle();
+      assertEquals(b.dialog(), undefined);
+      assert(!b.body.children.includes(dialog), "a closed dialog is removed");
+      assert(b.document.activeElement === trigger, "focus is back on Download save");
+      assertEquals(b.links.length, 0);
+
+      // Cancel declines too.
+      trigger.click();
+      b.dialog()!.button("Cancel").click();
+      await b.settle();
+      assertEquals([b.dialog(), b.links.length], [undefined, 0]);
+
+      trigger.click();
+      b.dialog()!.button("Download").click();
+      await b.downloaded(1);
+      assert(b.document.activeElement === trigger, "focus is back on Download save");
+      assertEquals(b.confirms, []);
+      // The snapshot on screen is what downloads, so nothing is fetched again.
+      assertEquals(b.pending(), 0);
+      assertEquals(b.links.map((l) => l.download), ["Hero (From Share).zip"]);
+      const entries = await readZip(b.blobs.get(b.links[0].href!)!);
+      assertEquals(entries.map((e) => e.name), ["Hero/Player.save", "Hero/MirkMap.ini"]);
+      assertEquals([...await entries[0].read()], [...playerBytes]);
+      const marker = new TextDecoder().decode(await entries[1].read());
+      assert(/^\[MirkMap\]\r\ncheated=1\r\nfrom_share=1\r\nshare_downloaded=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\r\n$/.test(marker), marker);
+      assert(b.status().startsWith("Downloaded Hero (From Share).zip. To play it, put its Hero folder into the game's Saves folder"));
+      assert(b.status().includes("that character would be overwritten: rename one of the folders first"), b.status());
+      assert(!b.el("#share-status").classList.contains("error"));
+    },
+    { current: { key: keyA, name: "" }, saved: [], auto: true },
+    `#v=${linkKey(shareKey)}`,
+  ));
+
+Deno.test("sharing client: library worlds from a share show an S badge, and any library world downloads unmarked", () =>
+  withBrowser(async (b) => {
+    const mine = await world("Other"), copy: WorldInfo = { ...await world("Hero", "v1", Date.now() - 60_000), fromShare: true };
+    b.server.set(keyA, { name: "", worlds: [mine, copy] });
+    await b.init();
+    const [first, second] = b.el("#world-list").children as ElementStub[];
+    assertEquals(first.find((e) => e.tag === "abbr"), undefined);
+    assertEquals(second.find((e) => e.tag === "abbr")?.textContent, "S");
+    assert(second.textContent.startsWith("Hero S (From Share)"), second.textContent);
+
+    second.button("Download").click();
+    const data = await b.request("GET", `/library/worlds/${copy.id}/data`);
+    assertEquals(data.headers.get("Authorization"), `Bearer ${keyA}`);
+    await b.data(data);
+    await b.downloaded(1);
+    assertEquals(b.links.map((l) => l.download), ["Hero.zip"]);
+    assertEquals((await readZip(b.blobs.get(b.links[0].href!)!)).map((e) => e.name), ["Hero/Player.save"]);
+    assert(b.status().includes("If Saves already has an older Hero folder, move it out first"), b.status());
+
+    // The world that is open downloads what is on screen.
+    await b.data(await b.request("GET", `/library/worlds/${mine.id}/data`), "Other");
+    (b.el("#world-list").children[0] as ElementStub).button("Download").click();
+    await b.downloaded(2);
+    assertEquals(b.pending(), 0);
+    assertEquals(b.links.map((l) => l.download), ["Hero.zip", "Other.zip"]);
+    assertEquals(b.confirms, []);
+  }, { current: { key: keyA, name: "" }, saved: [], auto: true }));
 
 Deno.test("sharing client: Live saves keep an added world updated once per change, and only while enabled", () =>
   withBrowser(async (b) => {
