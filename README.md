@@ -225,7 +225,7 @@ links to its source guide; entities without a dedicated known page use a relevan
 public-title catalog is verified at development time, not by sending save data to the wiki; pages can change after verification.
 
 Inspecting a creature or NPC (or a carcass) shows the wiki's picture of it, NPCs as they look in the world, which matters because the map
-only draws them as dots. Placed items such as Hidden Hollows and workstations, and Bhato's hideout, Gurb-Gurb's hut and Ihar's shipwreck,
+draws NPCs only as dots. Placed items such as Hidden Hollows and workstations, and Bhato's hideout, Gurb-Gurb's hut and Ihar's shipwreck,
 show theirs too, and inventory rows show each item's icon. Treasure chests, remains and the Camp stash have no wiki picture yet. The
 pictures are downloaded from the wiki at development time (`deno task wiki`) and bundled with the site; it never contacts the wiki itself.
 
@@ -246,6 +246,13 @@ its caches; switching it back on rebuilds them. Unexplored or missing terrain is
 folder or ZIP for realistic terrain (`Player.save` or map PNGs alone are insufficient).
 
 ### Creatures, merchants and you
+
+Switch on **Creatures** to draw each living creature as a small red silhouette of its kind: flies (Dreadfly, Giant Gnat, Deathfly), the
+Firelouse, the Sceetler, crabs (Boulder and Titanspine Crab), the Nightmare, snakes (Mire Serpent, Viper, Red Fang), the Giant Slug, fish
+(Mudfin, Razorfin), rats (Mirk Runner, Mirk Mauler), trolls (Swamp and Cave Troll), the Toadkin, the Scaalmyr (Grunt, Warrior, Geomancer),
+the Scaal and the Unwanted (Raving, Mutated, Dead and the Unwanted Guard). Kinds that look alike in the game share a shape, so hover or tap
+one for its exact name. Map markers, the legend and the **Creatures when saved** list share the same hand-drawn shapes; NPCs keep their gold
+dot.
 
 Click a living creature or NPC to see what the game's own examine card does, plus its saved hit points. **Hit points** draws the grid saved
 in `Beings.save` square by square (armor as a bronze, silver or gold shield, larger for each of 1–3 layers; lost and burned points, poison

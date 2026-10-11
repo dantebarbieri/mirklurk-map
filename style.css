@@ -2040,8 +2040,22 @@ body.map-full #zone > .inspection.sheet > .close {
   fill: var(--gold);
 }
 .pt.creature > :not(text) {
+  stroke-width: .9px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+/* Every creature icon is the same red, so the layer reads at a glance; the silhouette tells the kind. */
+.creature .creature-body {
   fill: #e06060;
-  stroke-width: 1px;
+}
+.pt.creature > .creature-detail {
+  fill: none;
+  stroke-width: .65px;
+  stroke-opacity: .7;
+}
+.pt.creature > .creature-eye {
+  fill: #ffe27a;
+  stroke-width: 0;
 }
 .pt.loot > :not(text) {
   fill: #f0b44c;
@@ -2251,6 +2265,14 @@ body.map-full #zone > .inspection.sheet > .close {
 .pt.hl > :not(text) {
   stroke: #fff;
   stroke-width: 3px;
+}
+/* A creature's silhouette is too small to lose to the highlight, so it becomes a halo behind the fill. */
+.pt.creature.hl > .creature-body {
+  paint-order: stroke;
+}
+.pt.creature.hl > .creature-detail,
+.marks .pt.creature.sel.sel > .creature-detail {
+  stroke: #120e0f;
 }
 .marks .pt.sel.sel > :not(text) {
   stroke: #fff;
