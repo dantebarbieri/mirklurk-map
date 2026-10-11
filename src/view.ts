@@ -19,7 +19,7 @@ import {
 import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts";
 import { fernShade, GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
 import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
-import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
+import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_MARKERS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts";
@@ -517,10 +517,10 @@ interface Inside {
 function insideSummary(d: ZoneDetail): string {
   const count = new Map<string, number>();
   for (const b of d.beings) {
-    if (b.state !== 1 && NPC_BEINGS.has(b.index)) count.set(BEING_NAMES[b.index], (count.get(BEING_NAMES[b.index]) ?? 0) + 1);
+    if (b.state !== 1 && NPC_MARKERS.has(b.index)) count.set(BEING_NAMES[b.index], (count.get(BEING_NAMES[b.index]) ?? 0) + 1);
   }
   const parts = [...count].sort((a, b) => a[1] - b[1]).map(([n, c]) => (c > 1 ? `${n} ×${c}` : n));
-  const foes = d.beings.filter((b) => b.state !== 1 && !NPC_BEINGS.has(b.index)).length;
+  const foes = d.beings.filter((b) => b.state !== 1 && !NPC_MARKERS.has(b.index)).length;
   const loot = d.containers.filter((c) => c.status === -214).length;
   if (foes) parts.push(`${foes} creature${foes > 1 ? "s" : ""}`);
   if (loot) parts.push(`${loot} unsearched`);

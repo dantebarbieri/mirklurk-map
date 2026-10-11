@@ -2,7 +2,7 @@
 
 import { BEING_NAMES, ITEM_NAMES, MAP_LABELS, NATURE_NAMES } from "./gamedata.ts";
 import { spriteBox } from "./predict.ts";
-import { centerpos, INTERIOR_NAMES, isOutside, LANDMARK_NAMES, NPC_BEINGS, SolidId } from "./rules.ts";
+import { centerpos, INTERIOR_NAMES, isOutside, LANDMARK_NAMES, NPC_MARKERS, SolidId } from "./rules.ts";
 import type { Placed, PlayerSave, Solid, Tree } from "./save.ts";
 import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
@@ -220,7 +220,6 @@ export const CREATURE_ICON: Record<number, string> = {
   9: "unwanted", // Dead Unwanted
   31: "unwanted", // Raving Unwanted
   32: "unwanted", // Mutated Unwanted
-  35: "unwanted", // Unwanted Guard
 };
 
 export function detailMarks(d: ZoneDetail): Mark[] {
@@ -228,8 +227,9 @@ export function detailMarks(d: ZoneDetail): Mark[] {
   for (const b of d.beings) {
     if (b.state === 1) continue;
     const name = BEING_NAMES[b.index] ?? `Being ${b.index}`;
-    const npc = NPC_BEINGS.has(b.index);
-    const label = npc && b.index !== 5 ? name : undefined;
+    const npc = NPC_MARKERS.has(b.index);
+    // Soldiers and Unwanted Guards come in numbers, so only the named NPCs are labelled.
+    const label = npc && b.index !== 5 && b.index !== 35 ? name : undefined;
     const icon = CREATURE_ICON[b.index];
     out.push({
       layer: npc ? "npcs" : "creatures",
