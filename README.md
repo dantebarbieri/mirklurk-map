@@ -10,7 +10,8 @@ it shows:
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
   loot, dropped items (their own layer, as felling trees leaves many), storage (treasure chests, which stay after looting, your Hidden
   Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees,
-  brambles, rift vines, sharp ground and a water overlay can be switched on. Click an explored entrance to see the inside.
+  brambles, rift vines, sharp ground and a water overlay can be switched on. Click an explored entrance to see the inside, or a creature,
+  NPC or your own marker to see hit points, attacks, a merchant's wares or your wellbeing and inventory.
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -126,8 +127,9 @@ together, an incomplete character save delays the folder snapshot; choose a sing
 ### Inventory, containers and wiki
 
 Expand **Saved equipment & inventory** to see equipped items and nested bag contents, stack quantities, saved durability values (not
-percentages), and wetness. Click a container/corpse/drop marker or list entry to inspect its saved contents. Reopened chests, empty
-containers, wood drops and separate `LOOT-x_y.save` ground-loot records are included.
+percentages), and wetness, under a roll-up of every coin you carry (see [the player](#creatures-merchants-and-you)). Click a
+container/corpse/drop marker or list entry to inspect its saved contents. Reopened chests, empty containers, wood drops and separate
+`LOOT-x_y.save` ground-loot records are included.
 
 Ground-loot files remain separate, labeled entries even when a container occupies the same tile; the two records may describe different
 contents or save times. If one container inventory is malformed during manual import, its marker remains with unavailable contents and a
@@ -166,6 +168,39 @@ followed by filtered resampling, so small details do not flicker or disappear as
 full-resolution areas are retained, alongside small world previews. Switching realistic mode off cancels pending terrain work and releases
 its caches; switching it back on rebuilds them. Unexplored or missing terrain is labelled rather than invented: import the full character
 folder or ZIP for realistic terrain (`Player.save` or map PNGs alone are insufficient).
+
+### Creatures, merchants and you
+
+Click a living creature or NPC to see what the game's own examine card does, plus its saved hit points. **Hit points** draws the grid saved
+in `Beings.save` square by square (armor as a bronze, silver or gold shield, larger for each of 1–3 layers; lost and burned points, poison
+stacks and bleeding with the way it spreads) and compares it with a freshly spawned one ("Full health: 8 hit points, 4 armor; down 2 hit
+points and 2 armor"); a being saved without one shows that fresh shape instead. **Attack** draws its attack pattern with each cell's damage
+("2", or "1–2" for one to two) under a badge in the colour of its damage class (Sharp, Blunt, Force, Piercing, Poison, Fire or Weak) with
+what that class does, then the total, its reach in tiles, its AP cost and its intelligence for the save's difficulty. The Sceetler, Scaalmyr
+Geomancer, Scaal, Soldier, Magus Clay, Ranger Bhato and Wilda also shoot, with another pattern, class and reach: a **Melee / Ranged** toggle
+switches between the two and stays on your choice for the next being. **Behaviour** lists movement, hostility, dodge and
+attack-of-opportunity chances and the XP for the kill. Commander Tain and the Dead Unwanted never attack, and NPCs and the Unwanted Guard
+never target you.
+
+A merchant (Magus Clay, Ranger Bhato, Viend, Commander Tain, Gurb-Gurb or Ihar) leads with **Wares**, since you trade with them rather than
+fight them: each ware's icon, its name linked to the wiki and the price of one in gold, silver and copper, in the order the game's trade
+window lists them, with a note on when that merchant offers to trade. **How trading works** sums up the rules (see below), and their hit
+points and attacks stay one click away under **Hit points and attacks**.
+
+Click your own marker (**You**) to inspect your character as saved. While you are inside a building, cave or ruin, your marker sits on its
+entrance (labelled below it so the building's name stays readable) and leads inside, where clicking it inspects you. **Hit points** draws
+your grid with burned and lost (wounded) hit points, armor layers, poison stacks and bleeding, and says when new hit points from levelling
+up are not placed yet. Under it, **Armor** totals your equipment's armor as the game's equipment screen does and says how many armor points
+you will distribute on your hit points when the next combat starts (the total rounded down, at most 3 layers on each living hit point), with
+**Armor by item** showing what each worn piece gives at its current durability. **Wellbeing** shows wellbeing and its four stats, Focus,
+Stamina, Satiation and Warmth (the game's word for body temperature; its bar marks the comfortable 40–60% band), each with what it does to
+wellbeing per turn, plus warm-to-the-core, well rested, sickness and overburdened bonuses or penalties and the net change. **Conditions and
+level** lists the active effects (sickness, well rested, overburdened, shelter, tired and so on) with turns left where the save records
+them, wet clothing, level, XP to the next level and unspent skill points. **Inventory** lists equipped items and bag contents like a
+container, each worn or held item marked **E** (with its slot on hover; dashed for the weapon set not in hand, since worn vests, pants and
+belts have pockets too), under a roll-up of every coin carried, bags included: **True coins** shows them as they are, **Minimum coins** the
+same value in the fewest coins (100 copper make a silver, 10 silver a gold). The choice is kept for the session and applies to every
+roll-up, including the one in **Saved equipment & inventory**. Everything is the state at save time; the game keeps changing it every turn.
 
 ### Trees: trunk liveliness and chopping cost
 
@@ -241,6 +276,60 @@ is the root part. The harvest menu (`gml_Object_UI_Draw_64`) shows freshness `ro
 Cypress and 2 for Trollgnarl, divided by the tool's `chopMod` (`gml_Object_databank_Alarm_1`; e.g. Iron Hand Axe 3, Steel Felling Axe 4.2,
 bare hands 1), and rounded to 0.2 AP (at least 0.2). A felled trunk drops `ceil(size × trunk sprite height ÷ 16) + 1` logs, or branches when
 its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by `life − 0.5`, so dead wood is dry.
+
+**Hit-point grids** (`src/health.ts`). `Player.save` and each being in `Beings.save` store `hpgrid` and `statusgrid` row by row. In
+`hpgrid`, −4 is no hit point, −1 burned (fire destroyed it; it cannot heal until treated), 0 lost, 1 healthy and 2–4 healthy under 1–3 armor
+layers (`attack_lands` in `gml_GlobalScript_scr_basic_useful`, `hpcell_draw` in `gml_GlobalScript_scr_gui_general`). Each `statusgrid` cell
+lists stacks: 2 is poison, 10–13 bleeding that spreads up, right, down or left once the hit point is lost, 23 stunned; the other values are
+hit and miss flashes that fade within a second and are ignored.
+
+**Creature stats and fresh hit points** (`src/bestiary.ts`). The numbers are `global.beingDB` (`gml_Object_databank_Alarm_3`), shown as the
+examine card shows them (case 11 in `gml_Object_UI_Draw_64`): reach, movement and hostile distance in whole tiles, and a ranged attack only
+when `rangedDist > 0`. A pattern cell `a.b` deals `a` to `b` damage (`floor` and `round(frac × 10)`, as `attack_draw` in
+`gml_GlobalScript_scr_gui_general` prints it), and the total adds up every cell as the databank does. A being shoots only when you are out
+of its melee reach, within range and in its line of sight; on Hard (`myDiff` 3 in `Player.save`) it aims one intelligence level better, up
+to Highest; Sharp blows and High or better intelligence may land the pattern turned by quarter turns (`gml_Object_manager_area_Step_0`,
+`being_get_attack_xy` in `gml_GlobalScript_scr_ai_related`). Each turn a being sees a target within its hostile distance it turns on it with
+its hostility chance; team 0 (the NPCs, the Unwanted Guard and the Dead Unwanted) never picks you (`being_get_target`). A fresh being's grid
+(`being_initiate` in `gml_GlobalScript_scr_basic_useful`) starts as all healthy hit points with the species' holes and extra layers
+(Sceetler, Deathfly, Nightmare, Toadkin, Scaal by distance from its centre, Mirk Mauler, Wilda, Unwanted Guard), then its `armor` is laid
+one layer at a time, row by row, on hit points with fewer than 3 layers; every unhurt being in the sampled saves matches it cell for cell.
+The damage-class effects paraphrase `[TTgen]` in `UI.ini` and `attack_lands`.
+
+**Merchants' wares** (`src/merchants.ts`). Every time you open a trade window the game stocks it afresh with one new, full-condition item of
+each ware (`menu_add` in `gml_GlobalScript_scr_menu_related`), so wares never run out, then sorts them with `inventory_sort`
+(`gml_GlobalScript_scr_basic_useful`): larger items first (width × height × 1,000), then cheaper ones, with arrows, medicine, camp gear,
+repair kits, lamp oil and torches pushed back by their type. Commander Tain's Map Ledgers skip the sort. Equal ranks (Ihar's three 30-silver
+two-handers) keep the stock order here; the game breaks such ties by grid position. Prices are the item database's, in silver
+(`gml_Object_databank_Alarm_1`: a copper coin is 0.01, a silver 1 and a gold 10). The trade window (`gml_Object_UI_Draw_64`) charges exactly
+that, with no markup, and pays the same price for your goods scaled by condition (`item_get_price` in `gml_GlobalScript_scr_items`:
+durability left, at least 10%, or fuel left for light sources, at least 25%); quest items cannot be sold. Coins count at face value, the
+trade goes through once your goods cover the cost, and the difference comes back in coins. When each merchant offers **Trade** comes from
+the NPC dialogue options in `gml_Object_UI_Draw_64`: most in their everyday conversation, Viend only from main-quest stage 27, once Clay has
+fled the fort.
+
+**Wellbeing per turn** (`src/player.ts`). The circle bar (`gml_Object_UI_Draw_64`) shows `haelth` as wellbeing and `focus`, `energy`
+(Stamina), `hunger` (Satiation) and `warmth` as percentages. `player_get_stat_changes` in `gml_GlobalScript_scr_basic_useful` scores each
+stat against the thresholds in `gml_Room_rm_int_Create`: satiation, focus and stamina add 0.5%, 0.2% and 0.2% at 50% or more, and below 20%
+take up to 1%, 0.5% and 0.5% (in proportion to how far below, the most at 0%); warmth costs nothing from 40% to 60% and up to 3% towards 0%
+or 100%. Each is rounded to 0.1%. `player_get_combined_wellbeing` adds 1% each while warm to the core (`warmthTime`) and well rested
+(`restedTime`), takes 1–3% for sickness I–III while `sickTime` lasts and 1% or 2% when very or extremely overburdened (aeList 25 or 26). The
+end of a turn adds the sum to wellbeing, which stays between 0 and 100% (`gml_Object_obj_player_Step_1`); at 33% or less and falling the
+game flags it as dangerously low (`gml_Object_obj_player_Step_0`). Temperature words are `temperature_get_label`
+(`gml_GlobalScript_scr_map_and_weather`). XP to the next level is `xp_to_lvl`: ⌊28 × 1.2^level ÷ 5⌋ × 5, up to level 60, with a new hit
+point every third level (`gml_Object_obj_player_Step_1`). Conditions are the saved `aeList`, indices into `UI.ini` [AEs], given short names
+here. The coin roll-up counts every coin in your equipment and bags; **Minimum coins** converts by value as `item_draw_cost`
+(`gml_GlobalScript_scr_items`) splits a price: 1 gold = 10 silver = 1,000 copper.
+
+**Armor and equipment** (`src/armor.ts`). `Player.save` lists the 16 equipment slots of `myEquips` in order (two weapon sets of main and off
+hand, then helmet, hood, shirt, vest, backpack, belt, pants, leg armor, gloves, cloak, socks and footwear;
+`gml_Object_obj_player_Create_0`), with `actives` naming the weapon set in hand. A two-handed melee weapon is saved in its off-hand slot as
+well and the loader skips that copy, so the viewer drops it too. `player_update_gearstats` (`gml_GlobalScript_scr_basic_useful`) adds up the
+`armor` of every slot's item, both weapon sets included, each scaled by durability left and rounded to 0.01 (`item_durfix_value` in
+`gml_GlobalScript_scr_items`), and rounds the total to 0.1: the **Total Armor** of the equipment screen. When combat starts,
+`player_real_combat_check` gives `min(floor(totalArmor), being_get_armor_max)` armor points to distribute, the cap being 3 layers on each
+living hit point (`gml_GlobalScript_scr_ai_related`); when it ends, the layers are removed. Armor values and maximum durability are the item
+database's (`gml_Object_databank_Alarm_1`).
 
 **Where you are** (`src/estimate.ts`). You are drawn as a head-and-shoulders pictogram filled with your character's hair colour (`hairBlend`
 in `Player.save`), outlined dark or light by its perceived lightness, on the world grid and on the zone or interior map. The game offers

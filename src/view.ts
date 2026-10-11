@@ -21,6 +21,7 @@ import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, 
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts";
+import { coinRollup, equippedBadge } from "./player.ts";
 import { entityWiki } from "./wiki.ts";
 import {
   type Interior,
@@ -158,6 +159,34 @@ export function playerSpot(st: State): Spot {
 const youLabel = (st: State, you: Spot, inside: boolean) =>
   `${st.world.character}${inside ? " (inside)" : ""}${you.estimated ? " (est.)" : ""}`;
 
+/**
+ * The player's clickable map marker, carrying the save for their inspection; `away` when drawn from a neighbouring zone. While
+ * they are inside somewhere, the marker sits on that entrance and covers it, so it leads inside, where they can be inspected.
+ */
+const youMark = (
+  st: State,
+  you: Spot,
+  x: number,
+  y: number,
+  label: string,
+  away?: Mark["away"],
+  interior?: Interior,
+): { mark: Mark; title: string } => ({
+  mark: {
+    layer: "you",
+    kind: "you",
+    x,
+    y,
+    name: st.world.character,
+    label,
+    detail: you.estimated ? `probably here (${you.estimated})` : undefined,
+    away,
+    interior,
+    player: st.world.player,
+  },
+  title: you.title,
+});
+
 export function renderWorld(st: State) {
   st.cleanup?.();
   const w = st.world, p = w.player;
@@ -241,7 +270,8 @@ export function renderWorld(st: State) {
         "details",
         { class: "inventory-panel", "data-remember": "player", open: st.expanded?.has("player") },
         h("summary", {}, "Saved equipment & inventory"),
-        inventoryView(p.inventory, "player", st.expanded),
+        coinRollup(p.inventory),
+        inventoryView(p.inventory, "player", st.expanded, equippedBadge(p)),
       ),
       warn,
     ),
@@ -545,21 +575,24 @@ async function renderZone(st: State, z: Zone, glide = false) {
   }
   const heats = zoneHeat(world, st.marks, z, { ...tiles, beings: detail?.beings });
   const you = playerSpot(st);
+  const [youOx, youOy] = [(you.zone[0] - z.x) * ROOM, (you.zone[1] - z.y) * ROOM];
+  const youAway = youOx || youOy ? { zone: world.zones[you.zone[1]][you.zone[0]].name, ox: youOx, oy: youOy } : undefined;
+  const youInside = you.inside ? world.interiors.find((it) => it.dir === you.interior) : undefined;
   const inspector = h("section", { class: "inspection", hidden: true, "aria-live": "polite" });
   const picker = () => toolPicker(st, () => chips);
   const close = () => closeInspection(st, map, inspector);
   const inspect = (m: Mark, expanded?: Set<string>) => {
     map.select(m);
-    inspectMark(inspector, m, { expanded, tool: chopTool(st), picker: picker(), close });
+    inspectMark(inspector, m, { expanded, tool: chopTool(st), picker: picker(), close, difficulty: world.player.difficulty });
   };
   const openInterior = (m: Mark) => {
     if (m.interior) {
       st.viewport = undefined;
       st.inspected = undefined;
-      const at = around.zoneOf.get(m) ?? z;
+      const at = m.layer === "you" ? world.zones[you.zone[1]][you.zone[0]] : around.zoneOf.get(m) ?? z;
       st.selected = [at.x, at.y];
       markCell(at.x, at.y);
-      renderInterior(st, at, m.interior, m.name);
+      renderInterior(st, at, m.interior, m.layer === "you" ? INTERIOR_NAMES[m.interior.kind ?? -1] ?? "Interior" : m.name);
     } else {
       st.inspected = markKey(m);
       inspect(m);
@@ -579,12 +612,7 @@ async function renderZone(st: State, z: Zone, glide = false) {
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
     // The map spans the world, so the player shows even from a neighbouring zone.
-    player: {
-      x: you.x + (you.zone[0] - z.x) * ROOM,
-      y: you.y + (you.zone[1] - z.y) * ROOM,
-      label: youLabel(st, you, you.inside),
-      title: you.title,
-    },
+    player: youMark(st, you, you.x + youOx, you.y + youOy, youLabel(st, you, you.inside), youAway, youInside),
     onOpen: openInterior,
     onView: (view) => {
       around.refresh();
@@ -603,7 +631,8 @@ async function renderZone(st: State, z: Zone, glide = false) {
     const inspected = available.find((m) => markKey(m) === st.inspected);
     if (inspected) inspect(inspected, st.expanded);
   };
-  restoreInspection(marks);
+  // The player only on this first pass: neighbours' batches arrive later and must not rebuild an open card of them.
+  restoreInspection(map.you ? [...marks, map.you] : marks);
   const treeList = h("div", { class: "lists" });
   const layers = mapLayers(st, map, z.dir, () => my === token, false, (plants) => {
     const open = plants.find((m) => markKey(m) === st.inspected);
@@ -1178,7 +1207,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
   const close = () => closeInspection(st, map, inspector);
   const inspect = (m: Mark, expanded?: Set<string>) => {
     map.select(m);
-    inspectMark(inspector, m, { expanded, close });
+    inspectMark(inspector, m, { expanded, close, difficulty: st.world.player.difficulty });
   };
   const open = (m: Mark) => {
     if (m.interior) {
@@ -1200,15 +1229,13 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     view,
     marks,
     heats: [],
-    player: you.interior === it.dir && you.at
-      ? { x: you.at[0], y: you.at[1], label: youLabel(st, you, false), title: you.title }
-      : undefined,
+    player: you.interior === it.dir && you.at ? youMark(st, you, you.at[0], you.at[1], youLabel(st, you, false)) : undefined,
     onOpen: open,
     popup: { card: inspector, close },
   });
   activeMap = map;
   if (st.viewport) map.restore(st.viewport);
-  const inspected = marks.find((m) => markKey(m) === st.inspected);
+  const inspected = [...marks, ...(map.you ? [map.you] : [])].find((m) => markKey(m) === st.inspected);
   if (inspected) inspect(inspected, st.expanded);
   const layers = mapLayers(st, map, undefined, () => my === token, true);
   map.el.append(mapLegend(st, layers));

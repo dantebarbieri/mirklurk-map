@@ -5,6 +5,9 @@ import { type Mark, markKey } from "./objects.ts";
 import type { Tree } from "./save.ts";
 import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, MAX_AP, NATDEAD, Nature, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
 import { beingImage, entityWiki, itemImage, itemWiki, placeImage, type WikiImage, wikiUrl, wikiVerified } from "./wiki.ts";
+import { creatureView } from "./creature.ts";
+import { merchantView, sells } from "./merchants.ts";
+import { playerView } from "./player.ts";
 
 const wikiAnchor = (url: string, cls: string, label: string) =>
   h("a", {
@@ -26,7 +29,7 @@ export const wikiTitle = (url: string | undefined, text: string) => url ? wikiAn
  * A wiki picture fitted to a w×h box, never enlarged past whole pixels so the pixel art stays crisp; `fill` keeps the
  * whole box (the picture centred in it) so a column of them lines up.
  */
-function picture(img: WikiImage, alt: string, cls: string, w: number, h_: number, fill = false) {
+export function picture(img: WikiImage, alt: string, cls: string, w: number, h_: number, fill = false) {
   const fit = Math.min(w / img.w, h_ / img.h);
   const k = fit >= 1 ? Math.floor(fit) : fit;
   return h("img", {
@@ -43,7 +46,7 @@ function picture(img: WikiImage, alt: string, cls: string, w: number, h_: number
 /** The wiki's picture of what a mark is: a creature or NPC, an item, or a quest building. */
 const markImage = (m: Mark) => m.being !== undefined ? beingImage(m.being) : m.item !== undefined ? itemImage(m.item) : placeImage(m.name);
 
-function itemRow(item: SavedItem, key: string, expanded?: Set<string>): HTMLElement {
+function itemRow(item: SavedItem, key: string, expanded?: Set<string>, badge?: Node | null): HTMLElement {
   const name = ITEM_NAMES[item.index] ?? `Item ${item.index}`;
   const url = itemWiki(name);
   const icon = itemImage(item.index);
@@ -54,6 +57,7 @@ function itemRow(item: SavedItem, key: string, expanded?: Set<string>): HTMLElem
   return h(
     "li",
     {},
+    badge,
     icon ? picture(icon, "", "item-icon", 24, 20, true) : null,
     url ? wikiLink(url, name) : name,
     ` x${item.amount}`,
@@ -71,19 +75,29 @@ function itemRow(item: SavedItem, key: string, expanded?: Set<string>): HTMLElem
   );
 }
 
-export function inventoryView(inventory: Inventory | undefined, key = "inventory", expanded?: Set<string>): HTMLElement {
+/** A saved item list; `badge` marks its top-level items (such as the player's equipped ones), not what they contain. */
+export function inventoryView(
+  inventory: Inventory | undefined,
+  key = "inventory",
+  expanded?: Set<string>,
+  badge?: (item: SavedItem) => Node | null,
+): HTMLElement {
   if (!inventory || inventory.state !== "saved") {
     return h("p", { class: "muted" }, inventory?.reason ?? "Inventory is unavailable in this save.");
   }
   const list = inventory.items.length
-    ? h("ul", { class: "inventory-items" }, inventory.items.map((item, i) => itemRow(item, `${key}/${i}:${item.index}`, expanded)))
+    ? h(
+      "ul",
+      { class: "inventory-items" },
+      inventory.items.map((item, i) => itemRow(item, `${key}/${i}:${item.index}`, expanded, badge?.(item))),
+    )
     : h("p", { class: "muted" }, "Empty when saved.");
   return inventory.note ? h("div", {}, h("p", { class: "muted" }, inventory.note), list) : list;
 }
 
-/** The wiki page for a mark: its own, else a guide to its kind. */
+/** The wiki page for a mark: its own, else a guide to its kind. The player has none. */
 export const entityUrl = (m: Mark) =>
-  entityWiki(
+  m.layer === "you" ? undefined : entityWiki(
     m.name,
     m.layer === "npcs" || m.layer === "creatures"
       ? "Bestiary"
@@ -94,6 +108,20 @@ export const entityUrl = (m: Mark) =>
 
 export const entityLink = (m: Mark) => wikiLink(entityUrl(m));
 
+/** Where an inspection section keeps its state: `key` prefixes its `data-remember` names, `expanded` lists the open ones. */
+export interface SectionContext {
+  key: string;
+  expanded?: Set<string>;
+  /** The save's difficulty (PlayerSave.difficulty), when known. */
+  difficulty?: number;
+}
+
+/** A collapsible section that stays open across re-renders (see `openSections` in view.ts). */
+export function section(ctx: SectionContext, id: string, title: string, open: boolean, ...body: (HTMLElement | null)[]) {
+  const key = `${ctx.key}/${id}`;
+  return h("details", { "data-remember": key, open: ctx.expanded ? ctx.expanded.has(key) : open }, h("summary", {}, title), body);
+}
+
 export interface InspectOptions {
   /** Open sections to restore. */
   expanded?: Set<string>;
@@ -102,11 +130,16 @@ export interface InspectOptions {
   picker?: HTMLElement;
   /** Closes the inspection; its button shows when the card floats over a full-screen map. */
   close?: () => void;
+  /** The save's difficulty, for how well beings aim. */
+  difficulty?: number;
 }
 
-export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close }: InspectOptions = {}) {
+export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close, difficulty }: InspectOptions = {}) {
   panel.hidden = false;
   const img = markImage(m);
+  const ctx: SectionContext = { key: `inspection:${markKey(m)}`, expanded, difficulty };
+  // Carcasses carry their creature's index too, but they are loot, not a living being.
+  const being = m.being !== undefined && !m.inventory ? m.being : undefined;
   panel.replaceChildren(
     ...(close ? [h("button", { type: "button", class: "close", "aria-label": "Close", title: "Close (Esc)", onclick: close }, "×")] : []),
     h(
@@ -126,6 +159,12 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
         ),
       ),
     ),
+    ...(m.player ? playerView(m.player, ctx) : []),
+    ...(being === undefined
+      ? []
+      : sells(being)
+      ? [...merchantView(being, ctx), section(ctx, "combat", "Hit points and attacks", false, ...creatureView(being, m.health, ctx))]
+      : creatureView(being, m.health, ctx)),
     ...(m.tree
       ? (m.layer === "brambles" || m.layer === "vines"
         ? brambleView(m.tree, tool ?? UNARMED)

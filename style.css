@@ -260,6 +260,598 @@ body.loaded main > * {
   margin-left: 0;
   font-size: inherit;
 }
+.inspection details .wiki {
+  margin-left: 0;
+}
+
+/* Hit-point grids (health.ts): one square per hit point, as the game draws them. */
+.hp,
+.hp-legend {
+  --hp-cell: 18px;
+  --hp-flesh: #c9574d;
+  --hp-poison: #8fd14f;
+  --hp-bleed: #ff6b5e;
+}
+.hp {
+  margin: 8px 0;
+}
+.hp-grid {
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  /* Room for the poison and bleed badges, which stick out past the edge cells' corners. */
+  padding: 4px;
+}
+.hp-cell {
+  position: relative;
+  display: inline-block;
+  width: var(--hp-cell);
+  height: var(--hp-cell);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.hp-cell.healthy {
+  background: var(--hp-flesh);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+}
+.hp-cell.lost {
+  border: 1px dashed var(--muted);
+}
+.hp-cell.burned {
+  background: repeating-linear-gradient(135deg, #2b1f1a 0 3px, #5a2d16 3px 5px);
+  box-shadow: inset 0 0 0 1px #e07a2f;
+}
+.hp-cell.none {
+  visibility: hidden;
+}
+.hp-cell.armor1 {
+  --hp-shield-size: 67%;
+  --hp-shield-fill: #ae7846;
+  --hp-shield-edge: #e7b57d;
+}
+.hp-cell.armor2 {
+  --hp-shield-size: 81%;
+  --hp-shield-fill: #b8c7d4;
+  --hp-shield-edge: #eef6fc;
+}
+.hp-cell.armor3 {
+  --hp-shield-size: 95%;
+  --hp-shield-fill: #f7dc75;
+  --hp-shield-edge: #fff3b2;
+}
+.hp-shield {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  width: var(--hp-shield-size);
+  height: var(--hp-shield-size);
+  transform: translate(-50%, -50%);
+  fill: var(--hp-shield-fill);
+  stroke: #120e0f;
+  stroke-width: 1;
+  stroke-linejoin: round;
+  shape-rendering: geometricPrecision;
+  pointer-events: none;
+}
+.hp-shield path {
+  vector-effect: non-scaling-stroke;
+}
+.hp-shield-rim {
+  fill: none;
+  stroke: var(--hp-shield-edge);
+  stroke-width: .75;
+  stroke-linecap: round;
+}
+.hp-cell.poisoned {
+  outline: 1px solid var(--hp-poison);
+}
+.hp-cell.bleeding {
+  outline: 1px solid var(--hp-bleed);
+}
+.hp-poison,
+.hp-bleed {
+  position: absolute;
+  z-index: 1;
+  padding: 0 2px;
+  border-radius: 3px;
+  font: 600 9px/11px system-ui, sans-serif;
+  color: #120e0f;
+  white-space: nowrap;
+}
+.hp-poison {
+  right: -3px;
+  bottom: -3px;
+  background: var(--hp-poison);
+}
+.hp-bleed {
+  left: -3px;
+  top: -3px;
+  display: inline-flex;
+  align-items: center;
+  background: var(--hp-bleed);
+}
+/* The way a bleed spreads: a heavy chevron that stays legible at badge size. */
+.hp-chevron {
+  width: 9px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.hp figcaption {
+  margin-top: 4px;
+  font-size: 12px;
+}
+.hp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.hp-legend li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.hp-legend .hp-cell {
+  --hp-cell: 14px;
+  /* Room for the sample badges, which stick out past the swatch's corners. */
+  margin: 0 3px;
+}
+
+/* Coin amounts (coins.ts). */
+.coins {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  font-variant-numeric: tabular-nums;
+}
+.coin {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.coin-icon {
+  image-rendering: pixelated;
+}
+
+/* Creature inspections (creature.ts): attack patterns coloured by damage class, the Melee/Ranged toggle and the stats. */
+.creature-section {
+  margin: 8px 0;
+}
+.creature-section > summary {
+  cursor: pointer;
+  color: var(--gold2);
+}
+.creature-note {
+  margin: 2px 0 4px;
+  font-size: 12px;
+}
+.dmg-sharp {
+  --dmg: #ff6b5e;
+}
+.dmg-fire {
+  --dmg: #ff9a3c;
+}
+.dmg-blunt {
+  --dmg: #e8cf5a;
+}
+.dmg-poison {
+  --dmg: #8fd14f;
+}
+.dmg-piercing {
+  --dmg: #5fd4e6;
+}
+.dmg-force {
+  --dmg: #b48cff;
+}
+.dmg-weak,
+.dmg-none {
+  --dmg: #b5a7a0;
+}
+.dmg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--dmg);
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--dmg);
+  background: color-mix(in srgb, var(--dmg) 14%, transparent);
+  cursor: help;
+}
+.dmg::before,
+.dmg-dot {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dmg);
+}
+.dmg-dot {
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+.attack-class {
+  margin: 4px 0;
+  font-size: 12px;
+}
+.attack-toggle {
+  display: inline-flex;
+  margin: 2px 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.attack-mode {
+  padding: 3px 10px;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+.attack-mode + .attack-mode {
+  border-left: 1px solid var(--line);
+}
+.attack-mode:hover,
+.attack-mode:focus-visible {
+  background: rgba(255, 255, 255, .08);
+}
+.attack-mode[aria-pressed="true"] {
+  color: var(--gold);
+  background: color-mix(in srgb, var(--dmg) 16%, transparent);
+  box-shadow: inset 0 -2px 0 var(--dmg);
+}
+.attack-mode[aria-pressed="false"] .dmg-dot {
+  opacity: .45;
+}
+.atk {
+  --atk-cell: 26px;
+  margin: 6px 0;
+}
+.atk-grid {
+  display: grid;
+  gap: 2px;
+  width: max-content;
+}
+.atk-cell {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--atk-cell);
+  height: var(--atk-cell);
+  border: 1px dashed rgba(255, 255, 255, .08);
+  border-radius: 3px;
+  font: 600 11px/1 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.atk-cell.hit {
+  border: 1px solid var(--dmg);
+  background: color-mix(in srgb, var(--dmg) 22%, var(--bg));
+  color: var(--gold);
+}
+.atk figcaption {
+  margin-top: 4px;
+  font-size: 12px;
+}
+.creature-stats {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 4px 0;
+  font-size: 13px;
+}
+.creature-stats dt {
+  color: var(--muted);
+}
+.creature-stats dd {
+  margin: 0;
+}
+.creature-links .wiki:first-child {
+  margin-left: 0;
+}
+
+/* A merchant's wares (merchants.ts): icon and name on the left, the price of one on the right. */
+.wares {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+.wares li {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 3px 0;
+  border-top: 1px solid var(--line);
+}
+.wares li:first-child {
+  border-top: 0;
+}
+.ware-name {
+  flex: 1;
+  min-width: 0;
+}
+.wares .wiki,
+.trade-guides .wiki {
+  margin-left: 0;
+  font-size: inherit;
+}
+.ware-price {
+  flex: none;
+  justify-content: flex-end;
+  color: var(--gold2);
+  white-space: nowrap;
+}
+.trade-rules {
+  margin: 8px 0;
+  padding-left: 18px;
+}
+.trade-rules li {
+  margin: 4px 0;
+}
+.trade-guides {
+  margin: 6px 0 0;
+}
+
+/* The player inspection (player.ts): wellbeing and its four stats, conditions, level and the coin roll-up. */
+.vitals {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+}
+/* Stat colours follow the game's circle bar (global.c_health, c_focus, c_energy, c_hunger), lightened for the dark card. */
+.vital {
+  --c: var(--gold2);
+  margin: 0 0 8px;
+}
+.vital.wellbeing {
+  --c: #e0457f;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.vital.focus {
+  --c: #a6a2c4;
+}
+.vital.stamina {
+  --c: #5fae4f;
+}
+.vital.satiation {
+  --c: #d9a03a;
+}
+.vital.extra {
+  margin-top: -2px;
+}
+.vital-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.vital-name {
+  font-weight: 600;
+}
+.vital-value {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.vital-change {
+  margin-left: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vital-bar {
+  position: relative;
+  display: block;
+  height: 6px;
+  margin: 3px 0 2px;
+  border-radius: 3px;
+  background: var(--line);
+}
+.vital-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--c);
+}
+/* Thresholds: 20% and 50% for the stats; 33% (dangerously low) and 50% (resting heals hit points) for wellbeing. */
+.vital-tick {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background: rgba(255, 243, 178, .45);
+}
+/* Warmth is a scale from freezing (global.c_warmth_low) to overheating (c_warmth_high), comfortable from 40% to 60%. */
+.vital-bar.warmth {
+  height: 8px;
+  background: linear-gradient(90deg, #1fd6e0, #4f7f86 40%, #7d6f66 50%, #a05c45 60%, #ff5020);
+}
+.vital-band {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: 40%;
+  width: 20%;
+  border: 1px solid rgba(255, 243, 178, .75);
+  border-radius: 3px;
+}
+.vital-needle {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #120e0f;
+}
+.vital-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+.vital-note.gain,
+.vital-change.gain {
+  color: #a6d98c;
+}
+.vital-note.loss,
+.vital-change.loss {
+  color: #ff8a80;
+}
+.vital-rules {
+  margin: 4px 0;
+  font-size: 12px;
+}
+.vital-rules summary {
+  cursor: pointer;
+  color: var(--gold2);
+}
+.vital-rules ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.vital-rules p {
+  margin: 4px 0;
+}
+.new-hp {
+  color: var(--gold);
+}
+.conditions {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+  font-size: 13px;
+}
+.condition {
+  position: relative;
+  margin: 3px 0;
+  padding-left: 14px;
+}
+.condition::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: .45em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold2);
+}
+.condition.good::before {
+  background: #a6d98c;
+}
+.condition.bad::before {
+  background: #ff8a80;
+}
+.condition-effect {
+  color: var(--muted);
+}
+.player-level {
+  margin: 6px 0;
+  font-size: 13px;
+}
+.player-armor {
+  margin: 8px 0 4px;
+}
+.armor-pieces {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+/* An E on worn or held items (player.ts equippedBadge); dashed for the weapon set not in hand. */
+.equip-badge {
+  display: inline-block;
+  min-width: 15px;
+  margin-right: 5px;
+  padding: 0 2px;
+  border: 1px solid var(--gold2);
+  border-radius: 3px;
+  font: 700 10px/13px system-ui, sans-serif;
+  text-align: center;
+  color: var(--gold);
+  vertical-align: middle;
+  cursor: help;
+}
+.equip-badge.off {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+/* Coin roll-up (player.ts coinRollup): every coin carried, with a True / Minimum coins switch. */
+div.coin-rollup {
+  margin: 6px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 243, 178, .03);
+}
+.coin-rollup-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.coin-mode {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.coin-mode button {
+  padding: 2px 8px;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.coin-mode button + button {
+  border-left: 1px solid var(--line);
+}
+.coin-mode button:hover {
+  color: var(--text);
+}
+.coin-mode button[aria-pressed="true"] {
+  background: var(--gold2);
+  color: #1b1516;
+  font-weight: 600;
+}
+.coin-mode button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+.coin-rollup-amount {
+  margin-top: 6px;
+  font-size: 15px;
+}
+.coin-rollup-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+@media (pointer: coarse) {
+  .coin-mode button {
+    min-height: 34px;
+  }
+}
+@media (max-width: 600px) {
+  .coin-mode button {
+    min-height: 44px;
+  }
+}
 
 .intro {
   max-width: 720px;
@@ -982,8 +1574,12 @@ body.map-full #zone > .inspection {
   left: 0;
   width: min(380px, calc(100% - 16px));
   max-width: none;
+  /* MapView sets the height beside the card's mark; this keeps any card on screen, and scrollable, whatever happens. */
+  max-height: calc(100% - 16px);
   overflow: auto;
   overscroll-behavior: contain;
+  /* An explicit colour keeps the scrollbar drawn (not an overlay that hides until used) and readable on the dark glass. */
+  scrollbar-color: rgba(209, 183, 106, .7) rgba(255, 255, 255, .06);
   padding: 10px 12px;
   background: var(--glass-solid);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -1348,10 +1944,14 @@ body.map-full .inspection > .close:hover {
   stroke: var(--you-line, #f4efe6);
   stroke-width: .8px;
 }
-.pt.you.sel .you-halo {
+/* Outranks `.marks .pt.sel.sel > :not(text)`: the selected player keeps a gold halo and their own outline. */
+.marks .pt.you.sel.sel > .you-halo {
   stroke: #ffd34d;
   stroke-width: 4px;
   stroke-opacity: 1;
+}
+.marks .pt.you.sel.sel > .you-fill {
+  stroke: var(--you-line, #f4efe6);
 }
 .pt.you text {
   fill: #fff;

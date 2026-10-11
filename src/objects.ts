@@ -3,9 +3,10 @@
 import { BEING_NAMES, ITEM_NAMES, MAP_LABELS, NATURE_NAMES } from "./gamedata.ts";
 import { spriteBox } from "./predict.ts";
 import { centerpos, INTERIOR_NAMES, isOutside, LANDMARK_NAMES, NPC_BEINGS, SolidId } from "./rules.ts";
-import type { Placed, Solid, Tree } from "./save.ts";
+import type { Placed, PlayerSave, Solid, Tree } from "./save.ts";
 import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
+import type { HealthGrid } from "./health.ts";
 import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, isTree, Nature, partLabel, trunkOf } from "./chop.ts";
 
 export type Layer =
@@ -73,6 +74,10 @@ export interface Mark {
   being?: number;
   /** The item it is (a placed item such as a Hidden Hollow or a workstation), for its picture. */
   item?: number;
+  /** A creature's or NPC's hit points at save time. */
+  health?: HealthGrid;
+  /** The player marker ("you" layer): the saved character. */
+  player?: PlayerSave;
 }
 
 const tile = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
@@ -89,7 +94,11 @@ export const locationLayer = (kind: number | null | undefined): Layer =>
     ? "rifts"
     : "places";
 
-export const markKey = (m: Mark) => `${m.layer}:${m.x}:${m.y}:${m.name === "Unsearched remains" ? "Remains" : m.name}`;
+/** The player's inspection key: fixed, so an open card of them survives moving (live saves, estimates, other zones). */
+export const PLAYER_KEY = "you";
+
+export const markKey = (m: Mark) =>
+  m.layer === "you" ? PLAYER_KEY : `${m.layer}:${m.x}:${m.y}:${m.name === "Unsearched remains" ? "Remains" : m.name}`;
 
 /** The saved interior a transition leads to (folder "[ zx,zy,ex,ey ]", or RW1–RW3 for the rift depths). */
 function interiorFor(tp: number[], interiors: Interior[]): Interior | undefined {
@@ -171,7 +180,16 @@ export function detailMarks(d: ZoneDetail): Mark[] {
     const name = BEING_NAMES[b.index] ?? `Being ${b.index}`;
     const npc = NPC_BEINGS.has(b.index);
     const label = npc && b.index !== 5 ? name : undefined;
-    out.push({ layer: npc ? "npcs" : "creatures", kind: npc ? "npc" : "creature", x: b.x, y: b.y, name, label, being: b.index });
+    out.push({
+      layer: npc ? "npcs" : "creatures",
+      kind: npc ? "npc" : "creature",
+      x: b.x,
+      y: b.y,
+      name,
+      label,
+      being: b.index,
+      health: b.health,
+    });
   }
   for (const c of d.containers) {
     const at = {

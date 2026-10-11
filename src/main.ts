@@ -2,7 +2,7 @@
 
 import { $, h } from "./dom.ts";
 import { type Character, characterIndex, type FileMap, findCharacters, fromDataTransfer, fromFiles } from "./files.ts";
-import { LAYERS } from "./objects.ts";
+import { LAYERS, PLAYER_KEY } from "./objects.ts";
 import { landmarks, shipwreckOdds } from "./predict.ts";
 import { Area } from "./rules.ts";
 import { estimatePlayer } from "./estimate.ts";
@@ -95,7 +95,8 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
       const interior = you.inside ? you.interior : undefined;
       if (st.selected?.[0] !== selected[0] || st.selected?.[1] !== selected[1] || st.interiorDir !== interior) {
         st.viewport = undefined;
-        st.inspected = undefined;
+        // An open card of the player follows them; anything else stays behind.
+        if (st.inspected !== PLAYER_KEY) st.inspected = undefined;
       }
       st.selected = selected;
       st.interiorDir = interior;
@@ -164,7 +165,7 @@ function followPlayer(st: State) {
   st.selected = you.zone;
   st.interiorDir = you.inside ? you.interior : undefined;
   st.viewport = undefined;
-  st.inspected = undefined;
+  if (st.inspected !== PLAYER_KEY) st.inspected = undefined;
 }
 
 async function manualImport(read: () => Promise<FileMap>) {
