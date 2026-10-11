@@ -159,8 +159,19 @@ export function playerSpot(st: State): Spot {
 const youLabel = (st: State, you: Spot, inside: boolean) =>
   `${st.world.character}${inside ? " (inside)" : ""}${you.estimated ? " (est.)" : ""}`;
 
-/** The player's clickable map marker, carrying the save for their inspection; `away` when drawn from a neighbouring zone. */
-const youMark = (st: State, you: Spot, x: number, y: number, label: string, away?: Mark["away"]): { mark: Mark; title: string } => ({
+/**
+ * The player's clickable map marker, carrying the save for their inspection; `away` when drawn from a neighbouring zone. While
+ * they are inside somewhere, the marker sits on that entrance and covers it, so it leads inside, where they can be inspected.
+ */
+const youMark = (
+  st: State,
+  you: Spot,
+  x: number,
+  y: number,
+  label: string,
+  away?: Mark["away"],
+  interior?: Interior,
+): { mark: Mark; title: string } => ({
   mark: {
     layer: "you",
     kind: "you",
@@ -170,6 +181,7 @@ const youMark = (st: State, you: Spot, x: number, y: number, label: string, away
     label,
     detail: you.estimated ? `probably here (${you.estimated})` : undefined,
     away,
+    interior,
     player: st.world.player,
   },
   title: you.title,
@@ -565,6 +577,7 @@ async function renderZone(st: State, z: Zone, glide = false) {
   const you = playerSpot(st);
   const [youOx, youOy] = [(you.zone[0] - z.x) * ROOM, (you.zone[1] - z.y) * ROOM];
   const youAway = youOx || youOy ? { zone: world.zones[you.zone[1]][you.zone[0]].name, ox: youOx, oy: youOy } : undefined;
+  const youInside = you.inside ? world.interiors.find((it) => it.dir === you.interior) : undefined;
   const inspector = h("section", { class: "inspection", hidden: true, "aria-live": "polite" });
   const picker = () => toolPicker(st, () => chips);
   const close = () => closeInspection(st, map, inspector);
@@ -576,10 +589,10 @@ async function renderZone(st: State, z: Zone, glide = false) {
     if (m.interior) {
       st.viewport = undefined;
       st.inspected = undefined;
-      const at = around.zoneOf.get(m) ?? z;
+      const at = m.layer === "you" ? world.zones[you.zone[1]][you.zone[0]] : around.zoneOf.get(m) ?? z;
       st.selected = [at.x, at.y];
       markCell(at.x, at.y);
-      renderInterior(st, at, m.interior, m.name);
+      renderInterior(st, at, m.interior, m.layer === "you" ? INTERIOR_NAMES[m.interior.kind ?? -1] ?? "Interior" : m.name);
     } else {
       st.inspected = markKey(m);
       inspect(m);
@@ -599,7 +612,7 @@ async function renderZone(st: State, z: Zone, glide = false) {
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
     // The map spans the world, so the player shows even from a neighbouring zone.
-    player: youMark(st, you, you.x + youOx, you.y + youOy, youLabel(st, you, you.inside), youAway),
+    player: youMark(st, you, you.x + youOx, you.y + youOy, youLabel(st, you, you.inside), youAway, youInside),
     onOpen: openInterior,
     onView: (view) => {
       around.refresh();

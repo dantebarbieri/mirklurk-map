@@ -1558,8 +1558,12 @@ body.map-full #zone > .inspection {
   left: 0;
   width: min(380px, calc(100% - 16px));
   max-width: none;
+  /* MapView sets the height beside the card's mark; this keeps any card on screen, and scrollable, whatever happens. */
+  max-height: calc(100% - 16px);
   overflow: auto;
   overscroll-behavior: contain;
+  /* An explicit colour keeps the scrollbar drawn (not an overlay that hides until used) and readable on the dark glass. */
+  scrollbar-color: rgba(209, 183, 106, .7) rgba(255, 255, 255, .06);
   padding: 10px 12px;
   background: var(--glass-solid);
   -webkit-backdrop-filter: var(--glass-blur);

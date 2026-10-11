@@ -391,7 +391,9 @@ export class MapView {
     if (spec.player) {
       const me = this.you = spec.player.mark;
       this.youTitle = spec.player.title;
-      this.addPoint(me.x, me.y, "you L-you", [...personIcon(), s("text", { y: -14 }, me.label ?? me.name)], this.marks.push(me) - 1);
+      // Inside somewhere, the marker sits on that entrance, so its label goes below rather than over the building's.
+      const label = s("text", { y: me.interior ? 17 : -14 }, me.label ?? me.name);
+      this.addPoint(me.x, me.y, "you L-you", [...personIcon(), label], this.marks.push(me) - 1);
     }
     this.popup = spec.popup;
     this.rescale();

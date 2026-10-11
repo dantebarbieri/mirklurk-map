@@ -187,19 +187,20 @@ fight them: each ware's icon, its name linked to the wiki and the price of one i
 window lists them, with a note on when that merchant offers to trade. **How trading works** sums up the rules (see below), and their hit
 points and attacks stay one click away under **Hit points and attacks**.
 
-Click your own marker (**You**) to inspect your character as saved. **Hit points** draws your grid with burned and lost (wounded) hit
-points, armor layers, poison stacks and bleeding, and says when new hit points from levelling up are not placed yet. Under it, **Armor**
-totals your equipment's armor as the game's equipment screen does and says how many armor points you will distribute on your hit points when
-the next combat starts (the total rounded down, at most 3 layers on each living hit point), with **Armor by item** showing what each worn
-piece gives at its current durability. **Wellbeing** shows wellbeing and its four stats, Focus, Stamina, Satiation and Warmth (the game's
-word for body temperature; its bar marks the comfortable 40–60% band), each with what it does to wellbeing per turn, plus warm-to-the-core,
-well rested, sickness and overburdened bonuses or penalties and the net change. **Conditions and level** lists the active effects (sickness,
-well rested, overburdened, shelter, tired and so on) with turns left where the save records them, wet clothing, level, XP to the next level
-and unspent skill points. **Inventory** lists equipped items and bag contents like a container, each worn or held item marked **E** (with
-its slot on hover; dashed for the weapon set not in hand, since worn vests, pants and belts have pockets too), under a roll-up of every coin
-carried, bags included: **True coins** shows them as they are, **Minimum coins** the same value in the fewest coins (100 copper make a
-silver, 10 silver a gold). The choice is kept for the session and applies to every roll-up, including the one in **Saved equipment &
-inventory**. Everything is the state at save time; the game keeps changing it every turn.
+Click your own marker (**You**) to inspect your character as saved. While you are inside a building, cave or ruin, your marker sits on its
+entrance (labelled below it so the building's name stays readable) and leads inside, where clicking it inspects you. **Hit points** draws
+your grid with burned and lost (wounded) hit points, armor layers, poison stacks and bleeding, and says when new hit points from levelling
+up are not placed yet. Under it, **Armor** totals your equipment's armor as the game's equipment screen does and says how many armor points
+you will distribute on your hit points when the next combat starts (the total rounded down, at most 3 layers on each living hit point), with
+**Armor by item** showing what each worn piece gives at its current durability. **Wellbeing** shows wellbeing and its four stats, Focus,
+Stamina, Satiation and Warmth (the game's word for body temperature; its bar marks the comfortable 40–60% band), each with what it does to
+wellbeing per turn, plus warm-to-the-core, well rested, sickness and overburdened bonuses or penalties and the net change. **Conditions and
+level** lists the active effects (sickness, well rested, overburdened, shelter, tired and so on) with turns left where the save records
+them, wet clothing, level, XP to the next level and unspent skill points. **Inventory** lists equipped items and bag contents like a
+container, each worn or held item marked **E** (with its slot on hover; dashed for the weapon set not in hand, since worn vests, pants and
+belts have pockets too), under a roll-up of every coin carried, bags included: **True coins** shows them as they are, **Minimum coins** the
+same value in the fewest coins (100 copper make a silver, 10 silver a gold). The choice is kept for the session and applies to every
+roll-up, including the one in **Saved equipment & inventory**. Everything is the state at save time; the game keeps changing it every turn.
 
 ### Trees: trunk liveliness and chopping cost
 
