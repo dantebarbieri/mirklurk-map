@@ -938,7 +938,7 @@ const SWITCH_ICON: Record<Switch, string> = {
   exits: "exit",
   you: "you",
   npcs: "npc",
-  creatures: "creature",
+  creatures: "creature fly",
   loot: "loot",
   drops: "drop",
   camp: "camp",
@@ -1103,7 +1103,7 @@ function markGroup(st: State, map: MapView, open: (m: Mark) => void, title: stri
         onmouseenter: () => map.highlight(m),
         onmouseleave: () => map.highlight(null),
       },
-      m.layer === "trees" ? markIcon(m.kind) : h("span", { class: `sym ${m.kind}` }),
+      m.layer === "trees" || m.layer === "creatures" ? markIcon(m.kind) : h("span", { class: `sym ${m.kind}` }),
       m.interior ? h("button", { type: "button", class: "link", title: "Look inside", onclick: () => open(m) }, m.name) : h("button", {
         type: "button",
         class: "plain",

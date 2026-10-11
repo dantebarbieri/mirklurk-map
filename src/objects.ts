@@ -173,6 +173,37 @@ export function solidMarks(solids: Solid[], interiors: Interior[], current?: Int
 
 const CHEST: Record<number, string> = { 149: "Chest", 150: "Chest (better loot)", 151: "Chest (best loot)" };
 
+/** The map icon of each creature (by being index): kinds that look alike in the game share one. */
+export const CREATURE_ICON: Record<number, string> = {
+  1: "fly", // Dreadfly
+  2: "fly", // Giant Gnat
+  25: "fly", // Deathfly
+  27: "louse", // Firelouse
+  13: "sceetler",
+  7: "crab", // Boulder Crab
+  30: "crab", // Titanspine Crab
+  28: "nightmare",
+  4: "snake", // Mire Serpent
+  10: "snake", // Viper
+  23: "snake", // Red Fang
+  0: "slug", // Giant Slug
+  17: "fish", // Mudfin
+  24: "fish", // Razorfin
+  11: "rodent", // Mirk Runner
+  29: "rodent", // Mirk Mauler
+  3: "troll", // Swamp Troll
+  18: "troll", // Cave Troll
+  21: "toad", // Toadkin
+  14: "scaalmyr", // Grunt
+  15: "scaalmyr", // Warrior
+  16: "scaalmyr", // Geomancer
+  22: "scaal",
+  9: "unwanted", // Dead Unwanted
+  31: "unwanted", // Raving Unwanted
+  32: "unwanted", // Mutated Unwanted
+  35: "unwanted", // Unwanted Guard
+};
+
 export function detailMarks(d: ZoneDetail): Mark[] {
   const out: Mark[] = [];
   for (const b of d.beings) {
@@ -180,9 +211,10 @@ export function detailMarks(d: ZoneDetail): Mark[] {
     const name = BEING_NAMES[b.index] ?? `Being ${b.index}`;
     const npc = NPC_BEINGS.has(b.index);
     const label = npc && b.index !== 5 ? name : undefined;
+    const icon = CREATURE_ICON[b.index];
     out.push({
       layer: npc ? "npcs" : "creatures",
-      kind: npc ? "npc" : "creature",
+      kind: npc ? "npc" : icon ? `creature ${icon}` : "creature",
       x: b.x,
       y: b.y,
       name,
