@@ -10,9 +10,9 @@ save folder and it shows:
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
   loot, dropped items (their own layer, as felling trees leaves many), storage (treasure chests, which stay after looting, your Hidden
   Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees,
-  brambles, rift vines, sharp ground, a water overlay and gatherables (Calmia, Turnips, Cranberries, Watercress, Water Lilies, Vile Bulbs
-  and bird nests) can be switched on. Click an explored entrance to see the inside, or a creature, NPC or your own marker to see hit points,
-  attacks, a merchant's wares or your wellbeing and inventory.
+  brambles, rift vines, sharp ground, a water overlay and gatherables (Calmia, Turnips, Cranberries, Watercress, Water Lilies, Vile Bulbs,
+  bird nests and ferns) can be switched on. Click an explored entrance to see the inside, or a creature, NPC or your own marker to see hit
+  points, attacks, a merchant's wares or your wellbeing and inventory.
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -329,10 +329,13 @@ guide. Lists under the map give each shown kind, the most to take first. Plants 
 you left on the ground (the **Ground loot** marker on the same tile), and harvesting again gives you that instead of a new roll. A searched
 nest shows about how many days are left until it refills.
 
-Mirklurk 0.8.1.5 has no tomatoes. Ferns are harvestable too (Plant Fiber), but they cover hundreds of tiles in every zone, so they get no
-markers. Bramble Berries, Riftvine Berries and Elderwort Berries are not picked from the ground: they fall, by chance, from the stems you
-cut on the **Brambles**, **Rift Vines** and Elderwort Shrubs (**Trees**). The layers show the plants as saved; they keep growing, spreading
-and dying back as turns pass and when you come back to a zone.
+**Ferns** (Plant Fiber) grow on hundreds of tiles in every zone, so instead of markers that layer shades the ground they cover, green and
+deeper the bigger the fern: one harvest gives 1–2 fibers from the smallest up to 5–14 from the biggest. Like Sharp ground, it shades the
+selected zone only.
+
+Mirklurk 0.8.1.5 has no tomatoes. Bramble Berries, Riftvine Berries and Elderwort Berries are not picked from the ground: they fall, by
+chance, from the stems you cut on the **Brambles**, **Rift Vines** and Elderwort Shrubs (**Trees**). The layers show the plants as saved;
+they keep growing, spreading and dying back as turns pass and when you come back to a zone.
 
 ## How the guesses work
 
@@ -380,17 +383,18 @@ its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by `life �
 **Gatherables** (`src/gather.ts`). They are tiles of the saved `Hinderance` layer, which `tile_is_harvestable`
 (`gml_GlobalScript_scr_tiles_autotiling`) and `tile_to_enum` (`gml_GlobalScript_scr_tiles_finders`) read: 147 Calmia, 148 Vile Bulb, 150–159
 Turnip and 170–179 Watercress (two looks of five growth stages each), 160–164 Cranberry, the flowering lilypads 73–74 and 78–79, and bird
-nests, 146 full and 145 searched. Harvesting rolls `loot_generate` (`gml_GlobalScript_scr_items`): Calmia Root 1–3, Vile Bulbs 1–2, one
-Turnip or two from stage 4, Cranberries `(n, 2n)` with n = 2, 3 or 4 from stage 3 (none before), Watercress `(n, round(1.5n))` with n =
-stage (rounded half to even), one or two Water Lilies at stages 4 and 5, and from a nest 1–7 Feathers with a 40% chance of 1–3 Eggs. Ranges
-are `loot_amountchances(a, b)`, which picks one of `a…a`, `a…a+1`, …, `a…a+b−1`, so `a` to `a+b−1` with low counts likelier; Green Fingers
-adds one with a chance. Picking everything clears the tile; leaving some sets `LootData` 99 and saves the rest to `LOOT-x_y.save`
-(`gml_GlobalScript_scr_menu_related`). Emptying a nest turns it into 145 with `LootData` 4–12, days that count down each midnight and by the
-days you were away, after which it refills (`gml_Object_manager_area_Step_0`). New zones other than the Rift Mire get 8–32 Calmia, 5–13
-Turnips and 10–26 Cranberry plants spread into patches, by area type (`gml_Object_manager_area_Alarm_2`); on each return two Calmia sprout
-outdoors (again not in the Rift Mire), and one Vile Bulb in a cave, per day or part of a day you were away
-(`gml_Object_obj_screenfader_Step_0`), and plants grow and spread with every turn's growth ticks (`nature_grow` in
-`gml_GlobalScript_scr_nature`).
+nests, 146 full and 145 searched; ferns are 80–89. Harvesting rolls `loot_generate` (`gml_GlobalScript_scr_items`): Calmia Root 1–3, Vile
+Bulbs 1–2, one Turnip or two from stage 4, Cranberries `(n, 2n)` with n = 2, 3 or 4 from stage 3 (none before), Watercress
+`(n, round(1.5n))` with n = stage (rounded half to even), Plant Fiber `(n, 2n)` with n = the fern's stage, one or two Water Lilies at stages
+4 and 5, and from a nest 1–7 Feathers with a 40% chance of 1–3 Eggs. Ranges are `loot_amountchances(a, b)`, which picks one of `a…a`,
+`a…a+1`, …, `a…a+b−1`, so `a` to `a+b−1` with low counts likelier; Green Fingers adds one with a chance. Picking everything clears the tile;
+leaving some sets `LootData` 99 and saves the rest to `LOOT-x_y.save` (`gml_GlobalScript_scr_menu_related`). Emptying a nest turns it into
+145 with `LootData` 4–12, days that count down each midnight and by the days you were away, after which it refills
+(`gml_Object_manager_area_Step_0`). New zones other than the Rift Mire get 8–32 Calmia, 5–13 Turnips and 10–26 Cranberry plants spread into
+patches, by area type, and every new zone up to 320 fern patches of 8–64 steps each (64 in the Rift Mire, 196 in the Withered Mire)
+(`gml_Object_manager_area_Alarm_2`); on each return two Calmia sprout outdoors (again not in the Rift Mire), and one Vile Bulb in a cave,
+per day or part of a day you were away (`gml_Object_obj_screenfader_Step_0`), and plants grow and spread with every turn's growth ticks
+(`nature_grow` in `gml_GlobalScript_scr_nature`).
 
 **Hit-point grids** (`src/health.ts`). `Player.save` and each being in `Beings.save` store `hpgrid` and `statusgrid` row by row. In
 `hpgrid`, −4 is no hit point, −1 burned (fire destroyed it; it cannot heal until treated), 0 lost, 1 healthy and 2–4 healthy under 1–3 armor
@@ -481,9 +485,9 @@ The base is the game's own map (land, water, slopes, big boulders; drawn when th
 overlays). Markers come from the zone folder: `Solids.save` (buildings, entrances with their `transPoint`, boulders and ruins with real
 sprite bounds), `Beings.save`, `Containers.save`, `Stations.save`, `Interactables.save` (rifts), `Trees.save` (loaded only when trees,
 brambles or rift vines are switched on), `NatureData.tmap` for thorny ground, `Hinderance.tmap` and `LootData.tmap` for gatherables (loaded
-only when one is switched on, in interiors too) and `Water1.tmap` / `Ygrid.save` for the water overlay. Interiors (`[ x,y,ex,ey ]` folders,
-`RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn from their `Data`/`Lower`/`OnLower`/`Water1`
-layers.
+only when one is switched on, in interiors too; `Hinderance.tmap` alone for the fern overlay) and `Water1.tmap` / `Ygrid.save` for the water
+overlay. Interiors (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn
+from their `Data`/`Lower`/`OnLower`/`Water1` layers.
 
 ## Development
 

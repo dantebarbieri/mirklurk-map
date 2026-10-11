@@ -1,5 +1,15 @@
 import { assert, assertEquals } from "./assert.ts";
-import { amountRange, GATHER_KINDS, GATHER_LAYERS, gatherAt, gatherDetail, gatherMarks, gatherOrder } from "../src/gather.ts";
+import {
+  amountRange,
+  fernAt,
+  fernShade,
+  GATHER_KINDS,
+  GATHER_LAYERS,
+  gatherAt,
+  gatherDetail,
+  gatherMarks,
+  gatherOrder,
+} from "../src/gather.ts";
 import { ITEM_NAMES } from "../src/gamedata.ts";
 import { LAYERS } from "../src/objects.ts";
 import { TILES } from "../src/rules.ts";
@@ -84,6 +94,18 @@ Deno.test("gather: one mark per tile at its centre, with mirrored tiles and Loot
     [...marks].sort(gatherOrder).map((m) => m.kind),
     ["gather nest", "gather cranberry", "gather calmia", "gather lily", "gather cranberry unripe", "gather nest empty"],
   );
+});
+
+Deno.test("gather: ferns are shaded by growth stage, not marked", () => {
+  // Plant Fiber (n, 2n) with n = stage + 1, in two looks of five stages (loot_generate case 57).
+  const fiber: [number, number][] = [[1, 2], [2, 4], [3, 6], [4, 8], [5, 10]].map(([a, b]) => amountRange(a, b));
+  assertEquals(fiber, [[1, 2], [2, 5], [3, 8], [4, 11], [5, 14]]);
+  assertEquals([80, 81, 82, 83, 84].map((t) => fernAt(t)!.amount), fiber);
+  assertEquals([85, 86, 87, 88, 89].map((t) => fernAt(t)!.amount), fiber);
+  assertEquals([79, 90, 0, 147].map(fernAt), [null, null, null, null]);
+  assertEquals([80, 84, 85, 89].map((t) => fernShade(t)![3]), [80, 200, 80, 200]);
+  assertEquals(fernShade(73), null);
+  for (let t = 80; t < 90; t++) assertEquals(gatherAt(t), null, `fern ${t} has no marker`);
 });
 
 Deno.test("gather: every kind has its own layer, wiki page and yield picture", () => {

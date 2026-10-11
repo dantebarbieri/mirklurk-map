@@ -17,7 +17,7 @@ import {
   treeMarks,
 } from "./objects.ts";
 import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts";
-import { GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
+import { fernShade, GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
 import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
@@ -775,13 +775,13 @@ const LAYER_GROUPS: [string, Switch[]][] = [
   ["Items", ["loot", "drops", "camp", "storage"]],
   ["Terrain", ["boulders", "rubble", "rocks", "sharp", "water"]],
   ["Nature", ["trees", "brambles", "vines"]],
-  ["Gatherables", ["calmia", "turnips", "cranberries", "watercress", "lilies", "bulbs", "nests"]],
+  ["Gatherables", ["calmia", "turnips", "cranberries", "watercress", "lilies", "bulbs", "nests", "ferns"]],
 ];
 
 /** Layers drawn from saved plants (lazy `loadTrees`), and the NatureData tile each thorny layer shades. */
 const PLANT_LAYERS = new Set<Layer>(["trees", "brambles", "vines"]);
 const THORN_TILES: [Layer, number][] = [["brambles", 1], ["sharp", 2], ["vines", 3]];
-const OUTDOOR_ONLY = new Set<Layer>(["trees", "brambles", "vines", "sharp", "boulders", "rubble"]);
+const OUTDOOR_ONLY = new Set<Layer>(["trees", "brambles", "vines", "sharp", "boulders", "rubble", "ferns"]);
 
 const switchLabel = (id: Switch) => id === "water" ? "Water" : LAYERS.find((l) => l.id === id)!.label;
 const switchDefault = (id: Switch) => id !== "water" && LAYERS.find((l) => l.id === id)!.on;
@@ -867,10 +867,17 @@ function mapLayers(
     const url = st.prefs.water && outdoor ? await waterUrl(st.world, dir!) : null;
     if (current()) map.setOverlay("water", url);
   };
+  let fernsRequest = 0;
+  const setFerns = async () => {
+    const request = ++fernsRequest;
+    const url = st.prefs.layers.has("ferns") && outdoor ? await fernsUrl(st.world, dir!) : null;
+    if (current() && request === fernsRequest) map.setOverlay("ferns", url);
+  };
   if (outdoor) {
     if ([...PLANT_LAYERS].some((l) => st.prefs.layers.has(l))) loadTreesOnce();
     setThorns();
     if (st.prefs.water) setWater();
+    if (st.prefs.layers.has("ferns")) setFerns();
   }
   if ([...GATHER_LAYERS].some((l) => st.prefs.layers.has(l))) loadGatherOnce();
   const on = (id: Switch) => id === "water" ? st.prefs.water : st.prefs.layers.has(id);
@@ -885,6 +892,7 @@ function mapLayers(
       if (PLANT_LAYERS.has(id) && show) loadTreesOnce();
       if (GATHER_LAYERS.has(id) && show) loadGatherOnce();
       if (THORN_TILES.some(([t]) => t === id)) setThorns();
+      if (id === "ferns") setFerns();
       showLayers(st, map, all);
     }
     for (const f of listeners) f();
@@ -988,6 +996,7 @@ const SWITCH_ICON: Record<Switch, string> = {
   lilies: "gather lily",
   bulbs: "gather bulb",
   nests: "gather nest",
+  ferns: "fern",
 };
 
 /**
@@ -1101,6 +1110,8 @@ const LAYER_TIPS: Partial<Record<Switch, string>> = {
   lilies: "Flowering lilypads, harvested for Water Lilies",
   bulbs: "Vile Bulbs (Mushrooms), which grow in caves",
   nests: "Bird nests to search for Feathers and Eggs; searched ones refill after some days",
+  ferns:
+    "Ground with ferns, shaded deeper the bigger they are: harvested for Plant Fiber, 1–2 from the smallest up to 5–14 from the biggest",
 };
 
 /** An area's gatherables, from its saved Hinderance and LootData tiles (fresh marks each time, as neighbours shift theirs). */
@@ -1121,6 +1132,18 @@ function relist(el: HTMLElement, groups: (HTMLElement | null)[]) {
   const was = new Map(Array.from(el.querySelectorAll<HTMLDetailsElement>("details[data-remember]"), (d) => [d.dataset.remember, d.open]));
   el.replaceChildren(...groups.filter((g): g is HTMLElement => !!g));
   for (const d of el.querySelectorAll<HTMLDetailsElement>("details[data-remember]")) d.open = was.get(d.dataset.remember) ?? d.open;
+}
+
+/** Saved fern tiles (Hinderance 80–89, Plant Fiber), shaded deeper the bigger the fern. */
+async function fernsUrl(world: World, dir: string): Promise<string | null> {
+  const hinderance = await loadLayer(world, dir, "Hinderance");
+  if (!hinderance) return null;
+  return tileImage((img) => {
+    for (let i = 0; i < TILES * TILES; i++) {
+      const c = fernShade(tileIndex(hinderance.data[i]));
+      if (c) img.data.set(c, i * 4);
+    }
+  });
 }
 
 /** Saved NatureData tiles that hinder walking (1 brambles, 3 rift vine, 2 sharp ground); only `tiles` are painted. */

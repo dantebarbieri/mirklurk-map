@@ -2330,13 +2330,17 @@ body.map-full #zone > .inspection.sheet > .close {
   stroke: #fff;
   stroke-width: 2px;
 }
-/* Legend swatches for the water and sharp-ground overlays (see waterUrl and thornsUrl). */
+/* Legend swatches for the water, sharp-ground and fern overlays (see waterUrl, thornsUrl and fernsUrl). */
 .fp.water {
   fill: rgb(110, 180, 235);
   stroke: rgb(40, 110, 200);
 }
 .fp.sharp {
   fill: rgb(220, 220, 210);
+  stroke: none;
+}
+.fp.fern {
+  fill: rgb(150, 205, 60);
   stroke: none;
 }
 
