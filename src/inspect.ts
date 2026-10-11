@@ -46,7 +46,7 @@ export function picture(img: WikiImage, alt: string, cls: string, w: number, h_:
 /** The wiki's picture of what a mark is: a creature or NPC, an item, or a quest building. */
 const markImage = (m: Mark) => m.being !== undefined ? beingImage(m.being) : m.item !== undefined ? itemImage(m.item) : placeImage(m.name);
 
-function itemRow(item: SavedItem, key: string, expanded?: Set<string>): HTMLElement {
+function itemRow(item: SavedItem, key: string, expanded?: Set<string>, badge?: Node | null): HTMLElement {
   const name = ITEM_NAMES[item.index] ?? `Item ${item.index}`;
   const url = itemWiki(name);
   const icon = itemImage(item.index);
@@ -57,6 +57,7 @@ function itemRow(item: SavedItem, key: string, expanded?: Set<string>): HTMLElem
   return h(
     "li",
     {},
+    badge,
     icon ? picture(icon, "", "item-icon", 24, 20, true) : null,
     url ? wikiLink(url, name) : name,
     ` x${item.amount}`,
@@ -74,12 +75,22 @@ function itemRow(item: SavedItem, key: string, expanded?: Set<string>): HTMLElem
   );
 }
 
-export function inventoryView(inventory: Inventory | undefined, key = "inventory", expanded?: Set<string>): HTMLElement {
+/** A saved item list; `badge` marks its top-level items (such as the player's equipped ones), not what they contain. */
+export function inventoryView(
+  inventory: Inventory | undefined,
+  key = "inventory",
+  expanded?: Set<string>,
+  badge?: (item: SavedItem) => Node | null,
+): HTMLElement {
   if (!inventory || inventory.state !== "saved") {
     return h("p", { class: "muted" }, inventory?.reason ?? "Inventory is unavailable in this save.");
   }
   const list = inventory.items.length
-    ? h("ul", { class: "inventory-items" }, inventory.items.map((item, i) => itemRow(item, `${key}/${i}:${item.index}`, expanded)))
+    ? h(
+      "ul",
+      { class: "inventory-items" },
+      inventory.items.map((item, i) => itemRow(item, `${key}/${i}:${item.index}`, expanded, badge?.(item))),
+    )
     : h("p", { class: "muted" }, "Empty when saved.");
   return inventory.note ? h("div", {}, h("p", { class: "muted" }, inventory.note), list) : list;
 }

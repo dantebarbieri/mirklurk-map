@@ -188,15 +188,18 @@ window lists them, with a note on when that merchant offers to trade. **How trad
 points and attacks stay one click away under **Hit points and attacks**.
 
 Click your own marker (**You**) to inspect your character as saved. **Hit points** draws your grid with burned and lost (wounded) hit
-points, armor layers, poison stacks and bleeding, and says when new hit points from levelling up are not placed yet. **Wellbeing** shows
-wellbeing and its four stats, Focus, Stamina, Satiation and Warmth (the game's word for body temperature; its bar marks the comfortable
-40–60% band), each with what it does to wellbeing per turn, plus warm-to-the-core, well rested, sickness and overburdened bonuses or
-penalties and the net change. **Conditions and level** lists the active effects (sickness, well rested, overburdened, shelter, tired and so
-on) with turns left where the save records them, wet clothing, level, XP to the next level and unspent skill points. **Inventory** lists
-equipped items and bag contents like a container, under a roll-up of every coin carried, bags included: **True coins** shows them as they
-are, **Minimum coins** the same value in the fewest coins (100 copper make a silver, 10 silver a gold). The choice is kept for the session
-and applies to every roll-up, including the one in **Saved equipment & inventory**. Everything is the state at save time; the game keeps
-changing it every turn.
+points, armor layers, poison stacks and bleeding, and says when new hit points from levelling up are not placed yet. Under it, **Armor**
+totals your equipment's armor as the game's equipment screen does and says how many armor points you will distribute on your hit points when
+the next combat starts (the total rounded down, at most 3 layers on each living hit point), with **Armor by item** showing what each worn
+piece gives at its current durability. **Wellbeing** shows wellbeing and its four stats, Focus, Stamina, Satiation and Warmth (the game's
+word for body temperature; its bar marks the comfortable 40–60% band), each with what it does to wellbeing per turn, plus warm-to-the-core,
+well rested, sickness and overburdened bonuses or penalties and the net change. **Conditions and level** lists the active effects (sickness,
+well rested, overburdened, shelter, tired and so on) with turns left where the save records them, wet clothing, level, XP to the next level
+and unspent skill points. **Inventory** lists equipped items and bag contents like a container, each worn or held item marked **E** (with
+its slot on hover; dashed for the weapon set not in hand, since worn vests, pants and belts have pockets too), under a roll-up of every coin
+carried, bags included: **True coins** shows them as they are, **Minimum coins** the same value in the fewest coins (100 copper make a
+silver, 10 silver a gold). The choice is kept for the session and applies to every roll-up, including the one in **Saved equipment &
+inventory**. Everything is the state at save time; the game keeps changing it every turn.
 
 ### Trees: trunk liveliness and chopping cost
 
@@ -316,6 +319,16 @@ game flags it as dangerously low (`gml_Object_obj_player_Step_0`). Temperature w
 point every third level (`gml_Object_obj_player_Step_1`). Conditions are the saved `aeList`, indices into `UI.ini` [AEs], given short names
 here. The coin roll-up counts every coin in your equipment and bags; **Minimum coins** converts by value as `item_draw_cost`
 (`gml_GlobalScript_scr_items`) splits a price: 1 gold = 10 silver = 1,000 copper.
+
+**Armor and equipment** (`src/armor.ts`). `Player.save` lists the 16 equipment slots of `myEquips` in order (two weapon sets of main and off
+hand, then helmet, hood, shirt, vest, backpack, belt, pants, leg armor, gloves, cloak, socks and footwear;
+`gml_Object_obj_player_Create_0`), with `actives` naming the weapon set in hand. A two-handed melee weapon is saved in its off-hand slot as
+well and the loader skips that copy, so the viewer drops it too. `player_update_gearstats` (`gml_GlobalScript_scr_basic_useful`) adds up the
+`armor` of every slot's item, both weapon sets included, each scaled by durability left and rounded to 0.01 (`item_durfix_value` in
+`gml_GlobalScript_scr_items`), and rounds the total to 0.1: the **Total Armor** of the equipment screen. When combat starts,
+`player_real_combat_check` gives `min(floor(totalArmor), being_get_armor_max)` armor points to distribute, the cap being 3 layers on each
+living hit point (`gml_GlobalScript_scr_ai_related`); when it ends, the layers are removed. Armor values and maximum durability are the item
+database's (`gml_Object_databank_Alarm_1`).
 
 **Where you are** (`src/estimate.ts`). You are drawn as a head-and-shoulders pictogram filled with your character's hair colour (`hairBlend`
 in `Player.save`), outlined dark or light by its perceived lightness, on the world grid and on the zone or interior map. The game offers

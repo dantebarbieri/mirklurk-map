@@ -21,7 +21,7 @@ import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, 
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts";
-import { coinRollup } from "./player.ts";
+import { coinRollup, equippedBadge } from "./player.ts";
 import { entityWiki } from "./wiki.ts";
 import {
   type Interior,
@@ -259,7 +259,7 @@ export function renderWorld(st: State) {
         { class: "inventory-panel", "data-remember": "player", open: st.expanded?.has("player") },
         h("summary", {}, "Saved equipment & inventory"),
         coinRollup(p.inventory),
-        inventoryView(p.inventory, "player", st.expanded),
+        inventoryView(p.inventory, "player", st.expanded, equippedBadge(p)),
       ),
       warn,
     ),

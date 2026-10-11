@@ -3,6 +3,7 @@
 import { TILES } from "./rules.ts";
 import { containerInventory, type Inventory, parseItemList } from "./inventory.ts";
 import { type HealthGrid, parseHealth } from "./health.ts";
+import type { Equipped } from "./armor.ts";
 
 /** save_datajson: UTF-8 JSON written with buffer_string, so it ends in one NUL byte. */
 export function decodeJson(bytes: Uint8Array): unknown {
@@ -84,6 +85,8 @@ export interface PlayerSave {
   /** Hair colour is perceived as light (outline goes dark). */
   hairLight?: boolean;
   inventory?: Inventory;
+  /** What `inventory`'s top-level items are worn in (the same item objects), in slot order; empty when not saved. */
+  equipment: Equipped[];
   /** Hit points at save time (hpgrid / statusgrid). */
   health?: HealthGrid;
   /** Wellbeing and the four stats it depends on, each 0–1; absent if any is missing from the save. */
@@ -116,6 +119,25 @@ export interface Vitals {
   warmth: number;
 }
 
+/**
+ * myEquips lists every equipment slot in order, -4 when empty, with `actives` saying which weapon set is in hand. A two-handed
+ * melee weapon is also saved in its off-hand slot (the loader in scr_saveload skips that copy), so an off hand identical to its
+ * main hand is dropped.
+ */
+function parseEquipment(rawEquips: unknown, rawActives: unknown): { inventory: Inventory; equipment: Equipped[] } {
+  if (!Array.isArray(rawEquips)) return { inventory: parseItemList(rawEquips), equipment: [] };
+  const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
+  const kept = rawEquips.flatMap((v, slot) =>
+    v === -4 || ((slot === 1 || slot === 3) && same(v, rawEquips[slot - 1])) ? [] : [{ v, slot }]
+  );
+  const inventory = parseItemList(kept.map((k) => k.v));
+  const actives = Array.isArray(rawActives) ? rawActives : [];
+  const equipment = inventory.state === "saved"
+    ? inventory.items.map((item, i) => ({ slot: kept[i].slot, active: actives[kept[i].slot] !== false, item }))
+    : [];
+  return { inventory, equipment };
+}
+
 export function parsePlayer(raw: unknown): PlayerSave {
   const arr = raw as Record<string, unknown>[];
   const p = Array.isArray(arr) ? arr[arr.length - 1] : undefined;
@@ -125,6 +147,7 @@ export function parsePlayer(raw: unknown): PlayerSave {
     throw new Error("Player.save has no 5×5 worldGrid");
   }
   const mem = Array.isArray(p.worldGridMem) ? (p.worldGridMem as unknown[][]) : [];
+  const { inventory, equipment } = parseEquipment(p.myEquips, p.actives);
   return {
     version: typeof p.VERSION === "string" ? p.VERSION : "?",
     grid: (grid as unknown[][]).map((r) => r.map((v) => num(v, -4))),
@@ -142,7 +165,8 @@ export function parsePlayer(raw: unknown): PlayerSave {
     shipWreck: p.shipWreck === true,
     hair: typeof p.hairBlend === "number" ? bgr(p.hairBlend) : undefined,
     hairLight: typeof p.hairBlend === "number" ? isLight(p.hairBlend) : undefined,
-    inventory: parseItemList(p.myEquips),
+    inventory,
+    equipment,
     health: parseHealth(p.hpgrid, p.statusgrid),
     vitals: [p.haelth, p.focus, p.energy, p.hunger, p.warmth].every((v) => typeof v === "number" && Number.isFinite(v))
       ? { wellbeing: num(p.haelth), focus: num(p.focus), stamina: num(p.energy), satiation: num(p.hunger), warmth: num(p.warmth) }

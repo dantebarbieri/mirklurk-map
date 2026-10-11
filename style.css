@@ -747,6 +747,32 @@ body.loaded main > * {
   margin: 6px 0;
   font-size: 13px;
 }
+.player-armor {
+  margin: 8px 0 4px;
+}
+.armor-pieces {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+/* An E on worn or held items (player.ts equippedBadge); dashed for the weapon set not in hand. */
+.equip-badge {
+  display: inline-block;
+  min-width: 15px;
+  margin-right: 5px;
+  padding: 0 2px;
+  border: 1px solid var(--gold2);
+  border-radius: 3px;
+  font: 700 10px/13px system-ui, sans-serif;
+  text-align: center;
+  color: var(--gold);
+  vertical-align: middle;
+  cursor: help;
+}
+.equip-badge.off {
+  border-style: dashed;
+  color: var(--muted);
+}
 
 /* Coin roll-up (player.ts coinRollup): every coin carried, with a True / Minimum coins switch. */
 div.coin-rollup {

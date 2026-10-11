@@ -4,9 +4,11 @@
 // gml_Object_UI_Draw_64 reports them.
 
 import { type Coins, coinsView, coinValue, countCoins, fewestCoins } from "./coins.ts";
+import { ARMOR, armorToPlace, isWeaponSlot, itemArmor, SLOT_NAMES, totalArmor } from "./armor.ts";
 import { h } from "./dom.ts";
+import { ITEM_NAMES } from "./gamedata.ts";
 import { healthGridView, healthLegend, type HealthSummary, summarize } from "./health.ts";
-import type { Inventory } from "./inventory.ts";
+import type { Inventory, SavedItem } from "./inventory.ts";
 import { inventoryView, section, type SectionContext, wikiLink, wikiTitle } from "./inspect.ts";
 import type { PlayerSave } from "./save.ts";
 import { wikiUrl } from "./wiki.ts";
@@ -411,17 +413,82 @@ function healText(s: HealthSummary, wellbeing: number | undefined): string {
   ].filter(Boolean).join(" ");
 }
 
-function hitPointsView(p: PlayerSave): HTMLElement[] {
-  if (!p.health) return [h("p", { class: "muted" }, "Hit points were not saved.")];
+const armorText = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+
+/** Armor from equipment (as the equipment screen totals it) and the points it gives to distribute when combat starts. */
+function armorView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
+  if (p.inventory?.state !== "saved") return [];
+  const pieces = p.equipment.flatMap((e) => {
+    const armor = itemArmor(e.item);
+    return armor === undefined ? [] : [{ e, armor, full: ARMOR[e.item.index][0], max: ARMOR[e.item.index][1] }];
+  });
+  if (!pieces.length) return [h("p", { class: "player-armor muted" }, "No armor equipped.")];
+  const total = totalArmor(p.equipment);
+  const place = armorToPlace(total, p.health);
+  const capped = place < Math.floor(total);
+  const why = capped ? " (capped: at most 3 layers on each living hit point)" : Number.isInteger(total) ? "" : " (rounded down)";
+  return [
+    h(
+      "p",
+      { class: "player-armor" },
+      h("strong", {}, `Armor ${armorText(total)}`),
+      " from equipment: ",
+      h("strong", {}, plural(place, "point")),
+      " to distribute on your hit points when combat starts",
+      why ? h("span", { class: "muted" }, why) : null,
+      ".",
+    ),
+    section(
+      ctx,
+      "armor",
+      "Armor by item",
+      false,
+      h(
+        "ul",
+        { class: "armor-pieces" },
+        pieces.map(({ e, armor, full, max }) =>
+          h(
+            "li",
+            {},
+            h("span", {}, ITEM_NAMES[e.item.index] ?? `Item ${e.item.index}`),
+            h(
+              "span",
+              { class: "muted" },
+              ` ${armor}`,
+              (e.item.durability ?? max) < max ? ` of ${full} (${Math.round((e.item.durability ?? max) / max * 100)}% durability)` : "",
+              e.active ? "" : ", other weapon set",
+            ),
+          )
+        ),
+      ),
+      h("p", { class: "muted" }, "Each piece gives its armor scaled by durability left; the total counts both weapon sets."),
+    ),
+  ];
+}
+
+/** Marks the player's top-level inventory items, the ones worn or held, with an E naming the slot. */
+export function equippedBadge(p: PlayerSave): (item: SavedItem) => HTMLElement | null {
+  const worn = new Map(p.equipment.map((e) => [e.item, e]));
+  return (item) => {
+    const e = worn.get(item);
+    if (!e) return null;
+    const slot = SLOT_NAMES[e.slot] ?? "equipment";
+    const label = isWeaponSlot(e.slot) && !e.active ? `Equipped in your other weapon set (${slot})` : `Equipped: ${slot}`;
+    return h("span", { class: `equip-badge${e.active ? "" : " off"}`, role: "img", "aria-label": label, title: label }, "E");
+  };
+}
+
+function hitPointsView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
+  if (!p.health) return [h("p", { class: "muted" }, "Hit points were not saved."), ...armorView(p, ctx)];
   const s = summarize(p.health);
-  const guides: [string, string][] = [["Health and armor", "Health and armor"]];
-  if (s.armor) guides.push(["Armor points", "Armor points"]);
+  const guides: [string, string][] = [["Health and armor", "Health and armor"], ["Armor points", "Armor points"]];
   if (s.poison) guides.push(["Poison", "Poison"]);
   if (s.bleed || s.burned) guides.push(["Damage types", "Damage types"]);
   const heal = healText(s, p.vitals?.wellbeing);
   return [
     healthGridView(p.health),
     healthLegend(p.health),
+    ...armorView(p, ctx),
     p.newHitPoints > 0
       ? h(
         "p",
@@ -476,7 +543,7 @@ function conditionsView(p: PlayerSave): HTMLElement[] {
 /** Inspection sections for the player: hit points, wellbeing and its four stats, conditions, coins and inventory. */
 export function playerView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
   return [
-    section(ctx, "hp", "Hit points", true, ...hitPointsView(p)),
+    section(ctx, "hp", "Hit points", true, ...hitPointsView(p, ctx)),
     section(ctx, "wellbeing", "Wellbeing", true, ...wellbeingView(p, ctx)),
     section(ctx, "conditions", "Conditions and level", true, ...conditionsView(p)),
     section(
@@ -485,8 +552,8 @@ export function playerView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
       "Inventory",
       true,
       coinRollup(p.inventory),
-      inventoryView(p.inventory, `${ctx.key}/inventory`, ctx.expanded),
-      h("p", { class: "muted" }, "Equipment and bag contents as saved."),
+      inventoryView(p.inventory, `${ctx.key}/inventory`, ctx.expanded, equippedBadge(p)),
+      h("p", { class: "muted" }, "As saved. E marks what you wear or hold (dashed: your other weapon set); the rest is in your bags."),
     ),
   ];
 }
