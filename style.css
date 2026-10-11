@@ -279,6 +279,8 @@ body.loaded main > * {
   display: grid;
   gap: 2px;
   width: max-content;
+  /* Room for the poison and bleed badges, which stick out past the edge cells' corners. */
+  padding: 4px;
 }
 .hp-cell {
   position: relative;
@@ -388,6 +390,8 @@ body.loaded main > * {
 }
 .hp-legend .hp-cell {
   --hp-cell: 14px;
+  /* Room for the sample badges, which stick out past the swatch's corners. */
+  margin: 0 3px;
 }
 
 /* Coin amounts (coins.ts). */
