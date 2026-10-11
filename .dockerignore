@@ -3,6 +3,10 @@
 !deno.json
 !index.html
 !style.css
+!manifest.webmanifest
+!icons/
+!icons/*.png
+!icons/*.svg
 !src/
 !src/**
 !assets/

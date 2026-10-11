@@ -1,5 +1,16 @@
 import { type ShareSource, Sharing } from "../src/sharing.ts";
-import { linkKey, packSave, TOKEN, unpackSave, worldId, type WorldInfo } from "../src/sharing-format.ts";
+import {
+  linkKey,
+  openPairing,
+  packSave,
+  PAIR_TTL,
+  pairId,
+  sealPairing,
+  TOKEN,
+  unpackSave,
+  worldId,
+  type WorldInfo,
+} from "../src/sharing-format.ts";
 import { assert, assertEquals } from "./assert.ts";
 
 const storageKey = "mirklurk-library-v1";
@@ -117,6 +128,8 @@ class BrowserStub {
   /** Library listings answered immediately, by sync key; other requests wait for `reply`. */
   readonly server = new Map<string, { name: string; worlds: WorldInfo[] }>();
   clipboard = "";
+  /** Every request fails as if the network were gone. */
+  down = false;
   confirmAnswer = true;
   readonly confirms: string[] = [];
   current?: ShareSource;
@@ -145,10 +158,11 @@ class BrowserStub {
     this.install(globalThis, "addEventListener", (name: string, callback: () => void) => this.listeners.set(name, callback));
     this.install(AbortSignal, "timeout", () => new AbortController().signal);
     this.install(globalThis, "fetch", (path: string, init: RequestInit) => {
+      if (this.down) return Promise.reject(new TypeError("Failed to fetch"));
       const method = init.method ?? "GET";
       const headers = new Headers(init.headers);
-      const key = headers.get("Authorization")!.replace("Bearer ", "");
-      if (path === "/api/library" && method === "GET") {
+      const key = headers.get("Authorization")?.replace("Bearer ", "");
+      if (key && path === "/api/library" && method === "GET") {
         const library = this.server.get(key) ?? { name: "", worlds: [] };
         return Promise.resolve(Response.json({ ...library, limits: { worldsPerLibrary: 5, retentionDays: 30 } }));
       }
@@ -240,6 +254,11 @@ class BrowserStub {
   async tick() {
     assertEquals(this.timers.length, 1);
     this.timers[0]();
+    await this.settle();
+  }
+
+  async fire(event: string) {
+    this.listeners.get(event)!();
     await this.settle();
   }
 }
@@ -551,12 +570,14 @@ Deno.test("sharing client: share and sync cards show a QR code and copy links; d
     assertEquals(b.clipboard, `https://map.example/#v=${linkKey("M".repeat(43))}`);
     b.el("#sync-device").click();
     assertEquals(card.find((e) => e.tag === "h3")?.textContent, "Sync another device");
+    await b.reply(await b.request("POST", "/library/pair"), Response.json({ expiresIn: 600 }, { status: 201 }));
     card.button("Copy link").click();
     await b.settle();
     assertEquals(b.clipboard, `https://map.example/#s=${linkKey(keyA)}`);
     assert(!JSON.stringify(card.textContent).includes(keyA));
     card.button("Close").click();
     assert(card.hidden);
+    await b.reply(await b.request("DELETE", "/library/pair"), new Response(null, { status: 204 }));
 
     b.confirmAnswer = false;
     b.el("#world-list").button("Delete").click();
@@ -584,4 +605,143 @@ Deno.test("sharing client: renaming the library saves the friendly name for ever
     await b.settle();
     assertEquals(b.pending(), 0);
     assert(b.el("#share-status").classList.contains("error"));
+  }, { current: { key: keyA, name: "" }, saved: [], auto: true }));
+
+async function enter(b: BrowserStub, text: string) {
+  b.el("#join-code").value = text;
+  b.el("#join-form").dispatchEvent(new Event("submit", { cancelable: true }));
+  await b.settle();
+}
+
+Deno.test("sharing client: a one-time sync code joins its library after confirming; wrong codes change nothing", () =>
+  withBrowser(async (b) => {
+    b.server.set(keyA, { name: "Phone", worlds: [] });
+    b.server.set(keyB, { name: "Dante", worlds: [] });
+    await b.init();
+    await enter(b, "not a code!");
+    assertEquals(b.status(), "Enter the 8-character sync code from your other device, or paste a whole sync or share link.");
+    assertEquals(b.pending(), 0);
+
+    await enter(b, " k7m2-9qxr ");
+    const wrong = await b.request("POST", "/pair");
+    assertEquals(wrong.headers.get("Authorization"), null);
+    assertEquals(wrong.headers.get("Content-Type"), "application/json");
+    assertEquals(JSON.parse(wrong.body as string), { id: await pairId("K7M29QXR") });
+    await b.reply(wrong, Response.json({ error: "This sync code is wrong" }, { status: 404 }));
+    assert(b.status().startsWith("That sync code is wrong, was already used, or expired."), b.status());
+    assert(b.el("#share-status").classList.contains("error"));
+    assertEquals(b.el("#join-code").value, " k7m2-9qxr ");
+
+    await enter(b, "K7M2-9QXR");
+    await b.reply(await b.request("POST", "/pair"), Response.json({ box: (await sealPairing("K7M29QXS", keyB)).box }));
+    assertEquals(b.status(), "Could not use the sync code: it does not match the library it was made for");
+    assertEquals(b.confirms, []);
+
+    b.confirmAnswer = false;
+    await enter(b, "K7M2-9QXR");
+    await b.reply(await b.request("POST", "/pair"), Response.json({ box: (await sealPairing("K7M29QXR", keyB)).box }));
+    assertEquals(b.status(), "Sync code ignored. This browser keeps its own library.");
+    assertEquals(b.stored().current, { key: keyA, name: "Phone" });
+
+    b.confirmAnswer = true;
+    await enter(b, "K7M2-9QXR");
+    await b.reply(await b.request("POST", "/pair"), Response.json({ box: (await sealPairing("K7M29QXR", keyB)).box }));
+    assertEquals(b.confirms.length, 2);
+    assert(b.confirms[1].startsWith("Sync this browser with Dante (no worlds yet)?\n\nOnly continue if you made this code yourself"));
+    assertEquals(b.stored().current, { key: keyB, name: "Dante" });
+    assertEquals(b.stored().saved, [{ key: keyA, name: "Phone" }]);
+    assertEquals(b.el("#join-code").value, "");
+    assert(b.status().startsWith("This browser now syncs Dante."));
+  }, { current: { key: keyA, name: "Phone" }, saved: [], auto: true }));
+
+Deno.test("sharing client: a pasted sync or share link works like opening it", () =>
+  withBrowser(async (b) => {
+    b.server.set(keyB, { name: "Dante", worlds: [] });
+    await b.init();
+    await enter(b, `  https://map.example/#s=${linkKey(keyB)} `);
+    assertEquals(b.stored().current, { key: keyB, name: "Dante" });
+    assertEquals(b.location.hash, "");
+    assertEquals(b.el("#join-code").value, "");
+
+    await enter(b, `https://map.example/#v=${linkKey(shareKey)}`);
+    const download = await b.request("GET", "/view/data");
+    assertEquals(download.headers.get("Authorization"), `Bearer ${shareKey}`);
+    assertEquals(b.location.hash, `#v=${linkKey(shareKey)}`);
+    assertEquals(b.stored().current.key, keyB);
+
+    await enter(b, `https://map.example/#s=${linkKey(keyA).slice(0, 70)}`);
+    assertEquals(b.status(), "This sync link is incomplete. Copy the whole link again.");
+    assertEquals(b.stored().current.key, keyB);
+  }));
+
+Deno.test("sharing client: the sync card shows a one-time code for this library that expires and is withdrawn on close", () =>
+  withBrowser(async (b) => {
+    await b.init();
+    const card = b.el("#share-card");
+    b.el("#sync-device").click();
+    assert(card.textContent.includes("Making a sync code..."));
+    const offer = await b.request("POST", "/library/pair");
+    assertEquals(offer.headers.get("Authorization"), `Bearer ${keyA}`);
+    assertEquals(offer.headers.get("Content-Type"), "application/json");
+    const { id, box } = JSON.parse(offer.body as string);
+    await b.reply(offer, Response.json({ expiresIn: PAIR_TTL / 1000 }, { status: 201 }));
+    const shown = card.find((e) => e.tag === "p" && /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/.test(e.textContent));
+    assert(shown, card.textContent);
+    const code = shown.textContent.replace("-", "");
+    assertEquals(id, await pairId(code));
+    assertEquals(await openPairing(code, box), keyA);
+    assert(!card.textContent.includes(keyA) && !card.textContent.includes(box));
+
+    const now = Date.now;
+    Date.now = () => now() + PAIR_TTL;
+    try {
+      await b.tick();
+      assert(card.textContent.includes("The sync code expired."), card.textContent);
+      card.button("New code").click();
+      const again = await b.request("POST", "/library/pair");
+      assert(JSON.parse(again.body as string).id !== id);
+      await b.reply(again, Response.json({ expiresIn: PAIR_TTL / 1000 }, { status: 201 }));
+      assert(!card.textContent.includes("expired"));
+      card.button("Close").click();
+      await b.reply(await b.request("DELETE", "/library/pair"), new Response(null, { status: 204 }));
+    } finally {
+      Date.now = now;
+    }
+    assertEquals(b.pending(), 0);
+
+    b.el("#sync-device").click();
+    await b.reply(
+      await b.request("POST", "/library/pair"),
+      Response.json({ error: "Only 10 sync codes can be open from one network at a time" }, { status: 429 }),
+    );
+    assert(card.textContent.includes("Could not make a sync code: Only 10 sync codes can be open from one network at a time."));
+    card.button("Close").click();
+    await b.settle();
+    assertEquals(b.pending(), 0);
+
+    // Closed before the server answered: the code nobody saw is withdrawn.
+    b.el("#sync-device").click();
+    const early = await b.request("POST", "/library/pair");
+    card.button("Close").click();
+    await b.reply(early, Response.json({ expiresIn: PAIR_TTL / 1000 }, { status: 201 }));
+    await b.reply(await b.request("DELETE", "/library/pair"), new Response(null, { status: 204 }));
+    assertEquals(b.pending(), 0);
+  }, { current: { key: keyA, name: "" }, saved: [], auto: true }));
+
+Deno.test("sharing client: offline, a notice replaces the library; back online it clears and the newest world reopens", () =>
+  withBrowser(async (b) => {
+    const hero = await world();
+    b.server.set(keyA, { name: "", worlds: [hero] });
+    (globalThis.navigator as { onLine?: boolean }).onLine = false;
+    b.down = true;
+    await b.init();
+    assertEquals(b.status(), "Offline. Your worlds sync again when you're back online; saves you open still work.");
+    assert(b.el("#sync-device").disabled);
+    b.down = false;
+    (globalThis.navigator as { onLine?: boolean }).onLine = true;
+    await b.fire("online");
+    assertEquals(b.status(), "");
+    assert(!b.el("#sync-device").disabled);
+    await b.data(await b.request("GET", `/library/worlds/${hero.id}/data`));
+    assertEquals(b.displays, [{ name: "Hero", refresh: false }]);
   }, { current: { key: keyA, name: "" }, saved: [], auto: true }));

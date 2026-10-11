@@ -48,10 +48,16 @@ code {
   color: var(--muted);
 }
 h1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 16px;
   margin: 0 8px 0 0;
   color: var(--gold);
   letter-spacing: .02em;
+}
+h1 .logo {
+  image-rendering: pixelated;
 }
 h2 {
   font-size: 15px;
@@ -117,6 +123,7 @@ select {
   gap: 8px;
 }
 .library-name,
+.join-code,
 .share-link {
   flex: 0 1 260px;
   min-width: 0;
@@ -124,6 +131,27 @@ select {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 4px;
+}
+.join-code {
+  flex-basis: 220px;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+#join-form {
+  margin-top: 8px;
+}
+@media (pointer: coarse) {
+  /* At 16px iOS doesn't zoom into a field when it gets focus. */
+  .library-name,
+  .join-code {
+    font-size: 16px;
+  }
+}
+.pair-code {
+  margin: 4px 0;
+  font: 600 26px/1.2 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .12em;
+  color: var(--gold);
+  user-select: all;
 }
 .share-link {
   display: block;
@@ -1222,6 +1250,16 @@ svg.map {
   font-size: 11px;
 }
 svg.map:active {
+  cursor: grabbing;
+}
+/* Markers open their details, or the inside of an entrance; the hand only returns once the map is actually dragged.
+   The map captures the pointer while pressed, so it also carries the marker's cursor itself (on-mark). */
+svg.map [data-i],
+svg.map.on-mark {
+  cursor: pointer;
+}
+svg.map.panning,
+svg.map.panning [data-i] {
   cursor: grabbing;
 }
 .b-map,

@@ -276,6 +276,10 @@ async function devSave(name: string) {
 
 wire();
 void sharing.init();
+// Offline use and a faster start after the first visit (src/sw.ts). The dev server has no service worker, so this quietly fails there.
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch((e) => console.debug("No service worker", e));
+// An installed app may keep its storage, and with it the library key, when the browser clears space; a browser tab doesn't ask.
+if (matchMedia("(display-mode: standalone)").matches) navigator.storage?.persist?.().catch((e) => console.debug(e));
 const dev = new URLSearchParams(location.search).get("dev");
 if (dev && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   devSave(dev).catch((e) => {

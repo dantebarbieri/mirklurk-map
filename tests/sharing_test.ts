@@ -1,13 +1,22 @@
 import { type FileMap, findCharacters } from "../src/files.ts";
 import {
+  formatPairCode,
   frame,
   keyFromLink,
   linkKey,
   MAX_FILES,
   MAX_UPLOAD,
+  newPairCode,
   newToken,
+  openPairing,
   packSave,
+  PAIR_BOX,
+  PAIR_ID,
+  PAIR_TTL,
+  pairCode,
+  pairId,
   RETENTION,
+  sealPairing,
   SHARE_INTERVAL,
   TOKEN,
   unframe,
@@ -64,6 +73,32 @@ Deno.test("sharing: links carry keys as 78 digits that round-trip exactly", () =
   for (const bad of ["1".repeat(77), "1".repeat(79), `${"1".repeat(77)}x`, ""]) assertEquals(keyFromLink(bad), undefined);
   // Only canonical base64url is a key, so every key has exactly one link form.
   assert(!TOKEN.test(`${"A".repeat(42)}B`));
+});
+
+Deno.test("sharing: sync codes are 8 unambiguous characters, and only the right code opens the sealed key", async () => {
+  for (let i = 0; i < 100; i++) {
+    const code = newPairCode();
+    assert(/^[0-9A-HJKMNP-TV-Z]{8}$/.test(code), code);
+    assertEquals(pairCode(code), code);
+    assertEquals(pairCode(` ${formatPairCode(code).toLowerCase()} `), code);
+  }
+  assertEquals(formatPairCode("ABCD1234"), "ABCD-1234");
+  assertEquals(pairCode("oIlL 00 00"), "01110000");
+  for (const bad of ["ABCDEFG", "ABCDEFGHJ", "ABCU-EFGH", "ABCD_EFGH", "", "https://map.example/#s=1"]) {
+    assertEquals(pairCode(bad), undefined);
+  }
+
+  const key = newToken(), code = "K7M2-9QXR".replace("-", "");
+  const sealed = await sealPairing(code, key);
+  assert(PAIR_ID.test(sealed.id) && PAIR_BOX.test(sealed.box));
+  assertEquals(sealed.id, await pairId(code));
+  assert(!sealed.box.includes(key));
+  assert((await sealPairing(code, key)).box !== sealed.box, "each seal uses a fresh IV");
+  assertEquals(await openPairing(code, sealed.box), key);
+  assertEquals(await openPairing("K7M29QXS", sealed.box), undefined);
+  const tampered = sealed.box.slice(0, 30) + (sealed.box[30] === "A" ? "B" : "A") + sealed.box.slice(31);
+  assertEquals(await openPairing(code, tampered), undefined);
+  assertEquals(await openPairing(code, `${sealed.box}A`), undefined);
 });
 
 Deno.test("sharing: reject path traversal, duplicates, multiple characters and malformed manifests", async () => {
@@ -351,6 +386,97 @@ Deno.test("sharing service: library names are validated, persisted, returned to 
     assertEquals((await named(keys[1], "")).status, 200);
     assertEquals((await ctx.list(keys[1])).name, "");
     assertEquals((await named(newToken(), "Fits again")).status, 200);
+  }));
+
+const json = (body: unknown, ip?: string) => ({ body: JSON.stringify(body), type: "application/json", ip });
+
+Deno.test("sharing service: a sync code hands out its sealed key once, for ten minutes, and nothing about it is stored", () =>
+  withStore(async (ctx) => {
+    const sync = newToken(), code = newPairCode();
+    const sealed = await sealPairing(code, sync);
+    const offer = (body: unknown = sealed, key = sync) => ctx.request("POST", "/library/pair", { key, ...json(body) });
+    const claim = (id = sealed.id) => ctx.request("POST", "/pair", json({ id }));
+    const offered = await offer();
+    assertEquals(offered.status, 201);
+    assertEquals(await offered.json(), { expiresIn: PAIR_TTL / 1000 });
+    const claimed = await claim();
+    assertEquals(claimed.status, 200);
+    assertEquals(claimed.headers.get("cache-control"), "no-store");
+    assertEquals(await openPairing(code, (await claimed.json()).box), sync);
+    assertEquals((await claim()).status, 404);
+
+    assertEquals((await offer()).status, 201);
+    ctx.advance(PAIR_TTL - 1);
+    await ctx.store.cleanup();
+    ctx.advance(1);
+    const expired = await claim();
+    assertEquals(expired.status, 404);
+    assert(/wrong, was already used, or expired/.test((await expired.json()).error));
+
+    // A new code replaces the library's earlier one, and closing the card withdraws it.
+    const next = await sealPairing(newPairCode(), sync);
+    assertEquals((await offer()).status, 201);
+    assertEquals((await offer(next)).status, 201);
+    assertEquals((await claim()).status, 404);
+    assertEquals((await ctx.request("DELETE", "/library/pair", { key: sync })).status, 204);
+    assertEquals((await claim(next.id)).status, 404);
+    // Another library's code is not withdrawn with it.
+    const other = newToken(), theirs = await sealPairing(newPairCode(), other);
+    assertEquals((await offer(theirs, other)).status, 201);
+    assertEquals((await ctx.request("DELETE", "/library/pair", { key: sync })).status, 204);
+    assertEquals((await claim(theirs.id)).status, 200);
+
+    assertEquals((await ctx.request("POST", "/library/pair", json(sealed))).status, 401);
+    for (const bad of [{ id: "x", box: sealed.box }, { id: sealed.id, box: "short" }, { id: sealed.id }, [sealed.id, sealed.box]]) {
+      assertEquals((await offer(bad)).status, 400);
+    }
+    assertEquals((await ctx.request("POST", "/library/pair", { key: sync, body: JSON.stringify(sealed), type: "text/plain" })).status, 415);
+    assertEquals(
+      (await ctx.request("POST", "/pair", { ...json({ id: sealed.id }), headers: { "Sec-Fetch-Site": "cross-site" } })).status,
+      403,
+    );
+    assertEquals((await ctx.request("POST", "/pair", json({ id: "not a hash" }))).status, 400);
+    assertEquals((await ctx.request("GET", "/pair")).status, 405);
+    assertEquals((await ctx.request("PUT", "/library/pair", { key: sync, ...json(sealed) })).status, 405);
+
+    assertEquals((await offer()).status, 201);
+    const stored: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of Deno.readDirSync(dir)) {
+        if (entry.isDirectory) walk(`${dir}/${entry.name}`);
+        else stored.push(new TextDecoder().decode(Deno.readFileSync(`${dir}/${entry.name}`)));
+      }
+    };
+    walk(ctx.directory);
+    for (const secret of [sync, sealed.box, sealed.id, code]) {
+      assert(!stored.some((text) => text.includes(secret)), "a sync code was stored");
+    }
+    // Codes live only in memory, so a restart forgets them.
+    await ctx.restart();
+    assertEquals((await claim()).status, 404);
+  }));
+
+Deno.test("sharing service: wrong sync codes and open codes are limited per network", () =>
+  withStore(async (ctx) => {
+    const sync = newToken(), code = newPairCode();
+    const sealed = await sealPairing(code, sync);
+    assertEquals((await ctx.request("POST", "/library/pair", { key: sync, ...json(sealed) })).status, 201);
+    const guess = (id: string, ip = "198.51.100.7") => ctx.request("POST", "/pair", json({ id }, ip));
+    for (let i = 0; i < 20; i++) assertEquals((await guess(await pairId(`${i}`.padStart(8, "0")))).status, 404);
+    const blocked = await guess(sealed.id);
+    assertEquals(blocked.status, 429);
+    assert(/wait an hour/.test((await blocked.json()).error));
+    assertEquals((await guess(sealed.id, "198.51.100.8")).status, 200);
+    ctx.advance(3_600_000);
+    assertEquals((await guess(sealed.id)).status, 404);
+
+    const open = async (ip: string) =>
+      (await ctx.request("POST", "/library/pair", { key: newToken(), ...json(await sealPairing(newPairCode(), sync), ip) })).status;
+    for (let i = 0; i < 10; i++) assertEquals(await open("192.0.2.9"), 201);
+    assertEquals(await open("192.0.2.9"), 429);
+    assertEquals(await open("192.0.2.10"), 201);
+    ctx.advance(PAIR_TTL);
+    assertEquals(await open("192.0.2.9"), 201);
   }));
 
 Deno.test("sharing service: uploads from the previous one-link format are removed on startup", () =>

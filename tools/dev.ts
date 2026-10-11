@@ -38,7 +38,13 @@ async function listDir(dir: string, prefix = ""): Promise<string[]> {
   return out;
 }
 
-const types: Record<string, string> = { html: "text/html; charset=utf-8", css: "text/css", png: "image/png" };
+const types: Record<string, string> = {
+  html: "text/html; charset=utf-8",
+  css: "text/css",
+  png: "image/png",
+  svg: "image/svg+xml",
+  webmanifest: "application/manifest+json",
+};
 
 Deno.serve({ hostname: "127.0.0.1", port }, async (req, info) => {
   const path = decodeURIComponent(new URL(req.url).pathname);
@@ -54,10 +60,13 @@ Deno.serve({ hostname: "127.0.0.1", port }, async (req, info) => {
         headers: { "content-type": "image/png", "cache-control": "public, max-age=31536000, immutable" },
       });
     }
-    if (path === "/" || path === "/index.html" || path === "/style.css") {
-      const file = path === "/style.css" ? "style.css" : "index.html";
+    if (
+      path === "/" || path === "/index.html" || path === "/style.css" || path === "/manifest.webmanifest" ||
+      /^\/icons\/[a-z0-9-]+\.(png|svg)$/.test(path)
+    ) {
+      const file = path === "/" ? "index.html" : path.slice(1);
       return new Response(await Deno.readFile(new URL(file, root)), {
-        headers: { "content-type": types[file.split(".")[1]], "cache-control": "no-store" },
+        headers: { "content-type": types[file.split(".").pop()!], "cache-control": "no-store" },
       });
     }
     const m = /^\/__saves\/([^/]+)\/(.*)$/.exec(path);
