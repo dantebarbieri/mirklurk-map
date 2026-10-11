@@ -4,6 +4,7 @@ import { TILES } from "./rules.ts";
 import { containerInventory, type Inventory, parseItemList } from "./inventory.ts";
 import { type HealthGrid, parseHealth } from "./health.ts";
 import type { Equipped } from "./armor.ts";
+import { parseSky, type Sky } from "./weather.ts";
 
 /** save_datajson: UTF-8 JSON written with buffer_string, so it ends in one NUL byte. */
 export function decodeJson(bytes: Uint8Array): unknown {
@@ -107,6 +108,8 @@ export interface PlayerSave {
   wetness: number[];
   /** global.GAMEDIFF (myDiff): 3 is Hard, where beings aim one intelligence level better. */
   difficulty?: number;
+  /** The world's clock and weather (manager_day's MD* keys); absent if the save has no clock. */
+  sky?: Sky;
 }
 
 /** obj_player's haelth, focus, energy, hunger and warmth, as the circle bar shows them (gml_Object_UI_Draw_64). */
@@ -181,6 +184,7 @@ export function parsePlayer(raw: unknown): PlayerSave {
     restedTime: num(p.restedTime),
     wetness: Array.isArray(p.wetness) ? p.wetness.map((v) => num(v)) : [],
     difficulty: typeof p.myDiff === "number" && Number.isInteger(p.myDiff) ? p.myDiff : undefined,
+    sky: parseSky(p),
   };
 }
 
