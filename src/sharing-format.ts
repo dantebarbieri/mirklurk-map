@@ -26,6 +26,8 @@ export interface WorldInfo {
   version: string;
   size: number;
   share: string;
+  /** Edited with the save editor at some point (src/cheated.ts); sent only when true, and never cleared. */
+  cheated?: true;
 }
 
 const base64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

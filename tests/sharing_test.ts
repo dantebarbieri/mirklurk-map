@@ -549,3 +549,58 @@ Deno.test("sharing service: streamed bodies cannot bypass byte limits without Co
     assert(cancelled);
     assertEquals((await ctx.put(sync)).status, 201);
   }));
+
+Deno.test("sharing service: the Cheated mark sticks to a world for good and travels in every copy of it", () =>
+  withStore(async (ctx) => {
+    const sync = newToken();
+    const id = await idOf();
+    const files = fixture();
+    files.set("Saves/Hero/MirkMap.ini", {
+      read: () => Promise.resolve(encode("[MirkMap]\r\nfrom_share=1\r\ncheated=1\r\ncheated_edits=2\r\n")),
+      lastModified: 99,
+    });
+    const marked = await packSave(files, { name: "Hero", root: "Saves/Hero/" });
+    const put = (key: string, body: Uint8Array) => ctx.request("PUT", `/library/worlds/${id}`, { key, body: body as BodyInit });
+    const markerOf = async (bytes: Uint8Array) => {
+      const unpacked = unpackSave(bytes);
+      const src = unpacked.files.get("Shared/MirkMap.ini");
+      return src ? new TextDecoder().decode(await src.read()) : undefined;
+    };
+
+    const first = await (await put(sync, marked)).json();
+    assertEquals(first.cheated, true);
+    const stored = new Uint8Array(await (await ctx.request("GET", "/view/data", { key: first.share })).arrayBuffer());
+    assertEquals([...stored], [...marked], "a package that has the mark is stored as uploaded");
+
+    // An update without MirkMap.ini keeps the mark, and the stored copy gets it back.
+    ctx.advance(SHARE_INTERVAL);
+    const plain = await packet();
+    const second = await (await put(sync, plain)).json();
+    assertEquals(second.cheated, true);
+    const restored = new Uint8Array(await (await ctx.request("GET", "/view/data", { key: second.share })).arrayBuffer());
+    assert((await markerOf(restored))?.includes("cheated=1"), "the share carries the mark");
+    assertEquals(unpackSave(restored).files.size, unpackSave(plain).files.size + 1);
+    assertEquals(second.size, restored.length);
+
+    // Deleted, after a restart and past expiry, then added again to the same library: still marked.
+    assertEquals((await ctx.request("DELETE", `/library/worlds/${id}`, { key: sync })).status, 204);
+    await ctx.restart();
+    ctx.advance(RETENTION * 2);
+    await ctx.store.cleanup();
+    const third = await (await put(sync, await packet())).json();
+    assertEquals(third.cheated, true);
+    const shared = new Uint8Array(await (await ctx.request("GET", "/view/data", { key: third.share })).arrayBuffer());
+    assert((await markerOf(shared))?.includes("cheated=1"));
+    assertEquals((await ctx.list(sync)).worlds[0].cheated, true);
+
+    // Another library's copy of the same world is its own: editing a downloaded share never marks the owner's copy.
+    const other = newToken();
+    const copy = await (await put(other, await packet())).json();
+    assertEquals(copy.cheated, undefined);
+    const plainCopy = new Uint8Array(await (await ctx.request("GET", "/view/data", { key: copy.share })).arrayBuffer());
+    assertEquals(await markerOf(plainCopy), undefined);
+    ctx.advance(SHARE_INTERVAL);
+    assertEquals((await (await put(other, marked)).json()).cheated, true, "until that copy is uploaded with the mark");
+    const fresh = newToken();
+    assertEquals((await (await put(fresh, await packet())).json()).cheated, undefined);
+  }));

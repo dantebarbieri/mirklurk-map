@@ -4,6 +4,7 @@ import {
   libraryId,
   MAX_UPLOAD,
   newToken,
+  packSave,
   PAIR_BOX,
   PAIR_ID,
   PAIR_TTL,
@@ -18,6 +19,7 @@ import {
   worldId,
   type WorldInfo,
 } from "../src/sharing-format.ts";
+import { isCheated, withCheatedMarker } from "../src/cheated.ts";
 
 /** One stored world. Keys are never stored: a library is its sync key's hash, a share link its share key's hash. */
 interface WorldRecord {
@@ -34,6 +36,8 @@ interface WorldRecord {
   /** The share key derives from the sync key and this salt; a new salt revokes the old share link. */
   salt: string;
   view: string;
+  /** Edited with the save editor (src/cheated.ts); the stored package always carries the mark in its MirkMap.ini. */
+  cheated?: true;
 }
 interface LibraryRecord {
   id: string;
@@ -129,6 +133,12 @@ export class UploadStore {
   private rates = new Map<string, { count: number; until: number }>();
   private pairs = new Map<string, PairRecord>();
   private misses = new Map<string, { count: number; until: number }>();
+  /**
+   * Library worlds (record keys: one library's copy of one world) ever uploaded with the Cheated mark, kept for good (cheated.json),
+   * so the mark outlives deletion and expiry. Another library's copy of the same world is its own: editing a downloaded share never
+   * marks the owner's world.
+   */
+  private cheated = new Set<string>();
   private writing = false;
   private salt = "";
   constructor(private directory: string, private now = () => Date.now()) {}
@@ -145,9 +155,16 @@ export class UploadStore {
     }
     for await (const entry of Deno.readDir(this.directory)) {
       // Uploads from the earlier one-link-per-upload format are not migrated; they expired within a week anyway.
-      if (/^[a-f0-9]{64}\.(bin|tmp)$/.test(entry.name) || entry.name === "adds.json.tmp") {
+      if (/^[a-f0-9]{64}\.(bin|tmp)$/.test(entry.name) || entry.name === "adds.json.tmp" || entry.name === "cheated.json.tmp") {
         await Deno.remove(`${this.directory}/${entry.name}`);
       }
+    }
+    try {
+      const ids: unknown = JSON.parse(await Deno.readTextFile(`${this.directory}/cheated.json`));
+      if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) throw new Error("Invalid cheated.json");
+      this.cheated = new Set(ids);
+    } catch (e) {
+      if (!(e instanceof Deno.errors.NotFound)) throw e;
     }
     for await (const entry of Deno.readDir(`${this.directory}/worlds`)) {
       const path = `${this.directory}/worlds/${entry.name}`;
@@ -159,6 +176,7 @@ export class UploadStore {
           if (record.key !== entry.name.slice(0, -4)) throw new Error("Stored record key mismatch");
           this.worlds.set(record.key, record);
           this.views.set(record.view, record.key);
+          if (record.cheated) this.cheated.add(record.key);
         } finally {
           file.close();
         }
@@ -279,8 +297,18 @@ export class UploadStore {
   }
 
   private async info(record: WorldRecord, sync: string): Promise<WorldInfo> {
-    const { id, name, created, updated, expires, version, size } = record;
-    return { id, name, created, updated, expires, version, size, share: await shareKey(sync, record.salt) };
+    const { id, name, created, updated, expires, version, size, cheated } = record;
+    return {
+      id,
+      name,
+      created,
+      updated,
+      expires,
+      version,
+      size,
+      share: await shareKey(sync, record.salt),
+      ...(cheated ? { cheated } : {}),
+    };
   }
 
   private async route(request: Request, address: string): Promise<Response> {
@@ -515,8 +543,23 @@ export class UploadStore {
       if (await worldId(unpacked.name, unpacked.grid) !== id) {
         throw new HttpError(409, "This save is a different world from the one it would update, so nothing was changed");
       }
-      if (active.reduce((sum, w) => sum + w.size, 0) - (record?.size ?? 0) + body.length > MAX_STORAGE) {
+      // Once an upload of this library's world carried the Cheated mark, every later one keeps it: a package that lost MirkMap.ini gets it back.
+      const marked = await isCheated(unpacked.files, "Shared/");
+      const cheated = marked || this.cheated.has(key);
+      let stored = body;
+      if (cheated && !marked) {
+        try {
+          stored = await packSave(await withCheatedMarker(unpacked.files, "Shared/"), { name: unpacked.name, root: "Shared/" });
+        } catch (e) {
+          throw new HttpError(413, (e as Error).message);
+        }
+      }
+      if (active.reduce((sum, w) => sum + w.size, 0) - (record?.size ?? 0) + stored.length > MAX_STORAGE) {
         throw new HttpError(503, "Shared-save storage is full");
+      }
+      if (cheated && !this.cheated.has(key)) {
+        this.cheated.add(key);
+        await this.write(`${this.directory}/cheated.json`, new TextEncoder().encode(JSON.stringify([...this.cheated])));
       }
       const salt = record?.salt ?? newToken();
       const next: WorldRecord = {
@@ -529,11 +572,12 @@ export class UploadStore {
         updated: now,
         expires: now + RETENTION,
         version: newToken(),
-        size: body.length,
+        size: stored.length,
         salt,
         view: record?.view ?? await shareId(await shareKey(sync, salt)),
+        ...(cheated ? { cheated: true as const } : {}),
       };
-      await this.store(next, body);
+      await this.store(next, stored);
       if (!record) {
         this.adds.push({ owner, at: now });
         await this.write(`${this.directory}/adds.json`, new TextEncoder().encode(JSON.stringify(this.adds)));

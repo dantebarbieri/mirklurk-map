@@ -22,6 +22,7 @@ import {
   type Tree,
 } from "./save.ts";
 import { type Inventory, parseItemList } from "./inventory.ts";
+import { isCheated } from "./cheated.ts";
 
 export interface Zone {
   x: number;
@@ -74,6 +75,8 @@ export interface World {
   warnings: string[];
   files: FileMap;
   savedAt?: number;
+  /** Changed with the save editor: MirkMap.ini says cheated=1, or this browser saved edits to it (main.ts). */
+  cheated?: boolean;
 }
 
 export async function readJson(files: FileMap, path: string): Promise<unknown | undefined> {
@@ -179,7 +182,16 @@ export async function loadWorld(files: FileMap, root: string, character: string)
     }
   }
 
-  return { character, player, zones, interiors, warnings, files, savedAt: files.get(`${root}Player.save`)?.lastModified };
+  return {
+    character,
+    player,
+    zones,
+    interiors,
+    warnings,
+    files,
+    savedAt: files.get(`${root}Player.save`)?.lastModified,
+    cheated: await isCheated(files, root),
+  };
 }
 
 export interface ZoneDetail {

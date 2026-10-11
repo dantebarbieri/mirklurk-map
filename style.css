@@ -2150,3 +2150,18 @@ svg.hide-vines .L-vines {
 .hide-you .you-dot {
   display: none;
 }
+
+/* The Cheated mark (src/cheated.ts): a world changed with the save editor. */
+.badge-cheated {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0 4px;
+  border: 1px solid #ff8a80;
+  border-radius: 3px;
+  color: #ff8a80;
+  font: 700 11px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  text-align: center;
+  text-decoration: none;
+  vertical-align: middle;
+  cursor: help;
+}

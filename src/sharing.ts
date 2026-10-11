@@ -2,6 +2,8 @@
 // sync link (full access, for your own devices); single worlds are shared with read-only links.
 
 import { $, h } from "./dom.ts";
+import { cheatedTag } from "./badges.ts";
+import { knownCheated, withCheatedMarker } from "./cheated.ts";
 import type { Character, FileMap } from "./files.ts";
 import { qrSvg } from "./qr.ts";
 import {
@@ -453,7 +455,9 @@ export class Sharing {
     const revision = `${tagOf(source)}:${source.revision}`;
     try {
       if (!auto) this.report(`${adding ? "Adding" : "Updating"} ${name}...`);
-      const bytes = await packSave(source.files, source.character);
+      // A world this browser edited keeps the Cheated mark even if its MirkMap.ini was removed.
+      const files = await knownCheated(id) ? await withCheatedMarker(source.files, source.character.root) : source.files;
+      const bytes = await packSave(files, source.character);
       const now = this.hooks.current();
       if (!now || tagOf(now) !== tagOf(source) || key !== this.remembered.current.key) return;
       const response = await api(`/library/worlds/${id}`, key, {
@@ -721,6 +725,7 @@ export class Sharing {
         "li",
         {},
         h("b", {}, world.name),
+        world.cheated ? cheatedTag() : null,
         open ? h("span", { class: "tag" }, "open") : null,
         world.id === localId ? h("span", { class: "tag" }, "this save") : null,
         h("span", { class: "muted" }, ` updated ${ago(world.updated)}, kept until ${new Date(world.expires).toLocaleDateString()}`),
