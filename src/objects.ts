@@ -7,6 +7,7 @@ import type { Placed, PlayerSave, Solid, Tree } from "./save.ts";
 import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
 import type { HealthGrid } from "./health.ts";
+import type { Gather } from "./gather.ts";
 import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, isTree, Nature, partLabel, trunkOf } from "./chop.ts";
 
 export type Layer =
@@ -28,7 +29,14 @@ export type Layer =
   | "trees"
   | "brambles"
   | "vines"
-  | "sharp";
+  | "sharp"
+  | "calmia"
+  | "turnips"
+  | "cranberries"
+  | "watercress"
+  | "lilies"
+  | "bulbs"
+  | "nests";
 
 export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "places", label: "Places", on: true },
@@ -49,6 +57,13 @@ export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "brambles", label: "Brambles", on: false },
   { id: "vines", label: "Rift Vines", on: false },
   { id: "sharp", label: "Sharp ground", on: false },
+  { id: "calmia", label: "Calmia", on: false },
+  { id: "turnips", label: "Turnips", on: false },
+  { id: "cranberries", label: "Cranberries", on: false },
+  { id: "watercress", label: "Watercress", on: false },
+  { id: "lilies", label: "Water Lilies", on: false },
+  { id: "bulbs", label: "Vile Bulbs", on: false },
+  { id: "nests", label: "Bird nests", on: false },
 ];
 
 export interface Mark {
@@ -68,6 +83,8 @@ export interface Mark {
   explored?: boolean;
   inventory?: Inventory;
   tree?: Tree;
+  /** A gatherable plant or bird nest: what it gives. */
+  gather?: Gather;
   /** A neighbouring zone's marker, shifted by (ox, oy) into the shown zone's coordinates. */
   away?: { zone: string; ox: number; oy: number };
   /** The creature or NPC it is (or the creature a carcass was), by being index, for its picture. */

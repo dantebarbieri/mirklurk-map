@@ -36,6 +36,9 @@ const aliases: Record<string, string> = {
   "Rock": "Pebbles",
   "Ruin block": "Searching ruins",
   "Turnip": "Turnip (nature)",
+  "Calmia": "Calmia Root",
+  "Vile Bulb": "Vile Bulb (Mushroom)",
+  "Bird nest": "Bird nests",
 };
 
 export function entityWiki(name: string, fallback = "World generation"): string | undefined {

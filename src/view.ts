@@ -17,6 +17,7 @@ import {
   treeMarks,
 } from "./objects.ts";
 import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts";
+import { GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
 import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_BEINGS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
@@ -636,7 +637,10 @@ async function renderZone(st: State, z: Zone, glide = false) {
   // The player only on this first pass: neighbours' batches arrive later and must not rebuild an open card of them.
   restoreInspection(map.you ? [...marks, map.you] : marks);
   const treeList = h("div", { class: "lists" });
+  const gatherList = h("div", { class: "lists" });
+  let plantMarks: Mark[] = [];
   const layers = mapLayers(st, map, z.dir, () => my === token, false, (plants) => {
+    plantMarks = plants;
     const open = plants.find((m) => markKey(m) === st.inspected);
     // Re-rendering for a new tool keeps the inspection's open sections.
     if (open) inspect(open, inspector.hidden ? st.expanded : openSections(inspector));
@@ -646,9 +650,11 @@ async function renderZone(st: State, z: Zone, glide = false) {
     treeList.replaceChildren(markGroup(st, map, openInterior, "Trees, deadest first", shown, false) ?? "");
     const list = treeList.querySelector("details");
     if (list && wasOpen !== undefined) list.open = wasOpen;
+    relist(gatherList, gatherLists(st, map, openInterior, plants));
   });
   const chips = layerChips(st, layers);
   map.el.append(mapLegend(st, layers));
+  layers.listen(() => relist(gatherList, gatherLists(st, map, openInterior, plantMarks)));
 
   const retool = () => {
     around.refresh(true);
@@ -678,7 +684,7 @@ async function renderZone(st: State, z: Zone, glide = false) {
 
   const lists = poiLists(st, marks, map, openInterior);
   panel.replaceChildren(
-    ...[header, map.el, chips, shading, inspector, lists, treeList, areaWarnings(world)].filter((n): n is HTMLElement => !!n),
+    ...[header, map.el, chips, shading, inspector, lists, treeList, gatherList, areaWarnings(world)].filter((n): n is HTMLElement => !!n),
   );
 }
 
@@ -693,10 +699,10 @@ function closeInspection(st: State, map: MapView, inspector: HTMLElement) {
   inspector.hidden = true;
 }
 
-/** Other zones' markers, loaded once each zone first scrolls into view (trees only while shown). */
+/** Other zones' markers, loaded once each zone first scrolls into view (trees and gatherables only while shown). */
 function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean, onAdd: (marks: Mark[]) => void) {
   const world = st.world;
-  const loaded = new Set<string>(), treesLoaded = new Set<string>();
+  const loaded = new Set<string>(), treesLoaded = new Set<string>(), gatherLoaded = new Set<string>();
   const zoneOf = new Map<Mark, Zone>();
   const trees: Mark[] = [];
   const add = (n: Zone, marks: Mark[]) => {
@@ -715,6 +721,7 @@ function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean
   const load = () => {
     if (!current()) return;
     const plants = [...PLANT_LAYERS].some((l) => st.prefs.layers.has(l));
+    const gather = [...GATHER_LAYERS].some((l) => st.prefs.layers.has(l));
     for (const [x, y] of zonesInView(map.visible, [z.x, z.y])) {
       const n = world.zones[y][x], k = key(x, y);
       if (!loaded.has(k)) {
@@ -731,6 +738,10 @@ function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean
           trees.push(...t);
           add(n, [...t, ...brambleMarks(saved)]);
         });
+      }
+      if (gather && n.dir && !gatherLoaded.has(k)) {
+        gatherLoaded.add(k);
+        loadGather(world, n.dir).then((marks) => add(n, marks));
       }
     }
   };
@@ -761,6 +772,7 @@ const LAYER_GROUPS: [string, Switch[]][] = [
   ["Items", ["loot", "drops", "camp", "storage"]],
   ["Terrain", ["boulders", "rubble", "rocks", "sharp", "water"]],
   ["Nature", ["trees", "brambles", "vines"]],
+  ["Gatherables", ["calmia", "turnips", "cranberries", "watercress", "lilies", "bulbs", "nests"]],
 ];
 
 /** Layers drawn from saved plants (lazy `loadTrees`), and the NatureData tile each thorny layer shades. */
@@ -799,7 +811,7 @@ function toggleAll(layers: Layers, ids: Switch[]) {
   for (const id of ids) layers.set(id, on);
 }
 
-/** The switches of a map. Trees and water load lazily, and only for outdoor zones (`dir` given). */
+/** The switches of a map. Trees and water load lazily, and only for outdoor zones; gatherables load lazily for any `dir`. */
 function mapLayers(
   st: State,
   map: MapView,
@@ -813,16 +825,17 @@ function mapLayers(
   map.setFilter(treeKeep(st.prefs.treeMin));
   const outdoor = !!dir && !indoor;
   const listeners: (() => void)[] = [];
-  let treesLoaded = false;
+  let treesLoaded = false, gatherLoaded = false;
   let trees: Mark[] = [];
   let brambles: Mark[] = [];
+  let gathers: Mark[] = [];
   const treesChanged = () => {
-    if (current() && treesLoaded) onPlants?.([...trees, ...brambles]);
+    if (current() && (treesLoaded || gatherLoaded)) onPlants?.([...trees, ...brambles, ...gathers]);
   };
   const loadTreesOnce = async () => {
-    if (treesLoaded || !dir) return;
+    if (treesLoaded || !outdoor) return;
     treesLoaded = true;
-    const saved = await loadTrees(st.world, dir);
+    const saved = await loadTrees(st.world, dir!);
     if (current()) {
       trees = treeMarks(saved, chopTool(st));
       brambles = brambleMarks(saved);
@@ -830,15 +843,25 @@ function mapLayers(
       treesChanged();
     }
   };
+  const loadGatherOnce = async () => {
+    if (gatherLoaded || !dir) return;
+    gatherLoaded = true;
+    const marks = await loadGather(st.world, dir);
+    if (current()) {
+      gathers = marks;
+      map.addMarks(gathers);
+      treesChanged();
+    }
+  };
   let thornsRequest = 0;
   const setThorns = async () => {
     const request = ++thornsRequest;
     const tiles = THORN_TILES.filter(([l]) => st.prefs.layers.has(l)).map(([, t]) => t);
-    const url = dir && tiles.length ? await thornsUrl(st.world, dir, tiles) : null;
+    const url = outdoor && tiles.length ? await thornsUrl(st.world, dir!, tiles) : null;
     if (current() && request === thornsRequest) map.setOverlay("thorns", url);
   };
   const setWater = async () => {
-    const url = st.prefs.water && dir ? await waterUrl(st.world, dir) : null;
+    const url = st.prefs.water && outdoor ? await waterUrl(st.world, dir!) : null;
     if (current()) map.setOverlay("water", url);
   };
   if (outdoor) {
@@ -846,6 +869,7 @@ function mapLayers(
     setThorns();
     if (st.prefs.water) setWater();
   }
+  if ([...GATHER_LAYERS].some((l) => st.prefs.layers.has(l))) loadGatherOnce();
   const on = (id: Switch) => id === "water" ? st.prefs.water : st.prefs.layers.has(id);
   const set = (id: Switch, show: boolean) => {
     if (on(id) === show) return;
@@ -856,6 +880,7 @@ function mapLayers(
       if (show) st.prefs.layers.add(id);
       else st.prefs.layers.delete(id);
       if (PLANT_LAYERS.has(id) && show) loadTreesOnce();
+      if (GATHER_LAYERS.has(id) && show) loadGatherOnce();
       if (THORN_TILES.some(([t]) => t === id)) setThorns();
       showLayers(st, map, all);
     }
@@ -953,6 +978,13 @@ const SWITCH_ICON: Record<Switch, string> = {
   trees: "tree willow",
   brambles: "bramble",
   vines: "bramble vine",
+  calmia: "gather calmia",
+  turnips: "gather turnip",
+  cranberries: "gather cranberry",
+  watercress: "gather cress",
+  lilies: "gather lily",
+  bulbs: "gather bulb",
+  nests: "gather nest",
 };
 
 /**
@@ -1059,7 +1091,34 @@ const LAYER_TIPS: Partial<Record<Switch, string>> = {
   brambles: "Brambles and the ground they cover: each step there costs more AP and scratches you",
   vines: "Rift Vines and the ground they cover: slower to cross than brambles, and they scratch you",
   sharp: "Sharp ground, such as the ring around Fort Solid's clearing: the worst footing of the three, making each step cost more AP",
+  calmia: "Calmia, harvested for 1–3 Calmia Roots",
+  turnips: "Turnips: one, or two from a grown plant",
+  cranberries: "Cranberry shrubs: berries once grown, more the bigger the shrub",
+  watercress: "Watercress in shallow water, more the bigger the patch",
+  lilies: "Flowering lilypads, harvested for Water Lilies",
+  bulbs: "Vile Bulbs (Mushrooms), which grow in caves",
+  nests: "Bird nests to search for Feathers and Eggs; searched ones refill after some days",
 };
+
+/** An area's gatherables, from its saved Hinderance and LootData tiles (fresh marks each time, as neighbours shift theirs). */
+async function loadGather(world: World, dir: string): Promise<Mark[]> {
+  const [hinderance, loot] = await Promise.all([loadLayer(world, dir, "Hinderance"), loadLayer(world, dir, "LootData")]);
+  return hinderance ? gatherMarks(hinderance, loot) : [];
+}
+
+/** The shown gatherables listed by kind, the most to take first. */
+function gatherLists(st: State, map: MapView, open: (m: Mark) => void, marks: Mark[]) {
+  return Object.values(GATHER_KINDS).filter((k) => st.prefs.layers.has(k.layer)).map((k) =>
+    markGroup(st, map, open, LAYERS.find((l) => l.id === k.layer)!.label, marks.filter((m) => m.layer === k.layer).sort(gatherOrder), false)
+  );
+}
+
+/** Replaces `el`'s lists, keeping each one open or closed as it was. */
+function relist(el: HTMLElement, groups: (HTMLElement | null)[]) {
+  const was = new Map(Array.from(el.querySelectorAll<HTMLDetailsElement>("details[data-remember]"), (d) => [d.dataset.remember, d.open]));
+  el.replaceChildren(...groups.filter((g): g is HTMLElement => !!g));
+  for (const d of el.querySelectorAll<HTMLDetailsElement>("details[data-remember]")) d.open = was.get(d.dataset.remember) ?? d.open;
+}
 
 /** Saved NatureData tiles that hinder walking (1 brambles, 3 rift vine, 2 sharp ground); only `tiles` are painted. */
 async function thornsUrl(world: World, dir: string, tiles: number[]): Promise<string | null> {
@@ -1105,7 +1164,7 @@ function markGroup(st: State, map: MapView, open: (m: Mark) => void, title: stri
         onmouseenter: () => map.highlight(m),
         onmouseleave: () => map.highlight(null),
       },
-      m.layer === "trees" ? markIcon(m.kind) : h("span", { class: `sym ${m.kind}` }),
+      m.layer === "trees" || m.gather ? markIcon(m.kind) : h("span", { class: `sym ${m.kind}` }),
       m.interior ? h("button", { type: "button", class: "link", title: "Look inside", onclick: () => open(m) }, m.name) : h("button", {
         type: "button",
         class: "plain",
@@ -1239,7 +1298,15 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
   if (st.viewport) map.restore(st.viewport);
   const inspected = [...marks, ...(map.you ? [map.you] : [])].find((m) => markKey(m) === st.inspected);
   if (inspected) inspect(inspected, st.expanded);
-  const layers = mapLayers(st, map, undefined, () => my === token, true);
+  const gatherList = h("div", { class: "lists" });
+  let gathered: Mark[] = [];
+  const layers = mapLayers(st, map, it.dir, () => my === token, true, (plants) => {
+    gathered = plants;
+    const opened = plants.find((m) => markKey(m) === st.inspected);
+    if (opened) inspect(opened, inspector.hidden ? st.expanded : openSections(inspector));
+    relist(gatherList, gatherLists(st, map, open, plants));
+  });
+  layers.listen(() => relist(gatherList, gatherLists(st, map, open, gathered)));
   map.el.append(mapLegend(st, layers));
   const up = it.parent;
   const back = h(
@@ -1263,6 +1330,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
     layerChips(st, layers),
     inspector,
     poiLists(st, marks, map, open),
+    gatherList,
     ...(world.warnings.length ? [areaWarnings(world)!] : []),
   );
 }

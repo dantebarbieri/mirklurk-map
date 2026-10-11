@@ -236,6 +236,7 @@ const POINT: Record<string, (m: Mark) => SVGElement[]> = {
   rift: () => [s("rect", { x: -4, y: -4, width: 8, height: 8, transform: "rotate(45)" })],
   tree: (m) => treeIcon(m.kind),
   bramble: () => [s("path", { d: "M-5 0 H5 M0 -5 V5 M-3.6 -3.6 L3.6 3.6 M3.6 -3.6 L-3.6 3.6" })],
+  gather: (m) => gatherIcon(m.kind),
 };
 /** Hand-drawn, game-shaped silhouettes in screen pixels; roots end at y=4. */
 const TREE_ICONS: Record<string, { wood?: string; crown: string; detail: string }> = {
@@ -271,6 +272,80 @@ export function treeIcon(kind: string): SVGElement[] {
     s("path", { class: "tree-crown", d: icon.crown }),
     s("path", { class: "tree-detail", d: icon.detail }),
   ];
+}
+
+type GatherPart = [tag: "path" | "circle" | "ellipse", cls: "leaf" | "fruit" | "root" | "detail", attrs: Record<string, number | string>];
+
+/**
+ * Gatherables' symbols, centred on their tile, in screen pixels like the trees (drawn by Astra from the game's tiles
+ * and the wiki's item pictures). Each part is coloured by its class (style.css): leaf, fruit (the harvested part,
+ * hidden on young cranberries and searched nests), root and detail.
+ */
+const GATHER_ICONS: Record<string, GatherPart[]> = {
+  calmia: [
+    ["path", "root", { d: "M-1.7 -.3 Q1.5 -1.3 2.9 .9 Q4.5 3.6 .7 5.8 L-.8 6.2 L-.3 4.5 Q-3.6 4.8 -3.3 2 Q-3.3 .6 -1.7 -.3 Z" }],
+    ["path", "leaf", {
+      d: "M-1.4 1.5 Q-4.9 .9 -4.9 -1.6 Q-2.8 -2.2 -1 -.3 L-1.8 -3.5 L-.9 -3.8 L.1 -.7 L1.8 -4.3 L2.6 -3.9 L1.3 -.8 Q3 -2.2 4.6 -1.3 Q4.1 1.1 1.2 1.4 Z",
+    }],
+    ["path", "fruit", {
+      d: "M-4.8 -3.1 Q-5.7 -4.8 -3.8 -4.9 Q-3.3 -6.4 -2.2 -5.4 Q-.4 -5.8 -.5 -4.1 Q.3 -2.8 -1.3 -2.3 Q-2.3 -.9 -3.2 -2.3 Q-4.7 -1.7 -4.8 -3.1 Z",
+    }],
+    ["path", "fruit", {
+      d: "M.7 -4.1 Q-.1 -5.6 1.5 -5.7 Q2.1 -6.5 3 -5.7 Q4.8 -5.9 4.6 -4.5 Q5.3 -3 3.7 -2.7 Q2.8 -1.6 1.9 -2.7 Q.5 -2.3 .7 -4.1 Z",
+    }],
+  ],
+  turnip: [
+    ["path", "fruit", { d: "M-3.6 -.5 Q-.2 -1.9 3.5 -.5 Q4.5 2.4 .9 4.6 L-.2 6.2 L-.8 4.7 Q-4.6 2.7 -3.6 -.5 Z" }],
+    ["path", "root", { d: "M-3.6 -.5 Q-.2 -1.9 3.5 -.5 L3.7 .8 Q2.1 1.6 .1 .7 Q-1.9 1.6 -3.8 .7 Z" }],
+    ["path", "leaf", {
+      d: "M-.9 -.3 L-1.5 -2 Q-4.7 -2.7 -4.8 -5.1 Q-2.1 -5.9 -.7 -3.1 L-.7 -5.6 L1 -6 L1.1 -2.6 Q2.3 -5.1 4.8 -4.8 Q4.8 -2.1 1.2 -1.3 L.8 -.3 Z",
+    }],
+  ],
+  cranberry: [
+    ["path", "leaf", {
+      d: "M-6.1 1.6 Q-6.2 -1.5 -3.4 -2.8 Q-1.9 -3.1 -1.2 -1.5 Q-.4 -4.4 2.1 -3.8 Q3.4 -2.9 2.7 -1.1 Q5.4 -2.4 6.1 .2 Q5.6 3.1 2.9 2.9 Q.5 4.8 -1.3 3 Q-4.2 4 -6.1 1.6 Z",
+    }],
+    ["circle", "fruit", { cx: -3.2, cy: .3, r: 1.15 }],
+    ["circle", "fruit", { cx: .3, cy: 1.7, r: 1.15 }],
+    ["circle", "fruit", { cx: 3.5, cy: .2, r: 1.15 }],
+  ],
+  cress: [
+    ["path", "root", {
+      d: "M-.8 5.5 L-.4 3 L-3.5 3.4 L-3.6 2.5 L-.3 2.1 L-.1 .4 L-3.9 -1.2 L-3.5 -2 L0 -.7 L-.3 -4.3 L.5 -4.4 L.9 -.3 L3.4 -1.6 L3.8 -.8 L.9 .7 L.5 3.1 L2.9 3 L3 3.9 L.4 4 L.1 5.6 Z",
+    }],
+    ["circle", "leaf", { cx: .1, cy: -4.3, r: 1.65 }],
+    ["circle", "leaf", { cx: -3.6, cy: -1.8, r: 1.75 }],
+    ["circle", "leaf", { cx: 3.6, cy: -1, r: 1.8 }],
+    ["circle", "leaf", { cx: -3.2, cy: 2.8, r: 1.9 }],
+    ["circle", "leaf", { cx: 2.6, cy: 3.8, r: 1.8 }],
+  ],
+  lily: [
+    ["path", "leaf", { d: "M.3 .9 L4.9 -2.9 C2.5 -5.2 -2.6 -4.4 -4.7 -2 C-7.3 .9 -5.7 4.9 -1.7 5.7 C1.7 6.3 5.6 4.3 5.9 1 L.3 .9 Z" }],
+    ["path", "fruit", {
+      d: "M-3.4 -.8 Q-5 -2.1 -4.5 -4.2 Q-3 -4.5 -2.1 -3.4 L-1.1 -5.9 Q.7 -5.2 1 -3.5 Q2.6 -4.3 3.3 -3.1 Q3.4 -1.3 1.5 -.6 Q-.8 1 -3.4 -.8 Z",
+    }],
+    ["ellipse", "root", { cx: -.8, cy: -1.7, rx: .95, ry: .8 }],
+  ],
+  bulb: [
+    ["path", "leaf", { d: "M-3.8 .1 L-1.7 .1 L-1.4 3.5 L-.5 4.8 L-3.6 4.9 L-3.2 3 Z M1.4 1.8 L3.4 1.7 L3.3 4 L4.4 4.8 L1.1 5 L1.7 3.7 Z" }],
+    ["path", "fruit", { d: "M-5.7 .5 C-5.6 -2.6 -4.3 -5.8 -2.8 -5.8 C-1 -5.8 .2 -2.8 .2 -.2 Q.3 1 -1.3 1 L-4.2 1.1 Q-5.4 1.5 -5.7 .5 Z" }],
+    ["path", "fruit", { d: "M.2 2 C-.2 -.1 1.2 -3.4 3 -3.4 C4.7 -3.4 5.9 -1.1 5.6 1.5 Q5.4 2.5 3.5 2.5 L1.3 2.7 Q.4 2.7 .2 2 Z" }],
+  ],
+  nest: [
+    ["path", "leaf", {
+      d: "M-6.1 -1.1 L-4.6 -2 L-5.2 -3.1 L-2.8 -2.7 Q.3 -4.2 3.6 -2.6 L5.9 -3.1 L5.2 -1.4 L6.2 -.6 Q6.2 3.7 2.2 5.1 Q-2.4 6 -5.4 2.7 Z",
+    }],
+    ["ellipse", "root", { cx: 0, cy: -1, rx: 4.8, ry: 2.2 }],
+    ["path", "fruit", { d: "M-3.9 -.4 C-4.4 -2.2 -3.7 -5 -2.1 -5 C-.7 -4.8 .1 -2.2 -.6 -.7 Q-1.7 .8 -3.9 -.4 Z" }],
+    ["path", "fruit", { d: "M.3 -.5 C-.1 -1.9 1.1 -4.1 2.3 -4 C3.6 -3.6 4.3 -1.5 3.5 -.3 Q2.1 .8 .3 -.5 Z" }],
+    ["path", "leaf", { d: "M-5.7 -.2 Q.1 2.1 5.8 -.5 Q5.2 3.3 1.8 4.6 Q-2.3 5.1 -5.2 2.3 Z" }],
+    ["path", "detail", { d: "M-4.5 .8 Q-1.2 3.2 2.8 3 M-2.2 3.5 Q1.1 1.8 4.5 1.1" }],
+  ],
+};
+
+/** Shared by map markers, list rows and the legend; the kind's second word picks the plant. */
+export function gatherIcon(kind: string): SVGElement[] {
+  return (GATHER_ICONS[kind.split(" ")[1]] ?? GATHER_ICONS.calmia).map(([tag, cls, attrs]) => s(tag, { class: `g-${cls}`, ...attrs }));
 }
 /** A simple player pictogram, coloured by the character's hair (--hair). Origin is the torso, shoulders end at y=4. */
 export function personIcon(): SVGElement[] {
