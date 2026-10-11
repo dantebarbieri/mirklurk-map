@@ -11,6 +11,7 @@ import {
   worldId,
   type WorldInfo,
 } from "../src/sharing-format.ts";
+import { readZip } from "../src/zip.ts";
 import { assert, assertEquals } from "./assert.ts";
 
 const storageKey = "mirklurk-library-v1";
@@ -76,6 +77,7 @@ class ElementStub extends EventTarget {
   click() {
     if (!this.disabled) this.dispatchEvent(new Event("click"));
   }
+  remove() {}
   select() {}
   find(match: (element: ElementStub) => boolean): ElementStub | undefined {
     if (match(this)) return this;
@@ -121,7 +123,11 @@ class BrowserStub {
     querySelector: (selector: string) => this.el(selector),
     createElement: (tag: string) => new ElementStub(tag),
     createElementNS: (_namespace: string, tag: string) => new ElementStub(tag),
+    body: { append: (link: ElementStub & { download?: string; href?: string }) => this.links.push(link) },
   };
+  /** Links handed to the browser to download, and the blobs behind their blob: URLs. */
+  readonly links: (ElementStub & { download?: string; href?: string })[] = [];
+  readonly blobs = new Map<string, Blob>();
   readonly location = { origin: "https://map.example", pathname: "/", search: "", hash: "" };
   readonly requests: PendingRequest[] = [];
   readonly displays: { name: string; refresh: boolean }[] = [];
@@ -155,6 +161,15 @@ class BrowserStub {
       return this.confirmAnswer;
     });
     this.install(globalThis, "setInterval", (callback: () => void) => this.timers.push(callback));
+    // Long timers (such as revoking a download's blob: URL) never fire in a test; short ones still settle promises.
+    const setTimeout = globalThis.setTimeout;
+    this.install(globalThis, "setTimeout", (callback: () => void, ms = 0) => ms >= 1000 ? 0 : setTimeout(callback, ms));
+    this.install(URL, "createObjectURL", (blob: Blob) => {
+      const url = `blob:${this.location.origin}/${this.blobs.size}`;
+      this.blobs.set(url, blob);
+      return url;
+    });
+    this.install(URL, "revokeObjectURL", () => {});
     this.install(globalThis, "addEventListener", (name: string, callback: () => void) => this.listeners.set(name, callback));
     this.install(AbortSignal, "timeout", () => new AbortController().signal);
     this.install(globalThis, "fetch", (path: string, init: RequestInit) => {
@@ -254,6 +269,13 @@ class BrowserStub {
   async tick() {
     assertEquals(this.timers.length, 1);
     this.timers[0]();
+    await this.settle();
+  }
+
+  /** Waits for packaging (file reads and compression) to hand the browser `count` downloads in all. */
+  async downloaded(count: number) {
+    for (let i = 0; i < 50 && this.links.length < count; i++) await this.settle();
+    assertEquals(this.links.length, count);
     await this.settle();
   }
 
@@ -453,6 +475,73 @@ Deno.test("sharing client: a share link follows one world read-only and never to
     { current: { key: keyA, name: "Mine" }, saved: [], auto: true },
     `#v=${linkKey(shareKey)}`,
   ));
+
+Deno.test("sharing client: a shared world downloads as a playable save marked From Share, after an overwrite warning", () =>
+  withBrowser(
+    async (b) => {
+      await b.init();
+      assert(b.el("#download-world").disabled);
+      // The sharer's own MirkMap.ini keys (here a save editor's) survive the download.
+      const files = new Map(source().files);
+      files.set("Hero/MirkMap.ini", { read: () => Promise.resolve(new TextEncoder().encode("[MirkMap]\r\ncheated=1\r\n")) });
+      const packed = await packSave(files, { name: "Hero", root: "Hero/" });
+      await b.reply(await b.request("GET", "/view/data"), new Response(packed as BodyInit, { headers: { ETag: '"v1"' } }));
+      assert(!b.el("#download-world").disabled);
+
+      b.confirmAnswer = false;
+      b.el("#download-world").click();
+      await b.settle();
+      assertEquals(b.links.length, 0);
+      assert(b.confirms[0].startsWith("Download Hero as a save you can play?"), b.confirms[0]);
+      assert(b.confirms[0].includes("already has a character called Hero, putting this one there overwrites it"), b.confirms[0]);
+      assert(b.confirms[0].includes("rename one of the two folders first"), b.confirms[0]);
+
+      b.confirmAnswer = true;
+      b.el("#download-world").click();
+      await b.downloaded(1);
+      // The snapshot on screen is what downloads, so nothing is fetched again.
+      assertEquals(b.pending(), 0);
+      assertEquals(b.links.map((l) => l.download), ["Hero (From Share).zip"]);
+      const entries = await readZip(b.blobs.get(b.links[0].href!)!);
+      assertEquals(entries.map((e) => e.name), ["Hero/Player.save", "Hero/MirkMap.ini"]);
+      assertEquals([...await entries[0].read()], [...playerBytes]);
+      const marker = new TextDecoder().decode(await entries[1].read());
+      assert(/^\[MirkMap\]\r\ncheated=1\r\nfrom_share=1\r\nshare_downloaded=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\r\n$/.test(marker), marker);
+      assert(b.status().startsWith("Downloaded Hero (From Share).zip. To play it, put its Hero folder into the game's Saves folder"));
+      assert(b.status().includes("that character would be overwritten: rename one of the folders first"), b.status());
+      assert(!b.el("#share-status").classList.contains("error"));
+    },
+    { current: { key: keyA, name: "" }, saved: [], auto: true },
+    `#v=${linkKey(shareKey)}`,
+  ));
+
+Deno.test("sharing client: library worlds from a share show an S badge, and any library world downloads unmarked", () =>
+  withBrowser(async (b) => {
+    const mine = await world("Other"), copy: WorldInfo = { ...await world("Hero", "v1", Date.now() - 60_000), fromShare: true };
+    b.server.set(keyA, { name: "", worlds: [mine, copy] });
+    await b.init();
+    const [first, second] = b.el("#world-list").children as ElementStub[];
+    assertEquals(first.find((e) => e.tag === "abbr"), undefined);
+    assertEquals(second.find((e) => e.tag === "abbr")?.textContent, "S");
+    assert(second.textContent.startsWith("Hero S (From Share)"), second.textContent);
+
+    second.button("Download").click();
+    const data = await b.request("GET", `/library/worlds/${copy.id}/data`);
+    assertEquals(data.headers.get("Authorization"), `Bearer ${keyA}`);
+    await b.data(data);
+    await b.downloaded(1);
+    assertEquals(b.links.map((l) => l.download), ["Hero.zip"]);
+    assertEquals((await readZip(b.blobs.get(b.links[0].href!)!)).map((e) => e.name), ["Hero/Player.save"]);
+    assert(b.status().includes("If Saves already has an older Hero folder, move it out first"), b.status());
+
+    // The world that is open downloads what is on screen.
+    await b.data(await b.request("GET", `/library/worlds/${mine.id}/data`), "Other");
+    (b.el("#world-list").children[0] as ElementStub).button("Download").click();
+    await b.downloaded(2);
+    assertEquals(b.pending(), 0);
+    assertEquals(b.links.map((l) => l.download), ["Hero.zip", "Other.zip"]);
+    assertEquals(b.confirms, []);
+  }, { current: { key: keyA, name: "" }, saved: [], auto: true }));
 
 Deno.test("sharing client: Live saves keep an added world updated once per change, and only while enabled", () =>
   withBrowser(async (b) => {

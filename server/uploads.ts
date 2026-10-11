@@ -18,6 +18,7 @@ import {
   worldId,
   type WorldInfo,
 } from "../src/sharing-format.ts";
+import { isFromShare } from "../src/marker.ts";
 
 /** One stored world. Keys are never stored: a library is its sync key's hash, a share link its share key's hash. */
 interface WorldRecord {
@@ -34,6 +35,8 @@ interface WorldRecord {
   /** The share key derives from the sync key and this salt; a new salt revokes the old share link. */
   salt: string;
   view: string;
+  /** The package's MirkMap.ini says from_share=1; read again on every upload. */
+  fromShare?: true;
 }
 interface LibraryRecord {
   id: string;
@@ -279,8 +282,18 @@ export class UploadStore {
   }
 
   private async info(record: WorldRecord, sync: string): Promise<WorldInfo> {
-    const { id, name, created, updated, expires, version, size } = record;
-    return { id, name, created, updated, expires, version, size, share: await shareKey(sync, record.salt) };
+    const { id, name, created, updated, expires, version, size, fromShare } = record;
+    return {
+      id,
+      name,
+      created,
+      updated,
+      expires,
+      version,
+      size,
+      share: await shareKey(sync, record.salt),
+      ...(fromShare ? { fromShare } : {}),
+    };
   }
 
   private async route(request: Request, address: string): Promise<Response> {
@@ -532,6 +545,7 @@ export class UploadStore {
         size: body.length,
         salt,
         view: record?.view ?? await shareId(await shareKey(sync, salt)),
+        ...(await isFromShare(unpacked.files, "Shared/") ? { fromShare: true as const } : {}),
       };
       await this.store(next, body);
       if (!record) {
