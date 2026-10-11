@@ -1,5 +1,15 @@
-import { IMMUTABLE, route } from "../src/offline.ts";
+import { IMMUTABLE, pageFor, route } from "../src/offline.ts";
 import { assert, assertEquals } from "./assert.ts";
+
+Deno.test("offline: the editor's pages fall back to the kept editor, everything else to the map", () => {
+  assertEquals(pageFor(""), "");
+  assertEquals(pageFor("index.html"), "");
+  assertEquals(pageFor("edit"), "edit/");
+  assertEquals(pageFor("edit/"), "edit/");
+  assertEquals(pageFor("edit/index.html"), "edit/");
+  assertEquals(pageFor("editor.css"), "");
+  assertEquals(pageFor("editing"), "");
+});
 
 Deno.test("offline: pages try the network first, kept files come from the cache, and the sharing API is never touched", () => {
   const scope = new URL("https://map.example/");
@@ -28,7 +38,14 @@ Deno.test("offline: pages try the network first, kept files come from the cache,
 
 Deno.test("offline: only content-hashed files are reused across versions", () => {
   for (
-    const file of ["app.41a6f3f2c9.js", "style.a7f04eb7f4.css", "assets/game/ts_grass.4e020da481.png", "assets/wiki/item_89.1b089b316c.png"]
+    const file of [
+      "app.41a6f3f2c9.js",
+      "style.a7f04eb7f4.css",
+      "edit.0a1b2c3d4e.js",
+      "editor.5f6a7b8c9d.css",
+      "assets/game/ts_grass.4e020da481.png",
+      "assets/wiki/item_89.1b089b316c.png",
+    ]
   ) {
     assert(IMMUTABLE.test(file), file);
   }

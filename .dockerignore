@@ -2,7 +2,9 @@
 *
 !deno.json
 !index.html
+!edit.html
 !style.css
+!editor.css
 !manifest.webmanifest
 !icons/
 !icons/*.png

@@ -1,8 +1,11 @@
-// How the service worker (src/sw.ts) answers requests. The build lists the files it keeps: the page, its script and stylesheet, the
-// web app manifest, the icons and all bundled art.
+// How the service worker (src/sw.ts) answers requests. The build lists the files it keeps: the map's and the editor's pages, their
+// scripts and stylesheets, the web app manifest, the icons and all bundled art.
 
 /** Files named by their content hash never change, so a copy cached by an earlier version is still right. */
-export const IMMUTABLE = /^(app|style)\.[0-9a-f]+\.(js|css)$|^assets\/(game|wiki)\/[a-z0-9_]+\.[0-9a-f]+\.png$/;
+export const IMMUTABLE = /^(app|style|edit|editor)\.[0-9a-f]+\.(js|css)$|^assets\/(game|wiki)\/[a-z0-9_]+\.[0-9a-f]+\.png$/;
+
+/** The kept page a navigation falls back to offline: the save editor under edit/, otherwise the map. */
+export const pageFor = (path: string) => (path === "edit" || path.startsWith("edit/") ? "edit/" : "");
 
 /**
  * "page": a navigation, answered from the network with the cached page as the offline fallback. "cache": a kept file, answered from the

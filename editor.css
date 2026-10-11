@@ -1,0 +1,253 @@
+/* The save editor's own styles (edit.html), on top of style.css. */
+
+/* One column: the summary, then the cards (the map's two-column layout is for its world view). */
+body.editor main,
+body.editor.loaded main {
+  display: block;
+  padding: 0 16px 96px;
+}
+.editor .intro {
+  max-width: 900px;
+}
+.edit-summary {
+  margin: 16px 0;
+}
+.edit-summary h2 {
+  font-size: 18px;
+}
+.edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.edit-card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  min-width: 0;
+}
+.edit-card h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--gold);
+}
+.edit-card h4 {
+  margin: 14px 0 6px;
+  font-size: 13px;
+  color: var(--gold2);
+}
+.edit-card.edit-map {
+  grid-column: span 2;
+}
+@media (max-width: 720px) {
+  .edit-card.edit-map {
+    grid-column: auto;
+  }
+}
+.edit-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 6px 0;
+}
+.edit-field > span:first-child {
+  flex: 0 0 128px;
+  color: var(--text);
+}
+.edit-field input[type="range"] {
+  flex: 1 1 140px;
+  accent-color: var(--gold2);
+}
+.edit-field output {
+  min-width: 9em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Sliders keep their value beside them; on narrow cards the label goes above. */
+.edit-field:has(input[type="range"]) > span:first-child {
+  flex-basis: 100%;
+}
+.edit-field:has(input[type="range"]) output {
+  min-width: 8em;
+}
+.edit-card input[type="number"],
+.edit-card input[type="text"],
+.edit-card input[type="time"] {
+  padding: 3px 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.edit-card .num {
+  width: 6em;
+}
+.edit-card .item-name {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.coin-fields .edit-field > span:first-child {
+  flex-basis: 60px;
+}
+.coin-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+}
+.small {
+  font-size: 12px;
+}
+.button.small {
+  padding: 1px 6px;
+  font-size: 12px;
+}
+.edit-note {
+  margin: 10px 0 0;
+  color: var(--gold);
+}
+.edit-note.error {
+  color: #ff8a80;
+}
+
+.zone-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 52px));
+  gap: 3px;
+  margin-bottom: 8px;
+}
+.zone-button {
+  padding: 3px 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--bg);
+  cursor: pointer;
+}
+.zone-button:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+.zone-button.you {
+  border-color: var(--gold2);
+}
+.zone-button.current {
+  background: #3a2e30;
+  color: var(--gold);
+}
+.map-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 8px;
+}
+.tool {
+  white-space: nowrap;
+}
+.tool.disabled {
+  opacity: .5;
+}
+.map-frame {
+  max-width: 480px;
+}
+.edit-map {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  image-rendering: pixelated;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.edit-map.tool-move,
+.edit-map.tool-spawn {
+  cursor: crosshair;
+}
+.map-caption {
+  min-height: 1.4em;
+  margin: 4px 0;
+}
+.selected-being {
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--gold2);
+  border-radius: 4px;
+}
+.selected-being h4 {
+  margin-top: 0;
+}
+.being-list,
+.backup-list {
+  padding-left: 22px;
+  margin: 6px 0;
+}
+.being-list li,
+.backup-list li {
+  margin: 4px 0;
+}
+.being-list li.selected > .link {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.savebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  background: var(--glass-solid);
+  border-top: 1px solid var(--gold2);
+  z-index: 10;
+}
+.savebar summary {
+  cursor: pointer;
+  color: var(--gold);
+}
+.savebar ol {
+  max-height: 30vh;
+  overflow: auto;
+  margin: 6px 0 0;
+}
+.savebar-actions {
+  display: flex;
+  gap: 8px;
+}
+/* Saving or restoring: nothing on the page can change the drafts until the files are written. */
+body.busy main,
+body.busy .savebar,
+body.busy .top {
+  pointer-events: none;
+  opacity: .6;
+}
+
+.disclosure {
+  max-width: 620px;
+  padding: 18px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--gold2);
+  border-radius: 6px;
+}
+.disclosure::backdrop {
+  background: rgba(0, 0, 0, .6);
+}
+.disclosure h2 {
+  margin-bottom: 10px;
+}
+.disclosure li {
+  margin: 6px 0;
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 16px 0 0;
+}
