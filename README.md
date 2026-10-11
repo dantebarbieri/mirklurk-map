@@ -253,9 +253,9 @@ folder or ZIP for realistic terrain (`Player.save` or map PNGs alone are insuffi
 Switch on **Creatures** to draw each living creature as a small red silhouette of its kind: flies (Dreadfly, Giant Gnat, Deathfly), the
 Firelouse, the Sceetler, crabs (Boulder and Titanspine Crab), the Nightmare, snakes (Mire Serpent, Viper, Red Fang), the Giant Slug, fish
 (Mudfin, Razorfin), rats (Mirk Runner, Mirk Mauler), trolls (Swamp and Cave Troll), the Toadkin, the Scaalmyr (Grunt, Warrior, Geomancer),
-the Scaal and the Unwanted (Raving, Mutated and Dead). Kinds that look alike in the game share a shape, so hover or tap one for its exact
-name. Map markers, the legend and the **Creatures when saved** list share the same hand-drawn shapes; NPCs keep their gold dot, and so does
-the Unwanted Guard, which is on their team and never targets you.
+the Scaal and the Unwanted (Raving and Mutated). Kinds that look alike in the game share a shape, so hover or tap one for its exact name.
+Map markers, the legend and the **Creatures when saved** list share the same hand-drawn shapes; NPCs keep their gold dot, and so do the rest
+of their team, who never target you: the Dead Unwanted (Viend before he is revived) and the Unwanted Guard.
 
 Click a living creature or NPC to see what the game's own examine card does, plus its saved hit points. **Hit points** draws the grid saved
 in `Beings.save` square by square (armor as a bronze, silver or gold shield, larger for each of 1–3 layers; lost and burned points, poison

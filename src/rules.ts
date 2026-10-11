@@ -64,8 +64,11 @@ export const LANDMARK_NAMES: Record<number, string> = {
 
 /** Beings that the game treats as essential (is_essential in scr_ai_related) — the NPCs. */
 export const NPC_BEINGS = new Set([5, 6, 8, 12, 19, 20, 26, 33, 34]);
-/** Beings drawn and counted as NPCs: the essential ones plus the Unwanted Guard, which is on their team and never targets you. */
-export const NPC_MARKERS = new Set([...NPC_BEINGS, 35]);
+/**
+ * Beings drawn and counted as NPCs: the essential ones plus the rest of their team, which never targets you: the Dead
+ * Unwanted (Viend before he is revived) and the Unwanted Guard.
+ */
+export const NPC_MARKERS = new Set([...NPC_BEINGS, 9, 35]);
 
 /** Water/elevation thresholds (gml_Object_databank_Create_0). */
 export const Thresh = { deep: -0.4, water: -0.3, shallow: -0.2, dry: 0.195, mountain: 0.2 } as const;

@@ -37,5 +37,8 @@ Deno.test("creatures: every creature is drawn as its kind's icon, NPCs and unkno
   // The Unwanted Guard never targets you, so it is drawn as an NPC, unlabelled like the Soldiers.
   const guard = marks.find((m) => m.being === 35)!;
   assertEquals([guard.layer, guard.kind, guard.label], ["npcs", "npc", undefined]);
+  // So is the Dead Unwanted (Viend before he is revived), labelled like the other named NPCs.
+  const viend = marks.find((m) => m.being === 9)!;
+  assertEquals([viend.layer, viend.kind, viend.label], ["npcs", "npc", "Dead Unwanted"]);
   assertEquals(Object.keys(CREATURE_ICONS).sort(), [...new Set(Object.values(CREATURE_ICON))].sort(), "no unused icons");
 });
