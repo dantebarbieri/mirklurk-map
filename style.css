@@ -367,7 +367,19 @@ body.loaded main > * {
 .hp-bleed {
   left: -3px;
   top: -3px;
+  display: inline-flex;
+  align-items: center;
   background: var(--hp-bleed);
+}
+/* The way a bleed spreads: a heavy chevron that stays legible at badge size. */
+.hp-chevron {
+  width: 9px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .hp figcaption {
   margin-top: 4px;

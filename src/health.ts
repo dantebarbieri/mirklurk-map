@@ -109,7 +109,13 @@ export function healthText(g: HealthGrid): string {
   ].filter(Boolean).join(" · ");
 }
 
-const ARROWS = ["↑", "→", "↓", "←"];
+/** A thick chevron for the way a bleed spreads: up, right, down or left (0–3). */
+const chevron = (dir: number) =>
+  s(
+    "svg",
+    { class: "hp-chevron", viewBox: "0 0 10 10", "aria-hidden": "true", focusable: "false" },
+    s("path", { d: "M1.75 7 5 3.5 8.25 7", transform: `rotate(${dir * 90} 5 5)` }),
+  );
 const DIRS = ["up", "right", "down", "left"];
 const KIND_TEXT: Record<CellKind, string> = {
   none: "",
@@ -149,7 +155,7 @@ function cellView(c: HealthCell): HTMLElement {
     },
     armor ? armorShield() : null,
     c.poison ? h("span", { class: "hp-poison" }, c.poison) : null,
-    cellBleed(c) ? h("span", { class: "hp-bleed" }, c.bleed.map((n, i) => n ? `${ARROWS[i]}${n > 1 ? n : ""}` : "").join("")) : null,
+    cellBleed(c) ? h("span", { class: "hp-bleed" }, c.bleed.map((n, dir) => n ? [chevron(dir), n > 1 ? String(n) : ""] : null)) : null,
   );
 }
 
