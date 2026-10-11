@@ -3,7 +3,8 @@
 
 import { $, h } from "./dom.ts";
 import { fromShareTag } from "./badges.ts";
-import { offerDownload, saveZip } from "./download.ts";
+import { ask } from "./dialog.ts";
+import { folderName, offerDownload, saveZip } from "./download.ts";
 import type { Character, FileMap } from "./files.ts";
 import { qrSvg } from "./qr.ts";
 import {
@@ -499,20 +500,39 @@ export class Sharing {
 
   /**
    * Downloads a world as a ZIP the game can load. The version on screen is used when this world is open; another library world is
-   * fetched first. A world from a share link keeps its folder (= character) name and is marked from_share in MirkMap.ini.
+   * fetched first. A world from a share link keeps its folder (= character) name and is marked from_share in MirkMap.ini, after a
+   * warning that it would replace a character of the same name.
    */
   private async download(target: Watch) {
     if (this.downloading) return;
+    if (target.kind === "view") {
+      const folder = folderName(target.snapshot?.name ?? target.name);
+      const go = await ask({
+        title: `Download ${folder} to play it?`,
+        body: [
+          h(
+            "p",
+            {},
+            `${folder} is someone else's world. It downloads as `,
+            h("b", {}, `${folder} (From Share).zip`),
+            ", and MirkMap marks it",
+            fromShareTag(),
+            ".",
+          ),
+          h(
+            "p",
+            { class: "warning" },
+            `If your game's Saves folder already has a character called ${folder}, putting this one there overwrites it.`,
+          ),
+          h("p", {}, "To keep both, rename one of the two folders first: the game names each character after its folder."),
+        ],
+        confirm: "Download",
+      });
+      if (!go || this.downloading) return;
+    }
     const share = target.kind === "view";
     const open = target === this.watching ? target.snapshot : undefined;
     const name = open?.name ?? target.name;
-    if (
-      share && !confirm(
-        `Download ${name} as a save you can play?\n\nIt is marked (From Share) in MirkMap and keeps its folder name, which is the ` +
-          `character's name in the game. If your Saves folder already has a character called ${name}, putting this one there ` +
-          "overwrites it. To keep both, rename one of the two folders first: the game names each character after its folder.",
-      )
-    ) return;
     this.downloading = true;
     this.render();
     const key = this.remembered.current.key;
@@ -807,7 +827,8 @@ export class Sharing {
       : watching.kind === "view"
       ? `Viewing ${watching.name}, shared with you read-only${updated}. Your own worlds are unchanged.`
       : `Following ${watching.name} from your library${updated}.`;
-    $<HTMLButtonElement>("#download-world").disabled = !watching?.snapshot || this.downloading;
+    // Not disabled while a download is packaged (the download guards itself), so focus stays on it after the dialog.
+    $<HTMLButtonElement>("#download-world").disabled = !watching?.snapshot;
 
     const saved = this.remembered.saved;
     $("#saved-libraries").hidden = !saved.length;
