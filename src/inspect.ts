@@ -128,7 +128,7 @@ export interface InspectOptions {
   /** Chopping tool for tree costs, and the select that changes it. */
   tool?: number;
   picker?: HTMLElement;
-  /** Closes the inspection; its button shows when the card floats over a full-screen map. */
+  /** Closes the inspection; its button, and a bottom sheet's grabber, show when the card floats over a full-screen map. */
   close?: () => void;
   /** The save's difficulty, for how well beings aim. */
   difficulty?: number;
@@ -141,7 +141,13 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
   // Carcasses carry their creature's index too, but they are loot, not a living being.
   const being = m.being !== undefined && !m.inventory ? m.being : undefined;
   panel.replaceChildren(
-    ...(close ? [h("button", { type: "button", class: "close", "aria-label": "Close", title: "Close (Esc)", onclick: close }, "×")] : []),
+    ...(close
+      ? [
+        // MapView drags and toggles it (see `wireSheet`) and keeps its label.
+        h("button", { type: "button", class: "grabber", "aria-label": "Show more", "aria-expanded": "false" }),
+        h("button", { type: "button", class: "close", "aria-label": "Close", title: "Close (Esc)", onclick: close }, "×"),
+      ]
+      : []),
     h(
       "div",
       { class: "inspect-head" },

@@ -1634,6 +1634,65 @@ body.map-full .inspection > .close:hover {
 .popup-tail.below {
   transform: scaleY(-1);
 }
+/*
+ * On a narrow full-screen map the card is a bottom sheet instead (MapView docks it and sets its height): half the map, or
+ * nearly all of it when pulled up by its grabber, which also drags it down to close.
+ */
+.inspection > .grabber {
+  display: none;
+}
+body.map-full #zone > .inspection.sheet {
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  padding: 0 14px max(12px, env(safe-area-inset-bottom));
+  border-width: 1px 0 0;
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, .5);
+}
+body.map-full #zone > .inspection.sheet-in {
+  animation: sheet-in .2s ease-out;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+/* Stays at the top as the sheet scrolls, its background hiding what scrolls beneath. */
+body.map-full #zone > .inspection.sheet > .grabber {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: block;
+  width: calc(100% + 28px);
+  height: 26px;
+  margin: 0 -14px;
+  padding: 0;
+  border: 0;
+  background: var(--glass-solid);
+  cursor: grab;
+  touch-action: none;
+}
+body.map-full #zone > .inspection.sheet > .grabber::before {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 5px;
+  margin: auto;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .3);
+}
+body.map-full #zone > .inspection.sheet > .close {
+  top: 26px;
+  margin-top: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.map-full #zone > .inspection.sheet-in {
+    animation: none;
+  }
+}
 @media (pointer: coarse) {
   body.map-full .zoom {
     min-width: 44px;

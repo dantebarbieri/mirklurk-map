@@ -38,18 +38,22 @@ export function visibleRect([x, y, size]: [number, number, number], width: numbe
 
 /**
  * Clamps a view of a width×height map to bounds [left, top, max]: its size to 96…max, and what it shows to the bounds, or,
- * along a side that shows more than the bounds, the bounds to what it shows.
+ * along a side that shows more than the bounds, the bounds to what it shows. The bottom `below` px of the map are covered
+ * (by a bottom sheet), so the view may show that much past the bounds' bottom edge.
  */
 export function clampView(
   view: [number, number, number],
   [left, top, max]: [number, number, number],
   width: number,
   height: number,
+  below = 0,
 ): [number, number, number] {
   const size = Math.min(Math.max(view[2], 96), max);
   const [x, y, w, h] = visibleRect([view[0], view[1], size], width, height);
-  const fit = (v: number, span: number, lo: number) => Math.min(Math.max(v, Math.min(lo, lo + max - span)), Math.max(lo, lo + max - span));
-  return [fit(x, w, left) + (w - size) / 2, fit(y, h, top) + (h - size) / 2, size];
+  // The covered strip only ever loosens the limit, so opening a sheet never moves the view by itself.
+  const fit = (v: number, span: number, lo: number, extra = 0) =>
+    Math.min(Math.max(v, Math.min(lo, lo + max - span)), Math.max(lo, lo + max + extra - span));
+  return [fit(x, w, left) + (w - size) / 2, fit(y, h, top, below * size / Math.min(width, height)) + (h - size) / 2, size];
 }
 
 /** Keep the world point under the gesture midpoint fixed while the fingers move and scale (points relative to the map). */
@@ -105,6 +109,43 @@ export function cardPlace(x: number, y: number, w: number, h: number, areaW: num
   };
 }
 
+/** Maps at most this wide (portrait phones) show the full-screen popup as a bottom sheet instead of a card beside its mark. */
+export const SHEET_WIDTH = 600;
+/** The strip at the top of the map, over the zone's title, that a sheet pulled all the way up leaves uncovered. */
+export const SHEET_TOP = 56;
+/** A sheet let go faster than this (px/ms) keeps going one step: up to full, or down to half or closed. */
+const FLICK = 0.5;
+const SHEET_MS = 200;
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+export type SheetState = "closed" | "half" | "full";
+
+/** A bottom sheet's heights on a map `mapHeight` tall, for content `natural` tall: half the map, and all but SHEET_TOP. */
+export function sheetHeights(mapHeight: number, natural = Infinity): [number, number] {
+  return [Math.min(natural, Math.round(mapHeight / 2)), Math.min(natural, mapHeight - SHEET_TOP)];
+}
+
+/**
+ * Where a dragged bottom sheet settles when let go at `height`, moving at `velocity` px/ms (down is positive), given its
+ * half and full heights and whether it was full before. A flick goes one step its way; otherwise the nearest height wins,
+ * and under 60% of the half height closes it.
+ */
+export function sheetSnap(height: number, velocity: number, half: number, full: number, wasFull: boolean): SheetState {
+  const tall = full > half;
+  if (velocity > FLICK) return wasFull && tall && height > half * 0.6 ? "half" : "closed";
+  if (velocity < -FLICK) return tall ? "full" : "half";
+  if (height < half * 0.6) return "closed";
+  return tall && height > (half + full) / 2 ? "full" : "half";
+}
+
+/**
+ * How far to move the map's content (px, down is positive) so a point `y` px below its top shows between `top` and `bottom`:
+ * 0 when it already does (or there is no room), else enough to centre it there.
+ */
+export function revealShift(y: number, top: number, bottom: number): number {
+  return bottom <= top || (y >= top && y <= bottom) ? 0 : (top + bottom) / 2 - y;
+}
+
 export interface Raster {
   paint(ctx: CanvasRenderingContext2D, view: Rect): void;
   subscribe(callback: () => void): () => void;
@@ -122,13 +163,14 @@ export interface MapSpec {
   /** The player's marker (layer "you", labelled by `mark.label`); `title` is its hover text (saved or estimated position). */
   player?: { mark: Mark; title: string };
   onOpen?: (m: Mark) => void;
-  /** Called after every zoom or pan. */
+  /** Called after every zoom or pan, with the view centred on the part of the map a bottom sheet leaves uncovered. */
   onView?: (view: [number, number, number]) => void;
   /** Called once the view comes to rest: when the last finger or button lifts after moving it, or shortly after a wheel or button zoom. */
   onSettle?: () => void;
   /**
    * Details of the selected mark. In full screen the card floats beside the mark as it moves (style.css positions it
-   * absolutely), and Escape or a tap on the empty map calls `close`.
+   * absolutely), or on a narrow map docks as a bottom sheet (its grabber is a `.grabber` button in the card), and Escape
+   * or a tap on the empty map calls `close`.
    */
   popup?: { card: HTMLElement; close: () => void };
 }
@@ -328,6 +370,15 @@ export class MapView {
   private settleTimer = 0;
   private waiting: (() => void)[] = [];
   private popup?: { card: HTMLElement; close: () => void };
+  /** Whether the bottom sheet is pulled up full; kept across maps, so a redrawn map (another zone, a live save) keeps it. */
+  private static sheetFull = false;
+  /** The sheet is being dragged or is settling, so `place` lets it grow to full height. */
+  private sheetMoving = false;
+  private glideFrame = 0;
+  /** Pixels at the bottom of the map that the sheet covers, which the view may show past the bounds (see `setRoom`). */
+  private room = 0;
+  private roomTarget = 0;
+  private roomFrame = 0;
   /** The popup card's pointer at its mark; drawn here, as the card itself scrolls and would clip it. */
   private tail: HTMLElement;
   private fullButton: HTMLElement;
@@ -424,6 +475,7 @@ export class MapView {
       this.addPoint(me.x, me.y, "you L-you", [...personIcon(), label], this.marks.push(me) - 1);
     }
     this.popup = spec.popup;
+    if (this.popup) this.wireSheet(this.popup.card);
     this.rescale();
     this.onView = spec.onView;
     this.onSettle = spec.onSettle;
@@ -443,6 +495,8 @@ export class MapView {
     this.unfull();
     document.removeEventListener("keydown", this.onKey);
     cancelAnimationFrame(this.frame);
+    cancelAnimationFrame(this.glideFrame);
+    cancelAnimationFrame(this.roomFrame);
     clearTimeout(this.settleTimer);
     this.onSettle = undefined;
     this.release();
@@ -476,17 +530,22 @@ export class MapView {
     this.place();
   }
 
-  /** The popup card floats beside the selected mark (full screen only). */
+  /** The popup card floats over the map (full screen only): beside the selected mark, or docked as a bottom sheet. */
   private get floating() {
     return !!this.popup && !this.popup.card.hidden && isFullMap();
   }
 
-  /** The floating card is in sight (its mark is on the map), so Escape or a tap on the empty map closes it. */
+  /** The floating card is a bottom sheet, as the map is too narrow to fit it beside its mark. */
+  private get docked() {
+    return this.floating && this.screen()[0] <= SHEET_WIDTH;
+  }
+
+  /** The floating card is in sight (its mark is on the map, or it is a sheet), so Escape or a tap on the empty map closes it. */
   private get showing() {
     return this.floating && !this.popup!.card.classList.contains("off");
   }
 
-  /** Keeps the floating popup card beside its mark; outside full screen it returns to the page's flow. */
+  /** Keeps the floating popup card beside its mark, or docked; outside full screen it returns to the page's flow. */
   private place() {
     if (!this.popup) return;
     const card = this.popup.card;
@@ -494,9 +553,13 @@ export class MapView {
     if (!this.floating || !m) {
       this.tail.hidden = true;
       if (card.style.length) card.style.cssText = "";
-      card.classList.remove("off");
+      card.classList.remove("off", "sheet");
+      this.setRoom(0);
       return;
     }
+    if (this.docked) return this.dock(card);
+    card.classList.remove("sheet");
+    this.setRoom(0);
     const map = this.svg.getBoundingClientRect();
     const host = (card.offsetParent ?? document.body).getBoundingClientRect();
     const [vx, vy, vw] = this.visible;
@@ -514,6 +577,181 @@ export class MapView {
     this.tail.classList.toggle("below", at.below);
     this.tail.style.left = `${map.left - box.left + tx - 8}px`;
     this.tail.style.top = `${map.top - box.top + (at.below ? at.top - 8 : at.top + card.offsetHeight - 1)}px`;
+  }
+
+  /** Docks the card along the bottom of the map, half or full height (as tall as it may grow while it moves). */
+  private dock(card: HTMLElement) {
+    this.tail.hidden = true;
+    card.classList.remove("off");
+    card.classList.add("sheet");
+    card.style.left = card.style.top = "";
+    const [half, full] = sheetHeights(this.screen()[1]);
+    card.style.maxHeight = `${this.sheetMoving || MapView.sheetFull ? full : half}px`;
+    const grabber = card.querySelector(".grabber");
+    grabber?.setAttribute("aria-expanded", String(MapView.sheetFull));
+    grabber?.setAttribute("aria-label", MapView.sheetFull ? "Show less" : "Show more");
+    if (!this.sheetMoving) this.setRoom(card.offsetHeight);
+  }
+
+  /**
+   * Lets the view show `px` past the bounds' bottom, the height the sheet covers, so marks near the world's edge can still be
+   * brought into sight above it. More room returns a view asked for past the old limit (by a map drawn again while the
+   * sheet was open). Less, as the sheet closes, glides the view back in, where it stays; but if its card stays open
+   * (leaving full screen, or turning to landscape), what was in sight above the sheet becomes the middle of the map.
+   */
+  private setRoom(px: number) {
+    if (px === this.roomTarget) return;
+    this.roomTarget = px;
+    cancelAnimationFrame(this.roomFrame);
+    const from = this.room;
+    this.room = px;
+    const shrink = px < from;
+    if (px === 0 && shrink && this.selection && this.popup?.card.hidden === false) {
+      this.vy -= (from - px) / 2 * this.k;
+      return this.apply();
+    }
+    const [w, h] = this.screen();
+    const view = this.viewport;
+    if (clampView(this.asked, this.bounds, w, h, px).every((v, i) => Math.abs(v - view[i]) < 0.01)) return;
+    const show = () => {
+      this.apply(true);
+      if (shrink) this.asked = this.viewport;
+    };
+    if (!shrink || matchMedia(REDUCED_MOTION).matches) return show();
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.max(0, Math.min(1, (now - start) / SHEET_MS));
+      this.room = from + (px - from) * (1 - (1 - t) ** 3);
+      show();
+      this.roomFrame = t < 1 ? requestAnimationFrame(step) : 0;
+    };
+    this.room = from;
+    this.roomFrame = requestAnimationFrame(step);
+  }
+
+  /** The card's height with nothing limiting it. */
+  private natural(card: HTMLElement): number {
+    const { height, maxHeight } = card.style;
+    card.style.height = "";
+    card.style.maxHeight = "none";
+    const natural = card.offsetHeight;
+    Object.assign(card.style, { height, maxHeight });
+    return natural;
+  }
+
+  /**
+   * The sheet's grabber: dragged, the sheet follows the finger and settles as `sheetSnap` says; tapped (or pressed), it
+   * toggles between half and full height.
+   */
+  private wireSheet(card: HTMLElement) {
+    const grabbed = (e: Event) => !!(e.target as Element | null)?.closest?.(".grabber") && this.docked;
+    let drag: { id: number; y: number; height: number; half: number; full: number; moved: boolean } | undefined;
+    let trail: { y: number; t: number }[] = [];
+    let dragged = false;
+    card.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || !grabbed(e)) return;
+      e.preventDefault();
+      (e.target as Element).setPointerCapture(e.pointerId);
+      const [half, full] = sheetHeights(this.screen()[1], this.natural(card));
+      drag = { id: e.pointerId, y: e.clientY, height: card.offsetHeight, half, full, moved: false };
+      trail = [];
+      dragged = false;
+    });
+    card.addEventListener("pointermove", (e) => {
+      if (e.pointerId !== drag?.id) return;
+      const dy = e.clientY - drag.y;
+      if (!drag.moved && Math.abs(dy) < SLOP.touch) return;
+      drag.moved = this.sheetMoving = true;
+      card.style.height = `${Math.max(0, Math.min(drag.full, drag.height - dy))}px`;
+      this.place();
+      trail = [...trail.filter((p) => e.timeStamp - p.t < 100), { y: e.clientY, t: e.timeStamp }];
+    });
+    const end = (e: PointerEvent) => {
+      if (e.pointerId !== drag?.id) return;
+      const { half, full, moved } = drag;
+      drag = undefined;
+      // A tap leaves the toggle to the click that follows.
+      if (!moved) return;
+      dragged = true;
+      const recent = trail.filter((p) => e.timeStamp - p.t < 100);
+      const [a, b] = [recent[0], recent[recent.length - 1]];
+      const velocity = recent.length > 1 ? (b.y - a.y) / Math.max(1, b.t - a.t) : 0;
+      const to = e.type === "pointercancel"
+        ? (MapView.sheetFull ? "full" : "half")
+        : sheetSnap(card.offsetHeight, velocity, half, full, MapView.sheetFull);
+      this.settleSheet(to, half, full);
+    };
+    card.addEventListener("pointerup", end);
+    card.addEventListener("pointercancel", end);
+    card.addEventListener("click", (e) => {
+      if (!grabbed(e) || dragged) return;
+      const [half, full] = sheetHeights(this.screen()[1], this.natural(card));
+      if (full > half) this.settleSheet(MapView.sheetFull ? "half" : "full", half, full);
+    });
+  }
+
+  /** Animates the sheet from its current height to `to` (off the bottom when closing), then hands its size back to `place`. */
+  private settleSheet(to: SheetState, half: number, full: number) {
+    const card = this.popup!.card;
+    if (to !== "closed") MapView.sheetFull = to === "full";
+    this.sheetMoving = true;
+    card.style.height = `${card.offsetHeight}px`;
+    this.place();
+    const finish = () => {
+      this.sheetMoving = false;
+      card.style.transition = card.style.transform = card.style.height = "";
+      if (to === "closed") this.popup!.close();
+      else this.place();
+    };
+    if (matchMedia(REDUCED_MOTION).matches) return finish();
+    void card.offsetHeight;
+    card.style.transition = `height ${SHEET_MS}ms ease-out, transform ${SHEET_MS}ms ease-out`;
+    if (to === "closed") card.style.transform = "translateY(100%)";
+    else card.style.height = `${to === "full" ? full : half}px`;
+    setTimeout(finish, SHEET_MS + 20);
+  }
+
+  /**
+   * After a tap opens `m` (`fresh` when no card was open): its card starts scrolled to the top; a sheet starts at half
+   * height, sliding up if fresh, and the map glides to keep `m` in sight above it.
+   */
+  private opened(m: Mark, fresh: boolean) {
+    const card = this.popup?.card;
+    if (!card || card.hidden || this.selection !== m || !this.svg.isConnected) return;
+    card.scrollTop = 0;
+    MapView.sheetFull = false;
+    this.place();
+    if (!this.docked) return;
+    if (fresh) {
+      card.classList.add("sheet-in");
+      setTimeout(() => card.classList.remove("sheet-in"), 400);
+    }
+    const [, top, , height] = this.visible;
+    const [, h] = this.screen();
+    const k = h / height;
+    const shift = revealShift((m.y - top) * k, SHEET_TOP, h - card.offsetHeight - 16);
+    if (shift) this.glide(0, -shift / k);
+  }
+
+  /** Pans the view by (dx, dy) game units over a moment, on top of any other change meanwhile; a touch on the map stops it. */
+  private glide(dx: number, dy: number) {
+    cancelAnimationFrame(this.glideFrame);
+    if (matchMedia(REDUCED_MOTION).matches) {
+      this.vx += dx;
+      this.vy += dy;
+      return this.apply();
+    }
+    const start = performance.now();
+    let done = 0;
+    const step = (now: number) => {
+      const t = Math.max(0, Math.min(1, (now - start) / SHEET_MS)), eased = 1 - (1 - t) ** 3;
+      this.vx += dx * (eased - done);
+      this.vy += dy * (eased - done);
+      done = eased;
+      this.apply();
+      this.glideFrame = t < 1 ? requestAnimationFrame(step) : 0;
+    };
+    this.glideFrame = requestAnimationFrame(step);
   }
 
   /** The mark last passed to `select`. */
@@ -658,10 +896,12 @@ export class MapView {
   private apply(resized = false) {
     const [w, h] = this.screen();
     if (!resized) this.asked = this.viewport;
-    [this.vx, this.vy, this.vw] = clampView(this.asked, this.bounds, w, h);
+    [this.vx, this.vy, this.vw] = clampView(this.asked, this.bounds, w, h, this.room);
     this.svg.setAttribute("viewBox", this.viewBox());
     this.rescale();
-    this.onView?.(this.viewport);
+    // The map is about what a bottom sheet leaves uncovered, so the view reported is centred there; a map not yet laid out
+    // (being built for a redraw) has only a guessed size, so it waits for its first resize to report.
+    if (this.svg.clientWidth) this.onView?.([this.vx, this.vy - this.room / 2 * this.vw / Math.min(w, h), this.vw]);
     this.moved = true;
     clearTimeout(this.settleTimer);
     this.settleTimer = setTimeout(() => this.settle(), SETTLE_MS);
@@ -721,6 +961,7 @@ export class MapView {
       }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       svg.setPointerCapture(e.pointerId);
+      cancelAnimationFrame(this.glideFrame);
       this.tip.hidden = true;
       this.picker.hidden = true;
     });
@@ -780,9 +1021,14 @@ export class MapView {
       const m = near ?? this.markAt(target);
       this.picker.hidden = true;
       if (m && onOpen) {
+        const open = (m: Mark) => {
+          const fresh = this.popup?.card.hidden !== false;
+          onOpen(m);
+          this.opened(m, fresh);
+        };
         const stack = stackAt(this.marks, m).filter((o) => o === m || this.shown(o));
-        if (stack.length > 1) this.pick(stack, e, onOpen);
-        else onOpen(m);
+        if (stack.length > 1) this.pick(stack, e, open);
+        else open(m);
       } else if (!m && this.showing) {
         this.popup!.close();
       } else if (!m && onMapClick) {

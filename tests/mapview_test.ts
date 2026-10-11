@@ -8,6 +8,10 @@ import {
   gestureView,
   mapBounds,
   nearestBox,
+  revealShift,
+  SHEET_TOP,
+  sheetHeights,
+  sheetSnap,
   stackAt,
   TOUCH_REACH,
   visibleRect,
@@ -77,6 +81,38 @@ Deno.test("touch picking: the nearest symbol within reach, inside counting as ze
   assertEquals(nearestBox([creature, loot], 100, 100 + 3 + TOUCH_REACH + 1, TOUCH_REACH), -1, "out of reach");
   assertEquals(nearestBox([creature, dot(101, 100)], 100, 100, TOUCH_REACH), 1, "overlapping: the one drawn on top");
   assertEquals(nearestBox([], 0, 0, TOUCH_REACH), -1);
+});
+
+Deno.test("bottom sheet: half and full heights fit the content and leave the top strip", () => {
+  assertEquals(sheetHeights(844), [422, 844 - SHEET_TOP]);
+  assertEquals(sheetHeights(844, 300), [300, 300], "short content stays short");
+  assertEquals(sheetHeights(844, 600), [422, 600]);
+});
+
+Deno.test("bottom sheet: a release settles at the nearest height, a flick goes one step, and dragging low closes", () => {
+  const [half, full] = [422, 788];
+  assertEquals(sheetSnap(430, 0, half, full, false), "half", "let go near half");
+  assertEquals(sheetSnap(700, 0, half, full, false), "full", "dragged most of the way up");
+  assertEquals(sheetSnap(200, 0, half, full, false), "closed", "dragged well below half");
+  assertEquals(sheetSnap(440, -1, half, full, false), "full", "flicked up");
+  assertEquals(sheetSnap(400, 1, half, full, false), "closed", "flicked down from half");
+  assertEquals(sheetSnap(700, 1, half, full, true), "half", "flicked down from full: one step");
+  assertEquals(sheetSnap(150, 1, half, full, true), "closed", "flicked down from full, already low");
+  assertEquals(sheetSnap(300, -1, 300, 300, false), "half", "short content has no full height");
+});
+
+Deno.test("bottom sheet: the map moves only to bring a covered point between the top strip and the sheet", () => {
+  // A 400px map at 1000 units: the 100px a sheet covers are 250 units the view may show past the bottom.
+  assertEquals(clampView([0, 2000, 1000], [0, 0, ROOM], 400, 400), [0, ROOM - 1000, 1000]);
+  assertEquals(clampView([0, 2000, 1000], [0, 0, ROOM], 400, 400, 100), [0, ROOM - 750, 1000]);
+  assertEquals(clampView([0, 2000, 1000], [0, 0, ROOM], 400, 400, 1000), [0, 2000, 1000], "as far as asked");
+  // Zoomed out on a tall map the bounds already show whole; the covered strip never pulls the view in.
+  assertEquals(clampView([0, 0, ROOM], [0, 0, ROOM], 390, 844, 422), clampView([0, 0, ROOM], [0, 0, ROOM], 390, 844));
+  assertEquals(clampView([0, -800, ROOM], [0, 0, ROOM], 390, 844, 422), clampView([0, -800, ROOM], [0, 0, ROOM], 390, 844));
+  assertEquals(revealShift(300, 56, 400), 0, "already in sight");
+  assertEquals(revealShift(700, 56, 400), 228 - 700, "under the sheet: moved up to the middle of the gap");
+  assertEquals(revealShift(20, 56, 400), 228 - 20, "under the top strip: moved down");
+  assertEquals(revealShift(700, 56, 40), 0, "no room above the sheet");
 });
 
 Deno.test("zones in view: neighbours a shown area overlaps, clipped to the world", () => {
