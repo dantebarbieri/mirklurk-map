@@ -25,6 +25,7 @@ maps and objects then stay empty.
 
 Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset; **World** to fit the whole 5×5 world. Pinching also
 pans around the fingers' midpoint. Tap a marker to inspect it, or hover for its name and tile; click a list entry to find it on the map.
+Markers keep their small size at any zoom, so a tap that misses every marker's symbol picks the nearest one within a fingertip's reach.
 Touch gestures inside the map control the map, while outside it normal page scrolling and browser zoom remain available. Controls and panels
 adapt to narrow phone screens.
 

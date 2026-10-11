@@ -7,7 +7,9 @@ import {
   footprintOrder,
   gestureView,
   mapBounds,
+  nearestBox,
   stackAt,
+  TOUCH_REACH,
   visibleRect,
   zonesInView,
 } from "../src/mapview.ts";
@@ -64,6 +66,17 @@ Deno.test("footprints: smaller boxes paint above larger ones; identical boxes st
   assertEquals(boxArea(door.box!), 36);
   assertEquals(stackAt([fort, door, twin], twin), [twin, door]);
   assertEquals(stackAt([fort, door, twin], fort), [fort]);
+});
+
+Deno.test("touch picking: the nearest symbol within reach, inside counting as zero, later boxes winning ties", () => {
+  const dot = (x: number, y: number, r = 3) => ({ left: x - r, top: y - r, right: x + r, bottom: y + r });
+  const creature = dot(100, 100), loot = dot(130, 100);
+  assertEquals(nearestBox([creature, loot], 100, 100, TOUCH_REACH), 0, "a direct hit");
+  assertEquals(nearestBox([creature, loot], 112, 108, TOUCH_REACH), 0, "a near miss picks the dot it was meant for");
+  assertEquals(nearestBox([creature, loot], 118, 100, TOUCH_REACH), 1, "the closer of two");
+  assertEquals(nearestBox([creature, loot], 100, 100 + 3 + TOUCH_REACH + 1, TOUCH_REACH), -1, "out of reach");
+  assertEquals(nearestBox([creature, dot(101, 100)], 100, 100, TOUCH_REACH), 1, "overlapping: the one drawn on top");
+  assertEquals(nearestBox([], 0, 0, TOUCH_REACH), -1);
 });
 
 Deno.test("zones in view: neighbours a shown area overlaps, clipped to the world", () => {

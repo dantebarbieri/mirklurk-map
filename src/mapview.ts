@@ -258,6 +258,34 @@ export const boxArea = ([l, t, r, b]: Box) => (r - l + 1) * (b - t + 1);
 /** Footprint paint order: largest first, so a smaller intersecting footprint is always on top. */
 export const footprintOrder = (a: Box, b: Box) => boxArea(b) - boxArea(a);
 
+/**
+ * How far, in CSS pixels, a tap may land from a marker's symbol and still pick it: half of a 44px touch target, as most
+ * symbols are only 5–14px across.
+ */
+export const TOUCH_REACH = 22;
+
+/** How far a finger may drift before a tap becomes a drag; a mouse's 4px would turn many taps into small pans. */
+const SLOP = { fine: 4, touch: 10 };
+
+export interface ScreenBox {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * The box nearest point (x, y) within `reach` (0 inside a box), or -1. On a tie the later box wins, as it is drawn on top.
+ */
+export function nearestBox(boxes: ScreenBox[], x: number, y: number, reach: number): number {
+  let best = -1, bestDistance = reach;
+  boxes.forEach((b, i) => {
+    const d = Math.hypot(Math.max(b.left - x, 0, x - b.right), Math.max(b.top - y, 0, y - b.bottom));
+    if (d <= bestDistance) [best, bestDistance] = [i, d];
+  });
+  return best;
+}
+
 /** Marks whose footprint exactly matches `m`'s, `m` first; a single entry when nothing else shares it. */
 export function stackAt(marks: Mark[], m: Mark): Mark[] {
   const k = m.box?.join();
@@ -680,12 +708,14 @@ export class MapView {
     let origin: TouchPoint | undefined;
     let suppressClick = false;
     let tapTarget: EventTarget | null = null;
+    let touch = false;
     svg.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
       if (!pointers.size) {
         suppressClick = false;
         origin = { x: e.clientX, y: e.clientY };
         tapTarget = e.target;
+        touch = e.pointerType !== "mouse";
       } else {
         suppressClick = true;
       }
@@ -696,7 +726,8 @@ export class MapView {
     });
     svg.addEventListener("pointermove", (e) => {
       if (pointers.has(e.pointerId)) {
-        if (!suppressClick && origin && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) < 4) return;
+        const slop = touch ? SLOP.touch : SLOP.fine;
+        if (!suppressClick && origin && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) < slop) return;
         suppressClick = true;
         const r = svg.getBoundingClientRect();
         const points = () => [...pointers.values()].slice(0, 2).map((p) => ({ x: p.x - r.left, y: p.y - r.top }));
@@ -743,7 +774,10 @@ export class MapView {
     svg.addEventListener("pointerleave", () => (this.tip.hidden = true));
     svg.addEventListener("click", (e) => {
       if (suppressClick) return;
-      const m = this.markAt(tapTarget ?? e.target);
+      const target = tapTarget ?? e.target;
+      // A fingertip is far wider than most symbols, so a touch that misses every one picks the nearest within reach.
+      const near = touch && origin && !(target as Element | null)?.closest?.(".pt") ? this.pointNear(origin.x, origin.y) : undefined;
+      const m = near ?? this.markAt(target);
       this.picker.hidden = true;
       if (m && onOpen) {
         const stack = stackAt(this.marks, m).filter((o) => o === m || this.shown(o));
@@ -799,6 +833,28 @@ export class MapView {
     this.picker.style.left = `${Math.max(4, Math.min(x, box.width - this.picker.offsetWidth - 4))}px`;
     this.picker.style.top = `${Math.max(4, Math.min(y, box.height - this.picker.offsetHeight - 4))}px`;
     (this.picker.firstElementChild as HTMLElement | null)?.focus();
+  }
+
+  /** The shown point marker whose symbol (not its label) is nearest client point (x, y), within TOUCH_REACH. */
+  private pointNear(x: number, y: number): Mark | undefined {
+    const r = this.svg.getBoundingClientRect();
+    const [vx, vy, vw] = this.visible;
+    const k = r.width / vw;
+    // Symbols span at most ~12px from their anchor, so this narrows the search before any is measured.
+    const near = this.pts.filter((p) =>
+      Math.hypot(r.left + (p.x - vx) * k - x, r.top + (p.y - vy) * k - y) < TOUCH_REACH + 16 && getComputedStyle(p.g).display !== "none"
+    );
+    const boxes = near.map(({ g }) => {
+      const rects = [...g.children].filter((c) => c.tagName !== "text").map((c) => c.getBoundingClientRect());
+      return {
+        left: Math.min(...rects.map((b) => b.left)),
+        top: Math.min(...rects.map((b) => b.top)),
+        right: Math.max(...rects.map((b) => b.right)),
+        bottom: Math.max(...rects.map((b) => b.bottom)),
+      };
+    });
+    const i = nearestBox(boxes, x, y, TOUCH_REACH);
+    return i < 0 ? undefined : this.markAt(near[i].g);
   }
 
   private markAt(target: EventTarget | null): Mark | undefined {

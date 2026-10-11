@@ -1647,6 +1647,11 @@ body.map-full .inspection > .close:hover {
   .key-toggle {
     min-height: 34px;
   }
+  /* The choice between markers sharing a footprint. */
+  .picker button {
+    min-height: 44px;
+    font-size: 14px;
+  }
 }
 @media (prefers-reduced-transparency: reduce) {
   .map-legend,
