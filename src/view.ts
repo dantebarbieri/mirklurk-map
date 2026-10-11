@@ -22,6 +22,7 @@ import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts";
 import { coinRollup, equippedBadge } from "./player.ts";
+import { skyChip, skyPanel } from "./skyview.ts";
 import { entityWiki } from "./wiki.ts";
 import {
   type Interior,
@@ -261,6 +262,7 @@ export function renderWorld(st: State) {
       "section",
       { id: "world" },
       summary,
+      skyPanel(p),
       freshness,
       modeControl,
       grid,
@@ -407,13 +409,14 @@ function markCell(x: number, y: number) {
   document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`)?.classList.add("sel");
 }
 
-function zoneHeader(z: Zone) {
+function zoneHeader(st: State, z: Zone) {
   const visit = z.lastVisit ? `last here on day ${Math.floor(z.lastVisit[0])}` : z.explored ? "explored" : "not explored yet";
   return h(
     "header",
     {},
     h("h2", {}, h("span", { class: "coord" }, coordLabel(z.x, z.y)), " ", wikiTitle(entityWiki(z.name), z.name)),
     h("span", { class: "muted" }, visit),
+    skyChip(st.world.player),
   );
 }
 
@@ -431,7 +434,7 @@ function zoneFollower(st: State, z: Zone, outline: SVGElement) {
       focus = next;
       const n = st.world.zones[focus[1]][focus[0]];
       markCell(n.x, n.y);
-      $("#zone > header")?.replaceWith(zoneHeader(n));
+      $("#zone > header")?.replaceWith(zoneHeader(st, n));
       outline.setAttribute("x", String((n.x - z.x) * ROOM));
       outline.setAttribute("y", String((n.y - z.y) * ROOM));
     },
@@ -530,7 +533,7 @@ async function renderZone(st: State, z: Zone, glide = false) {
   const world = st.world;
   st.interiorDir = undefined;
   const panel = $("#zone");
-  const header = zoneHeader(z);
+  const header = zoneHeader(st, z);
   const gliding = glide && !!activeMap && !!activeZone;
   if (gliding) $("#zone > header")?.replaceWith(header);
   else {

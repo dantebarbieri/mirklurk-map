@@ -151,6 +151,24 @@ directory before publishing immutable file contents. Interrupted writes or lost 
 error/retry notice. This is a best-effort coherent disk snapshot, not a game-provided atomic transaction. When monitoring several characters
 together, an incomplete character save delays the folder snapshot; choose a single character folder to isolate it.
 
+### Time and weather
+
+Under the summary line, three rows show the sky as saved. **Time**: the clock in your browser's own format (12- or 24-hour, as your locale
+prefers), the game's own label for that hour (Dawn, Sunrise, Morning, Midday, Afternoon, Sunset, Dusk or Night) and the turns until the next
+label and until Dusk (by day, when sleeping until sunrise becomes possible) or Sunrise (by night), the countdown the game's day-cycle dial
+shows on hover. **Weather**: Clear, Cloudy, Light rain, Rain or Heavy rain, or Rain easing off / Clearing while rain fades out; the
+temperature word from the game's thermometer; and the odds that it changes at the next hour, the only time it can. **Rain balance**: the
+game's counter that keeps it from raining or staying dry for ever. After a dry spell clouds and rain come more readily, after a wet one rain
+starts less often and stops sooner; a bar shows where it stands and which way it is moving, with the turns until it is even again if the
+weather holds. On the full-screen map the zone's floating title adds the clock and weather icons. Icons were designed by Astra (GPT-6
+Astra).
+
+**Weather is global, not per zone.** The game keeps one clock and one sky for the whole world, saved once per character in `Player.save`;
+where you stand only decides how much of it reaches you. Every zone of the 5×5 world is outdoors and gets the rain and its wetness. In the
+fort, Bhato's hideout, Gurb-Gurb's hut and the shipwreck the light follows the day but no rain falls on you. Underground (caves, ruin
+interiors and cellars, the Undercroft, the Library and Scaal's depths) the dial reads _Unknown Time_, no weather reaches you and the air is
+always Cold. Everything is the state at save time; see _Time and weather_ below for the rules.
+
 ### Inventory, containers and wiki
 
 Expand **Saved equipment & inventory** to see equipped items and nested bag contents, stack quantities, saved durability values (not
@@ -347,6 +365,27 @@ game flags it as dangerously low (`gml_Object_obj_player_Step_0`). Temperature w
 point every third level (`gml_Object_obj_player_Step_1`). Conditions are the saved `aeList`, indices into `UI.ini` [AEs], given short names
 here. The coin roll-up counts every coin in your equipment and bags; **Minimum coins** converts by value as `item_draw_cost`
 (`gml_GlobalScript_scr_items`) splits a price: 1 gold = 10 silver = 1,000 copper.
+
+**Time and weather** (`src/weather.ts`). `manager_day` holds one clock and one sky for the whole world; `Player.save` stores them as
+`MDminute`, `MDday`, `MDtemperature`, `MDweather`, `MDcloud`, `MDrain` and `MDrainBalance` (`gml_GlobalScript_scr_saveload`), with no zone
+of their own. Every turn `player_endturn` (`gml_GlobalScript_scr_basic_useful`) adds 8 minutes; a new game starts at 07:00
+(`gml_Object_manager_day_Create_0`), and at hour 24 `gml_Object_manager_day_Step_0` sets the minute to 0 and starts a new day, dropping day
+1's leftover 4 minutes, so from day 2 every minute is a multiple of 8. The labels are the dial tooltip's (`gml_Object_UI_Draw_64`,
+`UI.ini [Time]`): Dawn from 04:00, Sunrise 06:00, Morning 08:00, Midday 11:00, Afternoon 14:00, Sunset 17:00, Dusk 20:00 and Night 22:00, or
+_Unknown Time_ in `area_is_dungeonlike` areas. Its countdown is to Dusk from 06:00 to 20:00 and to Sunrise otherwise; the game rounds
+minutes ÷ 8 down, so on day 1 it reads one turn short, and the viewer counts the turns it really takes. "Sleep until Sunrise" is offered
+from 20:00 to 06:00 (`gml_GlobalScript_scr_menu_related`). `localWeather` is 0 clear, 1 cloudy or 2 rain, with `cloudPower` 1 while cloudy
+or raining. Each turn the rain balance rises by 1/180 while `rainPower > 0` and falls by 1/360 otherwise, within −1…1, so it settles where
+about a third of turns are rainy. Only when the hour ticks over may the weather change, with `b` that balance: Clear turns Cloudy with
+max(2%, 12% × (1 − b)); Cloudy clears with max(2%, 10% × (1 + b)), else rain starts with max(2%, 30% × (1 − b)) at a strength of 0.08–1
+(never while `daysAlive` is under 2 on Easy or Medium); Rain eases back to Cloudy with max(1%, 25% × (1 + b)), else clears at once with
+max(1%, 5% × (1 + b)), else its strength drifts by up to ±0.1. Leaving Rain fades the rain out over a few turns (`rainFadePower`, which is
+not saved: a save made mid-fade keeps that drizzle until the weather next changes). The odds shown use the balance as it will be at that
+hour's turn. Rain is called light up to 0.2 (the soft rain sound) and heavy from 0.725 (the largest splashes,
+`gml_Object_manager_day_Step_0`). Rain only wets you, and your containers' contents, in `area_is_outside` areas (`player_rained_upon`,
+`gml_Object_obj_container_Alarm_1`; `gml_GlobalScript_scr_map_and_weather`); the temperature word is `temperature_get_label` on
+`MDtemperature`, and the thermometer's colour is the game's frame `floor(6.99 × temperature)`; underground the air is always 0.35, Cold
+(`player_gets_all_wet`).
 
 **Armor and equipment** (`src/armor.ts`). `Player.save` lists the 16 equipment slots of `myEquips` in order (two weapon sets of main and off
 hand, then helmet, hood, shirt, vest, backpack, belt, pants, leg armor, gloves, cloak, socks and footwear;
