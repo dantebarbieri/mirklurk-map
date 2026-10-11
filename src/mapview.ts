@@ -359,12 +359,12 @@ export const personSvg = () =>
 const FOOTPRINT_ONLY = new Set(["boulder", "ruin", "rock", "boat", "shelf"]);
 
 /**
- * A mark kind's map symbol as a small inline icon, for list rows and the legend. Footprint-only kinds, and the "water"
- * and "sharp" ground overlays, are drawn as a swatch.
+ * A mark kind's map symbol as a small inline icon, for list rows and the legend. Footprint-only kinds, and the "water",
+ * "sharp" and "fern" ground overlays, are drawn as a swatch.
  */
 export function markIcon(kind: string): SVGElement {
   const k = kind.split(" ")[0];
-  const swatch = FOOTPRINT_ONLY.has(k) || k === "water" || k === "sharp";
+  const swatch = FOOTPRINT_ONLY.has(k) || k === "water" || k === "sharp" || k === "fern";
   return s(
     "svg",
     { class: "sym-icon", viewBox: k === "tree" || k === "you" ? "-8 -11 16 16" : "-8 -8 16 16", "aria-hidden": "true" },

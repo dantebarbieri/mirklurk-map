@@ -37,7 +37,7 @@ export const amountRange = (a: number, b: number): [number, number] => [a, a + M
 /**
  * The gatherable a Hinderance tile index holds, if any: tile_is_harvestable (gml_GlobalScript_scr_tiles_autotiling)
  * with the yields of loot_generate (gml_GlobalScript_scr_items) and bird nests (Hinderance 145 searched, 146 full).
- * Ferns (80–89, Plant Fiber) are harvestable too but cover the ground everywhere, so they are left out.
+ * Ferns (80–89, Plant Fiber) are harvestable too but cover the ground everywhere, so they are shaded instead (`fernAt`).
  */
 export function gatherAt(tile: number): Gather | null {
   if (tile === 147) return { kind: "calmia", item: 142, amount: amountRange(1, 3) };
@@ -60,6 +60,19 @@ export function gatherAt(tile: number): Gather | null {
   if (tile === 74 || tile === 79) return { kind: "lily", stage: 4, item: 175, amount: [2, 2] };
   if (tile === 145 || tile === 146) return { kind: "nest", item: 77, amount: tile === 146 ? amountRange(1, 7) : null };
   return null;
+}
+
+/** A fern's growth stage (0–4; two looks, 80–84 and 85–89) and its Plant Fiber, (n, 2n) with n = stage + 1 (loot_generate case 57). */
+export function fernAt(tile: number): { stage: number; amount: [number, number] } | null {
+  if (tile < 80 || tile >= 90) return null;
+  const stage = (tile - 80) % 5, n = stage + 1;
+  return { stage, amount: amountRange(n, n * 2) };
+}
+
+/** The Ferns overlay's colour for a Hinderance tile, as [r, g, b, alpha]: deeper the bigger the fern, so the more fiber. */
+export function fernShade(tile: number): [number, number, number, number] | null {
+  const fern = fernAt(tile);
+  return fern ? [150, 205, 60, 80 + 30 * fern.stage] : null;
 }
 
 const STAGES = ["sprouting", "young", "growing", "grown", "full grown"];

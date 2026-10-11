@@ -4,13 +4,13 @@
 import { assert, assertEquals } from "./assert.ts";
 import { type FileMap, findCharacters } from "../src/files.ts";
 import { landmarks, shipwreckOdds } from "../src/predict.ts";
-import { Area, PLACEMENT, reflect } from "../src/rules.ts";
+import { Area, PLACEMENT, reflect, tileIndex } from "../src/rules.ts";
 import { loadDetail, loadLayer, loadTrees, loadWorld } from "../src/world.ts";
 import { areaLayers, ART, tileSource } from "../src/tiles.ts";
 import { captureSnapshot, type LiveDirectory, scanDirectory } from "../src/live.ts";
 import { detailMarks } from "../src/objects.ts";
 import { trunkOf } from "../src/chop.ts";
-import { gatherMarks } from "../src/gather.ts";
+import { fernAt, gatherMarks } from "../src/gather.ts";
 
 const dir = Deno.env.get("MIRKLURK_SAVES") ??
   decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
@@ -187,7 +187,7 @@ Deno.test({ name: "real saves: live completion fence and inventories parse for e
 
 Deno.test({ name: "real saves: gatherables, where the game grows them, with their leftovers", ignore: !present }, async () => {
   const files = readTree(dir);
-  let outdoor = 0, bulbs = 0;
+  let outdoor = 0, bulbs = 0, ferns = 0;
   for (const c of findCharacters(files)) {
     const world = await loadWorld(files, c.root, c.name);
     const areas = [
@@ -210,7 +210,11 @@ Deno.test({ name: "real saves: gatherables, where the game grows them, with thei
       for (const m of marks.filter((m) => m.detail?.endsWith("ground loot"))) {
         assert(files.has(`${area.dir}LOOT-${m.x}_${m.y}.save`), `${area.dir}: ground loot of ${m.name} at ${m.x},${m.y}`);
       }
+      // Ferns come from zone generation only, so their overlay is offered outdoors only.
+      const fernTiles = hinderance.data.filter((t) => fernAt(tileIndex(t))).length;
+      if (indoor) assertEquals(fernTiles, 0, `${area.dir}: ferns indoors`);
+      else ferns += fernTiles;
     }
   }
-  assert(outdoor > 0 && bulbs > 0, `gatherables found (${outdoor} zones, ${bulbs} caves)`);
+  assert(outdoor > 0 && bulbs > 0 && ferns > 0, `gatherables found (${outdoor} zones, ${bulbs} caves, ${ferns} ferns)`);
 });

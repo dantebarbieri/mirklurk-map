@@ -36,7 +36,8 @@ export type Layer =
   | "watercress"
   | "lilies"
   | "bulbs"
-  | "nests";
+  | "nests"
+  | "ferns";
 
 export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "places", label: "Places", on: true },
@@ -64,6 +65,7 @@ export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "lilies", label: "Water Lilies", on: false },
   { id: "bulbs", label: "Vile Bulbs", on: false },
   { id: "nests", label: "Bird nests", on: false },
+  { id: "ferns", label: "Ferns", on: false },
 ];
 
 export interface Mark {
