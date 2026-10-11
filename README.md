@@ -366,7 +366,7 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   game's item database (`src/itemdata.ts`).
 - **Where you stand**: a free tile of an outdoor zone you have explored (not water, a wall, a pit or something already standing there).
 - **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior, with the hit points and armor of a fresh
-  one, or remove creatures. Removing a quest character (NPCs and Scaal) asks first.
+  one, or remove creatures. Removing a quest character (NPCs, the Dead Unwanted who becomes Viend, and Scaal) asks first.
 
 Edits stay in the tab, shown in the map's own player inspection as they will be saved, until **Save to game files**. Saving refuses if the
 game wrote the folder since it was read. It keeps the files it replaces in this browser (the last 10 saves of each world; **Restore** writes

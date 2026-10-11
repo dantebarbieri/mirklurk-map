@@ -211,8 +211,8 @@ Deno.test("spawned creatures have a fresh grid; quest characters are protected",
   assertEquals(b.hpgrid, freshHealth(17));
   assertEquals((b.statusgrid as unknown[][]).length, (b.hpgrid as unknown[][]).length);
   assertEquals(parseBeings([b])[0].health?.w, freshHealth(17)![0].length, "the viewer reads it back");
-  assert(!spawnable(12) && !spawnable(22) && spawnable(3), "Bhato and Scaal are not spawnable; a troll is");
-  assert(isQuestBeing(12) && !isQuestBeing(3));
+  assert(!spawnable(12) && !spawnable(22) && !spawnable(9) && spawnable(3), "Bhato, Scaal and the Dead Unwanted are not spawnable");
+  assert(isQuestBeing(12) && isQuestBeing(9) && !isQuestBeing(3) && !isQuestBeing(35));
   const list: unknown[] = [{ index: 3 }];
   spawnBeing(list, 2, 0, 0);
   assertEquals(list.length, 2);

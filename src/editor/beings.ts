@@ -9,12 +9,15 @@ import { isRec, type Rec } from "./edits.ts";
 
 /** Scaal is the main quest's boss; a second one would not be part of the quest. */
 const SCAAL = 22;
+/** The Dead Unwanted is Viend before he is revived: removing it can strand his quest, and a second one would be a second Viend. */
+const DEAD_UNWANTED = 9;
+const QUEST_BEINGS = new Set([...NPC_BEINGS, SCAAL, DEAD_UNWANTED]);
 
-/** NPCs and Scaal belong to quests and are never spawned. */
-export const spawnable = (index: number) => !!BEINGS[index] && !NPC_BEINGS.has(index) && index !== SCAAL && !!BEING_NAMES[index];
+/** Quest characters (NPCs, the Dead Unwanted and Scaal) are never spawned. */
+export const spawnable = (index: number) => !!BEINGS[index] && !QUEST_BEINGS.has(index) && !!BEING_NAMES[index];
 
 /** Quest characters: deleting one can leave a quest waiting for someone who is gone. */
-export const isQuestBeing = (index: number) => NPC_BEINGS.has(index) || index === SCAAL;
+export const isQuestBeing = (index: number) => QUEST_BEINGS.has(index);
 
 /** A creature as save_beings writes a fresh one standing on the centre of tile (tileX, tileY). */
 export function newBeing(index: number, tileX: number, tileY: number): Rec {
