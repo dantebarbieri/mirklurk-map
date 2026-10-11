@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The editor lives at /edit/; every path below is relative to the site root, like the map's. -->
+    <base href="../">
+    <title>MirkMap Editor · Mirklurk Save Editor</title>
+    <meta name="description"
+      content="Edit a Mirklurk character: skill points, items and coins, position, time and weather, creatures, level, health and wellbeing. Edited worlds are marked Cheated in MirkMap.">
+    <meta name="application-name" content="MirkMap">
+    <meta name="theme-color" content="#1b1516">
+    <meta name="robots" content="noindex">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="editor.css">
+    <script type="module" src="edit.js"></script>
+  </head>
+  <body class="editor">
+    <header class="top">
+      <h1><img class="logo" src="icons/favicon.svg" alt="" width="20" height="20">MirkMap Editor</h1>
+      <a class="button subtle" href="./">Back to MirkMap</a>
+      <button id="open-folder" class="button" type="button">Open save folder for editing...</button>
+      <select id="character" aria-label="Character" hidden></select>
+      <span id="status" role="status"></span>
+    </header>
+    <main id="app">
+      <section class="intro">
+        <p>Change a Mirklurk character: skill points, items and coins, where you stand, the time and weather, creatures, your level,
+        hit points, wellbeing, satiation, focus, stamina and temperature. Viewing a world is MirkMap's job; this page changes the
+        save files themselves.</p>
+        <p class="warning"><b>Any saved edit marks the world as Cheated, permanently.</b> MirkMap then shows it with a
+        <abbr class="badge badge-cheated" title="Cheated: edited with the save editor">C</abbr> badge on this device, in your synced
+        library and to anyone you share it with. You will be asked to confirm before editing.</p>
+        <p>Save and quit to the game's main menu first, and stay at the menu until you have saved your edits here: the game keeps
+        your character in memory and would overwrite them. Choose your character's folder from the game's <code>Saves</code>
+        folder, for example <code>…\steamapps\common\Mirklurk Every Step Matters\Saves\YourName</code>, or the whole
+        <code>Saves</code> folder.</p>
+        <p id="unsupported" class="warning" hidden>Editing needs a desktop browser that can write to a folder you choose
+        (Chrome or Edge). Your files stay on this computer; nothing is uploaded.</p>
+        <p class="muted">Edits happen in this browser tab and are written only to the folder you choose. Before each save, the files
+        it replaces are kept in this browser, so you can restore them.</p>
+      </section>
+    </main>
+    <footer id="savebar" class="savebar" hidden>
+      <details>
+        <summary id="change-count"></summary>
+        <ol id="change-list"></ol>
+      </details>
+      <span class="savebar-actions">
+        <button id="discard" class="button subtle" type="button">Discard changes</button>
+        <button id="save" class="button" type="button">Save to game files</button>
+      </span>
+    </footer>
+    <dialog id="disclosure" class="disclosure" aria-labelledby="disclosure-title">
+      <div class="disclosure-body">
+        <h2 id="disclosure-title">Editing marks this world as Cheated, permanently</h2>
+        <p id="disclosure-already" class="warning" hidden>This world is already marked Cheated.</p>
+        <ul>
+          <li>The first time you save an edit, MirkMap writes <code>cheated=1</code> to <code>MirkMap.ini</code> in this
+          character's folder and remembers the world in this browser.</li>
+          <li>MirkMap shows the world with a <abbr class="badge badge-cheated" title="Cheated">C</abbr> badge here, in your
+          synced library and in every share of it. Once uploaded, the server keeps the mark even if the file is removed later.</li>
+          <li>Restoring a backup undoes edits, not the mark. Nothing in MirkMap removes it.</li>
+          <li>Keep the game at its main menu until you have saved here, or it will overwrite your edits.</li>
+        </ul>
+        <label><input id="disclosure-ok" type="checkbox"> I understand that saving any edit marks this world as Cheated for good.</label>
+        <p class="dialog-actions">
+          <button id="disclosure-cancel" class="button subtle" type="button">Cancel</button>
+          <button id="disclosure-enter" class="button" type="button" disabled>Enter edit mode</button>
+        </p>
+      </div>
+    </dialog>
+  </body>
+</html>

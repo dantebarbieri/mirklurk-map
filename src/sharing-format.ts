@@ -28,6 +28,8 @@ export interface WorldInfo {
   share: string;
   /** Its MirkMap.ini says it was downloaded from a share link; sent only when true. */
   fromShare?: true;
+  /** Edited with the save editor at some point (src/cheated.ts); sent only when true, and never cleared. */
+  cheated?: true;
 }
 
 const base64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

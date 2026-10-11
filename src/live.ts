@@ -1,7 +1,16 @@
 import { type FileMap, findCharacters, type Source } from "./files.ts";
 import { parseItemList } from "./inventory.ts";
 import { centerpos, isOutside } from "./rules.ts";
-import { decodeHeights, decodeJson, decodeTilemap, parseAreaDir, parseContainers, parsePlayer, parseTrees } from "./save.ts";
+import {
+  decodeHeights,
+  decodeJson,
+  decodeTilemap,
+  parseAreaDir,
+  parseContainers,
+  parsePlayer,
+  parseTrees,
+  type PlayerSave,
+} from "./save.ts";
 
 // Structural types keep the optional picker usable without requiring it in every browser.
 export interface LiveDirectory {
@@ -69,6 +78,21 @@ function validate(path: string, bytes: Uint8Array) {
   }
 }
 
+/** The Containers.save of the area the player was saved in: the game writes it last when it saves (Player.save on step 1). */
+export function currentContainers(files: FileMap, root: string, p: PlayerSave): string | undefined {
+  return [...files.keys()].find((path) => {
+    if (!path.startsWith(root) || !path.endsWith("/Containers.save")) return false;
+    const folder = path.slice(root.length).split("/");
+    if (folder.length !== 2) return false;
+    if (p.area.type >= 24 && p.area.type <= 26) return folder[0] === `RW${p.area.type - 23}`;
+    const at = parseAreaDir(folder[0]);
+    return at && at[0] === p.area.x && at[1] === p.area.y &&
+      (isOutside(p.area.type)
+        ? at.length === 2
+        : at.length === 4 && at[2] === centerpos(p.entrance[0]) && at[3] === centerpos(p.entrance[1]));
+  });
+}
+
 /** Retain immutable bytes, not File objects that become unreadable after external writes. */
 export async function captureSnapshot(scan: Scan, previous?: Snapshot): Promise<Snapshot> {
   const files: FileMap = new Map();
@@ -86,18 +110,7 @@ export async function captureSnapshot(scan: Scan, previous?: Snapshot): Promise<
   if (!characters.length) throw new Error("No Player.save found. Choose a character folder or the Saves folder.");
   for (const c of characters) {
     const playerFile = files.get(`${c.root}Player.save`)!;
-    const p = parsePlayer(decodeJson(await playerFile.read()));
-    const containers = [...files.keys()].find((path) => {
-      if (!path.startsWith(c.root) || !path.endsWith("/Containers.save")) return false;
-      const folder = path.slice(c.root.length).split("/");
-      if (folder.length !== 2) return false;
-      if (p.area.type >= 24 && p.area.type <= 26) return folder[0] === `RW${p.area.type - 23}`;
-      const at = parseAreaDir(folder[0]);
-      return at && at[0] === p.area.x && at[1] === p.area.y &&
-        (isOutside(p.area.type)
-          ? at.length === 2
-          : at.length === 4 && at[2] === centerpos(p.entrance[0]) && at[3] === centerpos(p.entrance[1]));
-    });
+    const containers = currentContainers(files, c.root, parsePlayer(decodeJson(await playerFile.read())));
     // Player is written on step 1, current-area containers last on step 19.
     if (!containers || (files.get(containers)!.lastModified ?? 0) < (playerFile.lastModified ?? 0)) {
       throw new Error(`${c.name}: waiting for the current area's Containers.save to finish after Player.save`);

@@ -1,5 +1,5 @@
 // Local dev server on 127.0.0.1: bundles on each page load, and can serve your own saves
-// read-only at /__saves/<Character>/ so that /?dev=<Character> loads one without picking it.
+// read-only at /__saves/<Character>/ so that /?dev=<Character> loads one without picking it. The save editor is at /edit/.
 //   deno task dev            (saves default to ../Saves, override with MIRKLURK_SAVES)
 
 import { UploadStore } from "../server/uploads.ts";
@@ -14,9 +14,9 @@ const saves = Deno.env.get("MIRKLURK_SAVES") ??
   decodeURIComponent(new URL("../Saves/", root).pathname).replace(/^\/([A-Za-z]:)/, "$1").replace(/\/$/, "");
 const port = Number(Deno.env.get("PORT") ?? 8123);
 
-async function bundle(): Promise<Response> {
+async function bundle(entry: string): Promise<Response> {
   const { success, stdout, stderr } = await new Deno.Command(Deno.execPath(), {
-    args: ["bundle", "--platform", "browser", "--sourcemap=inline", "src/main.ts"],
+    args: ["bundle", "--platform", "browser", "--sourcemap=inline", entry],
     cwd: root,
     stdout: "piped",
     stderr: "piped",
@@ -54,17 +54,18 @@ Deno.serve({ hostname: "127.0.0.1", port }, async (req, info) => {
       : Response.json({ error: "Uploads are disabled; set ENABLE_UPLOADS=true to enable local sharing" }, { status: 503 });
   }
   try {
-    if (path === "/app.js") return await bundle();
+    if (path === "/app.js") return await bundle("src/main.ts");
+    if (path === "/edit.js") return await bundle("src/editor/main.ts");
     if (/^\/assets\/(game|wiki)\/[a-z0-9_.]+\.png$/.test(path)) {
       return new Response(await Deno.readFile(new URL(path.slice(1), root)), {
         headers: { "content-type": "image/png", "cache-control": "public, max-age=31536000, immutable" },
       });
     }
     if (
-      path === "/" || path === "/index.html" || path === "/style.css" || path === "/manifest.webmanifest" ||
-      /^\/icons\/[a-z0-9-]+\.(png|svg)$/.test(path)
+      path === "/" || path === "/index.html" || path === "/edit" || path === "/edit/" || path === "/style.css" ||
+      path === "/editor.css" || path === "/manifest.webmanifest" || /^\/icons\/[a-z0-9-]+\.(png|svg)$/.test(path)
     ) {
-      const file = path === "/" ? "index.html" : path.slice(1);
+      const file = path === "/" ? "index.html" : path.startsWith("/edit") && !path.endsWith(".css") ? "edit.html" : path.slice(1);
       return new Response(await Deno.readFile(new URL(file, root)), {
         headers: { "content-type": types[file.split(".").pop()!], "cache-control": "no-store" },
       });

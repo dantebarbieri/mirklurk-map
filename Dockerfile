@@ -1,6 +1,6 @@
 FROM denoland/deno:2.9.7 AS build
 WORKDIR /app
-COPY deno.json index.html style.css manifest.webmanifest ./
+COPY deno.json index.html edit.html style.css editor.css manifest.webmanifest ./
 COPY src ./src
 COPY icons ./icons
 COPY assets/game ./assets/game

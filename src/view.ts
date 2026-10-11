@@ -1,7 +1,7 @@
 // Page rendering: world grid, landmark list, zone and interior panels.
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
-import { fromShareTag } from "./badges.ts";
+import { cheatedTag, fromShareTag } from "./badges.ts";
 import { focusZone, MapView, markIcon, personSvg, zonesInView } from "./mapview.ts";
 import type { Estimate } from "./estimate.ts";
 import {
@@ -207,6 +207,7 @@ export function renderWorld(st: State) {
     { class: "summary" },
     h("b", {}, w.character),
     w.fromShare ? fromShareTag() : null,
+    w.cheated ? cheatedTag() : null,
     ` · day ${p.day}`,
     here
       ? ` · you are ${you.estimated ? "probably " : ""}in ${coordLabel(here.x, here.y)} ${here.name}${you.inside ? " (indoors)" : ""}${

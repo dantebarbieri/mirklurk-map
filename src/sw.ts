@@ -2,7 +2,7 @@
 // Saves are read in the page, so local folders, .zip files and Live saves need no network; synced and shared worlds still do.
 // tools/build.ts bundles this into dist/sw.js and defines MIRKMAP_BUILD: a version and the files to keep.
 
-import { IMMUTABLE, route } from "./offline.ts";
+import { IMMUTABLE, pageFor, route } from "./offline.ts";
 
 interface LifecycleEvent extends Event {
   waitUntil(work: Promise<unknown>): void;
@@ -27,7 +27,6 @@ const { version, files } = MIRKMAP_BUILD;
 const CACHE = `mirkmap-${version}`;
 const scope = new URL(worker.registration.scope);
 const kept = new Set(files);
-const page = new URL("./", scope).href;
 
 worker.addEventListener("install", (event) => {
   event.waitUntil((async () => {
@@ -61,8 +60,9 @@ worker.addEventListener("fetch", (event) => {
   }
 });
 
-/** The newest page when the network answers in time; otherwise, or when the server fails, the kept one. */
+/** The newest page when the network answers in time; otherwise, or when the server fails, the kept one (the map or the editor). */
 async function navigate(request: Request): Promise<Response> {
+  const page = new URL(pageFor(new URL(request.url).pathname.slice(scope.pathname.length)), scope).href;
   const cached = async () => (await caches.open(CACHE)).match(page, { ignoreVary: true });
   const network = fetch(request);
   // If the kept page is shown first, a later network failure is expected.

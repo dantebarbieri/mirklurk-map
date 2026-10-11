@@ -18,6 +18,9 @@ Save processing happens in the browser tab. Files stay local unless you add a wo
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
 have a reusable one (see below).
 
+MirkMap only reads saves. Its companion page, the [save editor](#save-editor), changes them; worlds it changed carry a permanent **C**
+(Cheated) badge in MirkMap.
+
 ## Using it
 
 Save and quit to the menu, then pick `…\steamapps\common\Mirklurk Every Step Matters\Saves\<character>` with **Open save folder**, drop that
@@ -148,11 +151,11 @@ in about a second).
 
 MirkMap can be installed: **Add to Home Screen** in Safari's share menu on iPhone or iPad, **Install app** / **Add to Home screen** in
 Chrome or Edge (Android, Windows, macOS). It then opens in its own window under its own name and icon. After the first visit a service
-worker keeps the page, its script and stylesheet, the icons and all bundled game art (about 0.6 MiB), so MirkMap opens at once and works
-without a connection: saves you open (folders, `.zip` files, Live saves) are read in the browser anyway, and Realistic mode and inspection
-pictures come from that copy. Worlds in your library and shared worlds need the connection; while offline the panel says so, and they come
-back when the connection does. Each new release replaces the kept copy as a whole, reusing unchanged art. Pages always try the network first
-(waiting up to 3 seconds) so an online visit gets the newest release; the sharing API is never cached.
+worker keeps the page, its script and stylesheet, the save editor's page, the icons and all bundled game art (about 0.6 MiB), so MirkMap
+opens at once and works without a connection: saves you open (folders, `.zip` files, Live saves) are read in the browser anyway, and
+Realistic mode and inspection pictures come from that copy. Worlds in your library and shared worlds need the connection; while offline the
+panel says so, and they come back when the connection does. Each new release replaces the kept copy as a whole, reusing unchanged art. Pages
+always try the network first (waiting up to 3 seconds) so an online visit gets the newest release; the sharing API is never cached.
 
 An app on an iPhone's Home Screen has its own storage, separate from Safari, so it needs its own library: use a sync code (above) to join
 your library. Safari may clear a website's storage after seven days of use without a visit, but not a Home Screen app's; installed apps also
@@ -337,6 +340,54 @@ Mirklurk 0.8.1.5 has no tomatoes. Bramble Berries, Riftvine Berries and Elderwor
 chance, from the stems you cut on the **Brambles**, **Rift Vines** and Elderwort Shrubs (**Trees**). The layers show the plants as saved;
 they keep growing, spreading and dying back as turns pass and when you come back to a zone.
 
+## Save editor
+
+**MirkMap Editor**, at `/edit/` (https://map.mirklurk.danteb.com/edit/, linked as **Save editor** from the map), changes a character's save
+files. It is a separate page built from the same code as the map, which itself never writes your files. It needs desktop Chrome or Edge,
+which can write to a folder you choose. Save and quit to the game's main menu, and stay at the menu until you have saved your edits: the
+game keeps your character in memory and would overwrite them. **Open save folder for editing...** asks for write access to a character
+folder or the whole `Saves` folder. Nothing is uploaded.
+
+**Edit this character...** first explains that saving any edit marks the world as **Cheated, permanently**, and edit mode starts only once
+you confirm. Each edit is written the way the game itself writes it (decompiled entries in brackets):
+
+- **Level**: each level-up grants a skill point, and every third level a hit point to place (`obj_player` Step_1), so changing the level
+  grants or takes back unspent ones (never below zero), and XP stays under the new level's threshold.
+- **Skill points** to spend, and **new hit points** to place.
+- **Health**: heals lost and burned hit points and clears poison, bleeding and stun; armor stays.
+- **Wellbeing, satiation, focus, stamina and temperature**: each value and the target it eases towards. The game recomputes wellbeing from
+  its 25×25 wellbeing grid every second (`obj_player` Step_0), so every cell of that grid is set as well.
+- **Time and weather**: day, time, Clear, Cloudy or Rain with its strength, and air temperature. Cloud and rain are written as
+  `player_endturn` leaves them, and days alive move with the day. The game eases the air temperature back toward the hour's usual value, and
+  going back in time stops regrowth in zones visited later until the clock catches up.
+- **Items and coins**: added to the bags you carry exactly as picking them up would (`item_pickup`, `item_stack`, `item_add`). Stacks are
+  topped up first, then each new stack goes in the first free spot, column by column, written in every cell it covers. New items glow gold
+  in the game until you look at them. Whatever does not fit is reported, never dropped. Sizes, stack limits and durability come from the
+  game's item database (`src/itemdata.ts`).
+- **Where you stand**: a free tile of an outdoor zone you have explored (not water, a wall, a pit or something already standing there).
+- **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior, with the hit points and armor of a fresh
+  one, or remove creatures. Removing a quest character (NPCs, the Dead Unwanted who becomes Viend, and Scaal) asks first.
+
+Edits stay in the tab, shown in the map's own player inspection as they will be saved, until **Save to game files**. Saving refuses if the
+game wrote the folder since it was read. It keeps the files it replaces in this browser (the last 10 saves of each world; **Restore** writes
+them back), then writes the Cheated mark first, `Player.save`, the other changed files and the current area's `Containers.save` last, in the
+game's own order, so Live saves accepts the result.
+
+### The Cheated mark
+
+- `MirkMap.ini` in the character folder gets `cheated=1`, `cheated_since` (the first saved edit) and `cheated_edits` in its `[MirkMap]`
+  section, next to MirkMap's other notes such as `from_share`. The game never reads or removes it, and uploads include it.
+- This browser remembers every world it saved edits to, so the map still shows the mark if the file is removed, and puts it back into the
+  world when it is added to your library.
+- The upload server remembers, for good, each library world that was ever uploaded with the mark (`cheated.json` beside the stored worlds,
+  not subject to the 30-day retention). A later upload of it without `MirkMap.ini` gets the file back before it is stored, so every synced
+  copy, share and download carries it. Another library's copy of the same world is its own, so someone who edits a world downloaded from
+  your share link marks only their copy.
+- MirkMap shows the world with a **C** badge and "(Cheated)" after its name, both for the open world and in **My worlds**.
+
+Restoring a backup undoes edits, not the mark. On a computer that never saved edits to a world and never uploaded it, deleting `MirkMap.ini`
+does remove the mark; everywhere else it stays.
+
 ## How the guesses work
 
 All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.8.1.5); the entry names are given so they can be
@@ -495,9 +546,10 @@ Needs only [Deno](https://deno.com) 2.x; there are no dependencies.
 
 ```powershell
 deno task dev      # http://127.0.0.1:8123 — also serves ../Saves read-only, so /?dev=<Character>&zone=C2 loads one
+                   # /edit/?dev=<Character> copies that save into the browser's private storage and edits the copy (&fresh starts over)
 deno task test     # unit tests, plus checks against real saves in ../Saves (or $env:MIRKLURK_SAVES) when present
 deno task check    # type-check
-deno task build    # dist/: index.html + hashed app.*.js and style.*.css, art, manifest.webmanifest, icons/ and sw.js
+deno task build    # dist/: index.html and edit/index.html with hashed app.*.js, edit.*.js, style.*.css and editor.*.css, art, manifest.webmanifest, icons/ and sw.js
 deno task icons    # regenerate icons/ (favicon.svg, favicon-32.png, app icons) from the pixel art in tools/icons.ts
 deno task wiki     # refresh src/wikidata.json and the bundled pictures (assets/wiki/, src/wikiart.json) from the public wiki; no saves or game data are sent
 ```
@@ -518,7 +570,12 @@ $env:MIRKLURK_META_OUT = "$env:TEMP\mirklurk-meta"
 deno run -R -W --allow-run tools/gamedata.ts ".." "$env:TEMP\mirklurk-meta"
 ```
 
-Then re-check the rules above in the decompiled entries (`UndertaleModCli dump ..\data.win -c UMT_DUMP_ALL`).
+Then re-check the rules above in the decompiled entries (`UndertaleModCli dump ..\data.win -c UMT_DUMP_ALL`). The save editor's item table
+`src/itemdata.ts` comes from the same decompiled entries:
+
+```powershell
+deno run -R -W --allow-run tools/itemdata.ts "<decompiled CodeEntries folder>"
+```
 
 To regenerate the permitted map art, run from this repository's root:
 

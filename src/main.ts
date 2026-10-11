@@ -11,6 +11,8 @@ import { TerrainStore } from "./terrain.ts";
 import { loadLayer, loadWorld } from "./world.ts";
 import { type DirectoryPicker, LiveReader, scanDirectory } from "./live.ts";
 import { Sharing } from "./sharing.ts";
+import { knownCheated } from "./cheated.ts";
+import { worldId } from "./sharing-format.ts";
 
 let files: FileMap | null = null;
 let chars: Character[] = [];
@@ -60,6 +62,8 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
   status(`Reading ${c.name}…`);
   try {
     const world = await loadWorld(selectedFiles, c.root, c.name);
+    // The editor's record in this browser keeps the Cheated mark even when MirkMap.ini was removed.
+    world.cheated ||= await knownCheated(await worldId(c.name, world.player.grid));
     const shipwreck = new Map<string, number>();
     for (const z of world.zones.flat()) {
       if (z.type !== Area.BrokenFen || !z.dir) continue;

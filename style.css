@@ -2373,3 +2373,9 @@ svg.hide-nests .L-nests {
 .hide-you .you-dot {
   display: none;
 }
+
+/* The Cheated mark (src/cheated.ts): a world changed with the save editor. */
+.badge-cheated {
+  background: #ff8a80;
+  color: #1b1516;
+}

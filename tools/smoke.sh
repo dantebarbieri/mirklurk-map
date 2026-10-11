@@ -85,6 +85,16 @@ grep -qx "$js" <<<"$kept" && grep -qx 'icons/apple-touch-icon.png' <<<"$kept" ||
 while IFS= read -r file; do
   curl -fsS -o /dev/null "$base/$file" || fail "sw.js keeps $file, which is missing"
 done <<<"$kept"
+edit=$(curl -fsS "$base/edit/")
+edit_js=$(grep -o 'edit\.[0-9a-f]*\.js' <<<"$edit" | head -n1)
+edit_css=$(grep -o 'editor\.[0-9a-f]*\.css' <<<"$edit" | head -n1)
+[ -n "$edit_js" ] && [ -n "$edit_css" ] || fail "edit/ does not reference hashed assets"
+grep -q '<base href="../">' <<<"$edit" || fail "edit/ must resolve its assets from the site root"
+grep -qi "^content-security-policy: default-src 'none'" <<<"$(curl -fsSI "$base/edit/")" || fail "CSP missing on edit/"
+grep -qi "^content-security-policy: .*base-uri 'self'" <<<"$headers" || fail "CSP must let edit/ use <base href=\"../\">"
+curl -fsSI "$base/$edit_js" | grep -qi '^cache-control: public, max-age=31536000, immutable' || fail "$edit_js is not immutable"
+curl -fsSI "$base/$edit_css" | grep -qi '^content-type: text/css' || fail "$edit_css has the wrong type"
+grep -qx 'edit/' <<<"$kept" && grep -qx "$edit_js" <<<"$kept" || fail "sw.js does not keep the save editor"
 curl -fsSI "$base/icons/favicon.svg" | grep -qi '^content-type: image/svg+xml' || fail "favicon.svg has the wrong type"
 game_art=$(grep -ho 'assets/\(game\|wiki\)/[a-z0-9_]*\.[0-9a-f]*\.png' src/artdata.json src/wikiart.json | sort -u)
 [ -n "$game_art" ] || fail "art manifest contains no images"
