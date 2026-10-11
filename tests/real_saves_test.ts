@@ -10,6 +10,7 @@ import { areaLayers, ART, tileSource } from "../src/tiles.ts";
 import { captureSnapshot, type LiveDirectory, scanDirectory } from "../src/live.ts";
 import { detailMarks } from "../src/objects.ts";
 import { trunkOf } from "../src/chop.ts";
+import { gatherMarks } from "../src/gather.ts";
 
 const dir = Deno.env.get("MIRKLURK_SAVES") ??
   decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
@@ -182,4 +183,34 @@ Deno.test({ name: "real saves: live completion fence and inventories parse for e
     }
     assertEquals(world.warnings, [], e.name);
   }
+});
+
+Deno.test({ name: "real saves: gatherables, where the game grows them, with their leftovers", ignore: !present }, async () => {
+  const files = readTree(dir);
+  let outdoor = 0, bulbs = 0;
+  for (const c of findCharacters(files)) {
+    const world = await loadWorld(files, c.root, c.name);
+    const areas = [
+      ...world.zones.flat().filter((z) => z.dir).map((z) => ({ dir: z.dir!, cave: false })),
+      ...world.interiors.map((i) => ({
+        dir: i.dir,
+        cave: i.kind !== null && i.kind >= 10 && i.kind <= 12,
+      })),
+    ];
+    for (const area of areas) {
+      const hinderance = await loadLayer(world, area.dir, "Hinderance");
+      if (!hinderance) continue;
+      const marks = gatherMarks(hinderance, await loadLayer(world, area.dir, "LootData"));
+      const kinds = new Set(marks.map((m) => m.gather!.kind));
+      const indoor = world.interiors.some((i) => i.dir === area.dir);
+      // Zone generation (manager_area Alarm_2) plants Calmia, Turnips and Cranberries outside the Rift Mire, so most zones have all three.
+      if (!indoor && kinds.has("calmia") && kinds.has("turnip") && kinds.has("cranberry")) outdoor++;
+      // Vile Bulbs only grow in caves (scr_mapcreations, obj_screenfader).
+      if (kinds.has("bulb")) assert(area.cave, `${area.dir}: Vile Bulbs outside a cave`), bulbs++;
+      for (const m of marks.filter((m) => m.detail?.endsWith("ground loot"))) {
+        assert(files.has(`${area.dir}LOOT-${m.x}_${m.y}.save`), `${area.dir}: ground loot of ${m.name} at ${m.x},${m.y}`);
+      }
+    }
+  }
+  assert(outdoor > 0 && bulbs > 0, `gatherables found (${outdoor} zones, ${bulbs} caves)`);
 });

@@ -10,8 +10,9 @@ save folder and it shows:
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
   loot, dropped items (their own layer, as felling trees leaves many), storage (treasure chests, which stay after looting, your Hidden
   Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees,
-  brambles, rift vines, sharp ground and a water overlay can be switched on. Click an explored entrance to see the inside, or a creature,
-  NPC or your own marker to see hit points, attacks, a merchant's wares or your wellbeing and inventory.
+  brambles, rift vines, sharp ground, a water overlay and gatherables (Calmia, Turnips, Cranberries, Watercress, Water Lilies, Vile Bulbs
+  and bird nests) can be switched on. Click an explored entrance to see the inside, or a creature, NPC or your own marker to see hit points,
+  attacks, a merchant's wares or your wellbeing and inventory.
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -186,9 +187,10 @@ pictures are downloaded from the wiki at development time (`deno task wiki`) and
 placed objects and procedural trees use their saved sprites/geometry. NPCs, creatures and carcasses remain markers; this is a static
 daylight-like view, not a simulation of the game's lighting, weather, animation or camera-dependent roof fading. Layer chips control
 informational markers, grouped as **Locations** (Places, Caves, Ruins, Rifts; indoor "Way out" exits always show), **Entities** (You, NPCs,
-Creatures), **Items**, **Terrain** (including Water) and **Nature**; each group's header checkbox (and the master **All**) toggles all its
-layers and shows a partial state when only some are on, and **Reset to defaults** restores the initial selection. They do not affect the
-scenery baked into the realistic map. Switch **Realistic** off to return to the original overview.
+Creatures), **Items**, **Terrain** (including Water), **Nature** and **Gatherables**; each group's header checkbox (and the master **All**)
+toggles all its layers and shows a partial state when only some are on, and **Reset to defaults** restores the initial selection. They do
+not affect the scenery baked into the realistic map, which draws the gatherable plants too. Switch **Realistic** off to return to the
+original overview.
 
 Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
 followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. Only four
@@ -261,6 +263,23 @@ ground by 1.0 (`tile_get_moment` in `gml_GlobalScript_scr_tiles_movement`), and 
 (60 px) for the small one, measured from the sprite centre. Within it a rift withers tree parts, spreads rift grass and poisons you; a rift
 that hits you in your sleep takes up to half a health point, less further out. Dead rifts do nothing (`gml_Object_obj_rift_Alarm_0`).
 
+### Gatherables
+
+The **Gatherables** layers mark what you can pick or search for food and crafting, each kind with its own small symbol in the colours of
+what it gives: **Calmia** (pink flowers over an orange root; Calmia Root), **Turnips**, **Cranberries** (red berries on a teal shrub; young
+shrubs without berries are drawn bare), **Watercress** and **Water Lilies** (only flowering lilypads give lilies) in shallow water, **Vile
+Bulbs** (Mushrooms), which grow only in caves, and **Bird nests** (Feathers and Eggs; a searched nest is drawn empty). Each plant is one
+marker on its tile. Hovering one shows what harvesting it gives at its growth stage, such as "Cranberries x3–8 (grown)"; clicking it adds
+the item's picture, how the amount grows over the plant's five stages, how the kind comes back, and a link to the wiki's _Plant harvesting_
+guide. Lists under the map give each shown kind, the most to take first. Plants you harvested but did not empty say so: the game keeps what
+you left on the ground (the **Ground loot** marker on the same tile), and harvesting again gives you that instead of a new roll. A searched
+nest shows about how many days are left until it refills.
+
+Mirklurk 0.8.1.5 has no tomatoes. Ferns are harvestable too (Plant Fiber), but they cover hundreds of tiles in every zone, so they get no
+markers. Bramble Berries, Riftvine Berries and Elderwort Berries are not picked from the ground: they fall, by chance, from the stems you
+cut on the **Brambles**, **Rift Vines** and Elderwort Shrubs (**Trees**). The layers show the plants as saved; they keep growing, spreading
+and dying back as turns pass and when you come back to a zone.
+
 ## How the guesses work
 
 All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.8.1.5); the entry names are given so they can be
@@ -303,6 +322,21 @@ is the root part. The harvest menu (`gml_Object_UI_Draw_64`) shows freshness `ro
 Cypress and 2 for Trollgnarl, divided by the tool's `chopMod` (`gml_Object_databank_Alarm_1`; e.g. Iron Hand Axe 3, Steel Felling Axe 4.2,
 bare hands 1), and rounded to 0.2 AP (at least 0.2). A felled trunk drops `ceil(size × trunk sprite height ÷ 16) + 1` logs, or branches when
 its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by `life − 0.5`, so dead wood is dry.
+
+**Gatherables** (`src/gather.ts`). They are tiles of the saved `Hinderance` layer, which `tile_is_harvestable`
+(`gml_GlobalScript_scr_tiles_autotiling`) and `tile_to_enum` (`gml_GlobalScript_scr_tiles_finders`) read: 147 Calmia, 148 Vile Bulb, 150–159
+Turnip and 170–179 Watercress (two looks of five growth stages each), 160–164 Cranberry, the flowering lilypads 73–74 and 78–79, and bird
+nests, 146 full and 145 searched. Harvesting rolls `loot_generate` (`gml_GlobalScript_scr_items`): Calmia Root 1–3, Vile Bulbs 1–2, one
+Turnip or two from stage 4, Cranberries `(n, 2n)` with n = 2, 3 or 4 from stage 3 (none before), Watercress `(n, round(1.5n))` with n =
+stage (rounded half to even), one or two Water Lilies at stages 4 and 5, and from a nest 1–7 Feathers with a 40% chance of 1–3 Eggs. Ranges
+are `loot_amountchances(a, b)`, which picks one of `a…a`, `a…a+1`, …, `a…a+b−1`, so `a` to `a+b−1` with low counts likelier; Green Fingers
+adds one with a chance. Picking everything clears the tile; leaving some sets `LootData` 99 and saves the rest to `LOOT-x_y.save`
+(`gml_GlobalScript_scr_menu_related`). Emptying a nest turns it into 145 with `LootData` 4–12, days that count down each midnight and by the
+days you were away, after which it refills (`gml_Object_manager_area_Step_0`). New zones other than the Rift Mire get 8–32 Calmia, 5–13
+Turnips and 10–26 Cranberry plants spread into patches, by area type (`gml_Object_manager_area_Alarm_2`); on each return two Calmia sprout
+outdoors (again not in the Rift Mire), and one Vile Bulb in a cave, per day or part of a day you were away
+(`gml_Object_obj_screenfader_Step_0`), and plants grow and spread with every turn's growth ticks (`nature_grow` in
+`gml_GlobalScript_scr_nature`).
 
 **Hit-point grids** (`src/health.ts`). `Player.save` and each being in `Beings.save` store `hpgrid` and `statusgrid` row by row. In
 `hpgrid`, −4 is no hit point, −1 burned (fire destroyed it; it cannot heal until treated), 0 lost, 1 healthy and 2–4 healthy under 1–3 armor
@@ -371,9 +405,10 @@ Alarm_3) are recognised and not read as another departure.
 The base is the game's own map (land, water, slopes, big boulders; drawn when the zone was generated, so later changes such as the hut are
 overlays). Markers come from the zone folder: `Solids.save` (buildings, entrances with their `transPoint`, boulders and ruins with real
 sprite bounds), `Beings.save`, `Containers.save`, `Stations.save`, `Interactables.save` (rifts), `Trees.save` (loaded only when trees,
-brambles or rift vines are switched on), `NatureData.tmap` for thorny ground and `Water1.tmap` / `Ygrid.save` for the water overlay.
-Interiors (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn from their
-`Data`/`Lower`/`OnLower`/`Water1` layers.
+brambles or rift vines are switched on), `NatureData.tmap` for thorny ground, `Hinderance.tmap` and `LootData.tmap` for gatherables (loaded
+only when one is switched on, in interiors too) and `Water1.tmap` / `Ygrid.save` for the water overlay. Interiors (`[ x,y,ex,ey ]` folders,
+`RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn from their `Data`/`Lower`/`OnLower`/`Water1`
+layers.
 
 ## Development
 

@@ -2,6 +2,7 @@ import { h } from "./dom.ts";
 import { ITEM_NAMES } from "./gamedata.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { type Mark, markKey } from "./objects.ts";
+import type { Gather, GatherKind } from "./gather.ts";
 import type { Tree } from "./save.ts";
 import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, MAX_AP, NATDEAD, Nature, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
 import { beingImage, entityWiki, itemImage, itemWiki, placeImage, type WikiImage, wikiUrl, wikiVerified } from "./wiki.ts";
@@ -103,6 +104,8 @@ export const entityUrl = (m: Mark) =>
       ? "Bestiary"
       : m.layer === "loot" || m.layer === "drops"
       ? "Loot tables"
+      : m.gather
+      ? "Plant harvesting"
       : "World generation",
   );
 
@@ -176,6 +179,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
         ? brambleView(m.tree, tool ?? UNARMED)
         : treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, expanded, picker))
       : []),
+    ...(m.gather ? gatherView(m.gather) : []),
     ...(m.inventory
       ? [
         inventoryView(m.inventory, `inspection:${markKey(m)}`, expanded),
@@ -186,6 +190,40 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
 }
 
 const toolName = (tool: number) => ITEM_NAMES[tool] ?? `Item ${tool}`;
+
+/** How a plant grows into its yield, or how a nest refills (loot_generate in scr_items, nature_grow in scr_nature). */
+function gatherView(g: Gather): HTMLElement[] {
+  if (g.kind === "nest") {
+    return [
+      h(
+        "p",
+        {},
+        "Search it for 1–7 Feathers, with a 40% chance of 1–3 Eggs and, rarely, a tiny treasure. A searched nest stays empty for 4–12 days, then refills.",
+      ),
+      h("p", {}, wikiLink(wikiUrl("Bird nests"), "Bird nests on the wiki")),
+    ];
+  }
+  const growth: Partial<Record<GatherKind, string>> = {
+    turnip: "From stage 4 a turnip gives two instead of one.",
+    cranberry: "Berries come at stage 3: 2–5, then 3–8, and 4–11 when full grown.",
+    cress: "The bigger the patch, the more: 1–2 at stage 1, up to 5–12 at stage 5.",
+    lily: "A lilypad flowers at stage 4 (one Water Lily) and 5 (two); younger pads give none.",
+  };
+  const regrow: Partial<Record<GatherKind, string>> = {
+    calmia: "Each time you come back, two new Calmia sprout somewhere in the zone for every day (or part of one) you were away.",
+    bulb: "Each time you come back, the cave grows one new Vile Bulb for every day (or part of one) you were away.",
+  };
+  return [
+    g.stage !== undefined ? h("p", {}, `Growth stage ${g.stage + 1} of 5. `, growth[g.kind] ?? "") : null,
+    regrow[g.kind] ? h("p", {}, regrow[g.kind]!) : null,
+    h(
+      "p",
+      { class: "muted" },
+      "Base amounts, lower counts likelier; Green Fingers can add one more. Plants grow, spread and die back as turns pass and when you return, so this is the plant as saved.",
+    ),
+    h("p", {}, wikiLink(wikiUrl("Plant harvesting"), "How plant harvesting works")),
+  ].filter((e): e is HTMLElement => !!e);
+}
 
 const treeGuide = () => h("p", {}, wikiLink(wikiUrl("Tree health and chopping"), "How tree health and chopping work"));
 
