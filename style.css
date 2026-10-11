@@ -1252,6 +1252,16 @@ svg.map {
 svg.map:active {
   cursor: grabbing;
 }
+/* Markers open their details, or the inside of an entrance; the hand only returns once the map is actually dragged.
+   The map captures the pointer while pressed, so it also carries the marker's cursor itself (on-mark). */
+svg.map [data-i],
+svg.map.on-mark {
+  cursor: pointer;
+}
+svg.map.panning,
+svg.map.panning [data-i] {
+  cursor: grabbing;
+}
 .b-map,
 .heat,
 .overlay {

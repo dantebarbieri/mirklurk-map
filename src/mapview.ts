@@ -1072,6 +1072,7 @@ export class MapView {
         const slop = touch ? SLOP.touch : SLOP.fine;
         if (!suppressClick && origin && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) < slop) return;
         suppressClick = true;
+        svg.classList.add("panning");
         const r = svg.getBoundingClientRect();
         const points = () => [...pointers.values()].slice(0, 2).map((p) => ({ x: p.x - r.left, y: p.y - r.top }));
         const before = points();
@@ -1083,6 +1084,7 @@ export class MapView {
         return;
       }
       const m = this.markAt(e.target);
+      svg.classList.toggle("on-mark", !!m);
       if (!m) {
         this.tip.hidden = true;
         return;
@@ -1097,6 +1099,7 @@ export class MapView {
     });
     const lifted = () => {
       if (pointers.size) return;
+      svg.classList.remove("panning");
       this.settle();
       this.release();
     };
@@ -1114,7 +1117,10 @@ export class MapView {
         lifted();
       }
     });
-    svg.addEventListener("pointerleave", () => (this.tip.hidden = true));
+    svg.addEventListener("pointerleave", () => {
+      this.tip.hidden = true;
+      svg.classList.remove("on-mark");
+    });
     svg.addEventListener("click", (e) => {
       if (suppressClick) return;
       const target = tapTarget ?? e.target;
