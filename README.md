@@ -128,9 +128,10 @@ The game names a character after its folder, so the folder is the character's na
 old one out first: extracting over it would mix two versions, and files the newer save no longer has (the game deletes the file of an item
 pile when you pick it up) would bring those items back.
 
-A world downloaded from a **share link** is someone else's: its ZIP is named `Hero (From Share).zip`, keeps the folder name `Hero`, and
-before downloading MirkMap warns that putting it into a `Saves` folder that already has a character called Hero overwrites that character.
-To keep both, rename one of the two folders first. The download carries `from_share=1` in a hidden `MirkMap.ini` next to `Player.save`, so
+A world downloaded from a **share link** is someone else's: its ZIP is named `Hero (From Share).zip` and keeps the folder name `Hero`.
+Before it downloads, a dialog warns that putting it into a `Saves` folder that already has a character called Hero overwrites that
+character; to keep both, rename one of the two folders first. **Download** goes ahead; **Cancel**, Escape or a click outside the dialog
+backs out, and focus returns to **Download save**. The download carries `from_share=1` in a hidden `MirkMap.ini` next to `Player.save`, so
 MirkMap shows the world as **Hero (From Share)** with an **S** badge, both when the folder or ZIP is opened and in a library it is added to.
 The game never reads, lists or removes that file, so it survives playing; delete it (or its `from_share` line) to drop the badge. Downloads
 from your own library are not marked, but keep any `MirkMap.ini` the world already had.
