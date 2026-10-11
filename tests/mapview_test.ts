@@ -2,6 +2,7 @@ import {
   boxArea,
   cardPlace,
   clampView,
+  dragsSheet,
   FOCUS_SHARE,
   focusZone,
   footprintOrder,
@@ -99,6 +100,16 @@ Deno.test("bottom sheet: a release settles at the nearest height, a flick goes o
   assertEquals(sheetSnap(700, 1, half, full, true), "half", "flicked down from full: one step");
   assertEquals(sheetSnap(150, 1, half, full, true), "closed", "flicked down from full, already low");
   assertEquals(sheetSnap(300, -1, 300, 300, false), "half", "short content has no full height");
+});
+
+Deno.test("bottom sheet: a finger on the content grows the sheet from half height, and pulls it down from the content's top", () => {
+  assertEquals(dragsSheet(0, -5, false, 0), true, "up at half: the sheet grows");
+  assertEquals(dragsSheet(0, -5, false, 120), true, "up at half, even partway down the content");
+  assertEquals(dragsSheet(0, -5, true, 0), false, "up at full: the content scrolls");
+  assertEquals(dragsSheet(0, 5, true, 0), true, "down at the content's top: the sheet follows");
+  assertEquals(dragsSheet(0, 5, true, 120), false, "down partway down the content: it scrolls back first");
+  assertEquals(dragsSheet(0, 5, false, 0), true, "down at half");
+  assertEquals(dragsSheet(6, 3, false, 0), false, "sideways");
 });
 
 Deno.test("bottom sheet: the map moves only to bring a covered point between the top strip and the sheet", () => {

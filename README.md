@@ -33,10 +33,12 @@ The corner button above `+` shows the map full screen, the easiest way to use it
 zones, look inside entrances and come back, switch Realistic mode, or a live or shared save refreshes; the button, Escape or the browser's
 Back return to the page. Full screen fills the whole window, landscape or portrait, showing more of the world along the longer side. The
 zone's title, the way back from an interior and the shaded-area note float on the map, and tapping a marker opens its details in a card
-beside it that follows it as you pan (×, Escape or a tap on empty map closes it). On a narrow screen, such as a phone held upright, the
-details open instead in a sheet along the bottom of the screen, and the map glides to keep the marker in sight above it: drag its grabber up
-to see more or down to close it, or tap the grabber to switch between half and nearly full height. Browsers without a Fullscreen API for
-pages, such as Safari on iPhone, get the same layout over the page.
+beside it that follows it as you pan (×, Escape, Back or a tap on empty map closes it; the next Back leaves full screen). On a narrow
+screen, such as a phone held upright, the details open instead in a sheet along the bottom of the screen, and the map glides to keep the
+marker in sight above it, as it also does when you switch to full screen with details already open. Drag the sheet up by its grabber or its
+contents to see more and down to close it (once its contents are scrolled to the top), or tap the grabber to switch between half and nearly
+full height. Browsers without a Fullscreen API for pages, such as Safari on iPhone, get the same layout over the page; on Android, where
+Back first leaves the browser's own full screen, that Back closes an open card and the map stays over the page.
 
 Whenever the map is at least 600 pixels wide, and always in full screen, a translucent legend floats in its corner: each layer's map symbol,
 tapped to show or hide it (a group's title switches the whole group), and Realistic mode. It mirrors the layer chips below the map, which

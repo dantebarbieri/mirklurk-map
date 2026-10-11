@@ -1,7 +1,7 @@
 // Interactive zone map: an SVG in game units (0–2560) with zoom, pan and constant-size markers.
 
 import { h, s } from "./dom.ts";
-import { isFullMap, onFullMap, setFullMap } from "./fullscreen.ts";
+import { backCloses, isFullMap, onFullMap, setFullMap } from "./fullscreen.ts";
 import type { Layer, Mark } from "./objects.ts";
 import { describe } from "./objects.ts";
 import { ROOM } from "./rules.ts";
@@ -136,6 +136,14 @@ export function sheetSnap(height: number, velocity: number, half: number, full: 
   if (velocity < -FLICK) return tall ? "full" : "half";
   if (height < half * 0.6) return "closed";
   return tall && height > (half + full) / 2 ? "full" : "half";
+}
+
+/**
+ * Whether a finger moving (dx, dy) on a bottom sheet's content drags the sheet instead of scrolling the content: up while
+ * the sheet is at half height (it grows before its content scrolls), down while the content is scrolled to its top.
+ */
+export function dragsSheet(dx: number, dy: number, full: boolean, scrollTop: number): boolean {
+  return Math.abs(dy) > Math.abs(dx) && (dy < 0 ? !full : scrollTop <= 0);
 }
 
 /**
@@ -370,10 +378,14 @@ export class MapView {
   private settleTimer = 0;
   private waiting: (() => void)[] = [];
   private popup?: { card: HTMLElement; close: () => void };
+  /** Gives up Back's hold on the floating card (see `holdBack`). */
+  private back?: () => void;
   /** Whether the bottom sheet is pulled up full; kept across maps, so a redrawn map (another zone, a live save) keeps it. */
   private static sheetFull = false;
   /** The sheet is being dragged or is settling, so `place` lets it grow to full height. */
   private sheetMoving = false;
+  /** The sheet is sliding away to close, so Back no longer holds it. */
+  private closing = false;
   private glideFrame = 0;
   /** Pixels at the bottom of the map that the sheet covers, which the view may show past the bounds (see `setRoom`). */
   private room = 0;
@@ -484,7 +496,7 @@ export class MapView {
     this.observer = new ResizeObserver((entries) => entries.some((e) => e.target === this.svg) ? this.apply(true) : this.place());
     this.observer.observe(this.svg);
     if (this.popup) this.observer.observe(this.popup.card);
-    this.unfull = onFullMap(() => this.full());
+    this.unfull = onFullMap(() => this.full(true));
     this.full();
     document.addEventListener("keydown", this.onKey);
   }
@@ -493,6 +505,8 @@ export class MapView {
     this.observer.disconnect();
     this.unsubscribe?.();
     this.unfull();
+    // Back's hold on an open card passes to the map drawn next, which shows the card again (or Back finds none to close).
+    this.back = undefined;
     document.removeEventListener("keydown", this.onKey);
     cancelAnimationFrame(this.frame);
     cancelAnimationFrame(this.glideFrame);
@@ -523,11 +537,36 @@ export class MapView {
     return [w, this.svg.clientHeight || w];
   }
 
-  private full() {
+  /** `changed` when full screen was just switched on or off, rather than this map being drawn into the current mode. */
+  private full(changed = false) {
     const on = isFullMap();
     this.fullButton.setAttribute("aria-pressed", String(on));
     this.fullButton.title = on ? "Exit full screen (Esc)" : "Full screen";
-    this.place();
+    const m = this.selection;
+    if (!changed || !on || !m || this.popup?.card.hidden !== false) return this.place();
+    // Details already open: a sheet starts at half height and the map brings their mark into sight, fitted to its new size.
+    MapView.sheetFull = false;
+    this.apply(true);
+    if (this.docked) this.slideIn(this.popup!.card);
+    this.reveal(m);
+  }
+
+  /** Back closes the floating card before it leaves full screen, while this map shows it (see `backCloses`). */
+  private holdBack(open: boolean) {
+    if (open && !this.back) {
+      this.back = backCloses(() => {
+        if (!this.svg.isConnected || !this.showing) return false;
+        // Back has already let go of the card's history entry.
+        this.back = undefined;
+        if (this.docked) this.settleSheet("closed");
+        else this.popup!.close();
+        return true;
+      });
+    } else if (!open && this.back) {
+      const release = this.back;
+      this.back = undefined;
+      release();
+    }
   }
 
   /** The popup card floats over the map (full screen only): beside the selected mark, or docked as a bottom sheet. */
@@ -550,6 +589,7 @@ export class MapView {
     if (!this.popup) return;
     const card = this.popup.card;
     const m = this.selection;
+    this.holdBack(this.floating && !!m && !this.closing);
     if (!this.floating || !m) {
       this.tail.hidden = true;
       if (card.style.length) card.style.cssText = "";
@@ -640,67 +680,118 @@ export class MapView {
   }
 
   /**
-   * The sheet's grabber: dragged, the sheet follows the finger and settles as `sheetSnap` says; tapped (or pressed), it
-   * toggles between half and full height.
+   * Dragging the sheet, by its grabber (any pointer) or, with a finger, by its content when `dragsSheet` says so: the sheet
+   * follows and settles as `sheetSnap` says. A tap (or press) on the grabber toggles between half and full height.
    */
   private wireSheet(card: HTMLElement) {
-    const grabbed = (e: Event) => !!(e.target as Element | null)?.closest?.(".grabber") && this.docked;
-    let drag: { id: number; y: number; height: number; half: number; full: number; moved: boolean } | undefined;
-    let trail: { y: number; t: number }[] = [];
+    const onGrabber = (e: Event) => !!(e.target as Element | null)?.closest?.(".grabber");
+    let drag: { y: number; height: number; half: number; full: number; moved: boolean; trail: { y: number; t: number }[] } | undefined;
     let dragged = false;
-    card.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0 || !grabbed(e)) return;
-      e.preventDefault();
-      (e.target as Element).setPointerCapture(e.pointerId);
+    const start = (y: number) => {
       const [half, full] = sheetHeights(this.screen()[1], this.natural(card));
-      drag = { id: e.pointerId, y: e.clientY, height: card.offsetHeight, half, full, moved: false };
-      trail = [];
+      drag = { y, height: card.offsetHeight, half, full, moved: false, trail: [] };
       dragged = false;
-    });
-    card.addEventListener("pointermove", (e) => {
-      if (e.pointerId !== drag?.id) return;
-      const dy = e.clientY - drag.y;
+    };
+    const move = (y: number, t: number) => {
+      if (!drag) return;
+      const dy = y - drag.y;
       if (!drag.moved && Math.abs(dy) < SLOP.touch) return;
       drag.moved = this.sheetMoving = true;
       card.style.height = `${Math.max(0, Math.min(drag.full, drag.height - dy))}px`;
       this.place();
-      trail = [...trail.filter((p) => e.timeStamp - p.t < 100), { y: e.clientY, t: e.timeStamp }];
-    });
-    const end = (e: PointerEvent) => {
-      if (e.pointerId !== drag?.id) return;
-      const { half, full, moved } = drag;
+      drag.trail = [...drag.trail.filter((p) => t - p.t < 100), { y, t }];
+    };
+    const end = (t: number, cancelled: boolean) => {
+      if (!drag) return;
+      const { half, full, moved, trail } = drag;
       drag = undefined;
-      // A tap leaves the toggle to the click that follows.
+      // A tap on the grabber leaves the toggle to the click that follows.
       if (!moved) return;
       dragged = true;
-      const recent = trail.filter((p) => e.timeStamp - p.t < 100);
+      const recent = trail.filter((p) => t - p.t < 100);
       const [a, b] = [recent[0], recent[recent.length - 1]];
       const velocity = recent.length > 1 ? (b.y - a.y) / Math.max(1, b.t - a.t) : 0;
-      const to = e.type === "pointercancel"
-        ? (MapView.sheetFull ? "full" : "half")
-        : sheetSnap(card.offsetHeight, velocity, half, full, MapView.sheetFull);
-      this.settleSheet(to, half, full);
+      this.settleSheet(
+        cancelled ? (MapView.sheetFull ? "full" : "half") : sheetSnap(card.offsetHeight, velocity, half, full, MapView.sheetFull),
+      );
     };
-    card.addEventListener("pointerup", end);
-    card.addEventListener("pointercancel", end);
-    card.addEventListener("click", (e) => {
-      if (!grabbed(e) || dragged) return;
-      const [half, full] = sheetHeights(this.screen()[1], this.natural(card));
-      if (full > half) this.settleSheet(MapView.sheetFull ? "half" : "full", half, full);
+
+    let pointer = -1;
+    card.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || !onGrabber(e) || !this.docked || drag) return;
+      e.preventDefault();
+      (e.target as Element).setPointerCapture(e.pointerId);
+      pointer = e.pointerId;
+      start(e.clientY);
     });
+    card.addEventListener("pointermove", (e) => e.pointerId === pointer && move(e.clientY, e.timeStamp));
+    const up = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      pointer = -1;
+      end(e.timeStamp, e.type === "pointercancel");
+    };
+    card.addEventListener("pointerup", up);
+    card.addEventListener("pointercancel", up);
+    card.addEventListener("click", (e) => {
+      if (!onGrabber(e) || !this.docked || dragged) return;
+      const [half, full] = sheetHeights(this.screen()[1], this.natural(card));
+      if (full > half) this.settleSheet(MapView.sheetFull ? "half" : "full");
+    });
+
+    // Touch events, as only they can keep the content from scrolling once a drag of the sheet is chosen.
+    let finger: { id: number; x: number; y: number; sheet?: boolean } | undefined;
+    const touchOf = (e: TouchEvent) => [...e.changedTouches].find((t) => t.identifier === finger?.id);
+    card.addEventListener("touchstart", (e) => {
+      if (e.touches.length > 1) {
+        if (finger?.sheet) end(e.timeStamp, true);
+        finger = undefined;
+        return;
+      }
+      const t = e.changedTouches[0];
+      finger = this.docked && !drag && !onGrabber(e) ? { id: t.identifier, x: t.clientX, y: t.clientY } : undefined;
+    }, { passive: true });
+    card.addEventListener("touchmove", (e) => {
+      const t = touchOf(e);
+      if (!finger || !t) return;
+      if (finger.sheet === undefined) {
+        const dx = t.clientX - finger.x, dy = t.clientY - finger.y;
+        // Too small a move to tell a drag from a scroll (and too small for the browser to have begun scrolling).
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 3) return;
+        // Decided on the first move, as a browser that has begun scrolling can no longer be stopped.
+        finger.sheet = dragsSheet(dx, dy, MapView.sheetFull, card.scrollTop) && this.docked && !drag;
+        if (!finger.sheet) return void (finger = undefined);
+        start(finger.y);
+      }
+      e.preventDefault();
+      move(t.clientY, e.timeStamp);
+    }, { passive: false });
+    const lift = (e: TouchEvent) => {
+      if (!touchOf(e)) return;
+      const sheet = finger?.sheet;
+      finger = undefined;
+      if (sheet) end(e.timeStamp, e.type === "touchcancel");
+    };
+    card.addEventListener("touchend", lift);
+    card.addEventListener("touchcancel", lift);
   }
 
-  /** Animates the sheet from its current height to `to` (off the bottom when closing), then hands its size back to `place`. */
-  private settleSheet(to: SheetState, half: number, full: number) {
+  /**
+   * Animates the sheet from its current height to `to` (off the bottom when closing), then hands its size back to `place`.
+   * A marker opened while it slides away keeps its card.
+   */
+  private settleSheet(to: SheetState) {
     const card = this.popup!.card;
+    const m = this.selection;
+    const [half, full] = sheetHeights(this.screen()[1], this.natural(card));
     if (to !== "closed") MapView.sheetFull = to === "full";
     this.sheetMoving = true;
+    this.closing = to === "closed";
     card.style.height = `${card.offsetHeight}px`;
     this.place();
     const finish = () => {
-      this.sheetMoving = false;
+      this.sheetMoving = this.closing = false;
       card.style.transition = card.style.transform = card.style.height = "";
-      if (to === "closed") this.popup!.close();
+      if (to === "closed" && this.selection === m) this.popup!.close();
       else this.place();
     };
     if (matchMedia(REDUCED_MOTION).matches) return finish();
@@ -722,15 +813,26 @@ export class MapView {
     MapView.sheetFull = false;
     this.place();
     if (!this.docked) return;
-    if (fresh) {
-      card.classList.add("sheet-in");
-      setTimeout(() => card.classList.remove("sheet-in"), 400);
-    }
-    const [, top, , height] = this.visible;
-    const [, h] = this.screen();
-    const k = h / height;
-    const shift = revealShift((m.y - top) * k, SHEET_TOP, h - card.offsetHeight - 16);
-    if (shift) this.glide(0, -shift / k);
+    if (fresh) this.slideIn(card);
+    this.reveal(m);
+  }
+
+  private slideIn(card: HTMLElement) {
+    card.classList.add("sheet-in");
+    setTimeout(() => card.classList.remove("sheet-in"), 400);
+  }
+
+  /** Glides the map to bring `m` into sight: above the sheet when docked, else anywhere on the map. */
+  private reveal(m: Mark) {
+    const [left, top, width] = this.visible;
+    const [w, h] = this.screen();
+    const k = w / width;
+    const pad = 12;
+    const dx = revealShift((m.x - left) * k, pad, w - pad);
+    const dy = this.docked
+      ? revealShift((m.y - top) * k, SHEET_TOP, h - this.popup!.card.offsetHeight - 16)
+      : revealShift((m.y - top) * k, pad, h - pad);
+    if (dx || dy) this.glide(-dx / k, -dy / k);
   }
 
   /** Pans the view by (dx, dy) game units over a moment, on top of any other change meanwhile; a touch on the map stops it. */
