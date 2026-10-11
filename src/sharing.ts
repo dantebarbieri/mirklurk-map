@@ -5,14 +5,21 @@ import { $, h } from "./dom.ts";
 import type { Character, FileMap } from "./files.ts";
 import { qrSvg } from "./qr.ts";
 import {
+  formatPairCode,
   identify,
   keyFromLink,
   LIBRARY_WORLDS,
   linkKey,
   MAX_UPLOAD,
+  newPairCode,
   newToken,
+  openPairing,
   packSave,
+  PAIR_TTL,
+  pairCode,
+  pairId,
   RETENTION,
+  sealPairing,
   SHARE_INTERVAL,
   TOKEN,
   unpackSave,
@@ -50,6 +57,13 @@ type Watch =
   & { name: string; version?: string; updated?: number }
   & ({ kind: "world"; id: string } | { kind: "view"; key: string });
 type Card = { kind: "sync" } | { kind: "share"; id: string };
+/** The one-time code shown on the sync card, for the library it was made for. */
+interface Pair {
+  key: string;
+  code?: string;
+  expires?: number;
+  error?: string;
+}
 
 const storageKey = "mirklurk-library-v1";
 const legacyKey = "mirklurk-shares-v1";
@@ -61,10 +75,11 @@ class ShareError extends Error {
   }
 }
 
-async function api(path: string, key: string, init: RequestInit = {}): Promise<Response> {
+/** Library calls carry its key in the Authorization header; claiming a sync code is the only call without one. */
+async function api(path: string, key: string | undefined, init: RequestInit = {}): Promise<Response> {
   const response = await fetch(`/api${path}`, {
     ...init,
-    headers: { ...init.headers as Record<string, string>, Authorization: `Bearer ${key}` },
+    headers: { ...init.headers as Record<string, string>, ...(key ? { Authorization: `Bearer ${key}` } : {}) },
     signal: AbortSignal.timeout(60_000),
     cache: "no-store",
   });
@@ -95,6 +110,7 @@ export class Sharing {
   private watching?: Watch;
   private card?: Card;
   private cardLink?: string;
+  private pair?: Pair;
   private local?: { tag: string; id: Promise<string | undefined>; resolved?: string };
   /** World ID → the local revision last uploaded, so automatic updates send each change once. */
   private published = new Map<string, string>();
@@ -102,6 +118,8 @@ export class Sharing {
   private uploading = false;
   private polling = false;
   private pollFailed = false;
+  /** The library could not be reached; cleared once it can. */
+  private unreachable = false;
   private refreshing?: string;
   constructor(private hooks: Hooks) {}
 
@@ -110,7 +128,7 @@ export class Sharing {
   }
 
   private report(text: string, error = false) {
-    this.pollFailed = false;
+    this.pollFailed = this.unreachable = false;
     $("#share-status").textContent = text;
     $("#share-status").classList.toggle("error", error);
   }
@@ -143,6 +161,10 @@ export class Sharing {
     });
     $("#library-name").addEventListener("change", () => void this.rename($<HTMLInputElement>("#library-name").value));
     $("#sync-device").addEventListener("click", () => this.show(this.card?.kind === "sync" ? undefined : { kind: "sync" }));
+    $("#join-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      void this.enter($<HTMLInputElement>("#join-code").value);
+    });
     $("#stop-watch").addEventListener("click", () => {
       this.stop();
       $("#follow-control").hidden = true;
@@ -156,6 +178,7 @@ export class Sharing {
       void this.refresh();
     }, SHARE_INTERVAL);
     addEventListener("hashchange", () => void this.openHash());
+    addEventListener("online", () => void this.refresh().then(() => this.autoOpen()));
     this.render();
     await this.refresh();
     if (!await this.openHash()) this.autoOpen();
@@ -189,12 +212,16 @@ export class Sharing {
     }
   }
 
+  private openHash(): Promise<boolean> {
+    return this.openLink(location.hash.slice(1), true);
+  }
+
   /** `#s=` joins a library (then leaves the address bar); `#v=` follows one shared world read-only. Keys are written as digits. */
-  private async openHash(): Promise<boolean> {
-    const params = new URLSearchParams(location.hash.slice(1));
+  private async openLink(fragment: string, address: boolean): Promise<boolean> {
+    const params = new URLSearchParams(fragment);
     const sync = params.get("s"), view = params.get("v");
     if (sync !== null) {
-      history.replaceState(null, "", location.pathname + location.search);
+      if (address) history.replaceState(null, "", location.pathname + location.search);
       const key = keyFromLink(sync);
       if (!key) {
         this.report("This sync link is incomplete. Copy the whole link again.", true);
@@ -212,14 +239,54 @@ export class Sharing {
       if (this.watching?.kind !== "view" || this.watching.key !== key) this.watch({ kind: "view", key, name: "the shared world" });
       return true;
     }
-    if (params.has("share")) {
+    if (address && params.has("share")) {
       history.replaceState(null, "", location.pathname + location.search);
       this.report("That link is from the old sharing system and no longer works. Ask for a new share link.", true);
     }
     return false;
   }
 
-  private async join(key: string) {
+  /** A one-time sync code, or a pasted sync or share link: a Home Screen app on iPhone never receives links itself. */
+  private async enter(text: string) {
+    const input = $<HTMLInputElement>("#join-code");
+    const value = text.trim();
+    if (!value) return;
+    const fragment = value.includes("#") ? value.slice(value.indexOf("#") + 1) : "";
+    if (/(^|&)[sv]=/.test(fragment)) {
+      input.value = "";
+      await this.openLink(fragment, false);
+      return;
+    }
+    const code = pairCode(value);
+    if (!code) {
+      this.report("Enter the 8-character sync code from your other device, or paste a whole sync or share link.", true);
+      return;
+    }
+    this.report("Checking the sync code...");
+    let key: string | undefined;
+    try {
+      const response = await api("/pair", undefined, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: await pairId(code) }),
+      });
+      const { box } = await response.json();
+      key = typeof box === "string" ? await openPairing(code, box) : undefined;
+      if (!key) throw new Error("it does not match the library it was made for");
+    } catch (e) {
+      this.report(
+        e instanceof ShareError && e.status === 404
+          ? "That sync code is wrong, was already used, or expired. Make a new one with Sync another device... on your other device."
+          : `Could not use the sync code: ${(e as Error).message}`,
+        true,
+      );
+      return;
+    }
+    input.value = "";
+    await this.join(key, "code");
+  }
+
+  private async join(key: string, via: "link" | "code" = "link") {
     const previous = this.remembered.current;
     if (key === previous.key) {
       this.report(`This browser already syncs ${previous.name || "this library"}.`);
@@ -240,12 +307,12 @@ export class Sharing {
     // Whoever made a sync link receives everything this browser adds or updates, so a link from someone else is never followed silently.
     if (
       !confirm(
-        `Sync this browser with ${target}?\n\nOnly continue if you made this link yourself on one of your own devices: ` +
+        `Sync this browser with ${target}?\n\nOnly continue if you made this ${via} yourself on one of your own devices: ` +
           "whoever made it can see and change every world you add or update here." +
           (keep ? `\n\nYour current library, ${label(previous)}, will be saved so you can switch back.` : ""),
       )
     ) {
-      this.report("Sync link ignored. This browser keeps its own library.");
+      this.report(`Sync ${via} ignored. This browser keeps its own library.`);
       this.autoOpen();
       return;
     }
@@ -312,6 +379,7 @@ export class Sharing {
     try {
       const body = await (await api("/library", key)).json();
       if (key !== this.remembered.current.key) return;
+      if (this.unreachable) this.report("");
       this.enabled = true;
       this.worlds = body.worlds;
       this.limit = body.limits?.worldsPerLibrary ?? this.limit;
@@ -323,7 +391,13 @@ export class Sharing {
     } catch (e) {
       console.error(e);
       if (key === this.remembered.current.key && !this.enabled) {
-        this.report(`Syncing is unavailable on this server. ${(e as Error).message}`, true);
+        this.report(
+          navigator.onLine === false
+            ? "Offline. Your worlds sync again when you're back online; saves you open still work."
+            : `Syncing is unavailable on this server. ${(e as Error).message}`,
+          true,
+        );
+        this.unreachable = true;
       }
     } finally {
       if (this.refreshing === key) this.refreshing = undefined;
@@ -473,7 +547,65 @@ export class Sharing {
 
   private show(card: Card | undefined) {
     this.card = card;
+    if (card?.kind === "sync") void this.newPair();
+    else this.withdrawPair();
     this.renderCard();
+  }
+
+  /** Makes a one-time code for the sync card; it replaces any earlier code of this library. */
+  private async newPair() {
+    const key = this.remembered.current.key;
+    const pair: Pair = { key };
+    this.pair = pair;
+    this.renderCard();
+    try {
+      const code = newPairCode();
+      const response = await api("/library/pair", key, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(await sealPairing(code, key)),
+      });
+      await response.body?.cancel();
+      if (this.pair !== pair) {
+        // Closed while it was being made, so nobody has seen it.
+        if (this.pair?.key !== key) void api("/library/pair", key, { method: "DELETE" }).catch((e) => console.error(e));
+        return;
+      }
+      pair.code = code;
+      pair.expires = Date.now() + PAIR_TTL;
+    } catch (e) {
+      if (this.pair !== pair) return;
+      pair.error = (e as Error).message;
+    }
+    this.renderCard();
+  }
+
+  /** Closing the sync card withdraws its code early. */
+  private withdrawPair() {
+    const pair = this.pair;
+    this.pair = undefined;
+    if (pair?.code && pair.expires! > Date.now()) void api("/library/pair", pair.key, { method: "DELETE" }).catch((e) => console.error(e));
+  }
+
+  private pairView() {
+    const pair = this.pair;
+    const again = h("button", { type: "button", class: "button subtle", onclick: () => void this.newPair() }, "New code");
+    if (!pair || pair.error) return h("p", { class: "pair" }, `Could not make a sync code${pair?.error ? `: ${pair.error}` : ""}. `, again);
+    if (!pair.code) return h("p", { class: "pair muted" }, "Making a sync code...");
+    if (pair.expires! <= Date.now()) return h("p", { class: "pair" }, "The sync code expired. ", again);
+    return h(
+      "div",
+      { class: "pair" },
+      h(
+        "p",
+        {},
+        "On an iPhone Home Screen app, or anywhere a link won't open, type this code under ",
+        h("b", {}, "Sync code or link"),
+        ":",
+      ),
+      h("p", { class: "pair-code" }, formatPairCode(pair.code)),
+      h("p", { class: "muted" }, `It works once, within ${PAIR_TTL / 60_000} minutes, and stops when you close this card.`),
+    );
   }
 
   private async copy(link: string, fallback: HTMLInputElement) {
@@ -493,6 +625,7 @@ export class Sharing {
     const world = card?.kind === "share" ? this.worlds?.find((w) => w.id === card.id) : undefined;
     if (!card || (card.kind === "share" && !world) || !this.enabled) {
       this.card = this.cardLink = undefined;
+      this.withdrawPair();
       el.hidden = true;
       el.replaceChildren();
       return;
@@ -503,8 +636,10 @@ export class Sharing {
     const title = sync
       ? `Sync another device${this.remembered.current.name ? ` with ${this.remembered.current.name}` : ""}`
       : `Share ${world!.name} (read-only)`;
-    if (this.cardLink === `${link}\n${title}`) return;
-    this.cardLink = `${link}\n${title}`;
+    const pair = this.pair;
+    const state = sync && pair ? `${pair.code}:${pair.error}:${pair.expires! <= Date.now()}` : "";
+    if (this.cardLink === `${link}\n${title}\n${state}`) return;
+    this.cardLink = `${link}\n${title}\n${state}`;
     const fallback = h("input", {
       class: "share-link",
       readonly: true,
@@ -534,8 +669,13 @@ export class Sharing {
             } and follow its updates. They can't change anything, and their own worlds stay as they are.`,
         ),
         sync
-          ? h("p", { class: "warning" }, "Anyone with this link can add, update and delete your worlds. Only open it on your own devices.")
+          ? h(
+            "p",
+            { class: "warning" },
+            "Anyone with this link or code can add, update and delete your worlds. Only use them on your own devices.",
+          )
           : null,
+        sync ? this.pairView() : null,
         h(
           "div",
           { class: "share-actions" },

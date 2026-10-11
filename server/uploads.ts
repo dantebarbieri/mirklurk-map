@@ -4,6 +4,9 @@ import {
   libraryId,
   MAX_UPLOAD,
   newToken,
+  PAIR_BOX,
+  PAIR_ID,
+  PAIR_TTL,
   RETENTION,
   SHARE_INTERVAL,
   shareId,
@@ -38,6 +41,13 @@ interface LibraryRecord {
   owner: string;
   updated: number;
 }
+/** A one-time sync code, kept only in memory: the sync key encrypted with the code, found by the code's hash. */
+interface PairRecord {
+  box: string;
+  library: string;
+  owner: string;
+  expires: number;
+}
 
 const DAY = 86_400_000;
 const MAX_STORAGE = 1024 * 1024 * 1024;
@@ -47,6 +57,10 @@ const MAX_LIBRARIES = 2048;
 const NETWORK_WORLDS = 10;
 const NETWORK_DAILY = 10;
 const NETWORK_LIBRARIES = 10;
+const MAX_PAIRS = 1024;
+const NETWORK_PAIRS = 10;
+/** Wrong sync codes allowed per network per hour; with 40-bit codes that live 10 minutes, guessing one is hopeless. */
+const PAIR_MISSES = 20;
 export const LIMITS = {
   worldsPerLibrary: LIBRARY_WORLDS,
   retentionDays: RETENTION / DAY,
@@ -113,6 +127,8 @@ export class UploadStore {
   private libraries = new Map<string, LibraryRecord>();
   private adds: { owner: string; at: number }[] = [];
   private rates = new Map<string, { count: number; until: number }>();
+  private pairs = new Map<string, PairRecord>();
+  private misses = new Map<string, { count: number; until: number }>();
   private writing = false;
   private salt = "";
   constructor(private directory: string, private now = () => Date.now()) {}
@@ -184,6 +200,7 @@ export class UploadStore {
         await this.write(`${this.directory}/adds.json`, new TextEncoder().encode(JSON.stringify(adds)));
       }
       for (const [ip, rate] of this.rates) if (rate.until <= now) this.rates.delete(ip);
+      this.prunePairs(now);
     } finally {
       this.writing = false;
     }
@@ -288,6 +305,19 @@ export class UploadStore {
       return this.data(request, record);
     }
 
+    if (url.pathname === "/api/pair") {
+      if (request.method !== "POST") throw new HttpError(405, "Method not allowed");
+      return this.claim(request, owner);
+    }
+    if (url.pathname === "/api/library/pair") {
+      const library = await libraryId(this.key(request));
+      if (request.method === "POST") return this.offer(request, library, owner);
+      if (request.method !== "DELETE") throw new HttpError(405, "Method not allowed");
+      this.mutation(request);
+      this.dropPairs(library);
+      return new Response(null, { status: 204 });
+    }
+
     const match = /^\/api\/library(?:\/worlds\/([A-Za-z0-9_-]{22})(\/data|\/share)?)?$/.exec(url.pathname);
     if (!match) throw new HttpError(404, "Not found");
     const sync = this.key(request);
@@ -342,6 +372,65 @@ export class UploadStore {
       file.close();
       throw e;
     }
+  }
+
+  private prunePairs(now: number) {
+    for (const [id, pair] of this.pairs) if (pair.expires <= now) this.pairs.delete(id);
+    for (const [owner, miss] of this.misses) if (miss.until <= now) this.misses.delete(owner);
+  }
+
+  private dropPairs(library: string) {
+    for (const [id, pair] of this.pairs) if (pair.library === library) this.pairs.delete(id);
+  }
+
+  private async json(request: Request): Promise<Record<string, unknown>> {
+    this.mutation(request, "application/json");
+    try {
+      const value = JSON.parse(new TextDecoder().decode(await this.readBody(request, 1024)));
+      if (value && typeof value === "object" && !Array.isArray(value)) return value;
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
+    }
+    throw new HttpError(400, "Expected a JSON object");
+  }
+
+  /** Offers this library's encrypted sync key under a one-time code; a new code replaces the library's previous one. */
+  private async offer(request: Request, library: string, owner: string): Promise<Response> {
+    const { id, box } = await this.json(request);
+    if (typeof id !== "string" || !PAIR_ID.test(id) || typeof box !== "string" || !PAIR_BOX.test(box)) {
+      throw new HttpError(400, "Invalid sync code");
+    }
+    const now = this.now();
+    this.prunePairs(now);
+    this.dropPairs(library);
+    if ([...this.pairs.values()].filter((p) => p.owner === owner).length >= NETWORK_PAIRS) {
+      throw new HttpError(429, `Only ${NETWORK_PAIRS} sync codes can be open from one network at a time`);
+    }
+    if (this.pairs.size >= MAX_PAIRS) throw new HttpError(503, "Server busy; retry later");
+    if (this.pairs.has(id)) throw new HttpError(409, "Make a new sync code");
+    this.pairs.set(id, { box, library, owner, expires: now + PAIR_TTL });
+    return Response.json({ expiresIn: PAIR_TTL / 1000 }, { status: 201 });
+  }
+
+  /** Hands out a code's encrypted sync key once; wrong codes count against the network. */
+  private async claim(request: Request, owner: string): Promise<Response> {
+    const now = this.now();
+    let miss = this.misses.get(owner);
+    if (miss && miss.until > now && miss.count >= PAIR_MISSES) throw new HttpError(429, "Too many wrong sync codes; wait an hour");
+    const { id } = await this.json(request);
+    if (typeof id !== "string" || !PAIR_ID.test(id)) throw new HttpError(400, "Invalid sync code");
+    const pair = this.pairs.get(id);
+    if (!pair || pair.expires <= now) {
+      if (!miss || miss.until <= now) {
+        this.prunePairs(now);
+        if (this.misses.size >= 10_000) throw new HttpError(503, "Server busy; retry later");
+        this.misses.set(owner, miss = { count: 0, until: now + 3_600_000 });
+      }
+      ++miss.count;
+      throw new HttpError(404, "This sync code is wrong, was already used, or expired. Make a new one on your other device");
+    }
+    this.pairs.delete(id);
+    return Response.json({ box: pair.box });
   }
 
   private async rename(request: Request, library: string, owner: string): Promise<Response> {

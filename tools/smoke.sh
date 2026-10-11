@@ -73,6 +73,19 @@ asset=$(curl -fsSI "$base/$js")
 grep -qi '^cache-control: public, max-age=31536000, immutable' <<<"$asset" || fail "$js is not immutable"
 grep -Eqi '^content-type: (application|text)/javascript' <<<"$asset" || fail "$js has the wrong type"
 curl -fsSI "$base/$css" | grep -qi '^content-type: text/css' || fail "$css has the wrong type"
+grep -qi "^content-security-policy: .*manifest-src 'self'; worker-src 'self'" <<<"$headers" || fail "CSP blocks the manifest or service worker"
+manifest=$(curl -fsSI "$base/manifest.webmanifest")
+grep -qi '^content-type: application/manifest+json' <<<"$manifest" || fail "manifest has the wrong type"
+curl -fsS "$base/manifest.webmanifest" | grep -q '"short_name": "MirkMap"' || fail "manifest content"
+worker=$(curl -fsSI "$base/sw.js")
+grep -Eqi '^content-type: (application|text)/javascript' <<<"$worker" || fail "sw.js has the wrong type"
+grep -qi '^cache-control: no-cache' <<<"$worker" || fail "sw.js must revalidate"
+kept=$(curl -fsS "$base/sw.js" | head -n1 | grep -o '"files":\[[^]]*\]' | grep -o '"[^"]*"' | tr -d '"' | grep -vx files || true)
+grep -qx "$js" <<<"$kept" && grep -qx 'icons/apple-touch-icon.png' <<<"$kept" || fail "sw.js does not keep the app and icons"
+while IFS= read -r file; do
+  curl -fsS -o /dev/null "$base/$file" || fail "sw.js keeps $file, which is missing"
+done <<<"$kept"
+curl -fsSI "$base/icons/favicon.svg" | grep -qi '^content-type: image/svg+xml' || fail "favicon.svg has the wrong type"
 game_art=$(grep -ho 'assets/\(game\|wiki\)/[a-z0-9_]*\.[0-9a-f]*\.png' src/artdata.json src/wikiart.json | sort -u)
 [ -n "$game_art" ] || fail "art manifest contains no images"
 grep -q 'assets/wiki/' <<<"$game_art" || fail "wiki art manifest contains no images"

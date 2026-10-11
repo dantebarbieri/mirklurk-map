@@ -3,16 +3,23 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Mirklurk World Viewer</title>
+    <title>MirkMap · Mirklurk World Viewer</title>
     <meta name="description"
-      content="See your Mirklurk world: every zone by name, the game's own maps, landmarks, entrances and NPCs, and where Gurb-Gurb, Ihar, Bhato, the Library and Scaal can appear.">
-    <link rel="icon" href="data:,">
+      content="MirkMap shows your Mirklurk world: every zone by name, the game's own maps, landmarks, entrances and NPCs, and where Gurb-Gurb, Ihar, Bhato, the Library and Scaal can appear.">
+    <meta name="application-name" content="MirkMap">
+    <meta name="apple-mobile-web-app-title" content="MirkMap">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="theme-color" content="#1b1516">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <link rel="stylesheet" href="style.css">
     <script type="module" src="app.js"></script>
   </head>
   <body>
     <header class="top">
-      <h1>Mirklurk World Viewer</h1>
+      <h1><img class="logo" src="icons/favicon.svg" alt="" width="20" height="20">MirkMap</h1>
       <select id="character" aria-label="Character" hidden></select>
       <label class="button">Open save folder<input id="pick-folder" type="file" webkitdirectory multiple hidden></label>
       <label class="button subtle">Open .zip<input id="pick-zip" type="file" accept=".zip,application/zip" hidden></label>
@@ -40,6 +47,12 @@
         <input id="library-name" class="library-name" type="text" maxlength="40" autocomplete="off" placeholder="Unnamed library" disabled>
         <button id="sync-device" class="button subtle" type="button" disabled>Sync another device...</button>
       </div>
+      <form id="join-form" class="share-actions">
+        <label for="join-code">Sync code or link</label>
+        <input id="join-code" class="join-code" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off"
+          spellcheck="false" enterkeyhint="go" placeholder="ABCD-1234 or a link">
+        <button class="button subtle" type="submit">Open</button>
+      </form>
       <section id="share-card" class="share-card" aria-live="polite" hidden></section>
       <section id="saved-libraries" hidden>
         <h3>Other libraries saved in this browser</h3>
@@ -47,7 +60,8 @@
       </section>
       <p class="muted">This browser remembers your library. Sync your other PCs and your phone to see and update the same worlds;
         share a single world read-only with friends. Adding a world uploads only the selected character; adding one that is
-        already in your library updates it instead.</p>
+        already in your library updates it instead. On a phone's Home Screen app, links open in the browser instead, so type the
+        one-time code from <b>Sync another device...</b>, or paste a link, under <b>Sync code or link</b>.</p>
     </details>
     <main id="app">
       <section class="intro">

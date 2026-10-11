@@ -61,6 +61,58 @@ export function keyFromLink(digits: string): string | undefined {
   return base64url(Uint8Array.from(value.toString(16).padStart(64, "0").match(/../g)!, (b) => parseInt(b, 16)));
 }
 
+/**
+ * One-time sync codes, for devices that can't open a sync link, such as a Home Screen app on iPhone (links open in Safari, which keeps
+ * separate storage). A code is 8 Crockford base32 characters (40 bits), works once and expires after PAIR_TTL. The browser that shows it
+ * encrypts its sync key with a key derived from the code; the server keeps only that ciphertext, in memory, under the code's hash.
+ */
+export const PAIR_TTL = 10 * 60 * 1000;
+export const PAIR_ID = /^[a-f0-9]{64}$/;
+/** base64url of a 12-byte IV and the AES-GCM encryption of a 43-character key with its 16-byte tag. */
+export const PAIR_BOX = /^[A-Za-z0-9_-]{95}$/;
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+export const newPairCode = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => CROCKFORD[b & 31]).join("");
+export const formatPairCode = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
+/** Reads a typed code: case, spaces and dashes don't matter, and O, I and L are read as 0, 1 and 1. */
+export function pairCode(text: string): string | undefined {
+  const code = text.toUpperCase().replace(/[\s-]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+  return /^[0-9A-HJKMNP-TV-Z]{8}$/.test(code) ? code : undefined;
+}
+export const pairId = async (code: string) => hex(await sha256(`mirklurk/pair\n${code}`));
+const pairCipher = async (code: string, usage: KeyUsage) =>
+  crypto.subtle.importKey("raw", await sha256(`mirklurk/pair-key\n${code}`) as BufferSource, "AES-GCM", false, [usage]);
+
+export async function sealPairing(code: string, key: string): Promise<{ id: string; box: string }> {
+  const id = await pairId(code);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const sealed = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv, additionalData: encoder.encode(id) },
+      await pairCipher(code, "encrypt"),
+      encoder.encode(key),
+    ),
+  );
+  return { id, box: base64url(new Uint8Array([...iv, ...sealed])) };
+}
+
+/** The sync key inside a box, or undefined if the code doesn't open it. */
+export async function openPairing(code: string, box: string): Promise<string | undefined> {
+  if (!PAIR_BOX.test(box)) return undefined;
+  const bytes = Uint8Array.from(atob(box.replace(/-/g, "+").replace(/_/g, "/") + "="), (c) => c.charCodeAt(0));
+  try {
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: bytes.subarray(0, 12), additionalData: encoder.encode(await pairId(code)) },
+      await pairCipher(code, "decrypt"),
+      bytes.subarray(12),
+    );
+    const key = decoder.decode(plain);
+    return TOKEN.test(key) ? key : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function frame(header: unknown, body: Uint8Array): Uint8Array {
   const json = encoder.encode(JSON.stringify(header));
   const result = new Uint8Array(4 + json.length + body.length);

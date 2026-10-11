@@ -1,7 +1,7 @@
-# Mirklurk World Viewer
+# MirkMap · Mirklurk World Viewer
 
-A small browser-based viewer for **Mirklurk 0.8.1.5**, published at **https://map.mirklurk.danteb.com**. Open a character's save folder and
-it shows:
+**MirkMap** is a small browser-based viewer for **Mirklurk 0.8.1.5**, published at **https://map.mirklurk.danteb.com**. Open a character's
+save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
   the map the game itself made for it (`Maps/x_y.png`);
@@ -70,14 +70,21 @@ There are two kinds of link, each with its own key and QR code:
   worlds. If it already had a library with worlds (or a name), that library is kept under **Other libraries saved in this browser** to
   switch back to later. The link removes itself from the address bar. Anyone with it has full access to your library, and whoever made a
   sync link receives everything you add or update after joining it, so only use links you made on your own devices. Name the library (for
-  example "Dante's PCs") to tell libraries apart.
+  example "Dante's PCs") to tell libraries apart. The card also shows a **one-time sync code** such as `K7M2-9QXR`: type it under **Sync
+  code or link** on the other device, which then joins after the same confirmation. That is the way into an app added to an iPhone's Home
+  Screen, which keeps its own storage apart from Safari and never receives links (scanning the QR code opens Safari instead). A code works
+  once, for 10 minutes, and stops when the card is closed; case, spaces and the dash don't matter, and O, I and L are read as 0, 1 and 1.
+  The same box also takes a whole pasted sync or share link.
 - **Share...** on a world is for other people. It opens that one world read-only and follows its updates. A share key is derived one-way
   from the library key, so it can never be turned into a sync key; opening it does not change the viewer's own library. **Reset link** on
   the share card stops the old link working.
 
 The server stores only hashes of library and share keys, never the keys themselves. Keys travel in `Authorization` headers, never in API
-URLs, and links keep them in the URL fragment, which browsers do not send to the server. Clearing site data forgets the library on that
-browser; sync it again from another device to get it back. Links from the earlier seven-day sharing system no longer work.
+URLs, and links keep them in the URL fragment, which browsers do not send to the server. A sync code never reaches the server either: the
+browser showing it encrypts the sync key (AES-GCM) with a key derived from the code and uploads only that ciphertext under the code's
+SHA-256 hash. The server keeps it in memory only, hands it out once to whoever sends that hash, and forgets it after 10 minutes, when the
+card closes, when the library makes a new code, or on restart. Clearing site data forgets the library on that browser; sync it again from
+another device to get it back. Links from the earlier seven-day sharing system no longer work.
 
 QR codes use the most compact encoding the link allows. A QR code can mix numeric (3.3 bits per digit), alphanumeric (5.5 bits per
 character, capitals only) and byte (8 bits) segments, and the encoder picks the cheapest mix. Links therefore write keys as 78 digits (`#s=`
@@ -96,6 +103,7 @@ Limits:
 | Per network     | Ten stored worlds, ten new worlds per rolling 24 hours (deleted ones count), ten named libraries; IPv6 /64s share a quota |
 | API requests    | 60/minute per IP, plus nginx request/connection limits                                                                    |
 | Storage         | 128 worlds and 1 GiB in total; 2,048 named libraries (clearing a name frees it)                                           |
+| Sync codes      | One open code per library, ten per network and 1,024 in total; 20 wrong codes per network per hour                        |
 | Upload duration | 60 seconds                                                                                                                |
 
 Refusals are shown in the panel: a full library, a too-early update, an update of a world that was deleted on another device (it is not
@@ -105,6 +113,20 @@ cleanup after downtime). Salted IP hashes are stored instead of raw IP addresses
 short-term request limiter resets on restart. Shared networks/NATs share the same quota. These are abuse guardrails, not protection against
 a distributed attack; keep reverse-proxy bandwidth and resource limits in place. The package manifest is capped at 1 MiB, and `Player.save`
 at 4 MiB before JSON parsing, to bound validation memory use.
+
+### As an app, and offline
+
+MirkMap can be installed: **Add to Home Screen** in Safari's share menu on iPhone or iPad, **Install app** / **Add to Home screen** in
+Chrome or Edge (Android, Windows, macOS). It then opens in its own window under its own name and icon. After the first visit a service
+worker keeps the page, its script and stylesheet, the icons and all bundled game art (about 0.6 MiB), so MirkMap opens at once and works
+without a connection: saves you open (folders, `.zip` files, Live saves) are read in the browser anyway, and Realistic mode and inspection
+pictures come from that copy. Worlds in your library and shared worlds need the connection; while offline the panel says so, and they come
+back when the connection does. Each new release replaces the kept copy as a whole, reusing unchanged art. Pages always try the network first
+(waiting up to 3 seconds) so an online visit gets the newest release; the sharing API is never cached.
+
+An app on an iPhone's Home Screen has its own storage, separate from Safari, so it needs its own library: use a sync code (above) to join
+your library. Safari may clear a website's storage after seven days of use without a visit, but not a Home Screen app's; installed apps also
+ask the browser to keep their storage.
 
 ### Live saves (opt-in)
 
@@ -361,12 +383,18 @@ Needs only [Deno](https://deno.com) 2.x; there are no dependencies.
 deno task dev      # http://127.0.0.1:8123 — also serves ../Saves read-only, so /?dev=<Character>&zone=C2 loads one
 deno task test     # unit tests, plus checks against real saves in ../Saves (or $env:MIRKLURK_SAVES) when present
 deno task check    # type-check
-deno task build    # dist/: index.html + hashed app.*.js and style.*.css
+deno task build    # dist/: index.html + hashed app.*.js and style.*.css, art, manifest.webmanifest, icons/ and sw.js
+deno task icons    # regenerate icons/ (favicon.svg, favicon-32.png, app icons) from the pixel art in tools/icons.ts
 deno task wiki     # refresh src/wikidata.json and the bundled pictures (assets/wiki/, src/wikiart.json) from the public wiki; no saves or game data are sent
 ```
 
 To exercise sharing locally, set `$env:ENABLE_UPLOADS = "true"` before `deno task dev`. Uploads are stored in the ignored `.uploads/`
-directory, never in `dist/`. The dev server otherwise leaves uploads disabled.
+directory, never in `dist/`. The dev server otherwise leaves uploads disabled. It serves no service worker, so every reload is fresh; to try
+offline use, run the built `dist/` (for example with `docker compose`, below).
+
+The icons are pixel art drawn from the game's own "Map of area" item and the colours of the Mirklurk logo: a folded parchment map with green
+land, the logo's purple outline and an amber waypoint. `tools/icons.ts` holds them as text rows and writes the SVG favicon and every PNG
+size deterministically, without dependencies.
 
 `src/gamedata.ts` holds the game's names and sprite bounds. After a game update, regenerate it:
 
@@ -393,9 +421,10 @@ obsolete hashes from earlier exports are not shipped. Set `MIRKLURK_SAVES` to th
 ## Deploying
 
 `dist/` remains a standalone static viewer without sharing. The default Docker image (`web` target) builds it with Deno and serves it with
-unprivileged nginx on port 8080 over IPv4 and IPv6 (`deploy/nginx.conf`: strict Content-Security-Policy, immutable caching for hashed
-assets, `/healthz`). It runs with a read-only root filesystem, only `/tmp` writable and no capabilities. HSTS and TLS are left to the
-reverse proxy.
+unprivileged nginx on port 8080 over IPv4 and IPv6 (`deploy/nginx.conf`: strict Content-Security-Policy, which allows only same-origin
+manifests and service workers, immutable caching for hashed assets, `/healthz`). `index.html`, `sw.js`, `manifest.webmanifest` (served as
+`application/manifest+json`) and `icons/` revalidate on every request, so a release reaches installed apps on their next visit. It runs with
+a read-only root filesystem, only `/tmp` writable and no capabilities. HSTS and TLS are left to the reverse proxy.
 
 Sharing adds a second service built from the Dockerfile's **`uploads` target**, on private port **8081**, with a persistent volume at
 **`/data`** owned by the image's `deno` user. `compose.yaml` is a complete local example. The web container forwards `/api/` to
@@ -432,5 +461,6 @@ For a local check where Docker is available: `docker compose up --build -d` (htt
 context is an allowlist (`.dockerignore`), so game files and saves cannot end up in the image.
 
 Unofficial fan tool. Mirklurk and the game art are by Edym Pixels. Selected game art, including the pictures of creatures, NPCs, items and
-quest buildings taken from mirklurk.wiki, is used on this site with the developer's permission; it remains the developer's copyrighted
-material and is not relicensed as part of the viewer's source code.
+quest buildings taken from mirklurk.wiki and the MirkMap icons drawn from the "Map of area" item and the logo's colours, is used on this
+site with the developer's permission; it remains the developer's copyrighted material and is not relicensed as part of the viewer's source
+code.
