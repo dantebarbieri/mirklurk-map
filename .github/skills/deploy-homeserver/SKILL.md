@@ -26,8 +26,8 @@ Compose file, so a deploy means moving that pin and rebuilding just those two se
    (`deno task build`, `dist/`) so the live bundle can be identified.
 2. **Delegate the server work** to a child session in the user's `homeserver` app project (`list_projects`, then `create_session` with
    `notify_on_idle`). That session reaches the server with `ssh server`. Its kickoff quotes the user's request and gives the full target
-   what changed and its risk, the bundle markers, and the guardrails below. Earlier "Deploy mirklurk-map" sessions (in session history) are
-   good templates.
+   SHA, what changed and its risk, the bundle markers, and the guardrails below. Earlier "Deploy mirklurk-map" sessions (in session history)
+   are good templates.
 3. **The child deploys per the runbook:** bump the pins in a homeserver PR and merge it once checks pass; preflight (clean server tree, no
    deploy hold, updater or other rollout running); fast-forward `/srv/homeserver`; record a baseline of all containers; then, under the
    shared compose lock, build and bring up only the two map services, uploads first, then web.
