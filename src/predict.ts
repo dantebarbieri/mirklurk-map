@@ -4,7 +4,7 @@ import { pct } from "./format.ts";
 import { BEING_NAMES, SPRITES } from "./gamedata.ts";
 import { Area, PLACEMENT, type Placement, SHIPWRECK_TRIES, SHIPWRECK_UNEXPLORED_CHANCE, shipwreckSiteOk, SolidId, TILES } from "./rules.ts";
 import type { Being, Solid, Tree } from "./save.ts";
-import type { World, Zone } from "./world.ts";
+import { questZone, type World, type Zone } from "./world.ts";
 
 export type LandmarkId = "fort" | "bhato" | "library" | "scaal" | "gurb" | "ihar";
 
@@ -83,10 +83,7 @@ export function landmarks(world: World, shipwreck: Map<string, number>): Landmar
       continue;
     }
     if (def.id === "fort" || def.id === "bhato" || def.id === "library" || def.id === "scaal") {
-      const cell = def.id === "fort" ? zonesOfType(world, [Area.Fort])[0] : (() => {
-        const c = def.id === "bhato" ? p.rangerCamp : def.id === "library" ? p.libraryArea : p.riftQuestArea;
-        return c ? world.zones[c[1]]?.[c[0]] : undefined;
-      })();
+      const cell = def.id === "fort" ? zonesOfType(world, [Area.Fort])[0] : questZone(world, def.id);
       if (!cell) {
         out.push({ ...def, status: "none", note: "This save does not record it." });
       } else if (cell.explored) {

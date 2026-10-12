@@ -8,6 +8,7 @@ import {
   decodeHeights,
   decodeJson,
   decodeTilemap,
+  destination,
   type Grid,
   parseAreaDir,
   parseBeings,
@@ -158,8 +159,10 @@ export async function loadWorld(files: FileMap, root: string, character: string)
     interiors.push({ ...d, kind: null, parent: null, sealed: false, solids: await solidsOf(d.dir) });
   }
   /** A solid whose way in (transPoint: area type, x, y) leads to the interior entered at `at`. */
-  const leadsTo = (s: Solid, at: [number, number]): s is Solid & { transPoint: number[] } =>
-    !!s.transPoint && s.transPoint.length >= 3 && centerpos(s.transPoint[1]) === at[0] && centerpos(s.transPoint[2]) === at[1];
+  const leadsTo = (s: Solid, at: [number, number]): s is Solid & { transPoint: number[] } => {
+    const to = destination(s);
+    return !!to && centerpos(to[1]) === at[0] && centerpos(to[2]) === at[1];
+  };
   for (const it of interiors) {
     if (it.at[0] === -1) {
       it.kind = 23 + it.at[1];
@@ -293,3 +296,16 @@ export async function loadHeights(world: World, dir: string): Promise<Grid<Float
 }
 
 export const interiorsOf = (world: World, x: number, y: number) => world.interiors.filter((i) => i.zone[0] === x && i.zone[1] === y);
+
+/** The zones Player.save fixes for the quest: Bhato's (rangerCamp), the Library's (libraryArea) and Scaal's (riftQuestArea). */
+export type QuestZone = "bhato" | "library" | "scaal";
+const QUEST_ZONE_KEYS = { bhato: "rangerCamp", library: "libraryArea", scaal: "riftQuestArea" } as const satisfies Record<
+  QuestZone,
+  keyof PlayerSave
+>;
+
+/** The zone the save fixes for quest place `q`, when it records one. */
+export function questZone(world: World, q: QuestZone): Zone | undefined {
+  const at = world.player[QUEST_ZONE_KEYS[q]];
+  return at ? world.zones[at[1]]?.[at[0]] : undefined;
+}

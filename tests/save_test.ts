@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "./assert.ts";
-import { decodeJson, decodeTilemap, parseAreaDir, parsePlayer, playerRecord } from "../src/save.ts";
+import { decodeJson, decodeTilemap, destination, parseAreaDir, parsePlayer, playerRecord, type Solid } from "../src/save.ts";
 import { readZip } from "../src/zip.ts";
 
 const enc = new TextEncoder();
@@ -8,6 +8,12 @@ Deno.test("the player record is Player.save's last element, and only a JSON obje
   assertEquals(playerRecord([{ a: 1 }, { b: 2 }]), { b: 2 });
   for (const raw of [[], [[1]], [null], [{}, 3], {}, "x"]) assertThrows(() => playerRecord(raw), /no player record/);
   assertThrows(() => parsePlayer([[]]), /no player record/);
+});
+
+Deno.test("a solid leads somewhere only when its transPoint has an area type and a position", () => {
+  const solid = (transPoint: number[] | null): Solid => ({ sprite: "", pic: 0, index: 0, x: 0, y: 0, transPoint });
+  assertEquals(destination(solid([10, 1000, 1000, 1280, 1400])), [10, 1000, 1000, 1280, 1400]);
+  assertEquals([destination(solid(null)), destination(solid([10, 1000]))], [null, null]);
 });
 
 Deno.test("GameMaker JSON: one trailing NUL, optional BOM, empty file", () => {

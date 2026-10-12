@@ -3,7 +3,7 @@
 import { BEING_NAMES, ITEM_NAMES, MAP_LABELS, NATURE_NAMES } from "./gamedata.ts";
 import { spriteBox } from "./predict.ts";
 import { centerpos, INTERIOR_NAMES, isOutside, isRiftDepths, LANDMARK_NAMES, NPC_MARKERS, SolidId } from "./rules.ts";
-import type { Placed, PlayerSave, Solid, Tree } from "./save.ts";
+import { destination, type Placed, type PlayerSave, type Solid, type Tree } from "./save.ts";
 import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
 import type { HealthGrid } from "./health.ts";
@@ -132,7 +132,7 @@ export function solidMarks(solids: Solid[], interiors: Interior[], current?: Int
   const out: Mark[] = [];
   for (const s of solids) {
     const box = spriteBox(s.sprite, s.x, s.y);
-    const tp = s.transPoint && s.transPoint.length >= 3 ? s.transPoint : null;
+    const tp = destination(s);
     const landmark = LANDMARK_NAMES[s.index];
     if (landmark) {
       const name = MAP_LABELS[s.index] ?? landmark;

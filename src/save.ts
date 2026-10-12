@@ -210,6 +210,9 @@ export interface Solid {
   transPoint: number[] | null;
 }
 
+/** Where a solid leads, as its transPoint says ([area type, x, y]); null when it leads nowhere. */
+export const destination = (s: Solid): number[] | null => (s.transPoint && s.transPoint.length >= 3 ? s.transPoint : null);
+
 export interface Being {
   index: number;
   state: number;
