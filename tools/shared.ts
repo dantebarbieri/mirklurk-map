@@ -26,6 +26,21 @@ export function concat(...parts: readonly Uint8Array[]): Uint8Array {
   return result;
 }
 
+/** A short hash of `bytes` for file names that change with their content: the first 5 bytes of their SHA-256, in hex. */
+export async function contentHash(bytes: Uint8Array): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource));
+  return Array.from(digest.slice(0, 5), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Removes folder `dir` and everything in it, if it is there. */
+export async function removeTree(dir: URL) {
+  try {
+    await Deno.remove(dir, { recursive: true });
+  } catch (e) {
+    if (!(e instanceof Deno.errors.NotFound)) throw e;
+  }
+}
+
 /** Writes a generated source file (`path` from the root) and formats it as `deno fmt` would, so CI's format check passes. */
 export async function writeSource(path: string, text: string) {
   await Deno.writeTextFile(new URL(path, root), text);

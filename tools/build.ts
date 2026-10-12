@@ -3,7 +3,7 @@
 
 import art from "../src/artdata.json" with { type: "json" };
 import wikiArt from "../src/wikiart.json" with { type: "json" };
-import { bundle, concat, root } from "./shared.ts";
+import { bundle, concat, contentHash, removeTree, root } from "./shared.ts";
 
 const dist = new URL("dist/", root);
 
@@ -17,14 +17,7 @@ async function minified(entry: string): Promise<Uint8Array> {
   }
 }
 
-async function hash(bytes: Uint8Array) {
-  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource));
-  return Array.from(d.slice(0, 5), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-await Deno.remove(dist, { recursive: true }).catch((e) => {
-  if (!(e instanceof Deno.errors.NotFound)) throw e;
-});
+await removeTree(dist);
 await Deno.mkdir(dist, { recursive: true });
 await Deno.mkdir(new URL("assets/game/", dist), { recursive: true });
 await Deno.mkdir(new URL("assets/wiki/", dist), { recursive: true });
@@ -42,8 +35,8 @@ for (const file of [...artFiles, ...icons, "manifest.webmanifest"]) {
 
 const js = await minified("src/main.ts");
 const css = await Deno.readFile(new URL("style.css", root));
-const jsName = `app.${await hash(js)}.js`;
-const cssName = `style.${await hash(css)}.css`;
+const jsName = `app.${await contentHash(js)}.js`;
+const cssName = `style.${await contentHash(css)}.css`;
 await Deno.writeFile(new URL(jsName, dist), js);
 await Deno.writeFile(new URL(cssName, dist), css);
 /** A page with its asset names swapped for the hashed ones; every name must be found. */
@@ -61,8 +54,8 @@ await Deno.writeTextFile(new URL("index.html", dist), html);
 // The save editor at edit/: its own script and stylesheet on top of the map's (edit.html sets <base href="../">).
 const editJs = await minified("src/editor/main.ts");
 const editCss = await Deno.readFile(new URL("editor.css", root));
-const editJsName = `edit.${await hash(editJs)}.js`;
-const editCssName = `editor.${await hash(editCss)}.css`;
+const editJsName = `edit.${await contentHash(editJs)}.js`;
+const editCssName = `editor.${await contentHash(editCss)}.css`;
 await Deno.writeFile(new URL(editJsName, dist), editJs);
 await Deno.writeFile(new URL(editCssName, dist), editCss);
 await Deno.mkdir(new URL("edit/", dist), { recursive: true });
@@ -78,7 +71,7 @@ const files = ["", "edit/", jsName, cssName, editJsName, editCssName, "manifest.
 const worker = await minified("src/sw.ts");
 const unhashed = await Promise.all(["manifest.webmanifest", ...icons].map((file) => Deno.readFile(new URL(file, dist))));
 const encoder = new TextEncoder();
-const version = await hash(concat(encoder.encode(html + editHtml + JSON.stringify(files)), worker, ...unhashed));
+const version = await contentHash(concat(encoder.encode(html + editHtml + JSON.stringify(files)), worker, ...unhashed));
 await Deno.writeFile(
   new URL("sw.js", dist),
   concat(encoder.encode(`const MIRKMAP_BUILD=${JSON.stringify({ version, files })};\n`), worker),
