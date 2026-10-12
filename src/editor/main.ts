@@ -534,10 +534,12 @@ async function listWorlds() {
   if (!key) return;
   try {
     const { worlds } = await (await api("/library", key)).json() as { worlds: WorldInfo[] };
+    // Each world is opened from the library it was listed from, even if another tab switches libraries meanwhile.
+    const library = await libraryId(key);
     const select = $<HTMLSelectElement>("#open-world");
     select.replaceChildren(
       h("option", { value: "" }, "Edit from My worlds..."),
-      ...worlds.map((w) => h("option", { value: w.id }, `${w.name}${w.cheated ? " (Cheated)" : ""}`)),
+      ...worlds.map((w) => h("option", { value: w.id, "data-library": library }, `${w.name}${w.cheated ? " (Cheated)" : ""}`)),
     );
     select.hidden = !worlds.length;
   } catch (e) {
@@ -2543,12 +2545,12 @@ function wire() {
   }
   const worlds = $<HTMLSelectElement>("#open-world");
   worlds.addEventListener("change", () => {
-    const id = worlds.value;
+    const id = worlds.value, library = worlds.selectedOptions[0]?.dataset.library;
     worlds.value = "";
     if (id) {
       void replace(async () => {
         try {
-          await openSource(await libraryWorld(id));
+          await openSource(await libraryWorld(id, library));
         } catch (e) {
           status(errorText(e), true);
         }

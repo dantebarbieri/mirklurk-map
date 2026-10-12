@@ -28,14 +28,12 @@ export interface Handoff {
 
 export type Page = "map" | "editor";
 
-const DB = "mirkmap-open";
-const STORE = "open";
 /** The folder or library world the editor had open last. */
 const LAST = "last";
 /** Each handoff is kept under its own key, so tabs handing over at the same time never take each other's. */
 const TRANSFER = "transfer:";
 /** A handoff whose page never loaded (the tab was closed first) is removed after this long. */
-const TRANSFER_TTL = 10 * 60_000;
+export const TRANSFER_TTL = 10 * 60_000;
 /** This tab's sessionStorage names the page a handoff is for and its key, so only that page, loaded in this tab, takes it. */
 const FLAG = "mirkmap-handoff";
 
@@ -44,52 +42,90 @@ interface Transfer {
   at: number;
 }
 
-function open(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+/**
+ * Where handoffs are kept: `update` runs `work` on every record, by key, as one transaction, keeping what it leaves in the map. The
+ * browser's is IndexedDB (`browserStore`); tests pass their own.
+ */
+export interface HandoffStore {
+  update<T>(work: (records: Map<string, unknown>) => T): Promise<T>;
 }
 
-/** One transaction on the store; resolves with `done()` once it has committed. */
-async function transaction<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => () => T): Promise<T> {
-  const db = await open();
-  try {
-    return await new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(STORE, mode);
-      const done = work(tx.objectStore(STORE));
-      tx.oncomplete = () => resolve(done());
-      tx.onerror = tx.onabort = () => reject(tx.error);
-    });
-  } finally {
-    db.close();
-  }
+/** This tab's sessionStorage, or a stand-in. */
+export type TabStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+/** What the pages pass when nothing else is given: this browser's storage, its clock and random tokens. */
+export interface HandoffContext {
+  store: HandoffStore;
+  tab: TabStorage;
+  now: () => number;
+  token: () => string;
 }
+const browser = (): HandoffContext => ({
+  store: browserStore,
+  tab: sessionStorage,
+  now: Date.now,
+  token: () => crypto.randomUUID(),
+});
+
+const DB = "mirkmap-open";
+const STORE = "open";
+
+/**
+ * IndexedDB, the only place a browser keeps a folder handle. The store holds a few records (the last save and any handoffs in flight),
+ * so a transaction reads them all, lets `work` change the map, and writes back what changed.
+ */
+export const browserStore: HandoffStore = {
+  async update<T>(work: (records: Map<string, unknown>) => T): Promise<T> {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(DB, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(STORE);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise<T>((resolve, reject) => {
+        const tx = db.transaction(STORE, "readwrite");
+        const store = tx.objectStore(STORE);
+        let result: T;
+        const keys = store.getAllKeys(), values = store.getAll();
+        values.onsuccess = () => {
+          const before = new Map(keys.result.map((key, i) => [String(key), values.result[i]] as const));
+          const after = new Map(before);
+          result = work(after);
+          for (const key of before.keys()) if (!after.has(key)) store.delete(key);
+          for (const [key, value] of after) if (before.get(key) !== value) store.put(value, key);
+        };
+        tx.oncomplete = () => resolve(result);
+        tx.onerror = tx.onabort = () => reject(tx.error);
+      });
+    } finally {
+      db.close();
+    }
+  },
+};
 
 /** Keeps `handoff` as the save that is open, for the editor to open again next time it loads. */
-export async function remember(handoff: Handoff): Promise<void> {
-  await transaction("readwrite", (store) => (store.put(handoff, LAST), () => undefined));
+export async function remember(handoff: Handoff, { store } = browser()): Promise<void> {
+  await store.update((records) => void records.set(LAST, handoff));
 }
 
 /** Forgets the save open last, when a copy that is not kept is opened instead. */
-export async function forget(): Promise<void> {
-  await transaction("readwrite", (store) => (store.delete(LAST), () => undefined));
+export async function forget({ store } = browser()): Promise<void> {
+  await store.update((records) => void records.delete(LAST));
 }
 
 /** Keeps `handoff` for the page `to`, which this tab is about to open. */
-export async function handOff(handoff: Handoff, to: Page): Promise<void> {
-  const token = crypto.randomUUID();
-  const transfer: Transfer = { handoff, at: Date.now() };
-  await transaction("readwrite", (store) => (store.put(transfer, TRANSFER + token), () => undefined));
-  sessionStorage.setItem(FLAG, JSON.stringify({ to, token }));
+export async function handOff(handoff: Handoff, to: Page, { store, tab, now, token } = browser()): Promise<void> {
+  const key = token();
+  const transfer: Transfer = { handoff, at: now() };
+  await store.update((records) => void records.set(TRANSFER + key, transfer));
+  tab.setItem(FLAG, JSON.stringify({ to, token: key }));
 }
 
-/** The key of the handoff this tab made for `page`, taking it from sessionStorage. */
-function flagFor(page: Page): string | undefined {
-  const raw = sessionStorage.getItem(FLAG);
-  sessionStorage.removeItem(FLAG);
+/** The key of the handoff this tab made for `page`, taking it from the tab's storage. */
+function flagFor(page: Page, tab: TabStorage): string | undefined {
+  const raw = tab.getItem(FLAG);
+  tab.removeItem(FLAG);
   try {
     const flag: unknown = JSON.parse(raw ?? "null");
     if (!flag || typeof flag !== "object") return undefined;
@@ -100,34 +136,29 @@ function flagFor(page: Page): string | undefined {
   }
 }
 
+const isHandoff = (value: unknown): value is Handoff => !!value && typeof value === "object" && "save" in value && !!value.save;
+
 /**
  * What `page` opens as it loads: what the other page handed over in this tab, taken once; or, in the editor, the folder or library
- * world it had open last. `handed`: the other page handed it over.
+ * world it had open last. `handed`: the other page handed it over. Handoffs left behind longer than TRANSFER_TTL are removed.
  */
-export async function takeHandoff(page: Page): Promise<{ handoff: Handoff; handed: boolean } | undefined> {
-  const key = flagFor(page);
-  const now = Date.now();
-  return await transaction("readwrite", (store) => {
-    let handed: Handoff | undefined, last: Handoff | undefined;
-    const cursor = store.openCursor(IDBKeyRange.bound(TRANSFER, `${TRANSFER}\uffff`));
-    cursor.onsuccess = () => {
-      const c = cursor.result;
-      if (!c) return;
-      const transfer = c.value as Transfer;
-      if (c.key === key) handed = transfer.handoff;
-      if (c.key === key || !(now - transfer.at < TRANSFER_TTL)) c.delete();
-      c.continue();
-    };
-    if (page === "editor") {
-      const request = store.get(LAST);
-      request.onsuccess = () => last = request.result;
+export async function takeHandoff(
+  page: Page,
+  { store, tab, now } = browser(),
+): Promise<{ handoff: Handoff; handed: boolean } | undefined> {
+  const key = flagFor(page, tab);
+  const at = now();
+  return await store.update((records) => {
+    let handed: Handoff | undefined;
+    for (const [k, value] of [...records]) {
+      if (!k.startsWith(TRANSFER)) continue;
+      const transfer = value as Partial<Transfer> | undefined;
+      if (k === key) handed = transfer?.handoff;
+      if (k === key || !(at - (transfer?.at ?? 0) < TRANSFER_TTL)) records.delete(k);
     }
-    return () =>
-      handed?.save
-        ? { handoff: handed, handed: true }
-        : last?.save && last.save.kind !== "files"
-        ? { handoff: last, handed: false }
-        : undefined;
+    if (isHandoff(handed)) return { handoff: handed, handed: true };
+    const last = page === "editor" ? records.get(LAST) : undefined;
+    return isHandoff(last) && last.save.kind !== "files" ? { handoff: last, handed: false } : undefined;
   });
 }
 

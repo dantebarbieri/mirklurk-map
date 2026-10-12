@@ -14,6 +14,7 @@ import {
   identify,
   keyFromLink,
   LIBRARY_WORLDS,
+  libraryId,
   linkKey,
   MAX_UPLOAD,
   newPairCode,
@@ -122,6 +123,11 @@ export class Sharing {
   follow(id: string, name: string) {
     if (!WORLD_ID.test(id)) return;
     if (this.watching?.kind !== "world" || this.watching.id !== id) this.watch({ kind: "world", id, name });
+  }
+
+  /** The ID of the library this page uses (libraryId of its key); another tab may have switched to another since. */
+  library(): Promise<string> {
+    return libraryId(this.remembered.current.key);
   }
 
   private report(text: string, error = false) {
