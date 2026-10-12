@@ -3,22 +3,18 @@
 
 import art from "../src/artdata.json" with { type: "json" };
 import wikiArt from "../src/wikiart.json" with { type: "json" };
+import { bundle, concat, root } from "./shared.ts";
 
-const root = new URL("../", import.meta.url);
 const dist = new URL("dist/", root);
 
-async function bundle(entry: string): Promise<Uint8Array> {
-  const { success, stdout, stderr } = await new Deno.Command(Deno.execPath(), {
-    args: ["bundle", "--platform", "browser", "--minify", entry],
-    cwd: root,
-    stdout: "piped",
-    stderr: "piped",
-  }).output();
-  if (!success) {
-    console.error(new TextDecoder().decode(stderr));
+/** `entry` bundled and minified; a compile error stops the build. */
+async function minified(entry: string): Promise<Uint8Array> {
+  try {
+    return await bundle(entry, "--minify");
+  } catch (e) {
+    console.error((e as Error).message);
     Deno.exit(1);
   }
-  return stdout;
 }
 
 async function hash(bytes: Uint8Array) {
@@ -26,17 +22,9 @@ async function hash(bytes: Uint8Array) {
   return Array.from(d.slice(0, 5), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function concat(...parts: Uint8Array[]): Uint8Array {
-  const result = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
-  let offset = 0;
-  for (const part of parts) {
-    result.set(part, offset);
-    offset += part.length;
-  }
-  return result;
-}
-
-await Deno.remove(dist, { recursive: true }).catch(() => {});
+await Deno.remove(dist, { recursive: true }).catch((e) => {
+  if (!(e instanceof Deno.errors.NotFound)) throw e;
+});
 await Deno.mkdir(dist, { recursive: true });
 await Deno.mkdir(new URL("assets/game/", dist), { recursive: true });
 await Deno.mkdir(new URL("assets/wiki/", dist), { recursive: true });
@@ -52,7 +40,7 @@ for (const file of [...artFiles, ...icons, "manifest.webmanifest"]) {
   await Deno.copyFile(new URL(file, root), new URL(file, dist));
 }
 
-const js = await bundle("src/main.ts");
+const js = await minified("src/main.ts");
 const css = await Deno.readFile(new URL("style.css", root));
 const jsName = `app.${await hash(js)}.js`;
 const cssName = `style.${await hash(css)}.css`;
@@ -71,7 +59,7 @@ const html = await page("index.html", { 'href="style.css"': `href="${cssName}"`,
 await Deno.writeTextFile(new URL("index.html", dist), html);
 
 // The save editor at edit/: its own script and stylesheet on top of the map's (edit.html sets <base href="../">).
-const editJs = await bundle("src/editor/main.ts");
+const editJs = await minified("src/editor/main.ts");
 const editCss = await Deno.readFile(new URL("editor.css", root));
 const editJsName = `edit.${await hash(editJs)}.js`;
 const editCssName = `editor.${await hash(editCss)}.css`;
@@ -87,7 +75,7 @@ await Deno.writeTextFile(new URL("edit/index.html", dist), editHtml);
 
 // "" and "edit/" are the pages. Hashed names change with their content; the rest is part of the version so any change installs a new worker.
 const files = ["", "edit/", jsName, cssName, editJsName, editCssName, "manifest.webmanifest", ...icons, ...[...artFiles].sort()];
-const worker = await bundle("src/sw.ts");
+const worker = await minified("src/sw.ts");
 const unhashed = await Promise.all(["manifest.webmanifest", ...icons].map((file) => Deno.readFile(new URL(file, dist))));
 const encoder = new TextEncoder();
 const version = await hash(concat(encoder.encode(html + editHtml + JSON.stringify(files)), worker, ...unhashed));

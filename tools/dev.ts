@@ -3,8 +3,8 @@
 //   deno task dev            (saves default to ../Saves, override with MIRKLURK_SAVES)
 
 import { UploadStore } from "../server/uploads.ts";
+import { bundle, root } from "./shared.ts";
 
-const root = new URL("../", import.meta.url);
 const uploads = Deno.env.get("ENABLE_UPLOADS") === "true" ? new UploadStore(".uploads") : undefined;
 if (uploads) {
   await uploads.init();
@@ -14,19 +14,16 @@ const saves = Deno.env.get("MIRKLURK_SAVES") ??
   decodeURIComponent(new URL("../Saves/", root).pathname).replace(/^\/([A-Za-z]:)/, "$1").replace(/\/$/, "");
 const port = Number(Deno.env.get("PORT") ?? 8123);
 
-async function bundle(entry: string): Promise<Response> {
-  const { success, stdout, stderr } = await new Deno.Command(Deno.execPath(), {
-    args: ["bundle", "--platform", "browser", "--sourcemap=inline", entry],
-    cwd: root,
-    stdout: "piped",
-    stderr: "piped",
-  }).output();
-  if (!success) {
-    const msg = new TextDecoder().decode(stderr);
+/** `entry` bundled with a source map; a compile error is logged in the browser's console instead. */
+async function script(entry: string): Promise<Response> {
+  try {
+    const js = await bundle(entry, "--sourcemap=inline");
+    return new Response(js as BodyInit, { headers: { "content-type": "text/javascript", "cache-control": "no-store" } });
+  } catch (e) {
+    const msg = (e as Error).message;
     console.error(msg);
     return new Response(`console.error(${JSON.stringify(msg)})`, { headers: { "content-type": "text/javascript" } });
   }
-  return new Response(stdout as BodyInit, { headers: { "content-type": "text/javascript", "cache-control": "no-store" } });
 }
 
 async function listDir(dir: string, prefix = ""): Promise<string[]> {
@@ -54,8 +51,8 @@ Deno.serve({ hostname: "127.0.0.1", port }, async (req, info) => {
       : Response.json({ error: "Uploads are disabled; set ENABLE_UPLOADS=true to enable local sharing" }, { status: 503 });
   }
   try {
-    if (path === "/app.js") return await bundle("src/main.ts");
-    if (path === "/edit.js") return await bundle("src/editor/main.ts");
+    if (path === "/app.js") return await script("src/main.ts");
+    if (path === "/edit.js") return await script("src/editor/main.ts");
     if (/^\/assets\/(game|wiki)\/[a-z0-9_.]+\.png$/.test(path)) {
       return new Response(await Deno.readFile(new URL(path.slice(1), root)), {
         headers: { "content-type": "image/png", "cache-control": "public, max-age=31536000, immutable" },
@@ -71,7 +68,8 @@ Deno.serve({ hostname: "127.0.0.1", port }, async (req, info) => {
       });
     }
     const m = /^\/__saves\/([^/]+)\/(.*)$/.exec(path);
-    if (m && !m[2].split("/").includes("..") && !m[1].includes("..")) {
+    // The path is decoded, so "..\" counts as a step up too (Windows takes either separator).
+    if (m && !m[1].includes("..") && !m[2].split(/[\\/]/).includes("..")) {
       const dir = `${saves}/${m[1]}`;
       if (m[2] === "") return Response.json(await listDir(dir));
       return new Response(await Deno.readFile(`${dir}/${m[2]}`), {
