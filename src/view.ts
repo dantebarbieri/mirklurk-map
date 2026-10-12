@@ -2,7 +2,7 @@
 
 import { $, h, hex, s, tileImage } from "./dom.ts";
 import { cheatedTag, fromShareTag } from "./badges.ts";
-import { focusZone, MapView, markIcon, personSvg, zonesInView } from "./mapview.ts";
+import { focusZone, MapView, markIcon, personSvg, surveying, zonesInView } from "./mapview.ts";
 import type { Estimate } from "./estimate.ts";
 import {
   brambleMarks,
@@ -66,10 +66,10 @@ export interface State {
   /** Live mode only: where the player probably went after this save. */
   estimate?: Estimate | null;
   /**
-   * The save editor's Move tool: a click on a zone map's empty ground (not on a mark) calls this with the zone under it and the tile
-   * clicked, instead of selecting that zone.
+   * The save editor's Move tool: a click on a zone or interior map's empty ground (not on a mark) calls this with the zone under it,
+   * the tile clicked and, inside, the interior shown, instead of selecting that zone.
    */
-  onGround?: (zone: Zone, tx: number, ty: number) => void;
+  onGround?: (zone: Zone, tx: number, ty: number, inside?: Interior) => void;
 }
 
 /**
@@ -292,7 +292,7 @@ export function renderWorld(st: State) {
       ? "No saved terrain available. Open the full character folder or ZIP, including its area folders, for realistic mode."
       : ready < saved.length
       ? `Rendering saved terrain (${ready}/${saved.length})...`
-      : "Game terrain and saved scenery. Wheel to zoom, drag to pan, World to fit all zones. Pan a neighbouring zone into view, or click it, to inspect it. NPCs, creatures and carcasses remain markers; lighting and animation are not simulated.";
+      : "Game terrain and saved scenery. Wheel to zoom, drag to pan, World to fit all zones, the crosshair to zoom in on yourself. Pan a neighbouring zone into view, or click it, to inspect it. NPCs, creatures and carcasses remain markers; lighting and animation are not simulated.";
     artStatus.classList.toggle("error", problems.length > 0);
   };
   st.cleanup = st.terrain.subscribe(updateArt);
@@ -462,27 +462,67 @@ function zoneHeader(st: State, z: Zone) {
 /**
  * Lets the zone map pan into its neighbours. While the view moves, the zone it is about (`focusZone`) is previewed at
  * once in the grid, the title and the map's outline; its details open in place only when the view comes to rest, so a
- * pan across several zones loads just the last one and never interrupts the gesture.
+ * pan across several zones loads just the last one and never interrupts the gesture. A survey of several zones is about
+ * none of them, so it hides the outline.
  */
 function zoneFollower(st: State, z: Zone, outline: SVGElement) {
   let focus: [number, number] = [z.x, z.y], committed = focus;
+  const show = (next: [number, number]) => {
+    focus = next;
+    const n = st.world.zones[focus[1]][focus[0]];
+    markCell(n.x, n.y);
+    $("#zone > header")?.replaceWith(zoneHeader(st, n));
+    outline.setAttribute("x", String((n.x - z.x) * ROOM));
+    outline.setAttribute("y", String((n.y - z.y) * ROOM));
+  };
   return {
     view(view: [number, number, number]) {
+      outline.classList.toggle("survey", surveying(view[2]));
       const next = focusZone(view, [z.x, z.y], focus);
-      if (next === focus) return;
-      focus = next;
-      const n = st.world.zones[focus[1]][focus[0]];
-      markCell(n.x, n.y);
-      $("#zone > header")?.replaceWith(zoneHeader(st, n));
-      outline.setAttribute("x", String((n.x - z.x) * ROOM));
-      outline.setAttribute("y", String((n.y - z.y) * ROOM));
+      if (next !== focus) show(next);
     },
     settle() {
       if (focus[0] === committed[0] && focus[1] === committed[1]) return;
       committed = focus;
       renderZone(st, st.world.zones[focus[1]][focus[0]], true);
     },
+    /**
+     * Makes `zone` the selection at once (Locate); true when the map must be drawn for it: it is not this map's zone, or
+     * a settled pan is still drawing another one.
+     */
+    select(zone: [number, number]): boolean {
+      const drawing = committed[0] !== z.x || committed[1] !== z.y;
+      if (zone[0] !== focus[0] || zone[1] !== focus[1]) show(zone);
+      committed = focus;
+      return drawing || zone[0] !== z.x || zone[1] !== z.y;
+    },
   };
+}
+type Follower = ReturnType<typeof zoneFollower>;
+
+/**
+ * Locate, the opposite of World: zooms in on the player wherever they are. Inside somewhere known, that interior's map opens
+ * on them; outside, a zone map (which spans the world) moves to them at once and their zone's details follow, while an
+ * interior's map gives way to their zone's.
+ */
+function findPlayer(st: State, follow?: Follower) {
+  const world = st.world, you = playerSpot(st);
+  const z = world.zones[you.zone[1]]?.[you.zone[0]];
+  if (!z) return;
+  const inside = you.inside && you.at ? world.interiors.find((it) => it.dir === you.interior) : undefined;
+  if (inside && st.interiorDir === inside.dir) return activeMap?.locate();
+  if (!inside && follow && activeMap) {
+    const redraw = follow.select([z.x, z.y]);
+    // The map drawn next takes over this view and pulses them instead.
+    activeMap.locate(!redraw);
+    if (redraw) renderZone(st, z, true, true);
+    return;
+  }
+  st.viewport = st.inspected = undefined;
+  st.selected = [z.x, z.y];
+  markCell(z.x, z.y);
+  if (inside) renderInterior(st, z, inside, INTERIOR_NAMES[inside.kind ?? -1] ?? "Interior", true);
+  else renderZone(st, z, false, true);
 }
 
 /** Every zone's own map (or its water and land sketch) and the zone borders, laid out around z. */
@@ -565,9 +605,10 @@ function insideSummary(d: ZoneDetail): string {
 
 /**
  * Shows zone z. With `glide` (panning into it from the current zone map) the map stays on screen until the new one is
- * built, and the new one takes over the same view, inspection and open sections, so the move is seamless.
+ * built, and the new one takes over the same view, inspection and open sections, so the move is seamless. With `locate`
+ * the map zooms in on the player (see `findPlayer`).
  */
-async function renderZone(st: State, z: Zone, glide = false) {
+async function renderZone(st: State, z: Zone, glide = false, locate = false) {
   const my = ++token;
   const world = st.world;
   st.interiorDir = undefined;
@@ -670,12 +711,18 @@ async function renderZone(st: State, z: Zone, glide = false) {
       follow.view(view);
     },
     onSettle: follow.settle,
+    onLocate: () => {
+      layers.set("you", true);
+      findPlayer(st, follow);
+    },
     popup: { card: inspector, close },
   });
   activeMap = map;
   activeZone = [z.x, z.y];
-  const around = neighbourMarks(st, map, z, () => my === token, (added) => restoreInspection(added));
+  const grounds = groundOverlays(st, map, () => my === token);
+  const around = neighbourMarks(st, map, z, () => my === token, (added) => restoreInspection(added), grounds);
   if (st.viewport) map.restore(st.viewport);
+  if (locate) map.locate();
   // At once rather than debounced, so neighbours already on screen do not blink when gliding in.
   around.load();
   const restoreInspection = (available: Mark[]) => {
@@ -699,7 +746,7 @@ async function renderZone(st: State, z: Zone, glide = false) {
     const list = treeList.querySelector("details");
     if (list && wasOpen !== undefined) list.open = wasOpen;
     relist(gatherList, gatherLists(st, map, openInterior, plants));
-  });
+  }, grounds);
   const chips = layerChips(st, layers);
   map.el.append(mapLegend(st, layers));
   layers.listen(() => relist(gatherList, gatherLists(st, map, openInterior, plantMarks)));
@@ -747,8 +794,11 @@ function closeInspection(st: State, map: MapView, inspector: HTMLElement) {
   inspector.hidden = true;
 }
 
-/** Other zones' markers, loaded once each zone first scrolls into view (trees and gatherables only while shown). */
-function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean, onAdd: (marks: Mark[]) => void) {
+/**
+ * Other zones' markers, loaded once each zone first scrolls into view (trees and gatherables only while shown), and their
+ * ground overlays.
+ */
+function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean, onAdd: (marks: Mark[]) => void, grounds: Grounds) {
   const world = st.world;
   const loaded = new Set<string>(), treesLoaded = new Set<string>(), gatherLoaded = new Set<string>();
   const zoneOf = new Map<Mark, Zone>();
@@ -774,6 +824,7 @@ function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean
       const n = world.zones[y][x], k = key(x, y);
       if (!loaded.has(k)) {
         loaded.add(k);
+        if (n.dir) grounds.add(n.dir, (x - z.x) * ROOM, (y - z.y) * ROOM);
         const inners = interiorsOf(world, x, y);
         (n.dir ? loadDetail(world, n.dir) : Promise.resolve(null)).then((detail) =>
           add(n, [
@@ -864,7 +915,10 @@ function toggleAll(layers: Layers, ids: Switch[]) {
   for (const id of ids) layers.set(id, on);
 }
 
-/** The switches of a map. Trees and water load lazily, and only for outdoor zones; gatherables load lazily for any `dir`. */
+/**
+ * The switches of a map. Trees and water load lazily, and only for outdoor zones; gatherables load lazily for any `dir`.
+ * An outdoor zone's ground overlays join `grounds`, which also holds its neighbours'.
+ */
 function mapLayers(
   st: State,
   map: MapView,
@@ -872,6 +926,7 @@ function mapLayers(
   current: () => boolean,
   indoor = false,
   onPlants?: (plants: Mark[]) => void,
+  grounds?: Grounds,
 ): Layers {
   const all = LAYERS.map((l) => l.id);
   showLayers(st, map, all);
@@ -906,28 +961,9 @@ function mapLayers(
       treesChanged();
     }
   };
-  let thornsRequest = 0;
-  const setThorns = async () => {
-    const request = ++thornsRequest;
-    const tiles = THORN_TILES.filter(([l]) => st.prefs.layers.has(l)).map(([, t]) => t);
-    const url = outdoor && tiles.length ? await thornsUrl(st.world, dir!, tiles) : null;
-    if (current() && request === thornsRequest) map.setOverlay("thorns", url);
-  };
-  const setWater = async () => {
-    const url = st.prefs.water && outdoor ? await waterUrl(st.world, dir!) : null;
-    if (current()) map.setOverlay("water", url);
-  };
-  let fernsRequest = 0;
-  const setFerns = async () => {
-    const request = ++fernsRequest;
-    const url = st.prefs.layers.has("ferns") && outdoor ? await fernsUrl(st.world, dir!) : null;
-    if (current() && request === fernsRequest) map.setOverlay("ferns", url);
-  };
   if (outdoor) {
     if ([...PLANT_LAYERS].some((l) => st.prefs.layers.has(l))) loadTreesOnce();
-    setThorns();
-    if (st.prefs.water) setWater();
-    if (st.prefs.layers.has("ferns")) setFerns();
+    grounds?.add(dir!);
   }
   if ([...GATHER_LAYERS].some((l) => st.prefs.layers.has(l))) loadGatherOnce();
   const on = (id: Switch) => id === "water" ? st.prefs.water : st.prefs.layers.has(id);
@@ -935,14 +971,13 @@ function mapLayers(
     if (on(id) === show) return;
     if (id === "water") {
       st.prefs.water = show;
-      setWater();
+      grounds?.update();
     } else {
       if (show) st.prefs.layers.add(id);
       else st.prefs.layers.delete(id);
       if (PLANT_LAYERS.has(id) && show) loadTreesOnce();
       if (GATHER_LAYERS.has(id) && show) loadGatherOnce();
-      if (THORN_TILES.some(([t]) => t === id)) setThorns();
-      if (id === "ferns") setFerns();
+      if (id === "ferns" || THORN_TILES.some(([t]) => t === id)) grounds?.update();
       showLayers(st, map, all);
     }
     for (const f of listeners) f();
@@ -1212,6 +1247,40 @@ async function thornsUrl(world: World, dir: string, tiles: number[]): Promise<st
   });
 }
 
+/**
+ * The ground overlays (thorny ground, water, ferns) of each outdoor zone a map has shown, placed where the zone sits on it
+ * and following the switches: a zone's own as its map opens, its neighbours' as each first comes into view.
+ */
+function groundOverlays(st: State, map: MapView, current: () => boolean) {
+  const zones: [dir: string, x: number, y: number][] = [];
+  /** What each overlay shows or is loading ("" for nothing), so a switch only redraws the overlays it changes. */
+  const shown = new Map<string, string>();
+  const paint = async (id: string, what: string, x: number, y: number, url: () => Promise<string | null>) => {
+    if ((shown.get(id) ?? "") === what) return;
+    shown.set(id, what);
+    const src = what ? await url() : null;
+    if (current() && shown.get(id) === what) map.setOverlay(id, src, x, y);
+  };
+  const draw = ([dir, x, y]: [string, number, number]) => {
+    const at = `${x / ROOM},${y / ROOM}`;
+    const tiles = THORN_TILES.filter(([l]) => st.prefs.layers.has(l)).map(([, t]) => t);
+    paint(`thorns ${at}`, tiles.join(), x, y, () => thornsUrl(st.world, dir, tiles));
+    paint(`water ${at}`, st.prefs.water ? "on" : "", x, y, () => waterUrl(st.world, dir));
+    paint(`ferns ${at}`, st.prefs.layers.has("ferns") ? "on" : "", x, y, () => fernsUrl(st.world, dir));
+  };
+  return {
+    /** An outdoor zone's folder, its top left at (x, y) on the map. */
+    add(dir: string, x = 0, y = 0) {
+      const zone: [string, number, number] = [dir, x, y];
+      zones.push(zone);
+      draw(zone);
+    },
+    /** Follows a change of the switches. */
+    update: () => zones.forEach(draw),
+  };
+}
+type Grounds = ReturnType<typeof groundOverlays>;
+
 const TRUNK_FILTERS: [number, string][] = [
   [0, "All"],
   [2, "Half Dead or drier"],
@@ -1306,7 +1375,8 @@ function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => voi
 
 const rank = (m: Mark) => (m.kind === "landmark" ? 0 : m.kind.startsWith("entrance explored") ? 1 : m.kind.startsWith("entrance") ? 2 : 3);
 
-async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
+/** Shows interior `it` of zone z; with `locate` the map zooms in on the player (see `findPlayer`). */
+async function renderInterior(st: State, z: Zone, it: Interior, name: string, locate = false) {
   const my = ++token;
   activeMap?.dispose();
   activeZone = undefined;
@@ -1370,14 +1440,23 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
       ? new TerrainRaster(st.terrain, [{ dir: it.dir, kind: it.kind, solids: it.solids, x: 0, y: 0, label: kind }])
       : undefined,
     view,
+    onMapClick: (px: number, py: number) => {
+      const tx = Math.floor(px / (ROOM / TILES)), ty = Math.floor(py / (ROOM / TILES));
+      if (st.onGround && tx >= 0 && ty >= 0 && tx < TILES && ty < TILES) st.onGround(z, tx, ty, it);
+    },
     marks,
     heats: [],
     player: you.interior === it.dir && you.at ? youMark(st, you, you.at[0], you.at[1], youLabel(st, you, false)) : undefined,
     onOpen: open,
+    onLocate: () => {
+      layers.set("you", true);
+      findPlayer(st);
+    },
     popup: { card: inspector, close },
   });
   activeMap = map;
   if (st.viewport) map.restore(st.viewport);
+  if (locate) map.locate();
   const inspected = [...marks, ...(map.you ? [map.you] : [])].find((m) => markKey(m) === st.inspected);
   if (inspected) inspect(inspected, st.expanded);
   const gatherList = h("div", { class: "lists" });
