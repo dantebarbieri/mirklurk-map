@@ -1456,10 +1456,14 @@ svg.map.panning [data-i] {
   stroke: #cebbae88;
   stroke-width: 1px;
 }
-/* The zone whose details are listed, coloured like the selected grid cell. */
+/* The zone whose details are listed, coloured like the selected grid cell; a survey of several zones fades it out. */
 .zone-focus {
   stroke: var(--gold);
   stroke-width: 2px;
+  transition: opacity .15s;
+}
+.zone-focus.survey {
+  opacity: 0;
 }
 .heat {
   opacity: .9;
@@ -1530,8 +1534,9 @@ svg.map.panning [data-i] {
   background: rgba(255, 255, 255, .1);
 }
 
-/* Full-screen button: corners pointing out, or in while the map is full screen. */
-.zoom.full svg {
+/* Full-screen button: corners pointing out, or in while the map is full screen. Locate: a crosshair. */
+.zoom.full svg,
+.zoom.locate svg {
   display: block;
   width: 14px;
   height: 14px;
@@ -1541,6 +1546,10 @@ svg.map.panning [data-i] {
   stroke-width: 1.6px;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.zoom.locate .dot {
+  fill: currentColor;
+  stroke: none;
 }
 .zoom.full .leave,
 .zoom.full[aria-pressed="true"] .enter {
@@ -2326,6 +2335,33 @@ body.map-full #zone > .inspection.sheet > .close {
 }
 .marks .pt.you.sel.sel > .you-fill {
   stroke: var(--you-line, #f4efe6);
+}
+/* Located: the halo rings out in gold twice (PING_MS in mapview.ts), or just glows without motion. */
+.marks .pt.you.ping > .you-halo {
+  animation: you-ping .75s ease-out 2;
+}
+@keyframes you-ping {
+  from {
+    stroke: #ffd34d;
+    stroke-width: 3px;
+    stroke-opacity: 1;
+  }
+  to {
+    stroke: #ffd34d;
+    stroke-width: 22px;
+    stroke-opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marks .pt.you.ping > .you-halo {
+    animation: none;
+    stroke: #ffd34d;
+    stroke-width: 4px;
+    stroke-opacity: 1;
+  }
+  .zone-focus {
+    transition: none;
+  }
 }
 .pt.you text {
   fill: #fff;
