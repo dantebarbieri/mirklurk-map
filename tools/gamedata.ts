@@ -2,7 +2,8 @@
 //
 //   deno run -R -W --allow-run tools/gamedata.ts "<game dir>" "<dir with sprites.json from dump_meta.csx>"
 //
-// Only short factual labels and sprite bounding boxes are copied; no game art or code.
+// Short factual labels, the journal's text (copied with the developer's permission) and sprite bounding boxes are copied; no game
+// art or code.
 
 const [gameDir, metaDir] = Deno.args;
 if (!gameDir || !metaDir) {
@@ -71,6 +72,15 @@ export const ITEM_NAMES: Record<number, string> = ${table(numbered(items.get("It
 
 /** [DamageClasses] in UI.ini: damage class names keyed by damageClass value. */
 export const DAMAGE_CLASS_NAMES: Record<number, string> = ${table(numbered(ui.get("DamageClasses")))};
+
+/** [Journal] First in UI.ini: the entry every journal starts with. */
+export const JOURNAL_FIRST = ${JSON.stringify(ui.get("Journal")?.get("First") ?? "")};
+
+/** [Journal] in UI.ini: the entry each main-quest stage adds; "CCC" stands for a place the game fills in. */
+export const JOURNAL: Record<number, string> = ${table(numbered(ui.get("Journal")))};
+
+/** [ToTheDir] in Bestiary.ini: directions the journal fills in, keyed 0 north, 1 south, 2 east, 3 west. */
+export const TO_THE_DIR: Record<number, string> = ${table(numbered(bestiary.get("ToTheDir")))};
 
 /** Sprite geometry: [width, height, originX, originY, bboxLeft, bboxRight, bboxTop, bboxBottom]. */
 export const SPRITES: Record<string, readonly number[]> = ${table(spriteTable)};

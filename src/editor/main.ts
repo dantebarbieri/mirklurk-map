@@ -74,7 +74,8 @@ import {
   waterText,
   wetMap,
 } from "./raft.ts";
-import { disposeView, rememberView, renderWorld, type State, worldState } from "../view.ts";
+import { disposeView, rememberView, renderWorld, showJournalTarget, type State, worldState } from "../view.ts";
+import type { JournalTarget } from "../journal.ts";
 import { LAYERS } from "../objects.ts";
 import { setFullMap } from "../fullscreen.ts";
 import { ask, type Choice, choose } from "../dialog.ts";
@@ -111,6 +112,8 @@ let view: View = "edit";
 let map: { state: State; urls: string[] } | undefined;
 /** The full map's Move tool is on: a click on its empty ground moves you there. */
 let moving = false;
+/** A person or place from the preview's journal for the full map to show once it is drawn. */
+let mapTarget: JournalTarget | undefined;
 /** The full map's layers and modes, kept while the page is open. */
 const mapPrefs: State["prefs"] = {
   layers: new Set(LAYERS.filter((l) => l.on).map((l) => l.id)),
@@ -1556,6 +1559,9 @@ async function renderMap(my: number) {
     map = { state: Object.assign(next.state, place), urls: next.urls };
     setMoving(moving);
     renderWorld(map.state);
+    const target = mapTarget;
+    mapTarget = undefined;
+    if (target) await showJournalTarget(map.state, target);
   } catch (e) {
     console.error(e);
     note("fullmap", `Could not draw the map: ${errorText(e)}`, true);
@@ -1666,7 +1672,16 @@ function previewCard(v: PlayerSave): HTMLElement {
     "section",
     { class: "edit-card edit-preview", "aria-labelledby": "card-preview" },
     h("h3", { id: "card-preview" }, session!.changes.length ? "Preview with unsaved changes" : "As saved"),
-    ...playerView(v, { key: "editor", expanded, difficulty: v.difficulty }),
+    ...playerView(v, {
+      key: "editor",
+      expanded,
+      difficulty: v.difficulty,
+      // The journal's people and places are shown on the full map.
+      find: (t) => {
+        mapTarget = t;
+        showView("map");
+      },
+    }),
   );
 }
 

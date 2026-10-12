@@ -10,6 +10,7 @@ import { beingImage, entityWiki, itemImage, itemWiki, placeImage, type WikiImage
 import { creatureView } from "./creature.ts";
 import { merchantView, sells } from "./merchants.ts";
 import { playerView } from "./player.ts";
+import type { FindTarget } from "./journal.ts";
 
 const wikiAnchor = (url: string, cls: string, label: string) =>
   h("a", {
@@ -143,6 +144,8 @@ export interface SectionContext {
   expanded?: Set<string>;
   /** The save's difficulty (PlayerSave.difficulty), when known. */
   difficulty?: number;
+  /** Shows a person or place the journal mentions on the map; without it they are plain text. */
+  find?: FindTarget;
 }
 
 /** A collapsible section that stays open across re-renders (see `openSections` in view.ts). */
@@ -161,12 +164,14 @@ export interface InspectOptions {
   close?: () => void;
   /** The save's difficulty, for how well beings aim. */
   difficulty?: number;
+  /** Shows a person or place the player's journal mentions on the map. */
+  find?: FindTarget;
 }
 
-export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close, difficulty }: InspectOptions = {}) {
+export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close, difficulty, find }: InspectOptions = {}) {
   panel.hidden = false;
   const img = markImage(m);
-  const ctx: SectionContext = { key: `inspection:${markKey(m)}`, expanded, difficulty };
+  const ctx: SectionContext = { key: `inspection:${markKey(m)}`, expanded, difficulty, find };
   // Carcasses carry their creature's index too, but they are loot, not a living being.
   const being = m.being !== undefined && !m.inventory ? m.being : undefined;
   panel.replaceChildren(

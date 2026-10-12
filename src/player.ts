@@ -556,6 +556,6 @@ export function playerView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
       inventoryView(p.inventory, `${ctx.key}/inventory`, ctx.expanded, equippedBadge(p)),
       h("p", { class: "muted" }, "As saved. E marks what you wear or hold (dashed: your other weapon set); the rest is in your bags."),
     ),
-    section(ctx, "journal", "Journal", true, ...journalView(p, `${ctx.key}/journal`, ctx.expanded)),
+    section(ctx, "journal", "Journal", true, ...journalView(p, `${ctx.key}/journal`, ctx.expanded, ctx.find)),
   ];
 }
