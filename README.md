@@ -12,7 +12,8 @@ save folder and it shows:
   Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rafts (placed ones, Raft Bases, and the one you stand on), rifts,
   large boulders and ruin rubble. Creatures, small rocks, trees, brambles, rift vines, sharp ground, a water overlay and gatherables
   (Calmia, Turnips, Cranberries, Watercress, Water Lilies, Vile Bulbs, bird nests and ferns) can be switched on. Click an explored entrance
-  to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your wellbeing and inventory.
+  to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your wellbeing, inventory and
+  journal.
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -298,7 +299,24 @@ them, wet clothing, level, XP to the next level and unspent skill points. **Inve
 container, each worn or held item marked **E** (with its slot on hover; dashed for the weapon set not in hand, since worn vests, pants and
 belts have pockets too), under a roll-up of every coin carried, bags included: **True coins** shows them as they are, **Minimum coins** the
 same value in the fewest coins (100 copper make a silver, 10 silver a gold). The choice is kept for the session and applies to every
-roll-up, including the one in **Saved equipment & inventory**. Everything is the state at save time; the game keeps changing it every turn.
+roll-up, including the one in **Saved equipment & inventory**. **Journal** shows your journal (see below). Everything is the state at save
+time; the game keeps changing it every turn.
+
+### Journal
+
+Expand **Journal** under the map, or inspect yourself, to read your character's journal as the game lists it after loading the save. The
+newest entry, the one the game opens the journal on, comes first, and **Earlier entries** lists the rest from Entry 1. The panel's title
+names the newest entry, so it shows your progress even when closed. Each entry gets a short title and is summarised in MirkMap's own words
+rather than copied from the game. Where the game fills in a place, MirkMap fills it in the same way: the direction of Bhato's zone from Fort
+Solid in the entry that sends you to him, and the map coordinates of the Library's and Scaal's zones in the entries that send you there.
+Only entries you have reached are shown; the wiki's _Quests and journal_ link covers the rest of the story, spoilers included.
+
+The game keeps no journal text in the save, only the main quest's stage (`mainQ` in `Player.save`), and rebuilds the journal from it on
+loading (`journal_update` in `gml_GlobalScript_scr_basic_useful`). Entry 1 is the same for everyone (`UI.ini [Journal] First`), and each
+stage from 0 up to the saved one adds the entry `[Journal]` has for it. Stages −10 to −6 are the opening tutorial and −5 means it is over or
+was skipped, so the journal holds only Entry 1 until stage 0. Stages 14 (Viend reaches Captain Eir), 21 and 22 (the talk with Commander Tain
+and the blast that ends it) and 27 (Eir hands over the Summoning Stone) have no text, so they add no entry; MirkMap says what such a stage
+means under the newest entry. The save editor's preview and its **Full map** show the same journal, which edits do not change.
 
 ### Trees: trunk liveliness and chopping cost
 

@@ -318,13 +318,15 @@ body.loaded main > * {
   font-size: 12px;
 }
 .inventory-panel,
+.journal-panel,
 .inspection {
   margin-top: 14px;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 4px;
 }
-.inventory-panel summary {
+.inventory-panel summary,
+.journal-panel summary {
   cursor: pointer;
   color: var(--gold2);
 }
@@ -873,6 +875,49 @@ body.loaded main > * {
 .player-level {
   margin: 6px 0;
   font-size: 13px;
+}
+/* The journal (journal.ts): its newest entry, then the earlier ones under a collapsible list. */
+.journal-latest .journal-entry {
+  margin: 6px 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--gold2);
+  background: rgba(255, 243, 178, .04);
+}
+.journal-entry-head {
+  color: var(--gold2);
+}
+.journal-entry-head strong {
+  color: var(--gold);
+}
+.journal-text {
+  margin: 2px 0 0;
+}
+.journal-note {
+  margin: 6px 0;
+  font-size: 13px;
+}
+.journal-earlier {
+  margin: 6px 0;
+}
+.journal-earlier summary {
+  cursor: pointer;
+  color: var(--gold2);
+}
+.journal-entries {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+  font-size: 13px;
+}
+.journal-entries .journal-entry {
+  margin: 8px 0;
+}
+.journal-about {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+.journal-about .wiki {
+  margin-left: 0;
 }
 .player-armor {
   margin: 8px 0 4px;

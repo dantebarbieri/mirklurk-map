@@ -25,6 +25,7 @@ import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts";
 import { coinRollup, equippedBadge } from "./player.ts";
+import { journalHeadline, journalView } from "./journal.ts";
 import { skyChip, skyPanel } from "./skyview.ts";
 import { entityWiki } from "./wiki.ts";
 import type { FileMap } from "./files.ts";
@@ -313,6 +314,12 @@ export function renderWorld(st: State) {
         h("summary", {}, "Saved equipment & inventory"),
         coinRollup(p.inventory),
         inventoryView(p.inventory, "player", st.expanded, equippedBadge(p)),
+      ),
+      h(
+        "details",
+        { class: "journal-panel", "data-remember": "journal", open: st.expanded?.has("journal") },
+        h("summary", {}, "Journal", h("span", { class: "muted" }, ` · ${journalHeadline(p)}`)),
+        journalView(p, "journal", st.expanded),
       ),
       warn,
     ),
