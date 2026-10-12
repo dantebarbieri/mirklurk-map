@@ -5,7 +5,7 @@ COPY src ./src
 COPY icons ./icons
 COPY assets/game ./assets/game
 COPY assets/wiki ./assets/wiki
-COPY tools/build.ts ./tools/build.ts
+COPY tools/build.ts tools/shared.ts ./tools/
 RUN deno run --allow-read --allow-write --allow-run --allow-env tools/build.ts
 
 FROM denoland/deno:2.9.7 AS uploads
