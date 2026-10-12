@@ -5,6 +5,7 @@ import {
   keyFromLink,
   linkKey,
   MAX_FILES,
+  MAX_SAVE,
   MAX_UPLOAD,
   newPairCode,
   newToken,
@@ -39,11 +40,15 @@ function fixture(name = "Hero", cell = 1): FileMap {
 }
 const packet = (name = "Hero", cell = 1) => packSave(fixture(name, cell), { name, root: `Saves/${name}/` });
 const idOf = (name = "Hero", cell = 1) => worldId(name, grid(cell));
+const through = async (bytes: Uint8Array, stream: CompressionStream | DecompressionStream) =>
+  new Uint8Array(await new Response(new Blob([bytes as BlobPart]).stream().pipeThrough(stream)).arrayBuffer());
+const inflate = (bytes: Uint8Array) => through(bytes, new DecompressionStream("gzip"));
+const deflate = (bytes: Uint8Array) => through(bytes, new CompressionStream("gzip"));
 
 Deno.test("sharing: package only selected character with immutable file bytes and timestamps", async () => {
   const files = fixture();
   const bytes = await packet();
-  const unpacked = unpackSave(bytes);
+  const unpacked = await unpackSave(bytes);
   assertEquals(unpacked.name, "Hero");
   assertEquals(unpacked.grid, grid(1));
   assertEquals(findCharacters(unpacked.files), [{ name: "Shared", root: "Shared/" }]);
@@ -113,10 +118,47 @@ Deno.test("sharing: reject path traversal, duplicates, multiple characters and m
   await assertRejects(() => unpackSave(new Uint8Array(MAX_UPLOAD + 1)), /64 MiB/);
   await assertRejects(() => unpackSave(new Uint8Array([255, 255, 255, 255])), /manifest size/);
   await assertRejects(() => unpackSave(frame({ name: "Hero", entries: [{ path: "Player.save", size: 2, modified: 0 }] }, encode("[]"))));
-  const { header, body } = unframe(await packet());
+  const { header, body } = unframe(await inflate(await packet()));
   assert(header && typeof header === "object" && "entries" in header && Array.isArray(header.entries));
   header.entries.push(header.entries[0]);
   await assertRejects(() => unpackSave(frame(header, body)), /Invalid save file entry/);
+});
+
+Deno.test("sharing: packages are gzip-compressed, and uncompressed ones from older clients still read", async () => {
+  const packed = await packet();
+  assertEquals([packed[0], packed[1]], [0x1f, 0x8b]);
+  const raw = await inflate(packed);
+  assertEquals(raw.length, new DataView(packed.buffer, packed.byteOffset + packed.length - 4).getUint32(0, true));
+  assertEquals((await unpackSave(raw)).name, "Hero");
+  assertEquals((await unpackSave(await deflate(raw))).grid, grid(1));
+});
+
+Deno.test("sharing: a save larger than the upload limit fits once compressed", async () => {
+  const files = fixture();
+  const big = new Uint8Array(MAX_UPLOAD + 1024 * 1024);
+  files.set("Saves/Hero/[ 0,0 ]/Zone.save", { read: () => Promise.resolve(big) });
+  const packed = await packSave(files, { name: "Hero", root: "Saves/Hero/" });
+  assert(packed.length < MAX_UPLOAD);
+  assertEquals((await (await unpackSave(packed)).files.get("Shared/[ 0,0 ]/Zone.save")!.read()).length, big.length);
+});
+
+Deno.test("sharing: decompression is bounded by the declared size and rejects a stream that disagrees with it", async () => {
+  const packed = await packet();
+  const declare = (size: number) => {
+    const copy = packed.slice();
+    new DataView(copy.buffer).setUint32(copy.length - 4, size, true);
+    return copy;
+  };
+  await assertRejects(() => unpackSave(declare(MAX_SAVE + 1)), /256 MiB/);
+  await assertRejects(() => unpackSave(declare(0xffffffff)), /256 MiB/);
+  const size = new DataView(packed.buffer).getUint32(packed.length - 4, true);
+  await assertRejects(() => unpackSave(declare(size - 1)), /Invalid compressed save/);
+  await assertRejects(() => unpackSave(declare(size + 1)), /Invalid compressed save/);
+  const corrupt = packed.slice();
+  corrupt[12] ^= 0xff;
+  await assertRejects(() => unpackSave(corrupt), /Invalid compressed save/);
+  await assertRejects(() => unpackSave(packed.subarray(0, 10)), /Invalid compressed save/);
+  await assertRejects(() => unpackSave(new Uint8Array([...packed, ...packed])), /Invalid compressed save/);
 });
 
 Deno.test("sharing: IP quotas normalize mapped IPv4 and IPv6 privacy addresses", () => {
@@ -130,7 +172,7 @@ Deno.test("sharing: package byte and file-count limits accept their exact bounda
   const player = await fixture().get("Saves/Hero/Player.save")!.read();
   const entries = [{ path: "Player.save", size: player.length, modified: 0 }];
   for (let i = 1; i < MAX_FILES; i++) entries.push({ path: `area/${i}.save`, size: 0, modified: 0 });
-  assertEquals(unpackSave(frame({ name: "Hero", entries }, player)).files.size, MAX_FILES);
+  assertEquals((await unpackSave(frame({ name: "Hero", entries }, player))).files.size, MAX_FILES);
   const largeEntries = [
     { path: "Player.save", size: player.length, modified: 0 },
     { path: "Maps/0_0.png", size: MAX_UPLOAD, modified: 0 },
@@ -141,7 +183,7 @@ Deno.test("sharing: package byte and file-count limits accept their exact bounda
   body.set(player);
   const exact = frame({ name: "Hero", entries: largeEntries }, body);
   assertEquals(exact.length, MAX_UPLOAD);
-  assertEquals(unpackSave(exact).files.size, 2);
+  assertEquals((await unpackSave(exact)).files.size, 2);
   await assertRejects(
     () =>
       unpackSave(
@@ -606,7 +648,7 @@ Deno.test("sharing service: the Cheated mark sticks to a world for good and trav
     const marked = await packSave(files, { name: "Hero", root: "Saves/Hero/" });
     const put = (key: string, body: Uint8Array) => ctx.request("PUT", `/library/worlds/${id}`, { key, body: body as BodyInit });
     const markerOf = async (bytes: Uint8Array) => {
-      const unpacked = unpackSave(bytes);
+      const unpacked = await unpackSave(bytes);
       const src = unpacked.files.get("Shared/MirkMap.json");
       return src ? new TextDecoder().decode(await src.read()) : undefined;
     };
@@ -623,7 +665,7 @@ Deno.test("sharing service: the Cheated mark sticks to a world for good and trav
     assertEquals(second.cheated, true);
     const restored = new Uint8Array(await (await ctx.request("GET", "/view/data", { key: second.share })).arrayBuffer());
     assert(cheatedInfo(await markerOf(restored)), "the share carries the mark");
-    assertEquals(unpackSave(restored).files.size, unpackSave(plain).files.size + 1);
+    assertEquals((await unpackSave(restored)).files.size, (await unpackSave(plain)).files.size + 1);
     assertEquals(second.size, restored.length);
 
     // Deleted, after a restart and past expiry, then added again to the same library: still marked.

@@ -233,7 +233,7 @@ Deno.test({
       assertEquals(put.status, 201, `${entry.name}: ${await put.clone().text()}`);
       assertEquals((await put.json()).fromShare, undefined);
       const data = await request("GET", `/library/worlds/${id}/data`);
-      const unpacked = unpackSave(new Uint8Array(await data.arrayBuffer()));
+      const unpacked = await unpackSave(new Uint8Array(await data.arrayBuffer()));
       const zip = await saveZip(unpacked.name, unpacked.files, "Shared/");
       assertEquals(zip.folder, entry.name);
       const back = await unzip(zip.blob);
