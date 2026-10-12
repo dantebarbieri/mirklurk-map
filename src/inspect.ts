@@ -1,4 +1,5 @@
-import { h } from "./dom.ts";
+import { h, s } from "./dom.ts";
+import art from "./artdata.json" with { type: "json" };
 import { ITEM_NAMES } from "./gamedata.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { type Mark, markKey } from "./objects.ts";
@@ -26,26 +27,51 @@ export function wikiLink(url: string | undefined, label = "Wiki") {
 /** A heading's text as the link to its wiki page (dotted like other links), or plain text without one. */
 export const wikiTitle = (url: string | undefined, text: string) => url ? wikiAnchor(url, "link", text) : text;
 
+interface GameImage {
+  file: string;
+  w: number;
+  h: number;
+  frames: number;
+  frame: number;
+}
+
+const raftImage: GameImage = { ...art.sprites.spr_placed_16x16_wider, frame: 1 };
+
 /**
- * A wiki picture fitted to a w×h box, never enlarged past whole pixels so the pixel art stays crisp; `fill` keeps the
+ * A bundled picture fitted to a w×h box, never enlarged past whole pixels so the pixel art stays crisp; `fill` keeps the
  * whole box (the picture centred in it) so a column of them lines up.
  */
-export function picture(img: WikiImage, alt: string, cls: string, w: number, h_: number, fill = false) {
+export function picture(img: WikiImage | GameImage, alt: string, cls: string, w: number, h_: number, fill = false) {
   const fit = Math.min(w / img.w, h_ / img.h);
   const k = fit >= 1 ? Math.floor(fit) : fit;
+  const size = { width: fill ? w : Math.round(img.w * k), height: fill ? h_ : Math.round(img.h * k) };
+  if ("frame" in img) {
+    return s(
+      "svg",
+      { class: cls, ...size, viewBox: `${img.frame * img.w} 0 ${img.w} ${img.h}`, overflow: "hidden", role: "img", "aria-label": alt },
+      s("title", {}, `${alt} (picture from the game; art by Edym Pixels)`),
+      s("image", { href: img.file, width: img.w * img.frames, height: img.h }),
+    );
+  }
   return h("img", {
     class: cls,
     src: img.file,
-    width: fill ? w : Math.round(img.w * k),
-    height: fill ? h_ : Math.round(img.h * k),
+    ...size,
     alt,
     decoding: "async",
     title: alt ? `${alt} (picture from the wiki)` : undefined,
   });
 }
 
-/** The wiki's picture of what a mark is: a creature or NPC, an item, or a quest building. */
-const markImage = (m: Mark) => m.being !== undefined ? beingImage(m.being) : m.item !== undefined ? itemImage(m.item) : placeImage(m.name);
+/** Finished rafts are world tiles, not inventory items; all other pictures come from the wiki. */
+export const markImage = (m: Mark) =>
+  m.layer === "rafts" && m.item === 171
+    ? raftImage
+    : m.being !== undefined
+    ? beingImage(m.being)
+    : m.item !== undefined
+    ? itemImage(m.item)
+    : placeImage(m.name);
 
 function itemRow(item: SavedItem, key: string, expanded?: Set<string>, badge?: Node | null): HTMLElement {
   const name = ITEM_NAMES[item.index] ?? `Item ${item.index}`;

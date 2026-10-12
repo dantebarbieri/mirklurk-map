@@ -10,6 +10,7 @@ import {
   gestureView,
   mapBounds,
   nearestBox,
+  RAFT_ICON,
   revealShift,
   SHEET_TOP,
   sheetHeights,
@@ -176,6 +177,16 @@ Deno.test("creature icons: bigger than the old dot, inside the 16px symbol box a
     assert(Math.abs(body.left + body.right) <= 2 && Math.abs(body.top + body.bottom) <= 2, `${name} centred: ${JSON.stringify(body)}`);
     assert(Math.max(body.right - body.left, body.bottom - body.top) >= 10, `${name} is an icon, not a dot`);
   }
+});
+
+Deno.test("raft icons: lashed crossbars, deck and paddle fit the shared 16px map, legend and list symbol", () => {
+  for (const [part, d] of Object.entries(RAFT_ICON)) {
+    const box = extent(pathPoints(d));
+    assert(Math.max(-box.left, -box.top, box.right, box.bottom) <= 7.3, `${part} fits with its outline: ${JSON.stringify(box)}`);
+  }
+  const deck = extent(pathPoints(RAFT_ICON.deck)), bars = extent(pathPoints(RAFT_ICON.bars));
+  assert(deck.bottom - deck.top > 12 && deck.right - deck.left > 12);
+  assert(bars.bottom - bars.top > 10 && bars.right - bars.left > 13);
 });
 
 Deno.test("bottom sheet: half and full heights fit the content and leave the top strip", () => {

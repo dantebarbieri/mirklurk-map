@@ -346,7 +346,7 @@ body.loaded main > * {
 .inspect-head p {
   margin: 4px 0 0;
 }
-/* Wiki pictures are pixel art: kept crisp, on a soft light ground so dark sprites read on the dark card. */
+/* Wiki and game pictures are pixel art: kept crisp, on a soft light ground so dark sprites read on the dark card. */
 .portrait {
   flex: none;
   box-sizing: content-box;
@@ -2034,9 +2034,6 @@ body.map-full #zone > .inspection.sheet > .close {
 .lists .sym.camp {
   background: var(--gurb);
 }
-.lists .sym.raft {
-  background: #b07a45;
-}
 .lists .sym.exit {
   background: #fff;
 }
@@ -2114,12 +2111,28 @@ body.map-full #zone > .inspection.sheet > .close {
   fill: var(--gurb);
 }
 .pt.raft > :not(text) {
-  fill: #b07a45;
+  stroke-width: .8px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  paint-order: stroke;
 }
-.pt.raft.base > :not(text) {
-  fill: rgba(18, 14, 15, .6);
-  stroke: #b07a45;
-  stroke-width: 2px;
+.raft .raft-deck {
+  fill: #75605b;
+}
+.raft .raft-bars {
+  fill: #a28a75;
+}
+.pt.raft .raft-rope {
+  fill: none;
+  stroke: #c7c16b;
+  stroke-width: 1.3px;
+}
+.raft .raft-paddle {
+  fill: #ebbf88;
+}
+/* Screen-pixel offset, not a different saved tile: the deck peeks out below the player's shoulders. */
+.marks .pt.raft.yours > :not(text) {
+  transform: translateY(10px);
 }
 .pt.rift > :not(text) {
   fill: var(--scaal);
@@ -2309,6 +2322,20 @@ body.map-full #zone > .inspection.sheet > .close {
 .pt.hl > :not(text) {
   stroke: #fff;
   stroke-width: 3px;
+}
+/* Keep the thin logs, lashings and paddle readable rather than bleaching the whole raft on hover/selection. */
+.pt.raft.hl > :not(text) {
+  stroke-width: 1.4px;
+}
+.pt.raft.hl > .raft-rope,
+.marks .pt.raft.sel.sel > .raft-rope {
+  stroke: #c7c16b;
+  stroke-width: 1.3px;
+}
+.pt.raft.hl > .raft-paddle,
+.marks .pt.raft.sel.sel > .raft-paddle {
+  stroke: #120e0f;
+  stroke-width: .8px;
 }
 /* A creature's silhouette is too small to lose to the highlight, so it becomes a halo behind the fill. */
 .pt.creature.hl > .creature-body {
