@@ -3,7 +3,7 @@
 // made itself when available (skipped otherwise):
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
-import { assert, assertEquals } from "./assert.ts";
+import { assert, assertEquals, assertThrows } from "./assert.ts";
 import {
   addRaft,
   dockTile,
@@ -31,15 +31,6 @@ import { currentContainers } from "../src/live.ts";
 import { decodeJson, parsePlayer } from "../src/save.ts";
 import { loadDetail, loadHeights, loadLayer, loadWorld } from "../src/world.ts";
 
-function assertThrows(fn: () => unknown, match: RegExp) {
-  try {
-    fn();
-  } catch (e) {
-    if (!match.test((e as Error).message)) throw new Error(`wrong error: ${(e as Error).message}`);
-    return;
-  }
-  throw new Error(`expected an error matching ${match}`);
-}
 const sorted = (r: Rec) => Object.fromEntries(Object.entries(r).sort(([a], [b]) => a.localeCompare(b)));
 const N = TILES * TILES;
 const layers = () => ({ layers: Object.fromEntries(WATER_LAYERS.map((l) => [l, new Uint32Array(N)])), heights: new Float32Array(N) });

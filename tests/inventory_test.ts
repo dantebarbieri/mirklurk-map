@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects } from "./assert.ts";
-import { containerInventory, NESTED_NOTE, parseInventoryGrid, parseItemList } from "../src/inventory.ts";
+import { containerInventory, isOffHandCopy, NESTED_NOTE, parseInventoryGrid, parseItemList } from "../src/inventory.ts";
 import { parseContainers, parsePlayer } from "../src/save.ts";
 import { detailMarks, markKey } from "../src/objects.ts";
 import { loadDetail, loadWorld, type ZoneDetail } from "../src/world.ts";
@@ -14,6 +14,24 @@ const detail = (containers: ZoneDetail["containers"]): ZoneDetail => ({
   stations: [],
   interactables: [],
   decorations: [],
+});
+
+Deno.test("equipment copies are only identical records in the two off-hand slots", () => {
+  const main = item(185, -4, -4);
+  for (const slot of [1, 3]) {
+    const equips: unknown[] = Array(16).fill(-4);
+    equips[slot - 1] = main;
+    equips[slot] = main;
+    assert(isOffHandCopy(equips, slot), "the same object is a copy");
+    equips[slot] = structuredClone(main);
+    assert(isOffHandCopy(equips, slot), "independent JSON records are copies too");
+    for (const change of [{ amount: 2 }, { durability: 80 }, { wet: 0.5 }, { futureField: true }]) {
+      equips[slot] = { ...main, ...change };
+      assert(!isOffHandCopy(equips, slot), "every saved field participates, not just the index");
+    }
+  }
+  for (const slot of [0, 2, 4, 5, 16, -1]) assert(!isOffHandCopy(Array(16).fill(main), slot));
+  for (const value of [-4, null, undefined, 1, "item", []]) assert(!isOffHandCopy([value, value], 1));
 });
 
 Deno.test("inventory: repeated occupied cells are one stack; identical separate stacks stay distinct", () => {
@@ -77,7 +95,7 @@ Deno.test("inventory: corrupt grids and item records are explicit errors", async
   // The game passes over undefined cells (null in the file) as it does empty ones (item_recreate_grid).
   assertEquals(parseInventoryGrid([[null, -4], [item(3, 0, 1), -4]]), {
     state: "saved",
-    items: [{ index: 3, amount: 1, durability: 81, wet: 0.25, contents: [] }],
+    items: [{ index: 3, amount: 1, durability: 81, burnTimeLeft: undefined, wet: 0.25, contents: [] }],
   });
   await assertRejects(() => parseInventoryGrid([["junk"]]), /cell/);
   await assertRejects(() => parseInventoryGrid([[{ ...item(3), X: 0.5 }]]), /cell/);

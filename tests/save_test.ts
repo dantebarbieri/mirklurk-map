@@ -1,6 +1,7 @@
-import { assert, assertEquals, assertRejects } from "./assert.ts";
-import { decodeJson, decodeTilemap, parseAreaDir, parsePlayer } from "../src/save.ts";
+import { assert, assertEquals, assertRejects, assertThrows } from "./assert.ts";
+import { decodeJson, decodeTilemap, parseAreaDir, parseBeings, parsePlaced, parsePlayer, parseSolids, parseTrees } from "../src/save.ts";
 import { readZip } from "../src/zip.ts";
+import { loadDetail, loadWorld } from "../src/world.ts";
 
 const enc = new TextEncoder();
 
@@ -24,13 +25,40 @@ Deno.test("tilemaps must be 160×160", () => {
   dv.setUint32(8 + 4 * 161, 0x80005, true);
   const g = decodeTilemap(bytes);
   assertEquals(g.data[161] & 0x7ffff, 5);
-  let threw = false;
-  try {
-    decodeTilemap(bytes.subarray(0, 100));
-  } catch {
-    threw = true;
+  assertThrows(() => decodeTilemap(bytes.subarray(0, 100)), /unexpected grid size/);
+});
+
+Deno.test("area parsers reject malformed records instead of creating default objects", () => {
+  for (const parse of [parseSolids, parseBeings, parsePlaced, parseTrees]) {
+    assertEquals(parse(undefined), []);
+    assertEquals(parse([]), []);
+    for (const invalid of [null, {}, "records", [null], [[]], [-4], [{}, false]]) {
+      assertThrows(() => parse(invalid), /Invalid saved record list/);
+    }
   }
-  assert(threw);
+});
+
+Deno.test("malformed area lists surface warnings while absent optional files stay empty", async () => {
+  const source = (raw: unknown) => ({ read: () => Promise.resolve(enc.encode(JSON.stringify(raw))) });
+  const world = await loadWorld(
+    new Map([
+      ["Player.save", source([{ worldGrid: Array.from({ length: 5 }, () => [1, 1, 1, 1, 1]) }])],
+      ["[ 0,0 ]/Solids.save", source("not a list")],
+      ["[ 0,0 ]/Beings.save", source([false])],
+      ["[ 0,0 ]/Containers.save", source([null])],
+    ]),
+    "",
+    "Hero",
+  );
+  const detail = await loadDetail(world, "[ 0,0 ]/");
+  assertEquals(world.zones[0][0].solids, []);
+  assertEquals(detail.beings, []);
+  assertEquals(detail.containers, []);
+  assertEquals(detail.stations, []);
+  assertEquals(world.warnings.length, 3);
+  for (const file of ["Solids.save", "Beings.save", "Containers.save"]) {
+    assert(world.warnings.some((warning) => warning.includes(file) && warning.includes("Invalid saved record list")));
+  }
 });
 
 Deno.test("player record is read row-major", () => {

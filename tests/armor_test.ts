@@ -1,11 +1,23 @@
 import { assert, assertEquals } from "./assert.ts";
-import { armorRoom, armorToPlace, type Equipped, itemArmor, SLOT_NAMES, totalArmor } from "../src/armor.ts";
+import { ARMOR, armorRoom, armorToPlace, type Equipped, itemArmor, SLOT_NAMES, totalArmor } from "../src/armor.ts";
 import { parseHealth } from "../src/health.ts";
 import type { SavedItem } from "../src/inventory.ts";
+import { ITEMS } from "../src/itemdata.ts";
 import { parsePlayer } from "../src/save.ts";
 
 const saved = (index: number, durability?: number): SavedItem => ({ index, amount: 1, durability, contents: [] });
 const worn = (slot: number, item: SavedItem, active = true): Equipped => ({ slot, active, item });
+
+Deno.test("armor and item condition use the same durability maximum for every armored item", () => {
+  assertEquals(Object.keys(ARMOR).length, 48);
+  for (const [key, [armor, max]] of Object.entries(ARMOR)) {
+    const index = Number(key);
+    assertEquals(max, ITEMS[index].durability, `item ${index}`);
+    assertEquals(itemArmor(saved(index)), armor, `item ${index} with no saved durability is full`);
+    assertEquals(itemArmor(saved(index, max)), armor, `item ${index} at full durability`);
+    assertEquals(itemArmor(saved(index, 0)), 0, `item ${index} with no durability gives no armor`);
+  }
+});
 
 Deno.test("armor: each piece scales with durability to 0.01, the total to 0.1", () => {
   assertEquals(itemArmor(saved(54, 289)), 5.78); // Steel Bascinet 6 × 289/300

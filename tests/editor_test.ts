@@ -2,7 +2,7 @@
 // mark. Real saves are edited in memory (never written) when available (skipped otherwise):
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
-import { assert, assertEquals } from "./assert.ts";
+import { assert, assertEquals, assertThrows } from "./assert.ts";
 import {
   healPlayer,
   hitPointStatus,
@@ -65,15 +65,6 @@ import type { FileMap } from "../src/files.ts";
 import type { Interior } from "../src/world.ts";
 
 const E = -4;
-function assertThrows(fn: () => unknown, match: RegExp) {
-  try {
-    fn();
-  } catch (e) {
-    if (!match.test((e as Error).message)) throw new Error(`wrong error: ${(e as Error).message}`);
-    return;
-  }
-  throw new Error(`expected an error matching ${match}`);
-}
 const cell = (index: number, amount: number, X: number, Y: number, extra: Rec = {}): Rec => ({
   index,
   amount,

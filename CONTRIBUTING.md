@@ -36,11 +36,17 @@ Run `deno task ci` before pushing. `.editorconfig` matches `deno fmt`, so most e
 - **No dependencies.** Imports are relative; don't add URL, `jsr:` or `npm:` packages (`no-external-import` catches URL imports). Tests use
   `tests/assert.ts`.
 - **Types:** `strict` is on. Prefer precise types to `any` and non-null assertions.
+- **Shared save rules:** raw record guards and the last-player-record rule live in `src/save-record.ts`; equipment-copy detection lives in
+  `src/inventory.ts`. Keep readers and editors on those helpers rather than maintaining parallel versions. Durability maxima come from
+  generated `src/itemdata.ts`, including those used for armor calculations. Editors must preserve fields they do not own.
 
 ## Tests
 
 - Name tests `tests/<module>_test.ts` after the module they cover, and keep them deterministic and offline: no network, no clock or random
   dependence without injecting it, and temporary files only under `Deno.makeTempDir()`.
+- Use the shared assertions in `tests/assert.ts`, including `assertThrows` for synchronous errors and `assertRejects` for asynchronous ones.
+  Equality compares values and own keys, not their JSON text: absent properties and explicit `undefined` are distinct. Approximate
+  comparisons require finite numbers and a finite, non-negative tolerance.
 - Logic belongs in pure, importable modules so it can be tested without a DOM; UI files stay thin.
 - Every bug fix comes with a test that fails without it; every feature with tests of its rules and edge cases.
 - `real_saves_test.ts` also checks real saves when `MIRKLURK_SAVES` (or `../Saves`) exists and skips itself otherwise; never commit saves.
