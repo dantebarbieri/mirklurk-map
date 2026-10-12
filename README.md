@@ -405,8 +405,16 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   on load), so bringing it only keeps that flag. A raft you leave or dock is written to that zone's `Stations.save` as Finish Raft leaves it
   (station 171), and one you bring from a zone is taken out of it. A move that changes several files is one change: the bar lists it as one
   line, and Undo, or a reload where it no longer applies (you are on a raft now, or no longer where you left it), takes all of it back.
-- **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior, with the hit points and armor of a fresh
-  one, or remove creatures. Removing a quest character (NPCs, the Dead Unwanted who becomes Viend, and Scaal) asks first.
+- **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior where it can live, with the hit points and
+  armor of a fresh one, or remove creatures. Removing a quest character (NPCs, the Dead Unwanted who becomes Viend, and Scaal) asks first.
+  Where a creature can live is the game's own rule (`tile_meets_classneeds`), which it checks wherever a creature spawns or moves. It also
+  checks it whenever you enter an area other than straight from the menu: it then moves each creature to a random tile within 8 that suits
+  it, and removes one that finds none. Flyers (Dreadfly, Giant Gnat, Deathfly) go anywhere. Swimmers need water: a Mire Serpent where the
+  ground (`Ygrid.save`) lies at or below the water threshold (−0.3), a Mudfin or Razorfin below −0.25. Walkers wade, but not where the
+  ground lies at or below −0.4 (−0.3 for small ones such as a Mirk Runner, `size` 0), unless reeds or a raised floor lift them out of the
+  water. A Giant Slug keeps out of the second water layer, and only flyers go on brambles, sharp ground or rift vines. The creature list
+  marks swimmers and flyers. With the Spawn tool, tiles the chosen creature cannot use are darkened, and pointing at one says why. The
+  game's wildlife spawner puts Mudfins on any water, so some saved ones sit in shallows too shallow for them until they move.
 
 **Full map**, beside **Editor** at the top, shows the character in MirkMap's own map, as saving would leave it: every zone, caves and
 interiors, rifts, landmarks, NPCs and creatures, loot, the layer switches and Realistic mode, before or during edit mode. In edit mode,

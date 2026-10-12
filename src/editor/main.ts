@@ -54,7 +54,7 @@ import {
   wearNew,
 } from "./items.ts";
 import { SLOT_NAMES } from "../armor.ts";
-import { deleteBeing, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
+import { deleteBeing, habitat, habitatRefusal, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
 import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, tileBox } from "./ground.ts";
 import {
   addRaft,
@@ -1244,11 +1244,19 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
   const { beingsPath, hasBeings, beings, youHere, rafts, ground } = await areaGround(a, v);
   const you = playerArea(v);
   const img = a.interior ? undefined : await mapImage(a.zone.mapPath);
-  const water = a.interior ? undefined : await waterOf(a.dir);
+  const outside = !a.interior;
+  const water = await waterOf(a.dir);
   const youOnRaft = onRaft(p);
   if (selected !== undefined && !beings[selected]) selected = undefined;
   const youTile = youHere ? (v.pos[1] >> 4) * TILES + (v.pos[0] >> 4) : -1;
   const raftTiles = new Set(rafts.map((r) => (r.y >> 4) * TILES + (r.x >> 4)));
+  // Where the creature to spawn cannot be: walls and what is already there, and where it does not live.
+  const spawnKind = spawnIndex;
+  const blocked = (t: number) => ground[t] === Ground.Blocked || ground[t] === Ground.Taken;
+  const habitatWhy = (t: number) => blocked(t) ? undefined : habitatRefusal(spawnKind, water, t, outside);
+  const spawnOk = tool === "spawn"
+    ? Uint8Array.from({ length: ground.length }, (_, t) => blocked(t) || habitatWhy(t) ? 0 : 1)
+    : new Uint8Array();
 
   const canvas = h("canvas", { width: TILES * SCALE, height: TILES * SCALE, class: `edit-map tool-${tool}` }) as HTMLCanvasElement;
   const caption = h("p", { class: "muted small map-caption" }, "Point at a tile to see what is there.");
@@ -1276,8 +1284,8 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
         g.fillStyle = k === Ground.Water ? "#3d4f63" : "#2a1f22";
         g.fillRect(x, y, SCALE, SCALE);
       }
-      // What the tool cannot use is darkened: creatures need free ground; you can also go into water.
-      if (tool === "spawn" ? k !== Ground.Free : tool === "move" && (k === Ground.Blocked || k === Ground.Taken)) {
+      // What the tool cannot use is darkened: where the chosen creature cannot be; for you, walls and what is already there.
+      if (tool === "spawn" ? !spawnOk[i] : tool === "move" && (k === Ground.Blocked || k === Ground.Taken)) {
         g.fillStyle = "rgba(20, 10, 12, .45)";
         g.fillRect(x, y, SCALE, SCALE);
       }
@@ -1324,10 +1332,11 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
       ? youOnRaft ? "you, on your raft" : "you"
       : raftTiles.has(t)
       ? "a raft"
-      : k === Ground.Water && water
-      ? `${waterKind(tileHeight(water, t))}${raftable(water, t) ? ", where a raft floats" : ""}`
+      : k === Ground.Water
+      ? `${waterKind(tileHeight(water, t, outside))}${outside && raftable(water, t) ? ", where a raft floats" : ""}`
       : GROUND_TEXT[k];
-    return `Tile ${t % TILES},${Math.floor(t / TILES)}: ${what}`;
+    const why = tool === "spawn" && b < 0 && t !== youTile && !raftTiles.has(t) ? habitatWhy(t) : undefined;
+    return `Tile ${t % TILES},${Math.floor(t / TILES)}: ${what}${why ? ` (${why})` : ""}`;
   };
   canvas.addEventListener("mousemove", (e) => {
     const t = tileOf(e);
@@ -1358,13 +1367,14 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
         })();}
       return;
     }
-    if (ground[t] !== Ground.Free) {
-      note("map", `Tile ${tx},${ty} is ${GROUND_TEXT[ground[t] as GroundKind]}; pick free ground.`, true);
-      void render();
-      return;
-    }
     if (tool === "spawn") {
-      const kind = spawnIndex;
+      const why = blocked(t) ? `tile ${tx},${ty} is ${GROUND_TEXT[ground[t] as GroundKind]}` : habitatWhy(t);
+      if (why) {
+        note("map", `Not on tile ${tx},${ty}: ${why}. Pick a tile that is not darkened.`, true);
+        void render();
+        return;
+      }
+      const kind = spawnKind;
       void edit("map", beingsPath, (raw) => {
         spawnBeing(raw as unknown[], kind, tx, ty);
         return `Spawned a ${BEING_NAMES[kind]} in ${areaName(a)}, tile ${tx},${ty}`;
@@ -1413,9 +1423,12 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
   ) as HTMLSelectElement;
   const spawnSelect = h(
     "select",
-    { "aria-label": "Creature to spawn", onchange: () => (spawnIndex = Number(spawnSelect.value)) },
+    {
+      "aria-label": "Creature to spawn",
+      onchange: () => (spawnIndex = Number(spawnSelect.value), tool === "spawn" && void render()),
+    },
     Object.keys(BEINGS).map(Number).filter(spawnable).sort((x, y) => BEING_NAMES[x].localeCompare(BEING_NAMES[y])).map((i) =>
-      h("option", { value: i, selected: i === spawnIndex }, BEING_NAMES[i])
+      h("option", { value: i, selected: i === spawnIndex }, `${BEING_NAMES[i]}${habitat(i) === "walks" ? "" : ` (${habitat(i)})`}`)
     ),
   ) as HTMLSelectElement;
   const toolRadio = (value: Tool, label: string, disabled = false) =>
@@ -1506,9 +1519,10 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
     h(
       "p",
       { class: "muted small" },
-      "Dark tiles are what the tool cannot use: walls, pits, what is already there, and for creatures water. Brown marks are rafts. " +
-        "Moving you into water, or off your raft, asks first what happens to a raft. Creatures stand where you put them when the " +
-        "game loads the area.",
+      "Dark tiles are what the tool cannot use: walls, pits and what is already there, and for the creature to spawn, where it " +
+        "cannot live: swimmers need water, walkers keep out of deep water and off brambles, and flyers go anywhere. Point at a dark " +
+        "tile to see why. Brown marks are rafts. Moving you into water, or off your raft, asks first what happens to a raft. Loading " +
+        "the save keeps creatures where you put them; entering their area later moves each to a nearby tile that suits it.",
     ),
   );
 }

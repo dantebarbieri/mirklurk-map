@@ -71,33 +71,53 @@ export function moveWithRaft(p: Rec, zoneX: number, zoneY: number, tileX: number
   return [...where(), p.areaType, onRaft(p)].join() !== before;
 }
 
-/** The tile layers and heights (Ygrid.save) of an outdoor zone that say how deep its water is; any may be missing. */
+/** The tile layers and heights (Ygrid.save) of an area that say how deep its water is; any may be missing. */
 export interface WaterLayers {
   layers: Partial<Record<(typeof WATER_LAYERS)[number], Uint32Array>>;
   heights?: Float32Array;
 }
-export const WATER_LAYERS = ["Water1", "Water2", "Water3", "Hinderance", "Grass", "OnLower", "Slopes1", "Slopes2"] as const;
+export const WATER_LAYERS = [
+  "Water1",
+  "Water2",
+  "Water3",
+  "Hinderance",
+  "Grass",
+  "OnLower",
+  "Slopes1",
+  "Slopes2",
+  "Dungeon",
+  "NatureData",
+] as const;
 
 const at = (w: WaterLayers, layer: (typeof WATER_LAYERS)[number], i: number) => {
   const a = w.layers[layer];
   return a ? tileIndex(a[i]) : 0;
 };
+/** The tile index on one of the area's layers at tile i (0 when the layer is missing). */
+export const layerAt = at;
 /** Grass tiles 24–31 (tile_to_enum "Grass" 5000) stand up out of the water, so a raft cannot go there. */
 const isReeds = (grass: number) => grass >= 24 && grass < 32;
 
 /**
- * How deep you stand on tile i of an outdoor zone without a raft: tile_get_height. Slopes, hinderances, reeds and goo raise you;
- * otherwise each water layer deepens it, and the deep water layer more where the ground (Ygrid) dips below the deep threshold.
+ * How deep you, or a creature, stand on tile i of an area without a raft: tile_get_height. Outdoors slopes, hinderances, reeds and
+ * goo raise you; inside, the Dungeon layer's raised floors do. Otherwise each water layer deepens it, and the deep water layer more
+ * where the ground (Ygrid) dips below the deep threshold.
  */
-export function tileHeight(w: WaterLayers, i: number): number {
-  const raw = (layer: "Slopes1" | "Slopes2") => w.layers[layer]?.[i] ?? 0;
-  if (isSlopeTile(raw("Slopes1"), raw("Slopes2"))) return -3;
-  const ht = at(w, "Hinderance", i), ground = at(w, "OnLower", i);
-  if (ht > 0 && ht < 50) return ht < 20 ? -6 : -4;
-  if (isReeds(at(w, "Grass", i))) return -3;
-  if (ht >= 120 && ht < 130) return -2;
-  // Goo (tile_is_goo: OnLower 4–6 and 64–79).
-  if ((ground >= 4 && ground <= 6) || (ground >= 64 && ground < 80)) return 2;
+export function tileHeight(w: WaterLayers, i: number, outside = true): number {
+  if (outside) {
+    const raw = (layer: "Slopes1" | "Slopes2") => w.layers[layer]?.[i] ?? 0;
+    if (isSlopeTile(raw("Slopes1"), raw("Slopes2"))) return -3;
+    const ht = at(w, "Hinderance", i), ground = at(w, "OnLower", i);
+    if (ht > 0 && ht < 50) return ht < 20 ? -6 : -4;
+    if (isReeds(at(w, "Grass", i))) return -3;
+    if (ht >= 120 && ht < 130) return -2;
+    // Goo (tile_is_goo: OnLower 4–6 and 64–79).
+    if ((ground >= 4 && ground <= 6) || (ground >= 64 && ground < 80)) return 2;
+  } else {
+    const floor = at(w, "Dungeon", i);
+    if (floor > 0 && floor < 10) return -6;
+    if (floor > 80 && floor < 90) return -3;
+  }
   let height = 0;
   if (at(w, "Water1", i) > 0) height += 1;
   if (at(w, "Water2", i) > 0) height += 3;

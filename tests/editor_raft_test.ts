@@ -1,5 +1,6 @@
-// The save editor's water and raft rules: how deep you stand, where a raft floats, where a raft you leave docks, and moving you on
-// or off a raft. Real saves check them against rafts the game placed itself when available (skipped otherwise):
+// The save editor's water and raft rules: how deep you stand, where a raft floats, where a raft you leave docks, moving you on or off
+// a raft, and where each kind of creature can live. Real saves check them against rafts and creatures the game placed itself when
+// available (skipped otherwise):
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
 import { assert, assertEquals } from "./assert.ts";
@@ -22,6 +23,7 @@ import {
   wetMap,
 } from "../src/editor/raft.ts";
 import type { Rec } from "../src/editor/edits.ts";
+import { habitat, habitatRefusal } from "../src/editor/beings.ts";
 import { TILES } from "../src/rules.ts";
 import { findCharacters } from "../src/files.ts";
 import { loadDetail, loadHeights, loadLayer, loadWorld } from "../src/world.ts";
@@ -177,6 +179,32 @@ Deno.test("rafts are left and taken in Stations.save as the game saves a finishe
   assertEquals(stations.length, 2);
 });
 
+Deno.test("creatures live where the game lets them: swimmers in water, walkers out of deep water and brambles, flyers anywhere", () => {
+  const w: WaterLayers = layers();
+  const set = (layer: (typeof WATER_LAYERS)[number], i: number, v: number) => (w.layers[layer]![i] = v);
+  // 0 dry land; 1 shallows; 2 a little deeper; 3 deeper, with the second water layer; 4 deep; 5 brambles; 6 reeds in deep water.
+  w.heights!.set([0.1, -0.22, -0.27, -0.35, -0.5, 0.1, -0.5]);
+  for (const i of [1, 2, 3, 4, 6]) set("Water1", i, 1);
+  for (const i of [3, 4]) set("Water2", i, 1);
+  set("Water3", 4, 1);
+  set("NatureData", 5, 1);
+  set("Hinderance", 6, 10);
+  const [SLUG, DREADFLY, TROLL, SERPENT, RUNNER, MUDFIN, RAZORFIN] = [0, 1, 3, 4, 11, 17, 24];
+  const can = (index: number) => [0, 1, 2, 3, 4, 5, 6].map((i) => habitatRefusal(index, w, i, true) === undefined ? 1 : 0);
+  assertEquals(can(MUDFIN), [0, 0, 1, 1, 1, 0, 1], "a Mudfin needs the ground below -0.25");
+  assertEquals(can(RAZORFIN), can(MUDFIN));
+  assertEquals(can(SERPENT), [0, 0, 0, 1, 1, 0, 1], "a Mire Serpent needs it at or below -0.3");
+  assertEquals(can(RUNNER), [1, 1, 1, 0, 0, 0, 1], "a small walker wades only above -0.3; reeds lift it out of the water");
+  assertEquals(can(TROLL), [1, 1, 1, 1, 0, 0, 1], "a big one above -0.4");
+  assertEquals(can(SLUG), [1, 1, 1, 0, 0, 0, 1], "a Giant Slug keeps out of the second water layer");
+  assertEquals(can(DREADFLY), [1, 1, 1, 1, 1, 1, 1], "flyers go anywhere");
+  assertEquals([habitat(MUDFIN), habitat(DREADFLY), habitat(RUNNER)], ["swims", "flies", "walks"]);
+  assert(/brambles/.test(habitatRefusal(RUNNER, w, 5, true)!) && /needs water/.test(habitatRefusal(MUDFIN, w, 0, true)!));
+  // Inside, raised floors (Dungeon 1–9) lift a walker out of the water; outdoors that layer means nothing.
+  set("Dungeon", 4, 5);
+  assertEquals([tileHeight(w, 4, false), habitatRefusal(TROLL, w, 4, false), tileHeight(w, 4, true)], [-6, undefined, 13]);
+});
+
 // --- Real saves ---
 
 const dir = Deno.env.get("MIRKLURK_SAVES") ??
@@ -226,4 +254,38 @@ Deno.test({ name: "real saves: the game's own rafts float, are written like ours
     }
   }
   console.log(`  ${rafts} rafts checked`);
+});
+
+Deno.test({ name: "real saves: the game's own creatures stand where they can live", ignore: !present }, async () => {
+  const files = new Map<string, { read: () => Promise<Uint8Array> }>();
+  const walk = (root: string, prefix: string) => {
+    for (const e of Deno.readDirSync(root)) {
+      if (e.isDirectory) walk(`${root}/${e.name}`, `${prefix}${e.name}/`);
+      else files.set(`${prefix}${e.name}`, { read: () => Deno.readFile(`${root}/${e.name}`) });
+    }
+  };
+  walk(dir, "Saves/");
+  let checked = 0, fish = 0;
+  for (const c of findCharacters(files)) {
+    const world = await loadWorld(files, c.root, c.name);
+    const areas = [
+      ...world.zones.flat().filter((z) => z.dir).map((z) => ({ dir: z.dir!, outside: true })),
+      ...world.interiors.map((it) => ({ dir: it.dir, outside: false })),
+    ];
+    for (const a of areas) {
+      const beings = (await loadDetail(world, a.dir)).beings.filter((b) => b.state !== 1);
+      if (!beings.length) continue;
+      const w: WaterLayers = { layers: {}, heights: (await loadHeights(world, a.dir))?.data };
+      for (const l of WATER_LAYERS) w.layers[l] = (await loadLayer(world, a.dir, l))?.data;
+      for (const b of beings) {
+        const i = (b.y >> 4) * TILES + (b.x >> 4), why = habitatRefusal(b.index, w, i, a.outside);
+        checked++;
+        if (!why) continue;
+        // The wildlife spawner (manager_area Alarm_4) puts Mudfins on any water tile, shallows too; only moving checks their needs.
+        assert(habitat(b.index) === "swims" && (w.layers.Water1?.[i] ?? 0) > 0, `${c.name} ${a.dir}: ${why} at ${b.x >> 4},${b.y >> 4}`);
+        fish++;
+      }
+    }
+  }
+  console.log(`  ${checked} creatures checked, ${fish} fish spawned into shallows`);
 });
