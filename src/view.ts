@@ -1531,7 +1531,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string, lo
     inspector,
     poiLists(st, marks, map, open),
     gatherList,
-    ...(world.warnings.length ? [areaWarnings(world)!] : []),
+    areaWarnings(world) ?? "",
   );
 }
 
