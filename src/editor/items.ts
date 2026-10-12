@@ -12,8 +12,8 @@ const EMPTY = -4;
 const CONNECTED_AREA_ITEM = 89;
 const COLLECTED_AREAS_ITEM = 252;
 
-/** Items the editor can add: everything carryable in the item database. */
-export const addable = (index: number) => !!ITEMS[index] && !ITEMS[index].unlootable;
+/** Items the editor can add: everything you can carry in the item database, which leaves out only Unarmed and Finish Raft. */
+export const addable = (index: number) => !!ITEMS[index] && !ITEMS[index].uncarried;
 
 /** A new item record, as `new item(index, amount, true)` makes it; `neww` gives it the game's gold "new" highlight. */
 export function newItem(index: number, amount: number, zone: [number, number], bagTemplate?: Rec): Rec {

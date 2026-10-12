@@ -15,6 +15,7 @@ import {
   solidMarks,
   treeDetail,
   treeMarks,
+  yourRaftMarks,
 } from "./objects.ts";
 import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts";
 import { fernShade, GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
@@ -609,7 +610,12 @@ async function renderZone(st: State, z: Zone, glide = false) {
     activeMap!.dispose();
   }
 
-  const marks: Mark[] = [...solidMarks(z.solids, inners), ...sealedMarks(inners), ...(detail ? detailMarks(detail) : [])];
+  const marks: Mark[] = [
+    ...solidMarks(z.solids, inners),
+    ...sealedMarks(inners),
+    ...(detail ? detailMarks(detail) : []),
+    ...yourRaftMarks(world.player, z.x, z.y),
+  ];
   for (const m of marks) {
     const inside = m.interior && insides.find((i) => i.interior === m.interior);
     if (inside) m.detail = `${m.detail === "entrance is gone" ? "entrance is gone; " : ""}inside: ${insideSummary(inside.detail)}`;
@@ -770,7 +776,12 @@ function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean
         loaded.add(k);
         const inners = interiorsOf(world, x, y);
         (n.dir ? loadDetail(world, n.dir) : Promise.resolve(null)).then((detail) =>
-          add(n, [...solidMarks(n.solids, inners), ...sealedMarks(inners), ...(detail ? detailMarks(detail) : [])])
+          add(n, [
+            ...solidMarks(n.solids, inners),
+            ...sealedMarks(inners),
+            ...(detail ? detailMarks(detail) : []),
+            ...yourRaftMarks(world.player, n.x, n.y),
+          ])
         );
       }
       if (plants && n.dir && !treesLoaded.has(k)) {
@@ -811,7 +822,7 @@ type Switch = Layer | "water";
 const LAYER_GROUPS: [string, Switch[]][] = [
   ["Locations", ["places", "caves", "ruins", "rifts"]],
   ["Entities", ["you", "npcs", "creatures"]],
-  ["Items", ["loot", "drops", "camp", "storage"]],
+  ["Items", ["loot", "drops", "camp", "storage", "rafts"]],
   ["Terrain", ["boulders", "rubble", "rocks", "sharp", "water"]],
   ["Nature", ["trees", "brambles", "vines"]],
   ["Gatherables", ["calmia", "turnips", "cranberries", "watercress", "lilies", "bulbs", "nests", "ferns"]],
@@ -1020,6 +1031,7 @@ const SWITCH_ICON: Record<Switch, string> = {
   drops: "drop",
   camp: "camp",
   storage: "storage",
+  rafts: "raft",
   boulders: "boulder",
   rubble: "ruin",
   rocks: "rock",
@@ -1136,6 +1148,7 @@ const LAYER_TIPS: Partial<Record<Switch, string>> = {
   camp: "Workstations and other camp items you have placed",
   storage:
     "Places to keep items: treasure chests (they stay after looting), Hidden Hollows, the Camp stash, and Clay's and Bhato's storage",
+  rafts: "Rafts and Raft Bases you have placed in the water, and the raft you stand on",
   trees: "Willow, Cypress, Trollgnarl and Elderwort, coloured by how dead the trunk is",
   boulders: "Boulders and large boulders",
   rubble: "Ruin footprints and blocks that cannot be entered",
@@ -1229,7 +1242,9 @@ function markGroup(st: State, map: MapView, open: (m: Mark) => void, title: stri
         onmouseenter: () => map.highlight(m),
         onmouseleave: () => map.highlight(null),
       },
-      m.layer === "trees" || m.layer === "creatures" || m.gather ? markIcon(m.kind) : h("span", { class: `sym ${m.kind}` }),
+      m.layer === "trees" || m.layer === "creatures" || m.layer === "rafts" || m.gather
+        ? markIcon(m.kind)
+        : h("span", { class: `sym ${m.kind}` }),
       m.interior ? h("button", { type: "button", class: "link", title: "Look inside", onclick: () => open(m) }, m.name) : h("button", {
         type: "button",
         class: "plain",
@@ -1273,6 +1288,7 @@ function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => voi
   const drops = marks.filter((m) => m.layer === "drops");
   const camp = marks.filter((m) => m.layer === "camp");
   const storage = marks.filter((m) => m.layer === "storage");
+  const rafts = marks.filter((m) => m.layer === "rafts");
   const creatures = marks.filter((m) => m.layer === "creatures");
   return h(
     "div",
@@ -1283,6 +1299,7 @@ function poiLists(st: State, marks: Mark[], map: MapView, open: (m: Mark) => voi
     group("Dropped items", drops, drops.length <= 12),
     group("Camp", camp),
     group("Storage", storage),
+    group("Rafts", rafts),
     group("Creatures when saved", creatures, false),
   );
 }

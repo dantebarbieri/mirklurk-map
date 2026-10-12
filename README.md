@@ -9,10 +9,10 @@ save folder and it shows:
   placement rules can still put them, with probabilities;
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
   loot, dropped items (their own layer, as felling trees leaves many), storage (treasure chests, which stay after looting, your Hidden
-  Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rifts, large boulders and ruin rubble. Creatures, small rocks, trees,
-  brambles, rift vines, sharp ground, a water overlay and gatherables (Calmia, Turnips, Cranberries, Watercress, Water Lilies, Vile Bulbs,
-  bird nests and ferns) can be switched on. Click an explored entrance to see the inside, or a creature, NPC or your own marker to see hit
-  points, attacks, a merchant's wares or your wellbeing and inventory.
+  Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rafts (placed ones, Raft Bases, and the one you stand on), rifts,
+  large boulders and ruin rubble. Creatures, small rocks, trees, brambles, rift vines, sharp ground, a water overlay and gatherables
+  (Calmia, Turnips, Cranberries, Watercress, Water Lilies, Vile Bulbs, bird nests and ferns) can be switched on. Click an explored entrance
+  to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your wellbeing and inventory.
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -238,15 +238,21 @@ draws NPCs only as dots. Placed items such as Hidden Hollows and workstations, a
 show theirs too, and inventory rows show each item's icon. Treasure chests, remains and the Camp stash have no wiki picture yet. The
 pictures are downloaded from the wiki at development time (`deno task wiki`) and bundled with the site; it never contacts the wiki itself.
 
+Rafts use SVG symbols drawn by Astra (GPT-6 Astra) from the game's world sprite: the Raft Base's two lashed crossbars, and the finished
+raft's log deck and paddle. The map, legend and list rows share these symbols. The raft you stand on peeks out below your person marker
+without changing its saved tile. A finished raft has no inventory picture: its inspection shows frame 1 of the game's bundled
+`spr_placed_16x16_wider` strip, credited to the game and Edym Pixels, rather than to the wiki. Raft Bases keep the wiki's picture. The game
+strip is same-origin, content-hashed and kept offline with the other bundled art.
+
 **Realistic mode** is off by default; enable it with the **Realistic** toggle. It reconstructs explored zones and interiors from saved
 `.tmap` layers using the game's own tilesets, including animated-tile first frames, atlas borders, mirroring and rotation. Buildings, rocks,
 placed objects and procedural trees use their saved sprites/geometry. NPCs, creatures and carcasses remain markers; this is a static
 daylight-like view, not a simulation of the game's lighting, weather, animation or camera-dependent roof fading. Layer chips control
 informational markers, grouped as **Locations** (Places, Caves, Ruins, Rifts; indoor "Way out" exits always show), **Entities** (You, NPCs,
-Creatures), **Items**, **Terrain** (including Water), **Nature** and **Gatherables**; each group's header checkbox (and the master **All**)
-toggles all its layers and shows a partial state when only some are on, and **Reset to defaults** restores the initial selection. They do
-not affect the scenery baked into the realistic map, which draws the gatherable plants too. Switch **Realistic** off to return to the
-original overview.
+Creatures), **Items** (Loot, Dropped items, Camp, Storage, Rafts), **Terrain** (including Water), **Nature** and **Gatherables**; each
+group's header checkbox (and the master **All**) toggles all its layers and shows a partial state when only some are on, and **Reset to
+defaults** restores the initial selection. They do not affect the scenery baked into the realistic map, which draws the gatherable plants
+too. Switch **Realistic** off to return to the original overview.
 
 Zoom in uses nearest-neighbour sampling at native resolution and above. Zoom out uses a mip pyramid built with successive 2×2 area averages,
 followed by filtered resampling, so small details do not flicker or disappear as they do with nearest-neighbour reduction. Only four
@@ -370,7 +376,10 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   topped up first, then each new stack goes in the first free spot, column by column, written in every cell it covers. What finds no room
   upright anywhere is then turned sideways (`sideflipped`, covering height × width), as you could turn it in the game; nothing already in
   your bags is rearranged. New items glow gold in the game until you look at them. Whatever does not fit is reported, never dropped. Sizes,
-  stack limits and durability come from the game's item database (`src/itemdata.ts`).
+  stack limits and durability come from the game's item database (`src/itemdata.ts`). Every item you can carry can be added, including ones
+  the game keeps out of random treasure (`NONLOOTABLE`): quest items, seeds, Water Lilies and things you place, such as a Campfire or a Raft
+  Base (place it in deep water, then finish the raft at it). Only Unarmed (your bare hands) and Finish Raft (the recipe that turns a placed
+  Raft Base into the raft, never an item) are left out.
 - **Removing items**: **What you wear and carry** lists every worn item by slot, with what its containers hold, and each container's size
   and free cells (a bag kept inside another holds nothing, as above). **Remove** takes all of an item, or as many of a stack as you say, out
   of the save: every grid cell it covered is emptied, every copy of the containers it was in is kept the same (the game saves a copy of an
@@ -385,15 +394,39 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   `item_fits_slot`): main hands take weapons (types 16, 17 and 23), off hands types 15, 23 and 24, and the rest their own type; a two-handed
   melee weapon (type 17 that is not a bow, `weapon_is_ranged`) also needs the off hand beside it and is saved there too. The game rebuilds
   worn containers, weights and looks from the save when it loads.
-- **Where you stand**: a free tile of an outdoor zone you have explored (not water, a wall, a pit or something already standing there),
-  picked on the zone's map or on the full map.
-- **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior, with the hit points and armor of a fresh
-  one, or remove creatures. Removing a quest character (NPCs, the Dead Unwanted who becomes Viend, and Scaal) asks first.
+- **Where you stand**: a tile of an outdoor zone you have explored that is not a wall, a pit or something already standing there (a
+  creature, a placed raft), picked on the zone's map or on the full map. Ground moves you at once. Water and rafts ask first, never refuse:
+  - The question says how deep the water is (`tile_get_height`): shallow, chest-deep, or deep, where you swim, using stamina every turn, and
+    drown once it runs out (`player_set_ae_water`). Pointing at a tile on the zone's map says so too, and whether a raft floats there
+    (`rafting_possible_here`: the ground below the water threshold, no reeds or low hinderances).
+  - Off a raft, into water a raft floats on: **Bring your raft** (the nearest one you left, taken out of its zone), **Make a raft there**,
+    or **Go without a raft**. Into shallower water: **Go into the water**.
+  - On your raft, into water it floats on: **Bring your raft**, or **Leave your raft here** and go without it.
+  - On your raft, onto land or into shallows: **Dock your raft at that shore**, or **Leave your raft where it is**. Docking moves it
+    straight towards you, over any other island and its shallows (only dry ground, joined side by side or corner to corner, makes your
+    land), until its way first reaches your land, and puts it on the nearest free raft water reached through the water from there, so it
+    never ends up on the far side of your land.
+
+  The game saves the raft you stand on with you, not with its zone (`ensureRaft` in `Player.save`; `player_raft_ensure` makes it under you
+  on load), so bringing it only keeps that flag. A raft you leave or dock is written to that zone's `Stations.save` as Finish Raft leaves it
+  (station 171), and one you bring from a zone is taken out of it. A move that changes several files is one change: the bar lists it as one
+  line, and Undo, or a reload where it no longer applies (you are on a raft now, or no longer where you left it), takes all of it back.
+- **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior where it can live, with the hit points and
+  armor of a fresh one, or remove creatures. Removing a quest character (NPCs, the Dead Unwanted who becomes Viend, and Scaal) asks first.
+  Where a creature can live is the game's own rule (`tile_meets_classneeds`), which it checks wherever a creature spawns or moves. It also
+  checks it whenever you enter an area other than straight from the menu: it then moves each creature to a random tile within 8 that suits
+  it, and removes one that finds none. Flyers (Dreadfly, Giant Gnat, Deathfly) go anywhere. Swimmers need water: a Mire Serpent where the
+  ground (`Ygrid.save`) lies at or below the water threshold (−0.3), a Mudfin or Razorfin below −0.25. Walkers wade, but not where the
+  ground lies at or below −0.4 (−0.3 for small ones such as a Mirk Runner, `size` 0), unless reeds or a raised floor lift them out of the
+  water. A Giant Slug keeps out of the second water layer, and only flyers go on brambles, sharp ground or rift vines. The creature list
+  marks swimmers and flyers. With the Spawn tool, tiles the chosen creature cannot use are darkened, and pointing at one says why. The
+  game's wildlife spawner puts Mudfins on any water, so some saved ones sit in shallows too shallow for them until they move.
 
 **Full map**, beside **Editor** at the top, shows the character in MirkMap's own map, as saving would leave it: every zone, caves and
 interiors, rifts, landmarks, NPCs and creatures, loot, the layer switches and Realistic mode, before or during edit mode. In edit mode,
-**Move yourself** makes the next click on free ground in an explored zone move you there, with the same checks as the zone's map; it then
-turns itself off (Escape turns it off too). Switching back to **Editor** opens the zone or interior the map was showing.
+**Move yourself** makes the next click on ground or water in an explored zone move you there, with the same checks and questions as the
+zone's map; it then turns itself off (Escape turns it off too, and cancelling a question keeps it on). Switching back to **Editor** opens
+the zone or interior the map was showing.
 
 Edits stay in the tab, shown in the map's own player inspection as they will be saved, until **Save to game files**. The bar at the bottom
 lists them; **Undo** beside one takes back just that change. The later changes to the same file run again on the file as it was read (each
@@ -573,11 +606,13 @@ Alarm_3) are recognised and not read as another departure.
 
 The base is the game's own map (land, water, slopes, big boulders; drawn when the zone was generated, so later changes such as the hut are
 overlays). Markers come from the zone folder: `Solids.save` (buildings, entrances with their `transPoint`, boulders and ruins with real
-sprite bounds), `Beings.save`, `Containers.save`, `Stations.save`, `Interactables.save` (rifts), `Trees.save` (loaded only when trees,
-brambles or rift vines are switched on), `NatureData.tmap` for thorny ground, `Hinderance.tmap` and `LootData.tmap` for gatherables (loaded
-only when one is switched on, in interiors too; `Hinderance.tmap` alone for the fern overlay) and `Water1.tmap` / `Ygrid.save` for the water
-overlay. Interiors (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is at `ex,ey` and drawn
-from their `Data`/`Lower`/`OnLower`/`Water1` layers.
+sprite bounds), `Beings.save`, `Containers.save`, `Stations.save` (camp items, and rafts: a finished raft is station 171, a Raft Base 170),
+`Interactables.save` (rifts), `Trees.save` (loaded only when trees, brambles or rift vines are switched on), `NatureData.tmap` for thorny
+ground, `Hinderance.tmap` and `LootData.tmap` for gatherables (loaded only when one is switched on, in interiors too; `Hinderance.tmap`
+alone for the fern overlay) and `Water1.tmap` / `Ygrid.save` for the water overlay. The raft you stand on is not in `Stations.save`: saving
+marks it `destroyOnSave` and sets `ensureRaft` in `Player.save`, and loading makes it under you again (`player_raft_ensure`), so the map
+draws it where you were saved. Interiors (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is
+at `ex,ey` and drawn from their `Data`/`Lower`/`OnLower`/`Water1` layers.
 
 ## Development
 

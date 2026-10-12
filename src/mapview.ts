@@ -233,11 +233,31 @@ const POINT: Record<string, (m: Mark) => SVGElement[]> = {
   drop: () => [s("circle", { r: 2.5 })],
   storage: () => [s("rect", { x: -4, y: -4, width: 8, height: 8 })],
   camp: () => [s("path", { d: "M-4 3 L0 -5 L4 3 Z" })],
+  raft: (m) => raftIcon(m.kind),
   rift: () => [s("rect", { x: -4, y: -4, width: 8, height: 8, transform: "rotate(45)" })],
   tree: (m) => treeIcon(m.kind),
   bramble: () => [s("path", { d: "M-5 0 H5 M0 -5 V5 M-3.6 -3.6 L3.6 3.6 M3.6 -3.6 L-3.6 3.6" })],
   gather: (m) => gatherIcon(m.kind),
 };
+/** Astra's raft symbols from spr_placed_16x16_wider: lashed crossbars (frame 0), log deck and paddle (frame 1). */
+export const RAFT_ICON = {
+  deck:
+    "M-6.3 -5.7 L-4 -6.1 L-4 6 L-6.3 5.6 Z M-3.1 -6.4 L-.7 -6.7 L-.7 6.5 L-3.1 6.2 Z M.2 -6.1 L2.6 -6.5 L2.6 6.1 L.2 6.5 Z M3.5 -6.5 L5.9 -6.8 L5.9 5.7 L3.5 6 Z",
+  bars: "M-7 -5.3 L6.8 -5.8 L6.8 -4.4 L-7 -3.9 Z M-7 4 L6.8 3.6 L6.8 5 L-7 5.4 Z",
+  rope: "M-5.6 -5.8 L-5 -3.5 M-.3 -6 L.3 -3.9 M5 -6.1 L5.6 -4 M-5.6 3.6 L-5 5.8 M-.3 3.3 L.3 5.5 M5 3 L5.6 5.3",
+  paddle: "M-5.9 2.4 L-6.5 1.2 L-3.4 -.5 L-2.9 .1 L5 -3.8 L5.5 -2.9 L-2.4 1 L-2.5 1.8 Z",
+};
+
+export function raftIcon(kind: string): SVGElement[] {
+  const base = kind.split(" ").includes("base");
+  return [
+    ...(!base ? [s("path", { class: "raft-deck", d: RAFT_ICON.deck })] : []),
+    s("path", { class: "raft-bars", d: RAFT_ICON.bars }),
+    s("path", { class: "raft-rope", d: RAFT_ICON.rope }),
+    ...(!base ? [s("path", { class: "raft-paddle", d: RAFT_ICON.paddle })] : []),
+  ];
+}
+
 /** Hand-drawn, game-shaped silhouettes in screen pixels; roots end at y=4. */
 const TREE_ICONS: Record<string, { wood?: string; crown: string; detail: string }> = {
   willow: {

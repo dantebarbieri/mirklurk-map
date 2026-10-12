@@ -227,6 +227,27 @@ select {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
+/* A question with several ways to go: each is a full-width button with a line saying what it does. */
+.dialog-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.button.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+  text-align: left;
+}
+.choice-label {
+  font-weight: 600;
+}
+.choice-detail {
+  color: var(--text);
+  font-size: 12px;
+}
 /* A question whose yes deletes or drops something: its button is red, and focus starts on Cancel. */
 .dialog.danger {
   border-color: #c96a5f;
@@ -325,7 +346,7 @@ body.loaded main > * {
 .inspect-head p {
   margin: 4px 0 0;
 }
-/* Wiki pictures are pixel art: kept crisp, on a soft light ground so dark sprites read on the dark card. */
+/* Wiki and game pictures are pixel art: kept crisp, on a soft light ground so dark sprites read on the dark card. */
 .portrait {
   flex: none;
   box-sizing: content-box;
@@ -2089,6 +2110,30 @@ body.map-full #zone > .inspection.sheet > .close {
 .pt.camp > :not(text) {
   fill: var(--gurb);
 }
+.pt.raft > :not(text) {
+  stroke-width: .8px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  paint-order: stroke;
+}
+.raft .raft-deck {
+  fill: #75605b;
+}
+.raft .raft-bars {
+  fill: #a28a75;
+}
+.pt.raft .raft-rope {
+  fill: none;
+  stroke: #c7c16b;
+  stroke-width: 1.3px;
+}
+.raft .raft-paddle {
+  fill: #ebbf88;
+}
+/* Screen-pixel offset, not a different saved tile: the deck peeks out below the player's shoulders. */
+.marks .pt.raft.yours > :not(text) {
+  transform: translateY(10px);
+}
 .pt.rift > :not(text) {
   fill: var(--scaal);
 }
@@ -2278,6 +2323,20 @@ body.map-full #zone > .inspection.sheet > .close {
   stroke: #fff;
   stroke-width: 3px;
 }
+/* Keep the thin logs, lashings and paddle readable rather than bleaching the whole raft on hover/selection. */
+.pt.raft.hl > :not(text) {
+  stroke-width: 1.4px;
+}
+.pt.raft.hl > .raft-rope,
+.marks .pt.raft.sel.sel > .raft-rope {
+  stroke: #c7c16b;
+  stroke-width: 1.3px;
+}
+.pt.raft.hl > .raft-paddle,
+.marks .pt.raft.sel.sel > .raft-paddle {
+  stroke: #120e0f;
+  stroke-width: .8px;
+}
 /* A creature's silhouette is too small to lose to the highlight, so it becomes a halo behind the fill. */
 .pt.creature.hl > .creature-body {
   paint-order: stroke;
@@ -2367,6 +2426,7 @@ svg.hide-loot .L-loot,
 svg.hide-drops .L-drops,
 svg.hide-camp .L-camp,
 svg.hide-storage .L-storage,
+svg.hide-rafts .L-rafts,
 svg.hide-boulders .L-boulders,
 svg.hide-rubble .L-rubble,
 svg.hide-rocks .L-rocks,

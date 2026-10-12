@@ -110,6 +110,8 @@ export interface PlayerSave {
   difficulty?: number;
   /** The world's clock and weather (manager_day's MD* keys); absent if the save has no clock. */
   sky?: Sky;
+  /** Standing on a raft (ensureRaft): the game saves it with you, not with the zone, and makes it under you again on load. */
+  onRaft: boolean;
 }
 
 /** obj_player's haelth, focus, energy, hunger and warmth, as the circle bar shows them (gml_Object_UI_Draw_64). */
@@ -185,6 +187,7 @@ export function parsePlayer(raw: unknown): PlayerSave {
     wetness: Array.isArray(p.wetness) ? p.wetness.map((v) => num(v)) : [],
     difficulty: typeof p.myDiff === "number" && Number.isInteger(p.myDiff) ? p.myDiff : undefined,
     sky: parseSky(p),
+    onRaft: p.ensureRaft === true,
   };
 }
 
