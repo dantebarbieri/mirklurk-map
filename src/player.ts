@@ -1,7 +1,7 @@
 // The player's saved condition and belongings: hit points, wellbeing and the four stats behind it, conditions, coins and
-// inventory. Wellbeing math is ported from Mirklurk 0.8.1.5: player_get_stat_changes and player_get_combined_wellbeing in
-// gml_GlobalScript_scr_basic_useful, with the thresholds set in gml_Room_rm_int_Create, as the circle bar in
-// gml_Object_UI_Draw_64 reports them.
+// inventory, and the journal (journal.ts). Wellbeing math is ported from Mirklurk 0.8.1.5: player_get_stat_changes and
+// player_get_combined_wellbeing in gml_GlobalScript_scr_basic_useful, with the thresholds set in gml_Room_rm_int_Create, as the
+// circle bar in gml_Object_UI_Draw_64 reports them.
 
 import { type Coins, coinsView, coinValue, countCoins, fewestCoins } from "./coins.ts";
 import { ARMOR, armorToPlace, isWeaponSlot, itemArmor, SLOT_NAMES, totalArmor } from "./armor.ts";
@@ -10,6 +10,7 @@ import { ITEM_NAMES } from "./gamedata.ts";
 import { healthGridView, healthLegend, type HealthSummary, summarize } from "./health.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { inventoryView, section, type SectionContext, wikiLink, wikiTitle } from "./inspect.ts";
+import { journalView } from "./journal.ts";
 import type { PlayerSave } from "./save.ts";
 import { wikiUrl } from "./wiki.ts";
 
@@ -562,7 +563,7 @@ function conditionsView(p: PlayerSave): HTMLElement[] {
   ];
 }
 
-/** Inspection sections for the player: hit points, wellbeing and its four stats, conditions, coins and inventory. */
+/** Inspection sections for the player: hit points, wellbeing and its four stats, conditions, coins, inventory and the journal. */
 export function playerView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
   return [
     section(ctx, "hp", "Hit points", true, ...hitPointsView(p, ctx)),
@@ -577,5 +578,6 @@ export function playerView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
       inventoryView(p.inventory, `${ctx.key}/inventory`, ctx.expanded, equippedBadge(p)),
       h("p", { class: "muted" }, "As saved. E marks what you wear or hold (dashed: your other weapon set); the rest is in your bags."),
     ),
+    section(ctx, "journal", "Journal", true, ...journalView(p, `${ctx.key}/journal`, ctx.expanded, ctx.find)),
   ];
 }

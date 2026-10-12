@@ -3,6 +3,7 @@
 import { $, h, hex, s, tileImage } from "./dom.ts";
 import { cheatedTag, fromShareTag } from "./badges.ts";
 import { focusZone, MapView, markIcon, personSvg, surveying, zonesInView } from "./mapview.ts";
+import { isFullMap } from "./fullscreen.ts";
 import type { Estimate } from "./estimate.ts";
 import {
   brambleMarks,
@@ -25,6 +26,7 @@ import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts";
 import { coinRollup, equippedBadge } from "./player.ts";
+import { journalHeadline, type JournalTarget, journalView, locateTarget } from "./journal.ts";
 import { skyChip, skyPanel } from "./skyview.ts";
 import { entityWiki } from "./wiki.ts";
 import type { FileMap } from "./files.ts";
@@ -314,6 +316,12 @@ export function renderWorld(st: State) {
         coinRollup(p.inventory),
         inventoryView(p.inventory, "player", st.expanded, equippedBadge(p)),
       ),
+      h(
+        "details",
+        { class: "journal-panel", "data-remember": "journal", open: st.expanded?.has("journal") },
+        h("summary", {}, "Journal", h("span", { class: "muted" }, ` · ${journalHeadline(p)}`)),
+        journalView(p, "journal", st.expanded, (t) => void showJournalTarget(st, t)),
+      ),
       warn,
     ),
     h("section", { id: "zone", "aria-live": "polite" }),
@@ -441,6 +449,29 @@ export function selectZone(st: State, x: number, y: number, restore = false) {
   st.selected = [x, y];
   markCell(x, y);
   renderZone(st, st.world.zones[y][x]);
+}
+
+/**
+ * Shows a person or place the journal mentions, as clicking it in a list under the map would: its zone centred on its marker, or
+ * its interior, with the marker inspected and its layer switched on. Places not generated yet show their zone.
+ */
+export async function showJournalTarget(st: State, t: JournalTarget) {
+  const at = await locateTarget(st.world, t);
+  if (!at) return;
+  const { zone, interior, mark } = at;
+  if (mark) st.prefs.layers.add(mark.layer);
+  st.inspected = mark ? markKey(mark) : undefined;
+  st.selected = [zone.x, zone.y];
+  markCell(zone.x, zone.y);
+  if (interior) {
+    st.viewport = undefined;
+    await renderInterior(st, zone, interior, INTERIOR_NAMES[interior.kind ?? -1] ?? "Interior");
+  } else {
+    // As MapView.focus frames a marker picked from a list.
+    st.viewport = mark ? [mark.x - 384, mark.y - 384, 768] : undefined;
+    await renderZone(st, zone);
+  }
+  if (!isFullMap()) document.getElementById("zone")?.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
 function markCell(x: number, y: number) {
@@ -671,7 +702,14 @@ async function renderZone(st: State, z: Zone, glide = false, locate = false) {
   const close = () => closeInspection(st, map, inspector);
   const inspect = (m: Mark, expanded?: Set<string>) => {
     map.select(m);
-    inspectMark(inspector, m, { expanded, tool: chopTool(st), picker: picker(), close, difficulty: world.player.difficulty });
+    inspectMark(inspector, m, {
+      expanded,
+      tool: chopTool(st),
+      picker: picker(),
+      close,
+      difficulty: world.player.difficulty,
+      find: (t) => void showJournalTarget(st, t),
+    });
   };
   const openInterior = (m: Mark) => {
     if (m.interior) {
@@ -1420,7 +1458,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string, lo
   const close = () => closeInspection(st, map, inspector);
   const inspect = (m: Mark, expanded?: Set<string>) => {
     map.select(m);
-    inspectMark(inspector, m, { expanded, close, difficulty: st.world.player.difficulty });
+    inspectMark(inspector, m, { expanded, close, difficulty: st.world.player.difficulty, find: (t) => void showJournalTarget(st, t) });
   };
   const open = (m: Mark) => {
     if (m.interior) {

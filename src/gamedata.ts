@@ -342,6 +342,55 @@ export const DAMAGE_CLASS_NAMES: Record<number, string> = {
   24: "Weak",
 };
 
+/** [Journal] First in UI.ini: the entry every journal starts with. */
+export const JOURNAL_FIRST =
+  "So I have been exiled from The Kingdom... Soon I will leave this wretched ship, but for better or for worse? What awaits me in The Mirk?";
+
+/** [Journal] in UI.ini: the entry each main-quest stage adds; "CCC" stands for a place the game fills in. */
+export const JOURNAL: Record<number, string> = {
+  0: "I have been given some basic supplies. I must try my best to survive here. Maybe the map can provide me with some clues about what to do next?",
+  1: "The camp was destroyed and the other Unwanted are dead... I discovered a flute belonging to one of them - maybe it still holds some value to someone?",
+  2: "I told Eir about the camp. She seemed upset... She told me return to her tomorrow.",
+  3: "I have survived another night. I should return to Eir.",
+  4: "Eir told me that I should talk to Clay. He resides in the undercroft of the fort.",
+  5: "Clay told me to gather three samples from the rift itself. I have to be very careful...",
+  6: "Clay needed some time to research the weaves. He told me to talk to Eir in the meantime.",
+  7: "I am to find a ranger named Bhato, in the next area CCC. Apparently he had some hideout there, so maybe he is difficult to find.",
+  8: "Bhato told me to search the ruins in his area. One of them supposedly leads down into an ancient cellar.",
+  9: "I've slain the strange beast Bhato told me about. It dropped something heavy. I should see what it was and return with it to Bhato.",
+  10: "Once again I must return to Clay at Fort Solid. I must bring this strange rune with me.",
+  11: "I am to return to the abandonded camp site. Apparently Clay wants me to pour a potion down the throat of one of the dead.",
+  12: "One of the Unwanted returned to life! I should guide him back to Fort Solid.",
+  13: "Viend has safely returned to the fort and is probably being examined by Clay. It seems that Captain Eir has something to say to me.",
+  15: "I have been granted access to Fort Solid. I should talk to the commander.",
+  16: "Before I embark on the longer journey, I should talk to Clay once more.",
+  17:
+    "I should travel to area CCC. Apparently there are many ruins there, some of which might contain information about the rifts and 'The Caged Ones'.",
+  18:
+    "I have arrived at the ruins. Hopefully I can find something, anything, that has withstood the ages and can provide useful information.",
+  19: "I discovered an ancient strongbox. From what I can tell, it's magical in nature. I am sure Clay wants to see this.",
+  20: "I should talk to the commander once again, while Clay tries to unlock the strongbox.",
+  23:
+    "I remember talking to the commander, then it all went black. Now I have a blinding headache, my body is aching and my ears are ringing. Maybe someone here can tell me what happened?",
+  24: "I should see if Clay is willing to talk to me.",
+  25: "Just before disappearing, it seems that Clay dropped something.",
+  26:
+    "Did he leave this strange item on purpose, or drop it by accident? I have a feeling I will need it... If what Clay said was correct, the path to stopping the Scaalmyrs conquest lies at CCC.",
+  28: "This place must be it... Somewhere in these depths, Scaal must dwell. I must go as deep as possible.",
+  29:
+    "It is done... Scaal is defeated. New scaalmyr will no longer be spawned. I am sure some of them might still roam the Mirk, but the main threat is dealt with. I should probably tell Eir what has happened.",
+  30:
+    "So I am free now? I can actually go back home one day? What would that even mean for me now? The Mirk has changed me in so many ways...",
+};
+
+/** [ToTheDir] in Bestiary.ini: directions the journal fills in, keyed 0 north, 1 south, 2 east, 3 west. */
+export const TO_THE_DIR: Record<number, string> = {
+  0: "to the north",
+  1: "to the south",
+  2: "to the east",
+  3: "to the west",
+};
+
 /** Sprite geometry: [width, height, originX, originY, bboxLeft, bboxRight, bboxTop, bboxBottom]. */
 export const SPRITES: Record<string, readonly number[]> = {
   "spr_boulders_128x128": [128, 160, 0, 160, 0, 127, 32, 159],

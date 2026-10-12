@@ -12,7 +12,8 @@ save folder and it shows:
   Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rafts (placed ones, Raft Bases, and the one you stand on), rifts,
   large boulders and ruin rubble. Creatures, small rocks, trees, brambles, rift vines, sharp ground, a water overlay and gatherables
   (Calmia, Turnips, Cranberries, Watercress, Water Lilies, Vile Bulbs, bird nests and ferns) can be switched on. Click an explored entrance
-  to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your wellbeing and inventory.
+  to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your wellbeing, inventory and
+  journal.
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -302,8 +303,33 @@ where the save records them, wet clothing, level, XP to the next level and unspe
 contents like a container, each worn or held item marked **E** (with its slot on hover; dashed for the weapon set not in hand, since worn
 vests, pants and belts have pockets too), under a roll-up of every coin carried, bags included: **True coins** shows them as they are,
 **Minimum coins** the same value in the fewest coins (100 copper make a silver, 10 silver a gold). The choice is kept for the session and
-applies to every roll-up, including the one in **Saved equipment & inventory**. Everything is the state at save time; the game keeps
-changing it every turn.
+applies to every roll-up, including the one in **Saved equipment & inventory**. **Journal** shows your journal (see below). Everything is
+the state at save time; the game keeps changing it every turn.
+
+### Journal
+
+Expand **Journal** under the map, or inspect yourself, to read your character's journal as the game lists it after loading the save, in the
+game's own words. The newest entry, the one the game opens the journal on, comes first, and **Earlier entries** lists the rest from Entry 1.
+MirkMap adds a short title to each entry (the game shows only "Entry 12"), and the panel's title names the newest entry, so it shows your
+progress even when closed. Where the game fills in a place, MirkMap fills it in the same way: the direction of Bhato's zone from Fort Solid
+in the entry that sends you to him, and the map coordinates of the Library's and Scaal's zones in the entries that send you there. Only
+entries you have reached are shown; the wiki's _Quests and journal_ link covers the rest of the story, spoilers included.
+
+The people and places an entry mentions are links that show them on the map, as clicking them in the lists under the map does: Captain Eir,
+Magus Clay, Ranger Bhato, Viend, the commander (Commander Tain) and Scaal; Fort Solid, the Camp, your ship, the Undercroft, Bhato's zone and
+hideout, the ruin cellar, the Library and its zone, Scaal's zone or lair and its depths, and the rift beside the Camp, where Clay's rift
+samples come from. A link opens the zone centred on the marker, or the interior it is in, and inspects it, switching its layer on if needed.
+Someone the save has no trace of (Clay after he disappears, Scaal before you reach him) leads to where they live, a place not entered yet to
+its entrance, and a building not placed yet to its zone. In the save editor, the preview's links open the **Full map** there.
+
+The game keeps no journal text in the save, only the main quest's stage (`mainQ` in `Player.save`), and rebuilds the journal from it on
+loading (`journal_update` in `gml_GlobalScript_scr_basic_useful`). Entry 1 is the same for everyone (`UI.ini [Journal] First`), and each
+stage from 0 up to the saved one adds the entry `[Journal]` has for it. Stages −10 to −6 are the opening tutorial and −5 means it is over or
+was skipped, so the journal holds only Entry 1 until stage 0. Stages 14 (Viend reaches Captain Eir), 21 and 22 (the talk with Commander Tain
+and the blast that ends it) and 27 (Eir hands over the Summoning Stone) have no text, so they add no entry; MirkMap says what such a stage
+means under the newest entry. The journal's text is copied from `UI.ini` into `src/gamedata.ts` by `tools/gamedata.ts` (see
+[Development](#development)), with the developer's permission. The save editor's preview and its **Full map** show the same journal, which
+edits do not change.
 
 ### Trees: trunk liveliness and chopping cost
 
@@ -687,7 +713,7 @@ The icons are pixel art drawn from the game's own "Map of area" item and the col
 land, the logo's purple outline and an amber waypoint. `tools/icons.ts` holds them as text rows and writes the SVG favicon and every PNG
 size deterministically, without dependencies.
 
-`src/gamedata.ts` holds the game's names and sprite bounds. After a game update, regenerate it:
+`src/gamedata.ts` holds the game's names, the journal's text and sprite bounds. After a game update, regenerate it:
 
 ```powershell
 $env:MIRKLURK_META_OUT = "$env:TEMP\mirklurk-meta"
@@ -757,6 +783,6 @@ For a local check where Docker is available: `docker compose up --build -d` (htt
 context is an allowlist (`.dockerignore`), so game files and saves cannot end up in the image.
 
 Unofficial fan tool. Mirklurk and the game art are by Edym Pixels. Selected game art, including the pictures of creatures, NPCs, items and
-quest buildings taken from mirklurk.wiki and the MirkMap icons drawn from the "Map of area" item and the logo's colours, is used on this
-site with the developer's permission; it remains the developer's copyrighted material and is not relicensed as part of the viewer's source
-code.
+quest buildings taken from mirklurk.wiki and the MirkMap icons drawn from the "Map of area" item and the logo's colours, and the journal's
+text are used on this site with the developer's permission; they remain the developer's copyrighted material and are not relicensed as part
+of the viewer's source code.
