@@ -129,7 +129,14 @@ Deno.test("player: stat statuses, temperature labels and wellbeing trend in word
 });
 
 Deno.test("player: conditions get short labels, timers and wet clothes", () => {
-  const p = { effects: [4, 16, 2, 23, 20, 22, 18, 4, 99], sickTime: 11.2, warmthTime: 17.8, restedTime: 16.6 };
+  const p = {
+    effects: [4, 16, 2, 23, 20, 22, 18, 4, 99, 21, 29],
+    sickTime: 11.2,
+    warmthTime: 17.8,
+    restedTime: 16.6,
+    fedTime: 7,
+    staminaBoostTime: 20,
+  };
   assertEquals(
     conditionsOf(p).map((c) => [c.label, c.tone, c.turns ?? null]),
     [
@@ -141,6 +148,8 @@ Deno.test("player: conditions get short labels, timers and wet clothes", () => {
       ["Well rested", "good", 17],
       ["Sickness II", "bad", 12],
       ["Condition 99", "info", null],
+      ["Well fed", "good", 7],
+      ["Stamina boost", "good", 20],
     ],
   );
   assertEquals(wetClothes([1, 0.4, 0.004, 1]), ["head 100%", "torso 40%", "feet 100%"]);
@@ -195,6 +204,8 @@ Deno.test({ name: "player: real saves agree with the wellbeing port", ignore: pl
     for (const c of conditionsOf(p)) assert(!c.label.startsWith("Condition "), `${name}: condition ${c.index} has a label`);
     if (p.effects.includes(20)) assert(p.warmthTime > 0, `${name}: warm to the core has a timer`);
     if (p.effects.includes(22)) assert(p.restedTime > 0, `${name}: well rested has a timer`);
+    if (p.effects.includes(21)) assert(p.fedTime > 0, `${name}: well fed has a timer`);
+    if (p.effects.includes(29)) assert(p.staminaBoostTime > 0, `${name}: stamina boost has a timer`);
     if (sicknessLevel(p.effects)) assert(p.sickTime > 0, `${name}: sickness has a timer`);
     assert(Math.round(p.xp) < xpForLevel(p.level), `${name}: XP below the next level`);
     if (name === "Lorroakan") assertAlmost(change.total, -0.017, 1e-9, name);

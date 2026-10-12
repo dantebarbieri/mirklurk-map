@@ -104,6 +104,9 @@ export interface PlayerSave {
   /** Turns left of being warm to the core (warmthTime) and well rested (restedTime); each adds 1% wellbeing per turn. */
   warmthTime: number;
   restedTime: number;
+  /** Turns left of being well fed (fedTime) and of a stamina boost (staminaBoostTime). */
+  fedTime: number;
+  staminaBoostTime: number;
   /** Clothing wetness per body part, 0–1 (wetness). */
   wetness: number[];
   /** global.GAMEDIFF (myDiff): 3 is Hard, where beings aim one intelligence level better. */
@@ -184,6 +187,8 @@ export function parsePlayer(raw: unknown): PlayerSave {
     sickTime: num(p.sickTime),
     warmthTime: num(p.warmthTime),
     restedTime: num(p.restedTime),
+    fedTime: num(p.fedTime),
+    staminaBoostTime: num(p.staminaBoostTime),
     wetness: Array.isArray(p.wetness) ? p.wetness.map((v) => num(v)) : [],
     difficulty: typeof p.myDiff === "number" && Number.isInteger(p.myDiff) ? p.myDiff : undefined,
     sky: parseSky(p),

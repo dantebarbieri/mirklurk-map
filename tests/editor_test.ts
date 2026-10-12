@@ -5,13 +5,18 @@
 import { assert, assertEquals } from "./assert.ts";
 import {
   healPlayer,
+  hitPointStatus,
+  MAX_STACKS,
   movePlayer,
   playerRecord,
   type Rec,
+  setConditions,
+  setHitPointStatus,
   setLevel,
   setNewHitPoints,
   setSkillPoints,
   setSky,
+  setStunned,
   setVitals,
 } from "../src/editor/edits.ts";
 import {
@@ -40,8 +45,9 @@ import { Ground, groundMap, tileBox } from "../src/editor/ground.ts";
 import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
 import { readMarker, writeMarker } from "../src/marker.ts";
 import { decodeJson, parseBeings, parsePlayer } from "../src/save.ts";
+import { parseHealth } from "../src/health.ts";
 import { parseInventoryGrid } from "../src/inventory.ts";
-import { xpForLevel } from "../src/player.ts";
+import { conditionsOf, xpForLevel } from "../src/player.ts";
 import { TILES } from "../src/rules.ts";
 import { Weather } from "../src/weather.ts";
 import { ITEMS } from "../src/itemdata.ts";
@@ -138,6 +144,67 @@ Deno.test("healing restores lost and burned hit points, keeps armor and holes, a
   assertEquals(healPlayer(p), 3);
   assertEquals(p.hpgrid, [[1, 1, 1], [E, 3, 1]]);
   assertEquals(p.statusgrid, [[[], [], []], [[], [], []]]);
+});
+
+Deno.test("poison and bleeding go on living hit points as attack_lands leaves them, keeping flashes", () => {
+  const p: Rec = { hpgrid: [[1, 0, -1], [E, 3, 1]], statusgrid: [[[6, 2, 11], [], []], [[], [], [10, 12.5]]] };
+  assertEquals(hitPointStatus(p, 0, 0), { poison: 1, bleed: 1, dir: 1 });
+  assertEquals(hitPointStatus(p, 2, 1), { poison: 0, bleed: 2, dir: 0 }, "floored like statusgrid_get");
+  setHitPointStatus(p, 0, 0, { poison: 3, bleed: 2, dir: 2 });
+  assertEquals((p.statusgrid as unknown[][])[0][0], [6, 2, 2, 2, 12, 12], "the hit flash stays");
+  setHitPointStatus(p, 1, 1, { poison: 0, bleed: 1, dir: 3 });
+  assertEquals((p.statusgrid as unknown[][])[1][1], [13], "armored hit points take them too");
+  setHitPointStatus(p, 2, 1, { poison: 0, bleed: 0, dir: 0 });
+  assertEquals((p.statusgrid as unknown[][])[1][2], []);
+  setHitPointStatus(p, 1, 0, { poison: 0, bleed: 0, dir: 0 });
+  assertThrows(() => setHitPointStatus(p, 1, 0, { poison: 1, bleed: 0, dir: 0 }), /lost: only living/);
+  assertThrows(() => setHitPointStatus(p, 2, 0, { poison: 0, bleed: 1, dir: 0 }), /burned/);
+  assertThrows(() => setHitPointStatus(p, 0, 1, { poison: 0, bleed: 0, dir: 0 }), /no hit point at row 2, column 1/);
+  assertThrows(() => setHitPointStatus(p, 0, 0, { poison: MAX_STACKS + 1, bleed: 0, dir: 0 }), /Poison stacks/);
+  assertThrows(() => setHitPointStatus(p, 0, 0, { poison: 0, bleed: 1, dir: 4 }), /direction/);
+  const parsed = parseHealth(p.hpgrid, p.statusgrid)!;
+  assertEquals([parsed.cells[0][0].poison, parsed.cells[0][0].bleed], [3, [0, 0, 2, 0]]);
+
+  const bare: Rec = { hpgrid: [[1, 1]] };
+  setHitPointStatus(bare, 1, 0, { poison: 1, bleed: 0, dir: 0 });
+  assertEquals(bare.statusgrid, [[[], [2]]], "a missing statusgrid is made in hpgrid's shape");
+  assertThrows(() => setHitPointStatus({ hpgrid: [[1, 1]], statusgrid: [[[]]] }, 0, 0, { poison: 1, bleed: 0, dir: 0 }), /do not match/);
+});
+
+Deno.test("stun goes on statusgrid's first cell, as apply_stunned puts it, and recovering takes every one", () => {
+  const p: Rec = { hpgrid: [[0, 1], [1, 1]], statusgrid: [[[1], []], [[], [2]]] };
+  setStunned(p, true);
+  assertEquals(p.statusgrid, [[[1, 23], []], [[], [2]]]);
+  assert(parseHealth(p.hpgrid, p.statusgrid)!.stunned);
+  setStunned(p, true);
+  assertEquals((p.statusgrid as unknown[][])[0][0], [1, 23], "one stun is enough");
+  (p.statusgrid as unknown[][][])[1][1].push(23);
+  setStunned(p, false);
+  assertEquals(p.statusgrid, [[[1], []], [[], [2]]]);
+});
+
+Deno.test("lasting conditions set their aeList entry and timer together", () => {
+  const p: Rec = { aeList: [4, 17, 22, 23], sickTime: 5, restedTime: 3, warmthTime: 0, fedTime: 0, staminaBoostTime: 0 };
+  setConditions(p, { sickness: { level: 3, turns: 40 } });
+  assertEquals([p.aeList, p.sickTime], [[4, 22, 23, 19], 40], "a new level replaces the old one at the end, as player_get_sickness does");
+  setConditions(p, { sickness: { level: 3, turns: 12 } });
+  assertEquals([p.aeList, p.sickTime], [[4, 22, 23, 19], 12], "the same level keeps its place");
+  setConditions(p, { sickness: { level: 0, turns: 99 } });
+  assertEquals([p.aeList, p.sickTime], [[4, 22, 23], 0], "curing clears sickTime too");
+  setConditions(p, { rested: 35, fed: 20, boost: 60, warm: 36 });
+  assertEquals(p.aeList, [4, 22, 23, 20, 21, 29]);
+  assertEquals([p.restedTime, p.fedTime, p.staminaBoostTime, p.warmthTime], [35, 20, 60, 36]);
+  setConditions(p, { rested: 0, warm: 0 });
+  assertEquals([p.aeList, p.restedTime, p.warmthTime], [[4, 23, 21, 29], 0, 0]);
+  assertThrows(() => setConditions(p, { fed: 36 }), /Turns of well fed must be a whole number from 0 to 35/);
+  assertThrows(() => setConditions(p, { sickness: { level: 2, turns: 0 } }), /Turns of sickness/);
+  assertThrows(() => setConditions(p, { sickness: { level: 4, turns: 5 } }), /Sickness level/);
+  assertThrows(() => setConditions(p, { boost: 2.5 }), /stamina boost/);
+  const fresh: Rec = {};
+  setConditions(fresh, { boost: 20 });
+  assertEquals([fresh.aeList, fresh.staminaBoostTime], [[29], 20]);
+  const v = parsePlayer([{ ...player([[E]]), ...p }]);
+  assertEquals([v.fedTime, v.staminaBoostTime, v.sickTime], [20, 60, 0]);
 });
 
 Deno.test("weather is written as the game leaves each state; the day moves daysAlive with it", () => {
@@ -528,6 +595,10 @@ Deno.test({ name: "real saves: every edit round-trips through the viewer's parse
     const r = addItems(p, 72, 7);
     setVitals(p, { wellbeing: 1, satiation: 1, focus: 1, stamina: 1, warmth: 0.5 });
     healPlayer(p);
+    const living = (p.hpgrid as number[][]).flatMap((row, y) => row.flatMap((hp, x) => (hp >= 1 ? [[x, y]] : [])))[0];
+    if (living) setHitPointStatus(p, living[0], living[1], { poison: 2, bleed: 1, dir: 3 });
+    setStunned(p, true);
+    setConditions(p, { sickness: { level: 2, turns: 30 }, fed: 10, boost: 0 });
     setLevel(p, Math.min(60, before.level + 1));
     setSky(p, { weather: Weather.Rain, rain: 0.5, minute: 600 });
     // Encoded as save_datajson does: JSON then one NUL byte.
@@ -536,7 +607,18 @@ Deno.test({ name: "real saves: every edit round-trips through the viewer's parse
     const after = parsePlayer(decodeJson(out));
     assertEquals(after.level, Math.min(60, before.level + 1), name);
     assertEquals(after.vitals?.wellbeing, 1, name);
-    assert(after.health!.cells.flat().every((c) => c.hp !== 0 && c.hp !== -1 && !c.poison), `${name}: healed`);
+    assert(after.health!.cells.flat().every((c) => c.hp !== 0 && c.hp !== -1), `${name}: healed`);
+    if (living) {
+      const c = after.health!.cells[living[1]][living[0]];
+      assertEquals([c.poison, c.bleed], [2, [0, 0, 0, 1]], `${name}: poison and bleeding`);
+    }
+    assert(after.health!.stunned, `${name}: stunned`);
+    assertEquals(
+      conditionsOf(after).filter((c) => [18, 21].includes(c.index)).map((c) => [c.label, c.turns]).sort(),
+      [["Sickness II", 30], ["Well fed", 10]],
+      name,
+    );
+    assert(!after.effects.includes(29) && after.staminaBoostTime === 0, `${name}: no stamina boost`);
     if (coinsBefore && after.inventory) {
       assertEquals(countCoins(after.inventory).copper - coinsBefore.copper, r.added, `${name}: copper added`);
     }

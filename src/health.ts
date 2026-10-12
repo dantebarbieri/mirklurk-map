@@ -116,7 +116,10 @@ const chevron = (dir: number) =>
     { class: "hp-chevron", viewBox: "0 0 10 10", "aria-hidden": "true", focusable: "false" },
     s("path", { d: "M1.75 7 5 3.5 8.25 7", transform: `rotate(${dir * 90} 5 5)` }),
   );
-const DIRS = ["up", "right", "down", "left"];
+/** The ways a bleed spreads, in statusgrid order (Status.BleedUp + i). */
+export const BLEED_DIRS = ["up", "right", "down", "left"] as const;
+/** Where a cell of a grid is, in words, counting from 1 as people do. */
+export const cellPlace = (x: number, y: number) => `row ${y + 1}, column ${x + 1}`;
 const KIND_TEXT: Record<CellKind, string> = {
   none: "",
   healthy: "Healthy hit point",
@@ -124,13 +127,13 @@ const KIND_TEXT: Record<CellKind, string> = {
   burned: "Burned hit point: cannot heal or regenerate until treated",
 };
 
-function cellTitle(c: HealthCell): string {
+export function cellTitle(c: HealthCell): string {
   const armor = cellArmor(c);
   return [
     KIND_TEXT[cellKind(c)],
     armor ? `${armor} armor` : "",
     c.poison ? `poison ×${c.poison}` : "",
-    ...c.bleed.map((n, i) => n ? `bleeding ×${n}, spreading ${DIRS[i]}` : ""),
+    ...c.bleed.map((n, i) => n ? `bleeding ×${n}, spreading ${BLEED_DIRS[i]}` : ""),
   ].filter(Boolean).join(", ");
 }
 
@@ -170,6 +173,37 @@ export function healthGridView(g: HealthGrid, caption = healthText(g)): HTMLElem
       g.cells.flat().map(cellView),
     ),
     h("figcaption", { class: "muted" }, caption),
+  );
+}
+
+/**
+ * The grid with each hit point as a button that picks it, for the save editor; `selected` is [x, y]. Cells that are no hit point keep
+ * their place.
+ */
+export function healthGridPicker(
+  g: HealthGrid,
+  selected: readonly [number, number] | undefined,
+  pick: (x: number, y: number) => void,
+): HTMLElement {
+  return h(
+    "figure",
+    { class: "hp hp-picker" },
+    h(
+      "div",
+      { class: "hp-grid", role: "group", "aria-label": "Hit points", style: `grid-template-columns: repeat(${g.w}, var(--hp-cell))` },
+      g.cells.map((row, y) =>
+        row.map((c, x) =>
+          cellKind(c) === "none" ? cellView(c) : h("button", {
+            type: "button",
+            class: "hp-pick",
+            "aria-pressed": String(selected?.[0] === x && selected?.[1] === y),
+            "aria-label": `${cellPlace(x, y)}: ${cellTitle(c)}`,
+            onclick: () => pick(x, y),
+          }, cellView(c))
+        )
+      ),
+    ),
+    h("figcaption", { class: "muted" }, healthText(g)),
   );
 }
 

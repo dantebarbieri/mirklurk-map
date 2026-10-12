@@ -2,8 +2,8 @@
 // gml_GlobalScript_scr_saveload's save_player/load_player). Every function edits the raw parsed record in place and keeps every key
 // it does not own, because load_player reads almost all of them without checking that they exist.
 
-import { Hp } from "../health.ts";
-import { MAX_LEVEL, xpForLevel } from "../player.ts";
+import { cellPlace, Hp, Status } from "../health.ts";
+import { Ae, CONDITIONS, MAX_LEVEL, type TimerKey, xpForLevel } from "../player.ts";
 import { isOutside, TILES } from "../rules.ts";
 import { SKY_KEYS, Weather, type WeatherState } from "../weather.ts";
 
@@ -101,6 +101,136 @@ export function healPlayer(p: Rec): number {
   }
   if (Array.isArray(p.statusgrid)) p.statusgrid = p.statusgrid.map((row) => Array.isArray(row) ? row.map(() => []) : row);
   return healed;
+}
+
+/** Poison and bleeding on one hit point. */
+export interface HitPointStatus {
+  poison: number;
+  bleed: number;
+  /** The way the bleed spreads (BLEED_DIRS): 0 up, 1 right, 2 down, 3 left. */
+  dir: number;
+}
+
+/** The game sets no limit; a player's grid has at most 15 hit points, so more stacks than this would never all take effect. */
+export const MAX_STACKS = 20;
+
+/** statusgrid, [y][x] like hpgrid, every cell a list; made empty in hpgrid's shape when the save has none (load_player reads it). */
+function statusGrid(p: Rec): unknown[][][] {
+  const hp = p.hpgrid;
+  if (!Array.isArray(hp) || !hp.length || hp.some((r) => !Array.isArray(r) || r.length !== (hp[0] as unknown[]).length)) {
+    throw new Error("This save's hit points are unreadable");
+  }
+  const w = (hp[0] as unknown[]).length;
+  if (p.statusgrid === undefined) p.statusgrid = hp.map(() => Array.from({ length: w }, () => []));
+  const st = p.statusgrid;
+  if (!Array.isArray(st) || st.length !== hp.length || st.some((r) => !Array.isArray(r) || r.length !== w)) {
+    throw new Error("This save's hit-point statuses do not match its hit points");
+  }
+  for (const row of st as unknown[][]) for (let x = 0; x < w; x++) if (!Array.isArray(row[x])) row[x] = [];
+  return st as unknown[][][];
+}
+
+/** statusgrid_get compares floor()ed entries. */
+const statusIs = (v: unknown, lo: number, hi = lo) => typeof v === "number" && Math.floor(v) >= lo && Math.floor(v) <= hi;
+
+/** The poison and bleeding on hit point (x, y), with bleeding read the way the game keeps it: all spreading one way. */
+export function hitPointStatus(p: Rec, x: number, y: number): HitPointStatus {
+  const cell = (Array.isArray(p.statusgrid) ? p.statusgrid[y] : undefined)?.[x];
+  const list: unknown[] = Array.isArray(cell) ? cell : [];
+  const ways = [0, 1, 2, 3].map((d) => list.filter((v) => statusIs(v, Status.BleedUp + d)).length);
+  const dir = ways.indexOf(Math.max(...ways));
+  return { poison: list.filter((v) => statusIs(v, Status.Poison)).length, bleed: ways.reduce((a, b) => a + b, 0), dir };
+}
+
+/**
+ * Sets the poison and bleed stacks on the player's hit point at column x, row y, as attack_lands leaves them: one 2 per poison stack,
+ * one 10–13 per bleed stack, all spreading the same way (a new bleed turns a hit point's others its way). Only a living hit point (1,
+ * or 2–4 under armor) takes them, as in the game. At the end of each turn delayed_effects_check takes a poisoned or bleeding hit point,
+ * whatever its armor, and moves its other stacks on: poison to a random living neighbour, bleeding to the next hit point its way. The
+ * cell's other entries (hit and miss flashes) are kept.
+ */
+export function setHitPointStatus(p: Rec, x: number, y: number, s: HitPointStatus) {
+  const st = statusGrid(p);
+  const hp = (p.hpgrid as unknown[][])[y]?.[x];
+  if (typeof hp !== "number" || hp === Hp.None) throw new Error(`There is no hit point at ${cellPlace(x, y)}`);
+  wholeIn(s.poison, 0, MAX_STACKS, "Poison stacks");
+  wholeIn(s.bleed, 0, MAX_STACKS, "Bleeding stacks");
+  wholeIn(s.dir, 0, 3, "The bleed's direction");
+  if ((s.poison || s.bleed) && !(hp >= Hp.Healthy)) {
+    throw new Error(
+      `The hit point at ${cellPlace(x, y)} is ${hp === Hp.Burned ? "burned" : "lost"}: only living ones take poison or bleeding`,
+    );
+  }
+  const cell = st[y][x].filter((v) => !statusIs(v, Status.Poison) && !statusIs(v, Status.BleedUp, Status.BleedLeft));
+  for (let i = 0; i < s.poison; i++) cell.push(Status.Poison);
+  for (let i = 0; i < s.bleed; i++) cell.push(Status.BleedUp + s.dir);
+  st[y][x] = cell;
+}
+
+/**
+ * Stunned (by a blunt blow) misses its next turn: apply_stunned adds a 23 to statusgrid's first cell, and the end of the turn takes every
+ * 23 away. Stunning keeps a stun already there; recovering takes them all.
+ */
+export function setStunned(p: Rec, on: boolean) {
+  const st = statusGrid(p);
+  const stunned = st.some((row) => row.some((cell) => cell.some((v) => statusIs(v, Status.Stunned))));
+  if (on) {
+    if (!stunned) st[0][0].push(Status.Stunned);
+    return;
+  }
+  for (const row of st) for (let x = 0; x < row.length; x++) row[x] = row[x].filter((v) => !statusIs(v, Status.Stunned));
+}
+
+/** Sickness and stamina boosts add up without a cap in the game; the editor stops here. */
+export const MAX_TURNS = 999;
+
+export type Timed = "warm" | "fed" | "rested" | "boost";
+
+/**
+ * The lasting conditions other than sickness: their aeList entry, timer and most turns. The game caps warm to the core, well fed and
+ * well rested at 35 (global.COREMAX, FEDMAX and RESTEDMAX in gml_Room_rm_int_Create), but a hot drink leaves warm to the core at 36.
+ */
+export const TIMED: Readonly<Record<Timed, { ae: number; key: TimerKey; max: number }>> = {
+  warm: { ae: Ae.WarmToTheCore, key: "warmthTime", max: 36 },
+  fed: { ae: Ae.WellFed, key: "fedTime", max: 35 },
+  rested: { ae: Ae.WellRested, key: "restedTime", max: 35 },
+  boost: { ae: Ae.StaminaBoost, key: "staminaBoostTime", max: MAX_TURNS },
+};
+
+export interface ConditionsEdit extends Partial<Record<Timed, number>> {
+  /** Sickness I–III (level 1–3) for `turns`, or level 0 to cure it. */
+  sickness?: { level: number; turns: number };
+}
+
+/** ds_list_findadd: at the end, unless it is already there. */
+const gain = (list: unknown[], ae: number) => void (list.includes(ae) || list.push(ae));
+const lose = (list: unknown[], ae: number) => {
+  for (let i = list.length - 1; i >= 0; i--) if (list[i] === ae) list.splice(i, 1);
+};
+
+/**
+ * Sets lasting conditions as the game gives them: the aeList entry and its timer together, since player_endturn counts the timer down
+ * by one a turn and drops the entry at 0. 0 turns removes one. A new sickness level replaces the old one, as player_get_sickness does.
+ * Curing sickness also clears sickTime: the game reads a sickTime without a level as a 16% wellbeing gain each turn.
+ */
+export function setConditions(p: Rec, e: ConditionsEdit) {
+  if (!Array.isArray(p.aeList)) p.aeList = [];
+  const list = p.aeList as unknown[];
+  if (e.sickness) {
+    const level = wholeIn(e.sickness.level, 0, 3, "Sickness level");
+    const turns = level ? wholeIn(e.sickness.turns, 1, MAX_TURNS, "Turns of sickness") : 0;
+    for (let l = 1; l <= 3; l++) if (l !== level) lose(list, Ae.Sickness1 + l - 1);
+    if (level) gain(list, Ae.Sickness1 + level - 1);
+    p.sickTime = turns;
+  }
+  for (const [k, t] of Object.entries(TIMED) as [Timed, typeof TIMED[Timed]][]) {
+    const turns = e[k];
+    if (turns === undefined) continue;
+    wholeIn(turns, 0, t.max, `Turns of ${CONDITIONS[t.ae].label.toLowerCase()}`);
+    if (turns) gain(list, t.ae);
+    else lose(list, t.ae);
+    p[t.key] = turns;
+  }
 }
 
 export interface SkyEdit {
