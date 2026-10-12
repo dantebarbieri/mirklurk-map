@@ -77,8 +77,11 @@ export interface SaveSource {
   read(): Promise<SaveRead>;
   /** Throws a StaleError if the character's save changed since `read`. */
   check(read: SaveRead, character: Character): Promise<void>;
-  /** Writes `writes` in their order; `all` is every file of the save once they are written. Returns the save as it is then. */
-  write(writes: Write[], all: FileMap, character: Character): Promise<SaveRead>;
+  /**
+   * Writes `writes` in their order; `all` is every file of the save once they are written, and `read` the save they replace. Returns
+   * the save as it is then.
+   */
+  write(writes: Write[], all: FileMap, character: Character, read: SaveRead): Promise<SaveRead>;
 }
 
 /** A folder opened with the File System Access API: the whole Saves folder or one character's folder. */
@@ -138,6 +141,9 @@ export class FolderSource implements SaveSource {
 /** The library calls a LibrarySource makes: src/library.ts's api with this browser's key, or a stand-in server in tests. */
 export type LibraryCall = (path: string, init?: RequestInit) => Promise<Response>;
 
+const STALE_LIBRARY = "This world was updated in My worlds since it was read, from another device or by Live saves keeping it updated. " +
+  "Choose Reload save to read the newest version and run your unsaved changes again on it.";
+
 /** A world in My worlds: read from the library, and saved by updating it there, which every synced device then sees. */
 export class LibrarySource implements SaveSource {
   readonly kind = "library";
@@ -170,25 +176,29 @@ export class LibrarySource implements SaveSource {
     const response = await this.data({ headers: typeof read.version === "string" ? { "If-None-Match": read.version } : {} });
     if (response.status === 304) return;
     await response.body?.cancel();
-    throw new StaleError(
-      "This world was updated in My worlds since it was read, from another device or by Live saves keeping it updated. " +
-        "Choose Reload save to read the newest version and run your unsaved changes again on it.",
-    );
+    throw new StaleError(STALE_LIBRARY);
   }
 
-  async write(_writes: Write[], all: FileMap, character: Character): Promise<SaveRead> {
+  async write(_writes: Write[], all: FileMap, character: Character, read: SaveRead): Promise<SaveRead> {
     const body = await packSave(all, character);
+    // If-Match only updates, so a world deleted on another device is never quietly added back; the version read (its ETag) also
+    // refuses to overwrite an update another device made since, even one that lands right after `check`.
+    const match = typeof read.version === "string" ? read.version : "*";
     let info: WorldInfo;
     try {
-      // "If-Match: *" only updates: a world deleted on another device is never quietly added back.
       const response = await this.call(`/library/worlds/${this.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/octet-stream", "If-Match": "*" },
+        headers: { "Content-Type": "application/octet-stream", "If-Match": match },
         body: body as BodyInit,
       });
       info = await response.json();
     } catch (e) {
       if (e instanceof ShareError && e.status === 412) {
+        // Deleted or updated meanwhile: reading it again tells which (check throws for both).
+        if (match !== "*") {
+          await this.check(read);
+          throw new StaleError(STALE_LIBRARY);
+        }
         throw new Error("This world is no longer in My worlds: it was deleted on another device, or it expired. Download it instead");
       }
       throw e;
@@ -552,7 +562,7 @@ export class EditSession {
         await this.store.backup(backup);
         await this.store.remember(this.world);
       }
-      this.read = await source.write(writes, this.after(writes), character);
+      this.read = await source.write(writes, this.after(writes), character, this.read);
       this.clear();
       if (whole) {
         // The world is saved by now: if this browser can't record it, say so rather than report the save as failed.
@@ -600,7 +610,7 @@ export class EditSession {
         ...files.filter((f) => f !== player && f.path !== last),
         ...(last ? [{ path: last, bytes: files.find((f) => f.path === last)?.bytes ?? await this.files.get(last)!.read() }] : []),
       ];
-      this.read = await source.write(writes, this.after(writes), character);
+      this.read = await source.write(writes, this.after(writes), character, this.read);
       this.clear();
     });
   }

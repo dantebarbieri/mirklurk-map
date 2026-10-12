@@ -639,6 +639,27 @@ Deno.test("editor session: a world from My worlds is saved back to the library, 
     assert(/quota exceeded/.test(t.warning ?? ""), String(t.warning));
     assertEquals([t.changes.length, await skillPoints(await stored(), player)], [0, 3]);
 
+    // Another device's update lands between the check and the upload: the upload names the version it read, so it is refused.
+    let raced = false;
+    const racing: LibraryCall = async (path, init) => {
+      const match = new Headers(init?.headers).get("If-Match");
+      if (init?.method === "PUT" && match && match !== "*" && !raced) {
+        raced = true;
+        await put(new Map(await stored()), "Shared/");
+        now += SHARE_INTERVAL;
+      }
+      return call(path, init);
+    };
+    const racedSource = new LibrarySource(id, racing);
+    const before = await racedSource.read();
+    const u = new EditSession(racedSource, before, before.characters[0], id, memoryStore().store);
+    await u.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 8), "Skill points 3 → 8"));
+    now += SHARE_INTERVAL;
+    const lost = await u.save().then(() => undefined, (e) => e);
+    assert(raced && lost instanceof StaleError && /updated in My worlds/.test(lost.message), String(lost));
+    assertEquals([u.changes.length, await skillPoints(await stored(), player)], [1, 3]);
+    now += SHARE_INTERVAL;
+
     // Deleted on another device: nothing can be saved to it.
     await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 1), "Skill points 0 → 1"));
     await call(`/library/worlds/${id}`, { method: "DELETE" });

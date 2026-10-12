@@ -380,6 +380,38 @@ Deno.test("sharing service: five worlds per library; updates bypass it; a mismat
       headers: { "If-Match": "*" },
     });
     assertEquals(update.status, 200);
+    // An exact ETag only updates the version it names; any other is refused, as is one for a deleted world.
+    const read = await ctx.request("GET", `/library/worlds/${await idOf("Hero0")}/data`, { key: sync });
+    const etag = read.headers.get("ETag")!;
+    await read.body?.cancel();
+    ctx.advance(SHARE_INTERVAL);
+    const old = await ctx.request("PUT", `/library/worlds/${await idOf("Hero0")}`, {
+      key: sync,
+      body: await packet("Hero0") as BodyInit,
+      headers: { "If-Match": '"not-the-version"' },
+    });
+    assertEquals(old.status, 412);
+    assert(/updated in your library/.test((await old.json()).error));
+    const exact = await ctx.request("PUT", `/library/worlds/${await idOf("Hero0")}`, {
+      key: sync,
+      body: await packet("Hero0") as BodyInit,
+      headers: { "If-Match": etag },
+    });
+    assertEquals(exact.status, 200);
+    ctx.advance(SHARE_INTERVAL);
+    const replaced = await ctx.request("PUT", `/library/worlds/${await idOf("Hero0")}`, {
+      key: sync,
+      body: await packet("Hero0") as BodyInit,
+      headers: { "If-Match": etag },
+    });
+    assertEquals(replaced.status, 412);
+    const gone = await ctx.request("PUT", `/library/worlds/${await idOf("Hero1")}`, {
+      key: sync,
+      body: await packet("Hero1") as BodyInit,
+      headers: { "If-Match": etag },
+    });
+    assertEquals(gone.status, 412);
+    assert(/no longer in your library/.test((await gone.json()).error));
     assertEquals((await ctx.put(sync, "Hero5")).status, 201);
     assertEquals((await ctx.list(sync)).worlds.length, 5);
   }));

@@ -518,9 +518,14 @@ export class UploadStore {
     return this.exclusive(async () => {
       const now = this.now();
       const record = this.live(key);
-      // "If-Match: *" marks an update: it must not quietly re-add a world deleted on another device.
-      if (!record && request.headers.get("If-Match") === "*") {
+      // Any If-Match marks an update: it must not quietly re-add a world deleted on another device. An exact ETag (the version the
+      // client read) also refuses to overwrite a newer version another device uploaded meanwhile.
+      const match = request.headers.get("If-Match");
+      if (!record && match !== null) {
         throw new HttpError(412, "This world is no longer in your library (it was deleted or expired). Add it again to keep it");
+      }
+      if (record && match !== null && match !== "*" && match !== `"${record.version}"`) {
+        throw new HttpError(412, "This world was updated in your library since it was read");
       }
       if (record && now - record.updated < SHARE_INTERVAL) throw new HttpError(429, "Wait 30 seconds between updates of a world");
       const active = [...this.worlds.values()].filter((w) => w.expires > now);
