@@ -583,7 +583,7 @@ Deno.test("editor session: a world from My worlds is saved back to the library, 
     now += SHARE_INTERVAL;
     assertEquals(await s.save(), 1);
     assertEquals(s.changes.length, 0);
-    const stored = async () => unpackSave(new Uint8Array(await (await call(`/library/worlds/${id}/data`)).arrayBuffer())).files;
+    const stored = async () => (await unpackSave(new Uint8Array(await (await call(`/library/worlds/${id}/data`)).arrayBuffer()))).files;
     let files = await stored();
     assertEquals(await skillPoints(files, player), 5);
     assertEquals(cheatedInfo(decoder.decode(await files.get("Shared/MirkMap.json")!.read()))?.edits, 1);
