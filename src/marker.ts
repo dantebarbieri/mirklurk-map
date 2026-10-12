@@ -4,7 +4,7 @@
 // .ini files in the File System Access API (Safe Browsing lists .ini as dangerous there), which the save editor writes with.
 
 import type { FileMap } from "./files.ts";
-import { isRec, type Rec } from "./values.ts";
+import { isRec, type Rec } from "./save-record.ts";
 
 export const MARKER = "MirkMap.json";
 /** A real marker is a few lines; anything larger is not ours and is ignored. */

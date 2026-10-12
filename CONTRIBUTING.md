@@ -36,6 +36,9 @@ Run `deno task ci` before pushing. `.editorconfig` matches `deno fmt`, so most e
 - **No dependencies.** Imports are relative; don't add URL, `jsr:` or `npm:` packages (`no-external-import` catches URL imports). Tests use
   `tests/assert.ts`.
 - **Types:** `strict` is on. Prefer precise types to `any` and non-null assertions.
+- **Shared helpers:** raw save records (`Rec`, `isRec`, `playerRecord`) live in `src/save-record.ts`, numbers read from saves (`finite`,
+  `num`, `clamp01`) in `src/values.ts`, wording shared by cards and panels (`plural`, `pct`) in `src/format.ts`, and what the tools share in
+  `tools/shared.ts`. Use them rather than keeping a local copy.
 
 ## Tests
 

@@ -12,7 +12,8 @@ import { isSaveFile, markerText } from "../marker.ts";
 import { api, libraryKey, libraryKeyFor } from "../library.ts";
 import { offerDownload } from "../download.ts";
 import { fileMapOf, forget, type Handoff, handOff, type OpenSave, remember, storedFiles, takeHandoff } from "../handoff.ts";
-import { type Being, decodeJson, parseBeings, parsePlaced, parsePlayer, playerRecord, type PlayerSave } from "../save.ts";
+import { type Being, decodeJson, parseBeings, parsePlaced, parsePlayer, type PlayerSave } from "../save.ts";
+import { playerRecord, type Rec } from "../save-record.ts";
 import { type Interior, interiorsOf, loadDetail, loadHeights, loadLayer, loadTrees, loadWorld, type World, type Zone } from "../world.ts";
 import {
   CONDITIONS,
@@ -32,7 +33,6 @@ import { spriteBox } from "../predict.ts";
 import { BEINGS, targetsYou } from "../bestiary.ts";
 import { BLEED_DIRS, cellKind, cellPlace, cellTitle, healthGridPicker, parseHealth } from "../health.ts";
 import { formatClock, parseSky, Weather, WEATHER_LABELS, weatherKind, type WeatherState } from "../weather.ts";
-import type { Rec } from "../values.ts";
 import {
   type Backup,
   canWriteFolders,

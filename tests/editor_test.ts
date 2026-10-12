@@ -50,7 +50,8 @@ import { deleteBeing, isQuestBeing, newBeing, spawnable, spawnBeing } from "../s
 import { Ground, groundMap, reachable, tileBox } from "../src/editor/ground.ts";
 import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
 import { readMarker, writeMarker } from "../src/marker.ts";
-import { decodeJson, parseBeings, parsePlayer, playerRecord } from "../src/save.ts";
+import { decodeJson, parseBeings, parsePlayer } from "../src/save.ts";
+import { playerRecord, type Rec } from "../src/save-record.ts";
 import { parseHealth } from "../src/health.ts";
 import { parseInventoryGrid } from "../src/inventory.ts";
 import { conditionsOf, xpForLevel } from "../src/player.ts";
@@ -61,7 +62,6 @@ import { isWet, needsFuel, needsRepair } from "../src/condition.ts";
 import { freshHealth } from "../src/bestiary.ts";
 import { countCoins } from "../src/coins.ts";
 import type { FileMap } from "../src/files.ts";
-import type { Rec } from "../src/values.ts";
 import type { Interior } from "../src/world.ts";
 
 const E = -4;

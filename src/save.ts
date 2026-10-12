@@ -5,7 +5,8 @@ import { containerInventory, type Inventory, parseItemList } from "./inventory.t
 import { type HealthGrid, parseHealth } from "./health.ts";
 import type { Equipped } from "./armor.ts";
 import { parseSky, type Sky } from "./weather.ts";
-import { finite, isRec, num, type Rec } from "./values.ts";
+import { playerRecord, type Rec } from "./save-record.ts";
+import { finite, num } from "./values.ts";
 
 /** save_datajson: UTF-8 JSON written with buffer_string, so it ends in one NUL byte. */
 export function decodeJson(bytes: Uint8Array): unknown {
@@ -144,13 +145,6 @@ function parseEquipment(rawEquips: unknown, rawActives: unknown): { inventory: I
     ? inventory.items.map((item, i) => ({ slot: kept[i].slot, active: actives[kept[i].slot] !== false, item }))
     : [];
   return { inventory, equipment };
-}
-
-/** The record the game loads: the last element of Player.save's array (load_player array_pops it). */
-export function playerRecord(raw: unknown): Rec {
-  const p = Array.isArray(raw) ? raw[raw.length - 1] : undefined;
-  if (!isRec(p)) throw new Error("Player.save has no player record");
-  return p;
 }
 
 export function parsePlayer(raw: unknown): PlayerSave {

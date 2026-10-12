@@ -5,7 +5,7 @@
 // (scr_pathfinding).
 
 import { isSlopeTile, Thresh, tileIndex, TILES } from "../rules.ts";
-import { isRec, type Rec } from "../values.ts";
+import { isRec, type Rec } from "../save-record.ts";
 import { type Inside, movePlayer } from "./edits.ts";
 
 /** The finished raft's item and station index (Finish Raft). */

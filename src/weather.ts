@@ -5,7 +5,8 @@
 // ticks over, the weather may change. Midnight (`hour >= 24` in gml_Object_manager_day_Step_0) sets the minute to 0 and adds a
 // day. Nothing else changes them, apart from a developer-only debug panel.
 
-import { finite, num, type Rec } from "./values.ts";
+import type { Rec } from "./save-record.ts";
+import { finite, num } from "./values.ts";
 
 /** `localWeather` (MDweather): the weather state machine's three states. */
 export const Weather = { Clear: 0, Cloudy: 1, Rain: 2 } as const;

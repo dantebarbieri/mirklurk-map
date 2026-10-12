@@ -1,13 +1,11 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "./assert.ts";
-import { decodeJson, decodeTilemap, destination, parseAreaDir, parsePlayer, playerRecord, type Solid } from "../src/save.ts";
+import { decodeJson, decodeTilemap, destination, parseAreaDir, parsePlayer, type Solid } from "../src/save.ts";
 import { readZip } from "../src/zip.ts";
 
 const enc = new TextEncoder();
 
-Deno.test("the player record is Player.save's last element, and only a JSON object is one", () => {
-  assertEquals(playerRecord([{ a: 1 }, { b: 2 }]), { b: 2 });
-  for (const raw of [[], [[1]], [null], [{}, 3], {}, "x"]) assertThrows(() => playerRecord(raw), /no player record/);
-  assertThrows(() => parsePlayer([[]]), /no player record/);
+Deno.test("a save without a player record is refused before anything is read from it", () => {
+  for (const raw of [[], [[1]], [{}, 3], "x"]) assertThrows(() => parsePlayer(raw), /no player record/);
 });
 
 Deno.test("a solid leads somewhere only when its transPoint has an area type and a position", () => {

@@ -6,7 +6,7 @@
 
 import type { FileMap } from "./files.ts";
 import { MARKER, markerPath, markerText, readMarker, writeMarker } from "./marker.ts";
-import { isRec } from "./values.ts";
+import { isRec } from "./save-record.ts";
 
 export const CHEATED_KEY = "cheated";
 

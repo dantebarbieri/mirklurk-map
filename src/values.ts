@@ -1,11 +1,5 @@
-// The loosely typed JSON that saves hold: GameMaker writes records, lists and numbers without a schema, so readers check what
-// they get. Shared by the map's parsers, the save editor's edits and MirkMap.json.
-
-/** A JSON object, as saves keep their records. */
-export type Rec = Record<string, unknown>;
-
-/** A JSON object: neither null nor an array. */
-export const isRec = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
+// Numbers in the loosely typed JSON that saves hold: GameMaker writes them without a schema, so readers check what they get.
+// Records (objects) are src/save-record.ts's.
 
 /** A number that is neither NaN nor infinite. */
 export const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);

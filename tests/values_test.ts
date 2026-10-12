@@ -1,10 +1,5 @@
 import { assert, assertEquals } from "./assert.ts";
-import { clamp01, finite, isRec, num } from "../src/values.ts";
-
-Deno.test("isRec: JSON objects only, not null or arrays", () => {
-  assert(isRec({}) && isRec({ a: 1 }));
-  for (const v of [null, undefined, [], [{}], 1, "x", true]) assert(!isRec(v), `${JSON.stringify(v)} is not a record`);
-});
+import { clamp01, finite, num } from "../src/values.ts";
 
 Deno.test("finite and num: NaN, infinities and other types fall back", () => {
   assert(finite(0) && finite(-1.5));

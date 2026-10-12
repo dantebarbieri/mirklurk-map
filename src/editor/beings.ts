@@ -5,7 +5,7 @@
 import { BEINGS, freshHealth } from "../bestiary.ts";
 import { BEING_NAMES } from "../gamedata.ts";
 import { NPC_BEINGS, Thresh, TILES } from "../rules.ts";
-import { isRec, type Rec } from "../values.ts";
+import { isRec, type Rec } from "../save-record.ts";
 import { layerAt, tileHeight, type WaterLayers } from "./raft.ts";
 
 /** Scaal is the main quest's boss; a second one would not be part of the quest. */

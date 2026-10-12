@@ -1,4 +1,5 @@
-import { finite, isRec, type Rec } from "./values.ts";
+import { isRec, type Rec } from "./save-record.ts";
+import { finite } from "./values.ts";
 
 export interface SavedItem {
   index: number;

@@ -6,7 +6,8 @@ import { cellPlace, Hp, Status } from "../health.ts";
 import { Ae, CONDITIONS, MAX_LEVEL, type Stat, STAT_LABELS, type TimerKey, xpForLevel } from "../player.ts";
 import { centerpos, INTERIOR_NAMES, isOutside, isRiftDepths, TILES } from "../rules.ts";
 import type { PlayerSave } from "../save.ts";
-import { clamp01, isRec, num, type Rec } from "../values.ts";
+import { isRec, type Rec } from "../save-record.ts";
+import { clamp01, num } from "../values.ts";
 import { SKY_KEYS, Weather, type WeatherState } from "../weather.ts";
 import type { Interior } from "../world.ts";
 

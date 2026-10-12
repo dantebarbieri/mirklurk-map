@@ -29,8 +29,8 @@ import { reachable } from "../src/editor/ground.ts";
 import { tileIndex, TILES } from "../src/rules.ts";
 import { findCharacters } from "../src/files.ts";
 import { currentContainers } from "../src/live.ts";
-import { decodeJson, parsePlayer, playerRecord } from "../src/save.ts";
-import type { Rec } from "../src/values.ts";
+import { decodeJson, parsePlayer } from "../src/save.ts";
+import { playerRecord, type Rec } from "../src/save-record.ts";
 import { loadDetail, loadHeights, loadLayer, loadWorld } from "../src/world.ts";
 
 const sorted = (r: Rec) => Object.fromEntries(Object.entries(r).sort(([a], [b]) => a.localeCompare(b)));
