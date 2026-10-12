@@ -369,6 +369,12 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   **Remove** takes all of an item, or as many of a stack as you say, out of the save: every grid cell it covered is emptied, every copy of
   the containers it was in is kept the same (the game saves a copy of an item in each cell it covers), and a two-handed weapon's off-hand
   copy goes with it. A container takes its contents with it, after asking. Items unsaved changes added or changed are tagged **unsaved**.
+- **Wearing items**: **Wear it** puts a new item on instead of in a bag, so a character with no bag (a new one, or one whose gear was
+  removed) can put on a backpack, vest or pouch and then carry things. **Wear** puts a carried item on, contents included, and **Take off**
+  puts a worn one in the first free spot of your other bags (column by column, as `item_add` does). Each slot takes what the game lets into
+  it (`takes` in `gml_Object_obj_player_Create_0`, `item_fits_slot`): main hands take weapons (types 16, 17 and 23), off hands types 15, 23
+  and 24, and the rest their own type; a two-handed melee weapon (type 17 that is not a bow, `weapon_is_ranged`) also needs the off hand
+  beside it and is saved there too. The game rebuilds worn containers, weights and looks from the save when it loads.
 - **Where you stand**: a free tile of an outdoor zone you have explored (not water, a wall, a pit or something already standing there),
   picked on the zone's map or on the full map.
 - **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior, with the hit points and armor of a fresh
