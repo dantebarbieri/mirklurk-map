@@ -8,6 +8,8 @@ import {
   focusZone,
   footprintOrder,
   gestureView,
+  LOCATE_SIZE,
+  locateView,
   mapBounds,
   nearestBox,
   RAFT_ICON,
@@ -16,6 +18,7 @@ import {
   sheetHeights,
   sheetSnap,
   stackAt,
+  surveying,
   TOUCH_REACH,
   visibleRect,
   zonesInView,
@@ -312,4 +315,29 @@ Deno.test("focus zone: follows the centre past a hysteresis band, per axis, only
   assertEquals(focusZone([-2 * ROOM, -2 * ROOM, 5 * ROOM], home, home), home);
   // The centre is clamped to the world.
   assertEquals(focusZone(at(-ROOM / 2, ROOM / 2), [0, 2], [0, 2]), [0, 2]);
+});
+
+Deno.test("survey: zoomed out past one and a half zones, the view is about none of them (and hides the zone's outline)", () => {
+  assert(!surveying(ROOM), "one zone");
+  assert(!surveying(1.5 * ROOM), "exactly the share");
+  assert(surveying(1.5 * ROOM + 1), "just past it");
+  assert(surveying(5 * ROOM), "the whole world");
+  // The same line focus zone draws: a survey keeps the selection, however far its centre is into another zone.
+  const centred = (size: number): [number, number, number] => [1.5 * ROOM - size / 2, 1.5 * ROOM - size / 2, size];
+  for (const size of [ROOM, 1.5 * ROOM, 1.5 * ROOM + 1, 3 * ROOM]) {
+    assertEquals(focusZone(centred(size), [2, 2], [2, 2])[0] === 2, surveying(size), `size ${size}`);
+  }
+});
+
+Deno.test("locate: centres on the player, zoomed in to at most LOCATE_SIZE, above a sheet covering the bottom", () => {
+  // From a whole zone (or the world), Locate zooms in to LOCATE_SIZE around them.
+  assertEquals(locateView(ROOM, 1000, 1200), [1000 - LOCATE_SIZE / 2, 1200 - LOCATE_SIZE / 2, LOCATE_SIZE]);
+  assertEquals(locateView(5 * ROOM, -300, 4000), [-300 - LOCATE_SIZE / 2, 4000 - LOCATE_SIZE / 2, LOCATE_SIZE]);
+  // Already closer in: it keeps the zoom and only centres.
+  assertEquals(locateView(200, 1000, 1200), [900, 1100, 200]);
+  // A sheet covering half the map's shorter side: the player sits in the middle of what is left above it, which is the
+  // view a map reports (its y less half the covered share of the size).
+  const [x, y, size] = locateView(ROOM, 1000, 1200, 0.5);
+  assertEquals([x, y, size], [808, 1104, LOCATE_SIZE]);
+  assertEquals(y - 0.5 / 2 * size + size / 2, 1200);
 });
