@@ -693,13 +693,17 @@ at `ex,ey` and drawn from their `Data`/`Lower`/`OnLower`/`Water1` layers.
 
 ## Development
 
-Needs only [Deno](https://deno.com) 2.x; there are no dependencies.
+Needs only [Deno](https://deno.com) 2.x; there are no dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the standards, the checks
+every pull request must pass and how merging works.
 
 ```powershell
 deno task dev      # http://127.0.0.1:8123 — also serves ../Saves read-only, so /?dev=<Character>&zone=C2 loads one
                    # /edit/?dev=<Character> copies that save into the browser's private storage and edits the copy (&fresh starts over)
 deno task test     # unit tests, plus checks against real saves in ../Saves (or $env:MIRKLURK_SAVES) when present
 deno task check    # type-check
+deno task fmt      # format (deno task lint lints)
+deno task coverage # tests with coverage; fails below the thresholds in deno.json
+deno task ci       # what CI runs: format check, lint, type-check, coverage and build
 deno task build    # dist/: index.html and edit/index.html with hashed app.*.js, edit.*.js, style.*.css and editor.*.css, art, manifest.webmanifest, icons/ and sw.js
 deno task icons    # regenerate icons/ (favicon.svg, favicon-32.png, app icons) from the pixel art in tools/icons.ts
 deno task wiki     # refresh src/wikidata.json and the bundled pictures (assets/wiki/, src/wikiart.json) from the public wiki; no saves or game data are sent

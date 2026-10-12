@@ -1,0 +1,58 @@
+# Required check "copilot-review": a pull request cannot merge while Copilot's review is still running, or before Copilot has reviewed
+# it. Copilot is requested automatically by the main-branch ruleset (on open, on every push and for drafts) and stays a requested
+# reviewer until it submits; this job polls until then. Unresolved review threads are blocked separately by the ruleset.
+name: Review gate
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, review_requested, review_request_removed]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: review-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  copilot-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Wait for Copilot's review of the latest commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          bot='copilot-pull-request-reviewer[bot]'
+          grace=$((SECONDS + 180))    # time for the ruleset to request Copilot after a push
+          deadline=$((SECONDS + 1800)) # a Copilot review normally takes under ten minutes
+          while :; do
+            pr=$(gh api "repos/$REPO/pulls/$PR")
+            if [ "$(jq -r .state <<<"$pr")" != open ]; then echo "Pull request is closed."; exit 0; fi
+            if [ "$(jq -r .head.sha <<<"$pr")" != "$HEAD" ]; then echo "Superseded by a newer commit; its own run decides."; exit 0; fi
+            pending=$(jq '[.requested_reviewers[] | select(.login == "Copilot")] | length' <<<"$pr")
+            reviews=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews?per_page=100" --jq ".[] | select(.user.login == \"$bot\") | .commit_id")
+            if [ "$pending" -gt 0 ]; then
+              echo "Copilot's review is in progress."
+            elif grep -qx "$HEAD" <<<"$reviews"; then
+              echo "Copilot has reviewed $HEAD."; exit 0
+            elif [ "$SECONDS" -ge "$grace" ]; then
+              if [ -n "$reviews" ]; then
+                echo "::notice::Copilot reviewed an earlier commit and was not requested again for $HEAD."; exit 0
+              fi
+              echo "::error::Copilot has not reviewed this pull request. Request a review from Copilot under Reviewers; this check re-runs on its own."
+              exit 1
+            else
+              echo "Waiting for Copilot to be requested."
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::Copilot's review did not finish in time. Re-run this check once it has."; exit 1
+            fi
+            sleep 30
+          done

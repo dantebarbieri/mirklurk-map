@@ -9,8 +9,32 @@
     "check": "deno check src/main.ts src/editor/main.ts src/sw.ts server/uploads.ts tools/build.ts tools/dev.ts tools/gamedata.ts tools/itemdata.ts tools/wiki.ts tools/icons.ts tests/",
     "icons": "deno run --allow-read --allow-write=icons tools/icons.ts",
     "wiki": "deno run --allow-net=mirklurk.wiki --allow-read=assets/wiki --allow-write=src/wikidata.json,src/wikiart.json,assets/wiki tools/wiki.ts",
-    "test": "deno test --allow-read --allow-write --allow-env tests/"
+    "test": "deno test --allow-read --allow-write --allow-env tests/",
+    "fmt": "deno fmt",
+    "fmt:check": "deno fmt --check",
+    "lint": "deno lint",
+    "coverage": "deno test --allow-read --allow-write --allow-env --coverage=coverage --clean tests/ && deno coverage coverage --exclude=tests/",
+    "ci": "deno fmt --check && deno lint && deno task check && deno task coverage && deno task build"
   },
   "fmt": { "lineWidth": 140 },
-  "exclude": ["dist/"]
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "include": [
+        "guard-for-in",
+        "no-eval",
+        "no-external-import",
+        "no-inferrable-types",
+        "no-non-null-asserted-optional-chain",
+        "no-sparse-arrays",
+        "no-throw-literal",
+        "no-useless-rename",
+        "verbatim-module-syntax"
+      ]
+    }
+  },
+  "coverage": {
+    "thresholds": { "lines": 70, "branches": 85, "functions": 72 }
+  },
+  "exclude": ["dist/", "coverage/"]
 }
