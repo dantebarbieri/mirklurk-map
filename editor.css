@@ -9,6 +9,67 @@ body.editor.loaded main {
 .editor .intro {
   max-width: 900px;
 }
+
+/* The full map: MirkMap's own two-column world view, above the save bar. */
+body.editor.loaded.map-mode main {
+  display: grid;
+  grid-template-columns: minmax(360px, 540px) minmax(0, 1fr);
+  gap: 20px;
+  padding: 14px 16px 96px;
+  align-items: start;
+}
+@media (max-width: 980px) {
+  body.editor.loaded.map-mode main {
+    grid-template-columns: 1fr;
+  }
+}
+.view-switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.view-switch button {
+  padding: 4px 10px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.view-switch button + button {
+  border-left: 1px solid var(--line);
+}
+.view-switch button:hover {
+  color: var(--gold);
+}
+.view-switch button[aria-pressed="true"] {
+  background: var(--gold2);
+  color: #1b1516;
+  font-weight: 600;
+}
+.view-switch button:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+.map-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.map-bar .edit-note {
+  margin: 0;
+}
+/* The Move tool: the map's empty ground takes a click; marks keep their own cursor. */
+body.map-move svg.map:not(.on-mark, .panning) {
+  cursor: crosshair;
+}
+body.map-move .map-bar label {
+  color: var(--gold);
+}
 .edit-summary {
   margin: 16px 0;
 }
@@ -191,6 +252,47 @@ body.editor.loaded main {
   color: var(--gold);
   font-weight: 600;
 }
+.carried {
+  margin-top: 14px;
+}
+.carried summary {
+  cursor: pointer;
+  color: var(--gold2);
+  font-size: 13px;
+  font-weight: 600;
+}
+.carried ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.carried-list {
+  max-height: 420px;
+  overflow: auto;
+}
+.carried li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  margin: 3px 0;
+}
+.carried li > ul {
+  flex-basis: 100%;
+}
+.carried-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text);
+}
+.carried-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.carried .num {
+  width: 4em;
+}
 
 .savebar {
   position: fixed;
@@ -223,6 +325,7 @@ body.editor.loaded main {
 /* Saving or restoring: nothing on the page can change the drafts until the files are written. */
 body.busy main,
 body.busy .savebar,
+body.busy .map-bar,
 body.busy .top {
   pointer-events: none;
   opacity: .6;

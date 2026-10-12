@@ -7,9 +7,10 @@ import { assert, assertEquals, assertRejects } from "./assert.ts";
 import { type Backup, type EditDirectory, type EditFile, EditSession, StaleError } from "../src/editor/session.ts";
 import { addItems } from "../src/editor/items.ts";
 import { movePlayer, playerRecord, setSkillPoints } from "../src/editor/edits.ts";
-import { spawnBeing } from "../src/editor/beings.ts";
+import { deleteBeing, spawnBeing } from "../src/editor/beings.ts";
 import { findCharacters } from "../src/files.ts";
 import { cheatedInfo } from "../src/cheated.ts";
+import { readMarker } from "../src/marker.ts";
 import { decodeJson, parsePlayer } from "../src/save.ts";
 import { loadWorld } from "../src/world.ts";
 import { worldId } from "../src/sharing-format.ts";
@@ -45,11 +46,15 @@ class DiskFile implements EditFile {
   }
 }
 
+/** Like Chrome and Edge on Windows: names Safe Browsing lists as dangerous there, such as .ini, are refused and left out of listings. */
+const refused = (name: string) => /\.(ini|cfg|lnk|url|scf)$/i.test(name);
+
 class DiskDirectory implements EditDirectory {
   readonly kind = "directory";
   constructor(readonly name: string, private path: string) {}
   async *values(): AsyncIterable<DiskDirectory | DiskFile> {
     for await (const e of Deno.readDir(this.path)) {
+      if (e.isFile && refused(e.name)) continue;
       yield e.isDirectory ? new DiskDirectory(e.name, `${this.path}/${e.name}`) : new DiskFile(e.name, `${this.path}/${e.name}`);
     }
   }
@@ -58,6 +63,7 @@ class DiskDirectory implements EditDirectory {
     return new DiskDirectory(name, `${this.path}/${name}`);
   }
   async getFileHandle(name: string, options?: { create?: boolean }) {
+    if (refused(name)) throw new TypeError("Failed to execute 'getFileHandle' on 'FileSystemDirectoryHandle': Name is not allowed.");
     if (!options?.create) await Deno.stat(`${this.path}/${name}`);
     return new DiskFile(name, `${this.path}/${name}`);
   }
@@ -127,6 +133,8 @@ async function fixture(root: string) {
     await save(`${zone}/Beings.save`, []);
     await save(`${zone}/Containers.save`, []);
   }
+  // The game's own .ini files, which the browser hides from the editor.
+  await Deno.writeTextFile(`${base}/[ 0,0 ]/LastVisit.ini`, "[Visit]\r\nday=1\r\n");
 }
 
 const mtime = async (path: string) => (await Deno.stat(path)).mtime!.getTime();
@@ -135,21 +143,23 @@ Deno.test("editor session: saves in the game's order, marks the world first, bac
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
   try {
     await fixture(root);
+    // Notes MirkMap already keeps about the world stay, next to the mark.
+    await Deno.writeTextFile(`${root}/Hero/MirkMap.json`, '{"fromShare":true}');
     const original = await Deno.readFile(`${root}/Hero/Player.save`);
     const mem = memoryStore();
     const s = await openSession(root, "Hero", mem.store);
     const player = `${s.character.root}Player.save`;
-    setSkillPoints(playerRecord(await s.json(player)), 5);
-    s.changed(player, "Skill points 0 → 5");
-    spawnBeing(await s.json("Hero/[ 1,0 ]/Beings.save") as unknown[], 3, 20, 30);
-    s.changed("Hero/[ 1,0 ]/Beings.save", "Spawned a troll");
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 5), "Skill points 0 → 5"));
+    await s.apply("Hero/[ 1,0 ]/Beings.save", (raw) => (spawnBeing(raw as unknown[], 3, 20, 30), "Spawned a troll"));
     assertEquals(s.changes.length, 2);
     assertEquals(await s.save(), 2);
     assertEquals(s.changes.length, 0, "drafts dropped after saving");
 
     const base = `${root}/Hero`;
-    const ini = await Deno.readTextFile(`${base}/MirkMap.ini`);
-    assertEquals(cheatedInfo(ini)?.edits, 1);
+    const notes = await Deno.readTextFile(`${base}/MirkMap.json`);
+    assertEquals(cheatedInfo(notes)?.edits, 1);
+    assertEquals(readMarker(notes).fromShare, true);
+    assertEquals(await Deno.readTextFile(`${base}/[ 0,0 ]/LastVisit.ini`), "[Visit]\r\nday=1\r\n");
     const written = await Deno.readFile(`${base}/Player.save`);
     assertEquals(written[written.length - 1], 0, "ends in one NUL like save_datajson");
     assertEquals(parsePlayer(decodeJson(written)).skillPoints, 5);
@@ -165,16 +175,15 @@ Deno.test("editor session: saves in the game's order, marks the world first, bac
     assert((await loadWorld(again.files, again.character.root, again.character.name)).cheated);
 
     // A second save counts another edit and keeps the first time.
-    setSkillPoints(playerRecord(await s.json(player)), 6);
-    s.changed(player, "Skill points 5 → 6");
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 6), "Skill points 5 → 6"));
     await s.save();
-    const twice = cheatedInfo(await Deno.readTextFile(`${base}/MirkMap.ini`))!;
-    assertEquals([twice.edits, twice.since], [2, cheatedInfo(ini)!.since]);
+    const twice = cheatedInfo(await Deno.readTextFile(`${base}/MirkMap.json`))!;
+    assertEquals([twice.edits, twice.since], [2, cheatedInfo(notes)!.since]);
 
     // Restoring writes the old files back; the mark stays.
     await s.restore(mem.backups[0]);
     assertEquals([...await Deno.readFile(`${base}/Player.save`)], [...original]);
-    assert(cheatedInfo(await Deno.readTextFile(`${base}/MirkMap.ini`)));
+    assert(cheatedInfo(await Deno.readTextFile(`${base}/MirkMap.json`)));
     assert(await mtime(`${base}/[ 0,0 ]/Containers.save`) >= await mtime(`${base}/Player.save`));
     await openSession(root, "Hero");
   } finally {
@@ -188,8 +197,7 @@ Deno.test("editor session: refuses to save over a game save made after the folde
     await fixture(root);
     const s = await openSession(root, "Hero");
     const player = `${s.character.root}Player.save`;
-    setSkillPoints(playerRecord(await s.json(player)), 9);
-    s.changed(player, "Skill points 0 → 9");
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 9), "Skill points 0 → 9"));
     await new Promise((r) => setTimeout(r, 20));
     const p = `${root}/Hero/Player.save`;
     await Deno.writeFile(p, await Deno.readFile(p));
@@ -200,7 +208,7 @@ Deno.test("editor session: refuses to save over a game save made after the folde
     } catch (e) {
       assert(e instanceof StaleError);
     }
-    await assertRejects(() => Deno.stat(`${root}/Hero/MirkMap.ini`));
+    await assertRejects(() => Deno.stat(`${root}/Hero/MirkMap.json`));
   } finally {
     await Deno.remove(root, { recursive: true });
   }
@@ -212,9 +220,8 @@ Deno.test("editor session: a save writes the edits as they were when it started,
     await fixture(root);
     const s = await openSession(root, "Hero");
     const player = `${s.character.root}Player.save`;
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 5), "Skill points 0 → 5"));
     const p = playerRecord(await s.json(player));
-    setSkillPoints(p, 5);
-    s.changed(player, "Skill points 0 → 5");
     const saving = s.save();
     assert(s.saving);
     let blocked = false;
@@ -234,14 +241,79 @@ Deno.test("editor session: a save writes the edits as they were when it started,
   }
 });
 
+Deno.test("editor session: the preview the full map draws has the unsaved edits, and nothing is written", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(root);
+    const s = await openSession(root, "Hero");
+    const player = `${s.character.root}Player.save`;
+    const before = await Deno.readFile(`${root}/Hero/Player.save`);
+    assert([...s.preview()].every(([path, src]) => s.files.get(path) === src), "no edits: the files as read");
+    await s.apply(player, (raw) => (movePlayer(playerRecord(raw), 1, 0, 50, 60), "Moved"));
+    await s.apply("Hero/[ 1,0 ]/Beings.save", (raw) => (spawnBeing(raw as unknown[], 3, 20, 30), "Spawned a troll"));
+    await s.json("Hero/[ 0,0 ]/Beings.save");
+
+    const preview = s.preview();
+    assertEquals([...preview.keys()], [...s.files.keys()]);
+    assert(preview.get("Hero/[ 0,0 ]/Beings.save") === s.files.get("Hero/[ 0,0 ]/Beings.save"), "a draft read but not changed");
+    const shown = await loadWorld(preview, s.character.root, s.character.name);
+    assertEquals([shown.player.area.x, shown.player.area.y, shown.player.pos[0] >> 4, shown.player.pos[1] >> 4], [1, 0, 50, 60]);
+    assertEquals((decodeJson(await preview.get("Hero/[ 1,0 ]/Beings.save")!.read()) as unknown[]).length, 1);
+    assertEquals([...await Deno.readFile(`${root}/Hero/Player.save`)], [...before], "nothing written");
+    assertEquals(s.changes.length, 2);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("editor session: undoing one change runs the later ones again; changes that no longer apply are dropped", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(root);
+    const s = await openSession(root, "Hero");
+    const player = `${s.character.root}Player.save`;
+    const beings = "Hero/[ 1,0 ]/Beings.save";
+    const setPoints = (to: number) => (raw: unknown) => {
+      const p = playerRecord(raw), from = p.skillPoints;
+      setSkillPoints(p, to);
+      return `Skill points ${from} → ${to}`;
+    };
+    await s.apply(player, setPoints(5));
+    await s.apply(player, setPoints(7));
+    await s.apply(beings, (raw) => (spawnBeing(raw as unknown[], 3, 20, 30), "Spawned a troll"));
+    const troll = JSON.stringify((await s.json(beings) as unknown[])[0]);
+    await s.apply(beings, (raw) => (deleteBeing(raw as unknown[], 0, troll), "Removed the troll"));
+
+    assertEquals(await s.undo(0), [], "the later change to the same file still applies");
+    assertEquals(s.changes, ["Skill points 0 → 7", "Spawned a troll", "Removed the troll"], "its line is written anew");
+    assertEquals(playerRecord(await s.json(player)).skillPoints, 7);
+    assertEquals(await s.undo(1), ["Removed the troll"], "the troll it removed is gone with the spawn");
+    assertEquals(s.changes, ["Skill points 0 → 7"]);
+    assertEquals(await s.json(beings), []);
+
+    // An edit that throws, or changes nothing, leaves the draft as the recorded changes made it.
+    await assertRejects(() =>
+      s.apply(player, (raw) => {
+        setSkillPoints(playerRecord(raw), 50);
+        throw new Error("half done");
+      }), /half done/);
+    assertEquals(await s.apply(player, (raw) => void (playerRecord(raw).skillPoints = 60)), undefined);
+    assertEquals(playerRecord(await s.json(player)).skillPoints, 7);
+    await assertRejects(() => s.undo(5), /already undone/);
+    assertEquals(await s.save(), 1, "only Player.save changed in the end");
+    assertEquals(parsePlayer(decodeJson(await Deno.readFile(`${root}/Hero/Player.save`))).skillPoints, 7);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("editor session: moving to another zone makes that zone's Containers.save the last file written", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
   try {
     await fixture(root);
     const s = await openSession(root, "Hero");
     const player = `${s.character.root}Player.save`;
-    movePlayer(playerRecord(await s.json(player)), 1, 0, 50, 60);
-    s.changed(player, "Moved");
+    await s.apply(player, (raw) => (movePlayer(playerRecord(raw), 1, 0, 50, 60), "Moved"));
     await s.save();
     const base = `${root}/Hero`;
     assert(await mtime(`${base}/[ 1,0 ]/Containers.save`) >= await mtime(`${base}/Player.save`));
@@ -281,15 +353,14 @@ Deno.test({ name: "editor session: a copy of a real save takes edits and still l
     await copyTree(`${saves}/${real}`, `${root}/${real}`);
     const s = await openSession(root, real!);
     const player = `${s.character.root}Player.save`;
-    const p = playerRecord(await s.json(player));
     const before = parsePlayer(await s.json(player));
     const coins = countCoins(before.inventory).copper;
-    const added = addItems(p, 72, 10).added;
-    s.changed(player, "Coins");
+    let added = 0;
+    await s.apply(player, (raw) => (added = addItems(playerRecord(raw), 72, 10).added, "Coins"));
     const world = await loadWorld(s.files, s.character.root, s.character.name);
     const other = world.zones.flat().find((z) => z.dir && isOutside(z.type) && s.files.has(`${z.dir}Containers.save`));
     assert(other, "an explored zone");
-    movePlayer(p, other.x, other.y, 80, 80);
+    await s.apply(player, (raw) => (movePlayer(playerRecord(raw), other.x, other.y, 80, 80), "Moved"));
     await s.save();
     const again = await openSession(root, real!);
     const after = parsePlayer(decodeJson(await again.files.get(`${again.character.root}Player.save`)!.read()));

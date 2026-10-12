@@ -1,6 +1,6 @@
 // Save editor: one character folder opened for writing with the File System Access API (desktop Chrome and Edge). Edits change
 // parsed copies of the save files (drafts) until they are saved. Saving refuses if the game wrote the folder since it was read, keeps
-// the replaced files in this browser as a backup, writes the Cheated mark into MirkMap.ini first and then each changed file the way
+// the replaced files in this browser as a backup, writes the Cheated mark into MirkMap.json first and then each changed file the way
 // save_datajson does: JSON and one NUL byte.
 
 import type { Character, FileMap } from "../files.ts";
@@ -49,6 +49,20 @@ const encodeSave = (value: unknown) => {
 
 export class StaleError extends Error {}
 
+/**
+ * An edit of one save file's draft: it changes the draft in place and returns a line for the list of unsaved changes, or undefined
+ * when there was nothing to change. It reads only the draft (its inputs are fixed when it is made), so it can run again on a fresh
+ * draft when an earlier change to the same file is undone.
+ */
+export type Edit = (raw: unknown) => string | undefined;
+
+/** One unsaved change: the file it changes, its line in the list, and the edit itself. */
+interface Change {
+  path: string;
+  note: string;
+  edit: Edit;
+}
+
 /** Where a session keeps backups and its record of cheated worlds; this browser's IndexedDB unless a test passes its own. */
 export interface SessionStore {
   backup(backup: Backup): Promise<void>;
@@ -58,8 +72,10 @@ const browserStore: SessionStore = { backup: (b) => storeBackup(b), remember: (w
 
 export class EditSession {
   private drafts = new Map<string, unknown>();
-  private dirty = new Set<string>();
-  private notes: string[] = [];
+  /** The unsaved changes, in the order they were made. */
+  private log: Change[] = [];
+  /** Edits and undos run one at a time, so a draft is never rebuilt while another edit is changing it. */
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
     readonly dir: EditDirectory,
@@ -81,20 +97,100 @@ export class EditSession {
     if (!this.drafts.has(path)) {
       const src = this.files.get(path);
       if (!src) throw new Error(`${path} is missing`);
-      this.drafts.set(path, decodeJson(await src.read()));
+      const value = decodeJson(await src.read());
+      // Whoever finished reading first set the draft; everyone uses that one.
+      if (!this.drafts.has(path)) this.drafts.set(path, value);
     }
     return this.drafts.get(path);
   }
 
-  /** Records that the draft at `path` was changed, with a line for the list of unsaved changes. */
-  changed(path: string, note: string) {
-    if (!this.drafts.has(path)) throw new Error(`${path} was not read for editing`);
-    this.dirty.add(path);
-    this.notes.push(note);
+  private serial<T>(run: () => Promise<T>): Promise<T> {
+    const next = this.queue.then(run);
+    this.queue = next.catch(() => undefined);
+    return next;
+  }
+
+  /**
+   * Runs `edit` on the draft of `path` and records it as an unsaved change when it returns a note, which is also returned. An edit
+   * that changes nothing or throws leaves the draft as the recorded changes made it.
+   */
+  apply(path: string, edit: Edit): Promise<string | undefined> {
+    return this.serial(async () => {
+      if (this.busy) throw new Error("Wait for the save to finish");
+      const raw = await this.json(path);
+      let note: string | undefined;
+      try {
+        note = edit(raw);
+      } finally {
+        if (note) this.log.push({ path, note, edit });
+        else await this.rebuild(path, this.log);
+      }
+      return note;
+    });
+  }
+
+  /**
+   * Drops unsaved change `i` and runs the later changes to the same file again, on a fresh draft. A later change that no longer
+   * applies (it throws, or changes nothing) is dropped too; their lines are returned. Changes to other files are untouched.
+   */
+  undo(i: number): Promise<string[]> {
+    return this.serial(async () => {
+      if (this.busy) throw new Error("Wait for the save to finish");
+      const target = this.log[i];
+      if (!target) throw new Error("That change was already undone");
+      let rest = this.log.filter((_, j) => j !== i);
+      const dropped: string[] = [];
+      for (;;) {
+        const failed = await this.rebuild(target.path, rest);
+        if (failed === undefined) return dropped;
+        dropped.push(failed.note);
+        rest = rest.filter((c) => c !== failed);
+      }
+    });
+  }
+
+  /**
+   * Parses `path` afresh and runs `changes`' edits to it again, recording the lines they give now. Stops at the first edit that no
+   * longer applies and returns it, leaving the log as it was; otherwise the log becomes `changes`.
+   */
+  private async rebuild(path: string, changes: Change[]): Promise<Change | undefined> {
+    this.drafts.delete(path);
+    const raw = await this.json(path);
+    const next: Change[] = [];
+    for (const c of changes) {
+      if (c.path !== path) {
+        next.push(c);
+        continue;
+      }
+      let note: string | undefined;
+      try {
+        note = c.edit(raw);
+      } catch {
+        note = undefined;
+      }
+      if (!note) return c;
+      next.push({ ...c, note });
+    }
+    this.log = next;
   }
 
   get changes(): readonly string[] {
-    return this.notes;
+    return this.log.map((c) => c.note);
+  }
+
+  /** Files with unsaved changes. */
+  private get dirty(): Set<string> {
+    return new Set(this.log.map((c) => c.path));
+  }
+
+  /** The files as saving would leave them: each changed draft encoded as it would be written, every other file as it was read. */
+  preview(): FileMap {
+    const out: FileMap = new Map(this.files);
+    for (const path of this.dirty) {
+      const bytes = encodeSave(this.drafts.get(path));
+      out.set(path, { read: () => Promise.resolve(bytes), lastModified: this.files.get(path)?.lastModified });
+    }
+    return out;
   }
 
   discard() {
@@ -103,8 +199,7 @@ export class EditSession {
   }
   private clear() {
     this.drafts.clear();
-    this.dirty.clear();
-    this.notes = [];
+    this.log = [];
   }
   private busy = false;
   /** A save or restore is writing files. */
@@ -161,7 +256,7 @@ export class EditSession {
   save(): Promise<number> {
     if (!this.dirty.size) return Promise.resolve(0);
     const pending = new Map([...this.dirty].map((path) => [path, encodeSave(this.drafts.get(path))] as const));
-    const changes = [...this.notes];
+    const changes = [...this.changes];
     return this.exclusive(async () => {
       await this.checkFresh();
       const root = this.character.root;

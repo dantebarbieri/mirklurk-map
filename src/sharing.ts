@@ -316,11 +316,20 @@ export class Sharing {
       : "another library";
     // Whoever made a sync link receives everything this browser adds or updates, so a link from someone else is never followed silently.
     if (
-      !confirm(
-        `Sync this browser with ${target}?\n\nOnly continue if you made this ${via} yourself on one of your own devices: ` +
-          "whoever made it can see and change every world you add or update here." +
-          (keep ? `\n\nYour current library, ${label(previous)}, will be saved so you can switch back.` : ""),
-      )
+      !await ask({
+        title: `Sync this browser with ${target}?`,
+        body: [
+          h(
+            "p",
+            { class: "warning" },
+            `Only continue if you made this ${via} yourself on one of your own devices: ` +
+              "whoever made it can see and change every world you add or update here.",
+          ),
+          keep ? `Your current library, ${label(previous)}, will be saved so you can switch back.` : null,
+        ],
+        confirm: "Sync this browser",
+        cancel: "Keep my library",
+      })
     ) {
       this.report(`Sync ${via} ignored. This browser keeps its own library.`);
       this.autoOpen();
@@ -342,13 +351,14 @@ export class Sharing {
     this.autoOpen();
   }
 
-  private forget(library: Library) {
+  private async forget(library: Library) {
     if (
-      !confirm(
-        `Remove ${
-          label(library)
-        } from this browser? Its worlds stay online until they expire, but only a device that still syncs it can bring it back here.`,
-      )
+      !await ask({
+        title: `Remove ${label(library)} from this browser?`,
+        body: ["Its worlds stay online until they expire, but only a device that still syncs it can bring it back here."],
+        confirm: "Remove",
+        danger: true,
+      })
     ) return;
     this.remembered.saved = this.remembered.saved.filter((l) => l.key !== library.key);
     this.persist();
@@ -463,7 +473,7 @@ export class Sharing {
     const revision = `${tagOf(source)}:${source.revision}`;
     try {
       if (!auto) this.report(`${adding ? "Adding" : "Updating"} ${name}...`);
-      // A world this browser edited keeps the Cheated mark even if its MirkMap.ini was removed.
+      // A world this browser edited keeps the Cheated mark even if its MirkMap.json was removed.
       const files = await knownCheated(id) ? await withCheatedMarker(source.files, source.character.root) : source.files;
       const bytes = await packSave(files, source.character);
       const now = this.hooks.current();
@@ -503,7 +513,7 @@ export class Sharing {
 
   /**
    * Downloads a world as a ZIP the game can load. The version on screen is used when this world is open; another library world is
-   * fetched first. A world from a share link keeps its folder (= character) name and is marked from_share in MirkMap.ini, after a
+   * fetched first. A world from a share link keeps its folder (= character) name and is marked fromShare in MirkMap.json, after a
    * warning that it would replace a character of the same name.
    */
   private async download(target: Watch) {
@@ -571,7 +581,14 @@ export class Sharing {
   }
 
   private async remove(world: WorldInfo) {
-    if (!confirm(`Delete ${world.name}? It disappears from all your synced devices, and its share link stops working.`)) return;
+    if (
+      !await ask({
+        title: `Delete ${world.name}?`,
+        body: ["It disappears from all your synced devices, and its share link stops working."],
+        confirm: "Delete",
+        danger: true,
+      })
+    ) return;
     const key = this.remembered.current.key;
     try {
       await api(`/library/worlds/${world.id}`, key, { method: "DELETE" });
@@ -612,7 +629,14 @@ export class Sharing {
   }
 
   private async reshare(world: WorldInfo) {
-    if (!confirm(`Make a new share link for ${world.name}? Anyone using the old link loses access.`)) return;
+    if (
+      !await ask({
+        title: `Make a new share link for ${world.name}?`,
+        body: ["Anyone using the old link loses access."],
+        confirm: "Make a new link",
+        danger: true,
+      })
+    ) return;
     const key = this.remembered.current.key;
     try {
       const info: WorldInfo = await (await api(`/library/worlds/${world.id}/share`, key, { method: "POST" })).json();

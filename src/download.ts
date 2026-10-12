@@ -24,7 +24,7 @@ export interface SaveDownload {
 
 /**
  * Every file of the character at `root`, byte-for-byte with its saved time. A world from a share link (`share` is when it was
- * downloaded) also gets from_share=1 in MirkMap.ini, keeping that file's other keys. MirkMap.ini is hidden on Windows.
+ * downloaded) also gets "fromShare": true in MirkMap.json, keeping that file's other keys. MirkMap.json is hidden on Windows.
  */
 export async function saveZip(name: string, files: FileMap, root: string, share?: Date): Promise<SaveDownload> {
   const folder = folderName(name);
@@ -37,7 +37,7 @@ export async function saveZip(name: string, files: FileMap, root: string, share?
   if (!entries.length) throw new Error("This world has no files to download");
   const text = await markerText(files, root);
   if (share) {
-    const values = { from_share: "1", share_downloaded: share.toISOString().replace(/\.\d+Z$/, "Z") };
+    const values = { fromShare: true, shareDownloaded: share.toISOString().replace(/\.\d+Z$/, "Z") };
     entries.push({
       name: `${folder}/${MARKER}`,
       data: new TextEncoder().encode(writeMarker(text, values)),

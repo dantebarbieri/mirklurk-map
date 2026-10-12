@@ -1,14 +1,15 @@
 // Entry point of the save editor (edit.html, served at /edit/): open a character folder for writing, confirm that saving marks the
 // world as Cheated, then change it. The edits are in edits.ts, items.ts and beings.ts; writing and backups in session.ts. The
-// character preview is the map's own player inspection (player.ts), shown as the edits will be saved.
+// character preview is the map's own player inspection (player.ts), shown as the edits will be saved, and the Full map is the map's
+// own world view (view.ts) of the save as it would be saved, where the Move tool picks where you stand.
 
 import { $, h } from "../dom.ts";
 import { type Character, characterIndex, findCharacters } from "../files.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../gamedata.ts";
 import { worldId } from "../sharing-format.ts";
 import { cheatedInfo, knownCheated } from "../cheated.ts";
-import { markerText } from "../marker.ts";
-import { type Being, parseBeings, parsePlayer, type PlayerSave } from "../save.ts";
+import { isSaveFile, markerText } from "../marker.ts";
+import { type Being, decodeJson, parseBeings, parsePlayer, type PlayerSave } from "../save.ts";
 import { type Interior, interiorsOf, loadDetail, loadLayer, loadTrees, loadWorld, type World, type Zone } from "../world.ts";
 import { MAX_LEVEL, percent, playerView, STAT_LABELS, temperatureLabel, xpForLevel } from "../player.ts";
 import { creatureView } from "../creature.ts";
@@ -18,7 +19,7 @@ import { spriteBox } from "../predict.ts";
 import { BEINGS, targetsYou } from "../bestiary.ts";
 import { healthText } from "../health.ts";
 import { formatClock, parseSky, Weather, WEATHER_LABELS, weatherKind, type WeatherState } from "../weather.ts";
-import { type Backup, canEdit, type EditDirectory, EditSession, listBackups, type WritablePicker } from "./session.ts";
+import { type Backup, canEdit, type Edit, type EditDirectory, EditSession, listBackups, type WritablePicker } from "./session.ts";
 import {
   healPlayer,
   MAX_DAY,
@@ -34,9 +35,14 @@ import {
   setVitals,
   type VitalsEdit,
 } from "./edits.ts";
-import { addable, addItems, freeCells } from "./items.ts";
+import { addable, addItems, type CarriedItem, carriedItems, countInside, freeCells, itemAt, removeItem } from "./items.ts";
+import { SLOT_NAMES } from "../armor.ts";
 import { deleteBeing, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
 import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, tileBox } from "./ground.ts";
+import { disposeView, rememberView, renderWorld, type State, worldState } from "../view.ts";
+import { LAYERS } from "../objects.ts";
+import { setFullMap } from "../fullscreen.ts";
+import { ask } from "../dialog.ts";
 
 /** An area the map card shows: an outdoor zone or one of its interiors. */
 interface Area {
@@ -45,6 +51,10 @@ interface Area {
   dir: string;
 }
 type Tool = "inspect" | "move" | "spawn";
+/** The editor's cards, or MirkMap's full map of the save as it would be saved. */
+type View = "edit" | "map";
+/** Where the full map was looking, to keep it there when the map is drawn again. */
+type MapPlace = Pick<State, "selected" | "interiorDir" | "viewport" | "inspected" | "expanded">;
 
 let dir: EditDirectory | undefined;
 let chars: Character[] = [];
@@ -61,6 +71,18 @@ let selected: number | undefined;
 let expanded: Set<string> | undefined;
 const notes = new Map<string, { text: string; error?: boolean }>();
 let renderToken = 0;
+let view: View = "edit";
+/** The full map while it is shown, with the blob: URLs of its zone maps. */
+let map: { state: State; urls: string[] } | undefined;
+/** The full map's Move tool is on: a click on its empty ground moves you there. */
+let moving = false;
+/** The full map's layers and modes, kept while the page is open. */
+const mapPrefs: State["prefs"] = {
+  layers: new Set(LAYERS.filter((l) => l.on).map((l) => l.id)),
+  water: false,
+  realistic: false,
+  treeMin: 0,
+};
 
 const playerPath = () => `${session!.character.root}Player.save`;
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -105,6 +127,8 @@ async function openCharacter(i: number, keepArea = false) {
     const c = chars[active];
     const loaded = await loadWorld(files, c.root, c.name);
     const id = await worldId(c.name, loaded.player.grid);
+    // Another character or folder starts the full map afresh; after a save or restore it stays where it was.
+    if (!keepArea) closeMap();
     session = new EditSession(dir, scan, files, c, id);
     world = loaded;
     cheated = cheatedInfo(await markerText(files, c.root)) !== undefined || await knownCheated(id);
@@ -147,6 +171,16 @@ function sameArea(a: Area): Area | undefined {
   return interior ? { zone, interior, dir: interior.dir } : zone.dir ? { zone, dir: zone.dir } : firstArea();
 }
 
+/** The area the full map was looking at: that interior, or that zone once explored. */
+function mapArea(place: MapPlace): Area | undefined {
+  const w = world!;
+  const interior = place.interiorDir ? w.interiors.find((it) => it.dir === place.interiorDir) : undefined;
+  const parent = interior && w.zones[interior.zone[1]]?.[interior.zone[0]];
+  if (interior && parent) return { zone: parent, interior, dir: interior.dir };
+  const zone = place.selected && w.zones[place.selected[1]]?.[place.selected[0]];
+  return zone && zone.dir ? { zone, dir: zone.dir } : undefined;
+}
+
 function isPlayerIn(p: PlayerSave, it: Interior): boolean {
   if (p.area.type >= 24 && p.area.type <= 26) return it.at[0] === -1 && it.at[1] === p.area.type - 23;
   return it.zone[0] === p.area.x && it.zone[1] === p.area.y && it.at[0] === centerpos(p.entrance[0]) &&
@@ -160,21 +194,43 @@ const areaName = (a: Area) => {
 
 // --- Editing ---
 
-async function edit(card: string, path: string, change: (raw: unknown) => string | undefined) {
+/**
+ * Applies an edit and shows its result on `card`. The edit must read only the draft it is given (read form fields and other page
+ * state before making it), because undoing an earlier change runs it again.
+ */
+async function edit(card: string, path: string, change: Edit) {
   try {
-    const raw = await session!.json(path);
-    const text = change(raw);
-    if (text) {
-      session!.changed(path, text);
-      note(card, `${text}. Not saved yet.`);
-    }
+    const text = await session!.apply(path, change);
+    if (text) note(card, `${text}. Not saved yet.`);
   } catch (e) {
     note(card, errorText(e), true);
   }
   await render();
 }
 
-const editPlayer = (card: string, change: (p: Rec) => string | undefined) => edit(card, playerPath(), (raw) => change(playerRecord(raw)));
+const editPlayer = (card: string, change: (p: Rec, raw: unknown) => string | undefined) =>
+  edit(card, playerPath(), (raw) => change(playerRecord(raw), raw));
+
+/** Undoes unsaved change `i`; later changes to the same file run again, and any that no longer apply are dropped and named. */
+async function undoChange(i: number) {
+  const s = session;
+  if (!s || s.saving) return;
+  const what = s.changes[i];
+  try {
+    const dropped = await s.undo(i);
+    notes.clear();
+    status(
+      `Undid: ${what}.` +
+        (dropped.length
+          ? ` Also dropped, as ${dropped.length === 1 ? "it no longer applies" : "they no longer apply"}: ${dropped.join("; ")}.`
+          : ""),
+      dropped.length > 0,
+    );
+  } catch (e) {
+    status(errorText(e), true);
+  }
+  await render();
+}
 
 /** Locks the page while a save or restore writes files, so nothing changes or discards the drafts meanwhile. */
 async function writing<T>(run: () => Promise<T>): Promise<T> {
@@ -211,11 +267,18 @@ async function restore(b: Backup) {
   if (session?.saving) return;
   const when = new Date(b.at).toLocaleString();
   if (
-    !confirm(
-      `Write back the ${
-        b.files.length === 1 ? "file" : `${b.files.length} files`
-      } this world had before the edits saved ${when}? Unsaved edits are dropped. The Cheated mark stays.`,
-    )
+    !await ask({
+      title: `Restore the files from before ${when}?`,
+      body: [
+        `This writes back the ${b.files.length === 1 ? "file" : `${b.files.length} files`} the world had before the edits saved then: ${
+          b.changes.join("; ")
+        }.`,
+        session?.changes.length ? h("p", { class: "warning" }, "Your unsaved changes are dropped.") : null,
+        "The Cheated mark stays.",
+      ],
+      confirm: "Restore",
+      danger: true,
+    })
   ) return;
   await writing(async () => {
     try {
@@ -249,7 +312,10 @@ async function render() {
   const app = $("#app");
   const s = session;
   updateSavebar();
+  updateViewSwitch();
+  updateMapBar();
   if (!s || !world) return;
+  if (view === "map") return renderMap(my);
   let raw: unknown, v: PlayerSave;
   try {
     raw = await s.json(playerPath());
@@ -261,10 +327,29 @@ async function render() {
   const p = playerRecord(raw);
   const cards: HTMLElement[] = [];
   if (editing) {
-    cards.push(characterCard(v), skyCard(p), itemsCard(v, p), await mapCard(v), backupsCard(await listBackups(s.world).catch(() => [])));
+    const saved = await savedPlayer(s).catch(() => undefined);
+    cards.push(
+      characterCard(v),
+      skyCard(p),
+      itemsCard(v, p, saved),
+      await mapCard(v),
+      backupsCard(await listBackups(s.world).catch(() => [])),
+    );
   }
   if (my !== renderToken) return;
   app.replaceChildren(summary(v, p), ...(editing ? [h("div", { class: "edit-grid" }, ...cards, previewCard(v))] : []));
+}
+
+/** The player record as the files have it, without unsaved changes; read once per session. */
+const savedRecords = new WeakMap<EditSession, Promise<Rec>>();
+function savedPlayer(s: EditSession): Promise<Rec> {
+  let rec = savedRecords.get(s);
+  if (!rec) {
+    const src = s.files.get(`${s.character.root}Player.save`);
+    rec = src ? src.read().then((bytes) => playerRecord(decodeJson(bytes))) : Promise.reject(new Error("Player.save is missing"));
+    savedRecords.set(s, rec);
+  }
+  return rec;
 }
 
 function summary(v: PlayerSave, p: Rec): HTMLElement {
@@ -360,13 +445,14 @@ function characterCard(v: PlayerSave): HTMLElement {
     field(
       "Level",
       level,
-      setButton(() =>
-        editPlayer("character", (p) => {
-          const to = readWhole(level, "Level"), from = Number(p.level);
+      setButton(() => {
+        const to = readWhole(level, "Level");
+        return editPlayer("character", (p) => {
+          const from = Number(p.level);
           setLevel(p, to);
           return to === from ? undefined : `Level ${from} → ${to} (skill points and new hit points follow)`;
-        })
-      ),
+        });
+      }),
     ),
     h(
       "p",
@@ -377,24 +463,26 @@ function characterCard(v: PlayerSave): HTMLElement {
     field(
       "Skill points to spend",
       skill,
-      setButton(() =>
-        editPlayer("character", (p) => {
-          const to = readWhole(skill, "Skill points"), from = Number(p.skillPoints);
+      setButton(() => {
+        const to = readWhole(skill, "Skill points");
+        return editPlayer("character", (p) => {
+          const from = Number(p.skillPoints);
           setSkillPoints(p, to);
           return to === from ? undefined : `Skill points ${from} → ${to}`;
-        })
-      ),
+        });
+      }),
     ),
     field(
       "New hit points to place",
       newHp,
-      setButton(() =>
-        editPlayer("character", (p) => {
-          const to = readWhole(newHp, "New hit points"), from = Number(p.hpAddPoints);
+      setButton(() => {
+        const to = readWhole(newHp, "New hit points");
+        return editPlayer("character", (p) => {
+          const from = Number(p.hpAddPoints);
           setNewHitPoints(p, to);
           return to === from ? undefined : `New hit points ${from} → ${to}`;
-        })
-      ),
+        });
+      }),
     ),
     h("h4", {}, "Health"),
     h("p", {}, v.health ? healthText(v.health) : "Hit points were not saved."),
@@ -413,19 +501,25 @@ function characterCard(v: PlayerSave): HTMLElement {
       ? h("button", {
         type: "button",
         class: "button subtle",
-        onclick: act("character", () =>
-          editPlayer("character", (p) => {
-            const changes: string[] = [];
-            const e: VitalsEdit = {};
-            for (const [key, label, before] of sliders) {
-              const to = Number(inputs.get(key)!.value) / 100;
-              if (Math.round((before ?? 0) * 100) === Math.round(to * 100)) continue;
-              e[key] = to;
-              changes.push(`${label} ${percent(before ?? 0)} → ${percent(to)}`);
-            }
+        onclick: act("character", () => {
+          // The sliders that were moved; the others keep whatever the draft has.
+          const e: VitalsEdit = {};
+          for (const [key, , shown] of sliders) {
+            const to = Number(inputs.get(key)!.value) / 100;
+            if (Math.round((shown ?? 0) * 100) !== Math.round(to * 100)) e[key] = to;
+          }
+          return editPlayer("character", (p, raw) => {
+            const before = parsePlayer(raw).vitals;
+            const changes = sliders.flatMap(([key, label]) => {
+              const to = e[key], from = before?.[key] ?? 0;
+              return to === undefined || Math.round(from * 100) === Math.round(to * 100)
+                ? []
+                : [`${label} ${percent(from)} → ${percent(to)}`];
+            });
             setVitals(p, e);
             return changes.length ? changes.join(", ") : undefined;
-          })),
+          });
+        }),
       }, "Apply wellbeing and stats")
       : null,
     h("p", { class: "muted small" }, "Conditions such as sickness or exhaustion keep affecting wellbeing until they run out."),
@@ -472,19 +566,18 @@ function skyCard(p: Rec): HTMLElement {
     value: Math.round(sky.temperature * 100),
     oninput: () => tempOut.textContent = `${percent(Number(temp.value) / 100)} ${temperatureLabel(Number(temp.value) / 100)}`,
   }) as HTMLInputElement;
-  const apply = act("sky", () =>
-    editPlayer("sky", (rec) => {
-      const [hh, mm] = time.value.split(":").map(Number);
-      if (!Number.isInteger(hh) || !Number.isInteger(mm)) throw new Error("Choose a time");
+  const apply = act("sky", () => {
+    const [hh, mm] = time.value.split(":").map(Number);
+    if (!Number.isInteger(hh) || !Number.isInteger(mm)) throw new Error("Choose a time");
+    const e = {
+      day: readWhole(day, "Day"),
+      minute: hh * 60 + mm,
+      weather: Number(weather.value) as WeatherState,
+      rain: Number(rain.value) / 100,
+      temperature: Number(temp.value) / 100,
+    };
+    return editPlayer("sky", (rec) => {
       const before = parseSky(rec)!;
-      const w = Number(weather.value) as WeatherState;
-      const e = {
-        day: readWhole(day, "Day"),
-        minute: hh * 60 + mm,
-        weather: w,
-        rain: Number(rain.value) / 100,
-        temperature: Number(temp.value) / 100,
-      };
       setSky(rec, e);
       const after = parseSky(rec)!;
       const changes: string[] = [];
@@ -498,7 +591,8 @@ function skyCard(p: Rec): HTMLElement {
         changes.push(`Air ${percent(before.temperature)} → ${percent(after.temperature)}`);
       }
       return changes.length ? changes.join(", ") : undefined;
-    }));
+    });
+  });
   return card(
     "sky",
     "Time and weather",
@@ -528,7 +622,7 @@ const ITEM_CHOICES: Map<string, number> = (() => {
   );
 })();
 
-function itemsCard(v: PlayerSave, p: Rec): HTMLElement {
+function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
   const name = h("input", {
     type: "text",
     list: "item-choices",
@@ -599,7 +693,88 @@ function itemsCard(v: PlayerSave, p: Rec): HTMLElement {
       { class: "muted small" },
       "Items go into the bags you carry, topping up stacks first, exactly as picking them up would. New items glow gold in the game until you look at them.",
     ),
+    carriedView(p, saved),
   );
+}
+
+const itemName = (index: number) => ITEM_NAMES[index] ?? `Item ${index}`;
+
+/** What the player wears and carries, each with Remove; items unsaved changes made or changed are tagged. */
+function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
+  let list: CarriedItem[];
+  try {
+    list = carriedItems(p);
+  } catch (e) {
+    return h("p", { class: "edit-note error" }, errorText(e));
+  }
+  const total = list.reduce((n, c) => n + 1 + countInside(c), 0);
+  const row = (c: CarriedItem, holder?: string): HTMLElement => {
+    const name = itemName(c.index);
+    const before = saved && itemAt(saved, c.place);
+    const changed = !before || before.index !== c.index || Number(before.amount) !== c.amount;
+    const howMany = c.amount > 1 ? numberInput(c.amount, 1, c.amount) : null;
+    howMany?.setAttribute("aria-label", `How many ${name} to remove`);
+    const from = holder ? ` from ${holder}` : ` (worn: ${SLOT_NAMES[c.place.slot] ?? `slot ${c.place.slot + 1}`})`;
+    return h(
+      "li",
+      {},
+      h(
+        "span",
+        { class: "carried-name" },
+        name,
+        c.amount > 1 ? ` ×${c.amount}` : "",
+        holder ? null : h("span", { class: "muted" }, ` ${SLOT_NAMES[c.place.slot] ?? ""}`),
+        changed ? [" ", h("span", { class: "tag" }, "unsaved")] : null,
+      ),
+      h(
+        "span",
+        { class: "carried-controls" },
+        howMany,
+        h("button", {
+          type: "button",
+          class: "button subtle small",
+          onclick: act("items", () => removeCarried(c, howMany, from)),
+        }, "Remove"),
+      ),
+      c.contents.length ? h("ul", {}, c.contents.map((inner) => row(inner, name))) : null,
+    );
+  };
+  return h(
+    "details",
+    { class: "carried", "data-remember": "editor-carried", open: expanded ? expanded.has("editor-carried") : true },
+    h("summary", {}, `What you wear and carry (${total === 1 ? "1 item" : `${total} items`})`),
+    list.length ? h("ul", { class: "carried-list" }, list.map((c) => row(c))) : h("p", { class: "muted" }, "Nothing."),
+    h(
+      "p",
+      { class: "muted small" },
+      "Remove deletes an item from the save; a container goes with everything in it. Items tagged unsaved come from unsaved changes, " +
+        "which you can also undo from the list at the bottom.",
+    ),
+  );
+}
+
+/** Removes some or all of a carried item; a container with things in it asks first. */
+async function removeCarried(c: CarriedItem, howMany: HTMLInputElement | null, from: string) {
+  const name = itemName(c.index);
+  const n = howMany ? readWhole(howMany, "How many") : 1;
+  if (n < 1 || n > c.amount) throw new Error(`Remove from 1 to ${c.amount} ${name}`);
+  const amount = n === c.amount ? "all" : n;
+  const inside = countInside(c);
+  if (
+    amount === "all" && inside &&
+    !await ask({
+      title: `Remove ${name} and what is in it?`,
+      body: [`The ${inside === 1 ? "item" : `${inside} items`} inside it ${inside === 1 ? "goes" : "go"} too.`],
+      confirm: "Remove all",
+      danger: true,
+    })
+  ) return;
+  const { place, index } = c;
+  await editPlayer("items", (rec) => {
+    const r = removeItem(rec, place, index, amount);
+    const what = r.removed > 1 ? `${r.removed} × ${name}` : name;
+    return `Removed ${what}${from}${r.inside ? ` and the ${r.inside === 1 ? "item" : `${r.inside} items`} in it` : ""}`;
+  });
 }
 
 // --- Map and creatures ---
@@ -624,20 +799,17 @@ function mapImage(path: string | undefined): Promise<HTMLImageElement | undefine
 
 const SCALE = 3;
 
-async function mapCard(v: PlayerSave): Promise<HTMLElement> {
+/** What stands on each tile of an area, with the unsaved edits: its ground, its creatures and whether you are there. */
+async function areaGround(a: Area, v: PlayerSave) {
   const w = world!;
-  if (!area) return card("map", "Where you stand and creatures", h("p", { class: "muted" }, "No explored area was found."));
-  const a = area;
   const beingsPath = `${a.dir}Beings.save`;
   const hasBeings = session!.files.has(beingsPath);
-  const rawBeings = hasBeings ? await session!.json(beingsPath) as unknown[] : [];
-  const beings: Being[] = parseBeings(rawBeings);
+  const beings: Being[] = parseBeings(hasBeings ? await session!.json(beingsPath) as unknown[] : []);
   const [data, water1] = await Promise.all(["Data", "Water1"].map((l) => loadLayer(w, a.dir, l)));
   const trees = await loadTrees(w, a.dir);
   const detail = await loadDetail(w, a.dir);
   const solids = a.interior ? a.interior.solids : a.zone.solids;
-  const you = playerArea(v);
-  const youHere = you?.dir === a.dir;
+  const youHere = playerArea(v)?.dir === a.dir;
   const taken: Box[] = [
     ...solids.map((s) => spriteBox(s.sprite, s.x, s.y)),
     ...trees.map((t) => tileBox(t.x, t.y)),
@@ -645,7 +817,31 @@ async function mapCard(v: PlayerSave): Promise<HTMLElement> {
     ...beings.map((b) => tileBox(b.x, b.y)),
     ...(youHere ? [tileBox(v.pos[0], v.pos[1])] : []),
   ];
-  const ground = groundMap(data?.data, water1?.data, taken);
+  return { beingsPath, hasBeings, beings, youHere, ground: groundMap(data?.data, water1?.data, taken) };
+}
+
+/** Why you cannot be moved to tile tx,ty of area a, or undefined when you can. */
+function moveRefusal(a: Area, tx: number, ty: number, ground: Uint8Array): string | undefined {
+  if (a.interior) return "You can move only to an outdoor zone you have explored.";
+  const k = ground[ty * TILES + tx] as GroundKind;
+  if (k !== Ground.Free) return `Tile ${tx},${ty} is ${GROUND_TEXT[k]}; pick free ground.`;
+  if (!session!.files.has(`${a.dir}Containers.save`)) {
+    return "The game has not finished saving this zone (it has no Containers.save), so you cannot move there.";
+  }
+}
+
+const moveYou = (cardId: string, a: Area, tx: number, ty: number) =>
+  editPlayer(cardId, (p) => {
+    movePlayer(p, a.zone.x, a.zone.y, tx, ty);
+    return `Moved you to ${areaName(a)}, tile ${tx},${ty}`;
+  });
+
+async function mapCard(v: PlayerSave): Promise<HTMLElement> {
+  const w = world!;
+  if (!area) return card("map", "Where you stand and creatures", h("p", { class: "muted" }, "No explored area was found."));
+  const a = area;
+  const { beingsPath, hasBeings, beings, youHere, ground } = await areaGround(a, v);
+  const you = playerArea(v);
   const img = a.interior ? undefined : await mapImage(a.zone.mapPath);
   if (selected !== undefined && !beings[selected]) selected = undefined;
   const youTile = youHere ? (v.pos[1] >> 4) * TILES + (v.pos[0] >> 4) : -1;
@@ -727,26 +923,24 @@ async function mapCard(v: PlayerSave): Promise<HTMLElement> {
       void render();
       return;
     }
+    if (tool === "move") {
+      const refusal = moveRefusal(a, tx, ty, ground);
+      if (refusal) {
+        note("map", refusal, true);
+        void render();
+      } else void moveYou("map", a, tx, ty);
+      return;
+    }
     if (ground[t] !== Ground.Free) {
       note("map", `Tile ${tx},${ty} is ${GROUND_TEXT[ground[t] as GroundKind]}; pick free ground.`, true);
       void render();
       return;
     }
-    if (tool === "move") {
-      if (a.interior) return;
-      if (!session!.files.has(`${a.dir}Containers.save`)) {
-        note("map", "The game has not finished saving this zone (it has no Containers.save), so you cannot move there.", true);
-        void render();
-        return;
-      }
-      void editPlayer("map", (p) => {
-        movePlayer(p, a.zone.x, a.zone.y, tx, ty);
-        return `Moved you to ${areaName(a)}, tile ${tx},${ty}`;
-      });
-    } else if (tool === "spawn") {
+    if (tool === "spawn") {
+      const kind = spawnIndex;
       void edit("map", beingsPath, (raw) => {
-        spawnBeing(raw as unknown[], spawnIndex, tx, ty);
-        return `Spawned a ${BEING_NAMES[spawnIndex]} in ${areaName(a)}, tile ${tx},${ty}`;
+        spawnBeing(raw as unknown[], kind, tx, ty);
+        return `Spawned a ${BEING_NAMES[kind]} in ${areaName(a)}, tile ${tx},${ty}`;
       });
     }
   });
@@ -816,11 +1010,19 @@ async function mapCard(v: PlayerSave): Promise<HTMLElement> {
       const b = beings[i];
       const name = BEING_NAMES[b.index] ?? "creature";
       if (
-        isQuestBeing(b.index) && !confirm(`${name} is part of a quest. Removing them can leave that quest unfinishable. Remove anyway?`)
+        isQuestBeing(b.index) &&
+        !await ask({
+          title: `Remove ${name}?`,
+          body: [h("p", { class: "warning" }, `${name} is part of a quest. Removing them can leave that quest unfinishable.`)],
+          confirm: "Remove anyway",
+          danger: true,
+        })
       ) return;
       selected = undefined;
+      // The creature as it is now, so undoing an earlier change cannot make this remove a different one.
+      const same = JSON.stringify((await session!.json(beingsPath) as unknown[])[i]);
       await edit("map", beingsPath, (raw) => {
-        deleteBeing(raw as unknown[], i);
+        deleteBeing(raw as unknown[], i, same);
         return `Removed ${name} from ${areaName(a)}, tile ${b.x >> 4},${b.y >> 4}`;
       });
     });
@@ -881,6 +1083,111 @@ async function mapCard(v: PlayerSave): Promise<HTMLElement> {
   );
 }
 
+// --- Full map ---
+
+/** Takes the full map down, returning where it was looking. */
+function closeMap(): MapPlace | undefined {
+  if (!map) return undefined;
+  const st = map.state;
+  rememberView(st);
+  disposeView(st);
+  map.urls.forEach((u) => URL.revokeObjectURL(u));
+  map = undefined;
+  return { selected: st.selected, interiorDir: st.interiorDir, viewport: st.viewport, inspected: st.inspected, expanded: st.expanded };
+}
+
+/** MirkMap's own view of the save as it would be saved, looking where it was, or else at the editor's area. */
+async function renderMap(my: number) {
+  const s = session!, c = s.character;
+  try {
+    const files = s.preview();
+    const shown = await loadWorld(files, c.root, c.name);
+    shown.cheated ||= cheated;
+    const next = await worldState(shown, files, mapPrefs);
+    if (my !== renderToken) {
+      next.urls.forEach((u) => URL.revokeObjectURL(u));
+      return;
+    }
+    const place: MapPlace = closeMap() ?? { selected: area && [area.zone.x, area.zone.y], interiorDir: area?.interior?.dir };
+    map = { state: Object.assign(next.state, place), urls: next.urls };
+    setMoving(moving);
+    renderWorld(map.state);
+  } catch (e) {
+    console.error(e);
+    note("fullmap", `Could not draw the map: ${errorText(e)}`, true);
+  }
+  updateMapBar();
+}
+
+/** Turns the full map's Move tool on or off; it is only on in edit mode. */
+function setMoving(on: boolean) {
+  moving = on && editing;
+  if (map) map.state.onGround = moving ? (zone, tx, ty) => void moveFromMap(zone, tx, ty) : undefined;
+  updateMapBar();
+}
+
+/** The full map's Move tool: moves you to the clicked tile when it is free ground, then turns itself off. */
+async function moveFromMap(z: Zone, tx: number, ty: number) {
+  if (!moving || !editing || session?.saving) return;
+  const zone = world!.zones[z.y][z.x];
+  try {
+    if (!zone.dir) {
+      throw new Error(`${coordLabel(zone.x, zone.y)} ${zone.name} is not explored yet; you can move only to a zone you have explored.`);
+    }
+    const a: Area = { zone, dir: zone.dir };
+    const { ground } = await areaGround(a, parsePlayer(await session!.json(playerPath())));
+    const refusal = moveRefusal(a, tx, ty, ground);
+    if (refusal) throw new Error(refusal);
+    setMoving(false);
+    await moveYou("fullmap", a, tx, ty);
+  } catch (e) {
+    note("fullmap", errorText(e), true);
+    updateMapBar();
+  }
+}
+
+function updateMapBar() {
+  const shown = view === "map" && !!session;
+  $("#map-bar").hidden = !shown;
+  document.body.classList.toggle("map-mode", shown);
+  document.body.classList.toggle("map-move", shown && moving);
+  if (!shown) return;
+  const n = session!.changes.length;
+  $("#map-about").textContent =
+    (n ? `The map shows ${n === 1 ? "your unsaved change" : `your ${n} unsaved changes`}.` : "The map shows the save as it is.") +
+    (editing ? "" : " To make changes, choose Editor, then Edit this character...");
+  $("#map-move-control").hidden = !editing;
+  $<HTMLInputElement>("#map-move").checked = moving;
+  const message = notes.get("fullmap");
+  const out = $("#map-note");
+  out.textContent = message?.text ?? "";
+  out.classList.toggle("error", !!message?.error);
+}
+
+function updateViewSwitch() {
+  $("#view-switch").hidden = !session;
+  $("#show-editor").setAttribute("aria-pressed", String(view === "edit"));
+  $("#show-map").setAttribute("aria-pressed", String(view === "map"));
+}
+
+/** Switches between the editor's cards and the full map; the editor picks up the area the map was looking at. */
+function showView(next: View) {
+  if (next === view) return;
+  if (next === "edit") {
+    setFullMap(false);
+    const place = closeMap();
+    const there = place && mapArea(place);
+    if (there && there.dir !== area?.dir) {
+      area = there;
+      selected = undefined;
+    }
+    moving = false;
+  }
+  notes.delete("fullmap");
+  view = next;
+  void render();
+}
+
 function backupsCard(backups: Backup[]): HTMLElement {
   return card(
     "backups",
@@ -919,7 +1226,33 @@ function updateSavebar() {
   const changes = session?.changes ?? [];
   bar.hidden = !editing || !changes.length;
   $("#change-count").textContent = `${changes.length === 1 ? "1 unsaved change" : `${changes.length} unsaved changes`}`;
-  $("#change-list").replaceChildren(...changes.map((c) => h("li", {}, c)));
+  $("#change-list").replaceChildren(
+    ...changes.map((c, i) =>
+      h(
+        "li",
+        {},
+        c,
+        " ",
+        h("button", {
+          type: "button",
+          class: "button subtle small",
+          title: "Undo just this change; later changes stay",
+          onclick: () => void undoChange(i),
+        }, "Undo"),
+      )
+    ),
+  );
+}
+
+/** Asks before `action` drops the unsaved changes; true when there are none or the user agrees. */
+async function dropChanges(action: string, confirm: string): Promise<boolean> {
+  const n = session?.changes.length ?? 0;
+  return !n || await ask({
+    title: "Drop your unsaved changes?",
+    body: [`${action} drops ${n === 1 ? "your unsaved change" : `your ${n} unsaved changes`}. The save files stay as they are.`],
+    confirm,
+    danger: true,
+  });
 }
 
 // --- Wiring ---
@@ -929,24 +1262,46 @@ function wire() {
     $("#unsupported").hidden = false;
     $<HTMLButtonElement>("#open-folder").disabled = true;
   }
-  $("#open-folder").addEventListener("click", () => {
-    if (session?.changes.length && !confirm("Drop your unsaved changes and open another folder?")) return;
+  $("#open-folder").addEventListener("click", async () => {
+    if (!await dropChanges("Opening another folder", "Drop them and open")) return;
     editing = false;
     void openFolder();
   });
-  $<HTMLSelectElement>("#character").addEventListener("change", (e) => {
+  $<HTMLSelectElement>("#character").addEventListener("change", async (e) => {
     const select = e.target as HTMLSelectElement;
-    if (session?.changes.length && !confirm("Drop your unsaved changes and switch character?")) {
+    const to = Number(select.value);
+    if (!await dropChanges(`Switching to ${chars[to]?.name ?? "another character"}`, "Drop them and switch")) {
       select.value = String(active);
       return;
     }
     editing = false;
     notes.clear();
-    void openCharacter(Number(select.value));
+    void openCharacter(to);
   });
   $("#save").addEventListener("click", () => void save());
-  $("#discard").addEventListener("click", () => {
-    if (session?.saving || !confirm("Discard all unsaved changes?")) return;
+  $("#show-editor").addEventListener("click", () => showView("edit"));
+  $("#show-map").addEventListener("click", () => showView("map"));
+  $<HTMLInputElement>("#map-move").addEventListener("change", (e) => {
+    notes.delete("fullmap");
+    setMoving((e.target as HTMLInputElement).checked);
+  });
+  addEventListener("keydown", (e) => {
+    // An open dialog takes Escape for itself.
+    if (e.key !== "Escape" || !moving || e.defaultPrevented || document.querySelector("dialog[open]")) return;
+    // Handled here, so a full-screen map stays full screen.
+    e.preventDefault();
+    setMoving(false);
+  });
+  $("#discard").addEventListener("click", async () => {
+    const n = session?.changes.length ?? 0;
+    if (
+      session?.saving || !n || !await ask({
+        title: "Discard all unsaved changes?",
+        body: [`${n === 1 ? "Your unsaved change is" : `All ${n} unsaved changes are`} dropped. The save files stay as they are.`],
+        confirm: "Discard",
+        danger: true,
+      })
+    ) return;
     session?.discard();
     notes.clear();
     void render();
@@ -996,7 +1351,7 @@ async function devOpen(name: string, fresh: boolean) {
     const base = `/__saves/${encodeURIComponent(name)}/`;
     const list: string[] = await (await fetch(base)).json();
     for (const path of list) {
-      if (!/\.(save|tmap|png|ini)$/i.test(path)) continue;
+      if (!isSaveFile(path)) continue;
       const parts = path.split("/");
       let d = root as EditDirectory & { getDirectoryHandle(n: string, o?: { create?: boolean }): Promise<EditDirectory> };
       for (const part of parts.slice(0, -1)) d = await d.getDirectoryHandle(part, { create: true }) as typeof d;

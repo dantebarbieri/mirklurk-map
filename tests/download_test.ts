@@ -1,9 +1,9 @@
-// Downloading a world as a save the game can load: ZIP writing, the MirkMap.ini marker, and byte-for-byte round trips.
+// Downloading a world as a save the game can load: ZIP writing, the MirkMap.json marker, and byte-for-byte round trips.
 //   MIRKLURK_SAVES="…\Saves" deno task test      (the real-save round trip is skipped when no saves are found)
 
 import { assert, assertEquals, assertRejects } from "./assert.ts";
 import { type FileMap, findCharacters, fromFiles } from "../src/files.ts";
-import { isFromShare, MARKER, markerFlag, readMarker, writeMarker } from "../src/marker.ts";
+import { isFromShare, isSaveFile, MARKER, readMarker, writeMarker } from "../src/marker.ts";
 import { folderName, saveZip } from "../src/download.ts";
 import { MAX_UPLOAD, newToken, packSave, unpackSave, worldId } from "../src/sharing-format.ts";
 import { crc32, readZip, writeZip } from "../src/zip.ts";
@@ -48,7 +48,7 @@ Deno.test("zip: what writeZip writes, readZip and the CRC read back exactly", as
     { name: "Hero/[ 4,0 ]/noise.png", data: noise },
     { name: "Hero/empty.save", data: new Uint8Array() },
     { name: "Héro/Player.save", data: player },
-    { name: "Hero/MirkMap.ini", data: encode("[MirkMap]\r\n"), hidden: true },
+    { name: "Hero/MirkMap.json", data: encode("{}\n"), hidden: true },
   ];
   const blob = await writeZip(files);
   assertEquals(blob.type, "application/zip");
@@ -72,51 +72,41 @@ Deno.test("zip: what writeZip writes, readZip and the CRC read back exactly", as
   assertEquals([(date >> 9) + 1980, (date >> 5) & 15, date & 31], [2026, 10, 1]);
 });
 
-Deno.test("marker: [MirkMap] keys are read case-insensitively; other sections, comments and junk are ignored", () => {
-  const marker = readMarker(
-    "\uFEFF; comment\r\nfrom_share=1\r\n[Other]\r\nfrom_share=1\r\n[ mirkmap ]\r\nFrom_Share = yes \r\n# note\r\ncheated=1\r\n" +
-      "cheated=0\r\nnot a pair\r\n=empty\r\n",
-  );
-  assertEquals([...marker], [["from_share", "yes"], ["cheated", "0"]]);
-  assert(markerFlag(marker, "FROM_SHARE"));
-  assert(!markerFlag(marker, "cheated"));
-  for (const value of ["1", "true", "TRUE", "yes"]) assert(markerFlag(new Map([["x", value]]), "x"), value);
-  for (const value of ["0", "", "no", "2", "truthy"]) assert(!markerFlag(new Map([["x", value]]), "x"), value);
-  assertEquals([...readMarker("")], []);
-});
-
-Deno.test("marker: writing sets only the given keys and keeps every other line", () => {
-  const fresh = writeMarker(undefined, { from_share: "1", share_downloaded: "2026-10-11T13:00:00Z" });
-  assertEquals(
-    fresh,
-    "; MirkMap's notes about this world. The game ignores this file.\r\n\r\n[MirkMap]\r\nfrom_share=1\r\n" +
-      "share_downloaded=2026-10-11T13:00:00Z\r\n",
-  );
-  assertEquals(writeMarker(fresh, { from_share: "1", share_downloaded: "2026-10-11T13:00:00Z" }), fresh);
-
-  // A save editor's keys survive, and a key already present changes in place.
-  const edited = "[Notes]\r\nmine=keep\r\n\r\n[MirkMap]\r\ncheated=1\r\ncheated_edits=3\r\n; kept\r\n\r\n[Later]\r\nx=y\r\n";
-  assertEquals(
-    writeMarker(edited, { from_share: "1", cheated_edits: "4" }),
-    "[Notes]\r\nmine=keep\r\n\r\n[MirkMap]\r\ncheated=1\r\ncheated_edits=4\r\n; kept\r\nfrom_share=1\r\n\r\n[Later]\r\nx=y\r\n",
-  );
-  // No section yet: it is added at the end; LF files stay LF; duplicates all change so the last still wins.
-  assertEquals(writeMarker("[Other]\na=b", { from_share: "1" }), "[Other]\na=b\n\n[MirkMap]\nfrom_share=1\n");
-  const twice = writeMarker("[MirkMap]\nfrom_share=0\n[x]\n[MIRKMAP]\nFROM_SHARE=0\n", { from_share: "1" });
-  assertEquals(twice, "[MirkMap]\nfrom_share=1\n[x]\n[MIRKMAP]\nfrom_share=1\n");
-  assert(markerFlag(readMarker(twice), "from_share"));
-  const bad: Record<string, string>[] = [{ "bad key": "1" }, { "a=b": "1" }, { ok: "line\nbreak" }, { ok: "line\rbreak" }];
-  for (const values of bad) {
-    let threw = false;
-    try {
-      writeMarker(undefined, values);
-    } catch {
-      threw = true;
-    }
-    assert(threw, JSON.stringify(values));
+Deno.test("marker: notes are a JSON object; anything else reads as no notes", () => {
+  assertEquals(readMarker('\uFEFF{ "fromShare": true, "other": [1] }'), { fromShare: true, other: [1] });
+  for (const text of ["", "[MirkMap]\r\nfrom_share=1\r\n", "[1, 2]", "null", '"text"', "{ broken"]) {
+    assertEquals(readMarker(text), {}, text);
   }
 });
 
+Deno.test("marker: writing sets only the given keys and keeps every other one", () => {
+  const fresh = writeMarker(undefined, { fromShare: true, shareDownloaded: "2026-10-11T13:00:00Z" });
+  assertEquals(
+    fresh,
+    '{\n  "about": "MirkMap\'s notes about this world. The game ignores this file.",\n  "fromShare": true,\n' +
+      '  "shareDownloaded": "2026-10-11T13:00:00Z"\n}\n',
+  );
+  assertEquals(writeMarker(fresh, { fromShare: true, shareDownloaded: "2026-10-11T13:00:00Z" }), fresh);
+
+  // A save editor's keys survive, and a key already present changes in place.
+  const edited = JSON.stringify({ mine: "keep", cheated: { since: "2026-10-01T00:00:00Z", edits: 3 }, fromShare: false });
+  assertEquals(readMarker(writeMarker(edited, { fromShare: true })), {
+    mine: "keep",
+    cheated: { since: "2026-10-01T00:00:00Z", edits: 3 },
+    fromShare: true,
+  });
+  // Text that is not ours is replaced rather than kept.
+  assertEquals(readMarker(writeMarker("[MirkMap]\r\nfrom_share=0\r\n", { fromShare: true })), { fromShare: true });
+});
+
+Deno.test("marker: MirkMap.json travels with the game's own files; other JSON and files do not", () => {
+  for (const path of ["Player.save", "[ 4,0 ]/Data.tmap", "Maps/0_0.png", "[ 4,0 ]/LastVisit.ini", MARKER, "Hero/mirkmap.JSON"]) {
+    assert(isSaveFile(path), path);
+  }
+  for (const path of ["notes.json", "Hero/NotMirkMap.json", "MirkMap.ini.txt", "readme.txt", "MirkMap.json/x"]) {
+    assert(!isSaveFile(path), path);
+  }
+});
 Deno.test("download: folder names stay as the game made them; only names Windows can't use change", () => {
   for (const name of ["Hero", "Sir Lancelot-2_b", "[ 4,0 ]", "Ünïcødé", "a".repeat(100)]) assertEquals(folderName(name), name);
   assertEquals(folderName('a<b>c:d"e/f\\g|h?i*j'), "a_b_c_d_e_f_g_h_i_j");
@@ -148,23 +138,25 @@ Deno.test("download: a library world comes back as its character folder, byte-fo
   assert(!await isFromShare(files, "Shared/"));
 
   // A marker it already has (here from an earlier share) is kept as it is, and hidden.
-  const marked = await shared("[MirkMap]\r\nfrom_share=1\r\n");
+  const notes = '{"fromShare":true}';
+  const marked = await shared(notes);
   const again = await saveZip(marked.name, marked.files, "Shared/");
   assertEquals(again.filename, "Hero.zip");
-  assertEquals(decode((await unzip(again.blob)).get(`Hero/${MARKER}`)!), "[MirkMap]\r\nfrom_share=1\r\n");
+  assertEquals(decode((await unzip(again.blob)).get(`Hero/${MARKER}`)!), notes);
   assertEquals((await attributes(again.blob)).get(`Hero/${MARKER}`)!.external, 0x22);
 });
 
-Deno.test("download: a world from a share link is marked From Share, keeping other MirkMap.ini keys, and MirkMap sees it", async () => {
+Deno.test("download: a world from a share link is marked From Share, keeping other MirkMap.json keys, and MirkMap sees it", async () => {
   const when = new Date(Date.UTC(2026, 9, 11, 13, 47, 18, 463));
-  const { name, files } = await shared("[MirkMap]\r\ncheated=1\r\ncheated_since=2026-10-01T00:00:00Z\r\n");
+  const { name, files } = await shared(JSON.stringify({ cheated: { since: "2026-10-01T00:00:00Z", edits: 1 } }));
   const zip = await saveZip(name, files, "Shared/", when);
   assertEquals([zip.filename, zip.folder], ["Hero (From Share).zip", "Hero"]);
   const back = await unzip(zip.blob);
-  assertEquals(
-    decode(back.get(`Hero/${MARKER}`)!),
-    "[MirkMap]\r\ncheated=1\r\ncheated_since=2026-10-01T00:00:00Z\r\nfrom_share=1\r\nshare_downloaded=2026-10-11T13:47:18Z\r\n",
-  );
+  assertEquals(readMarker(decode(back.get(`Hero/${MARKER}`)!)), {
+    cheated: { since: "2026-10-01T00:00:00Z", edits: 1 },
+    fromShare: true,
+    shareDownloaded: "2026-10-11T13:47:18Z",
+  });
   assertEquals((await attributes(zip.blob)).get(`Hero/${MARKER}`)!.external, 0x22);
   assertEquals((await attributes(zip.blob)).get("Hero/Player.save")!.external, 0x20);
   for (const path of ["Hero/Player.save", "Hero/[ 0,0 ]/Containers.save", "Hero/Maps/0_0.png"]) {
@@ -181,7 +173,7 @@ Deno.test("download: a world from a share link is marked From Share, keeping oth
   // Without a marker, a share download makes one.
   const plain = await shared();
   const made = decode((await unzip((await saveZip(plain.name, plain.files, "Shared/", when)).blob)).get(`Hero/${MARKER}`)!);
-  assert(markerFlag(readMarker(made), "from_share"));
+  assert(readMarker(made).fromShare === true);
   await assertRejects(() => saveZip("Hero", new Map(), "Shared/"), /no files/);
 });
 

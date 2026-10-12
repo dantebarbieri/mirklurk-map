@@ -1,5 +1,6 @@
 import { type FileMap, findCharacters, type Source } from "./files.ts";
 import { parseItemList } from "./inventory.ts";
+import { isSaveFile } from "./marker.ts";
 import { centerpos, isOutside } from "./rules.ts";
 import {
   decodeHeights,
@@ -48,7 +49,7 @@ export async function scanDirectory(dir: LiveDirectory): Promise<Scan> {
     for await (const handle of folder.values()) {
       const path = prefix + handle.name;
       if (handle.kind === "directory") await walk(handle, `${path}/`);
-      else if (/\.(save|tmap|png|ini)$/i.test(handle.name)) {
+      else if (isSaveFile(handle.name)) {
         const file = await handle.getFile();
         entries.set(path, { file, stamp: `${file.lastModified}:${file.size}` });
       }

@@ -3,6 +3,7 @@
 // container's gridSave holds its own copy with the same X,Y origin, as json_stringify writes a grid.
 
 import { ITEMS } from "../itemdata.ts";
+import { ITEM_NAMES } from "../gamedata.ts";
 import { isRec, type Rec } from "./edits.ts";
 
 /** Empty grid cell (GameMaker's noone). */
@@ -161,4 +162,120 @@ export function addItems(p: Rec, index: number, amount: number): AddResult {
 /** Free cells across all carried containers, for showing how much room is left. */
 export function freeCells(p: Rec): number {
   return carriedBags(p).reduce((n, b) => n + b.grid.flat().filter((c) => c === EMPTY).length, 0);
+}
+
+/** Where a carried item is: its equipment slot, then, for each container it is inside, that container's part and the item's origin. */
+export interface ItemPlace {
+  slot: number;
+  path: { part: number; x: number; y: number }[];
+}
+
+/** An item worn or carried, with what its containers hold. */
+export interface CarriedItem {
+  place: ItemPlace;
+  index: number;
+  amount: number;
+  contents: CarriedItem[];
+}
+
+const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
+/** A two-handed melee weapon is saved in its off hand too (slots 1 and 3); the game's loader skips that copy. */
+const isOffHandCopy = (equips: unknown[], slot: number) =>
+  (slot === 1 || slot === 3) && isRec(equips[slot]) && same(equips[slot], equips[slot - 1]);
+
+function carried(rec: Rec, place: ItemPlace): CarriedItem {
+  const contents: CarriedItem[] = [];
+  (Array.isArray(rec.subParts) ? rec.subParts : []).forEach((part, i) => {
+    if (!isRec(part) || part.type !== 0 || !Array.isArray(part.gridSave)) return;
+    const g = part.gridSave as unknown[][];
+    for (let y = 0; y < g.length; y++) {
+      for (let x = 0; x < (Array.isArray(g[y]) ? g[y].length : 0); x++) {
+        if (origin(g, x, y)) contents.push(carried(g[y][x] as Rec, { slot: place.slot, path: [...place.path, { part: i, x, y }] }));
+      }
+    }
+  });
+  return { place, index: Number(rec.index), amount: Number(rec.amount), contents };
+}
+
+/** How many items are inside a carried item, at any depth. */
+export const countInside = (c: CarriedItem): number => c.contents.reduce((n, inner) => n + 1 + countInside(inner), 0);
+
+/** Everything the player wears, in slot order, each with what its containers hold (row by row). */
+export function carriedItems(p: Rec): CarriedItem[] {
+  const equips = Array.isArray(p.myEquips) ? p.myEquips : [];
+  return equips.flatMap((rec, slot) => isRec(rec) && !isOffHandCopy(equips, slot) ? [carried(rec, { slot, path: [] })] : []);
+}
+
+/** The steps to the item at `place`: each container grid on the way, ending with the item's own; undefined when nothing is there. */
+function locate(p: Rec, place: ItemPlace): { item: Rec; grids: { grid: unknown[][]; x: number; y: number }[] } | undefined {
+  const equips = Array.isArray(p.myEquips) ? p.myEquips : [];
+  let item = equips[place.slot];
+  const grids: { grid: unknown[][]; x: number; y: number }[] = [];
+  for (const { part, x, y } of place.path) {
+    if (!isRec(item) || !Array.isArray(item.subParts)) return undefined;
+    const sub = item.subParts[part];
+    if (!isRec(sub) || sub.type !== 0 || !Array.isArray(sub.gridSave)) return undefined;
+    const grid = sub.gridSave as unknown[][];
+    item = origin(grid, x, y);
+    grids.push({ grid, x, y });
+  }
+  return isRec(item) ? { item, grids } : undefined;
+}
+
+/** The item at `place`, if there is one. */
+export const itemAt = (p: Rec, place: ItemPlace): Rec | undefined => locate(p, place)?.item;
+
+/** Every cell of a grid holding the item at origin (x, y) becomes a copy of the origin cell again. */
+function syncCopies(g: unknown[][], x: number, y: number) {
+  const json = JSON.stringify(g[y][x]);
+  for (let j = 0; j < g.length; j++) {
+    for (let i = 0; i < g[j].length; i++) {
+      const c = g[j][i];
+      if ((i !== x || j !== y) && isRec(c) && c.X === x && c.Y === y) g[j][i] = JSON.parse(json);
+    }
+  }
+}
+
+export interface RemoveResult {
+  /** How many were removed. */
+  removed: number;
+  /** Items that were inside it and went with it, at any depth. */
+  inside: number;
+}
+
+/**
+ * Removes `amount` (or "all") of item `index` at `place`: an equipment slot becomes empty (with a two-handed weapon's off-hand copy),
+ * and a container's grid gets every cell the item covered emptied. Fewer than all of a stack lowers its amount. Every copy of the
+ * containers it was in, which each cell of theirs holds, is brought up to date. Throws when that item is no longer there or there are
+ * fewer than `amount`.
+ */
+export function removeItem(p: Rec, place: ItemPlace, index: number, amount: number | "all"): RemoveResult {
+  const name = ITEM_NAMES[index] ?? `Item ${index}`;
+  const found = locate(p, place);
+  if (!found || found.item.index !== index) throw new Error(`${name} is no longer there`);
+  const { item, grids } = found;
+  const have = Number(item.amount);
+  const n = amount === "all" ? have : amount;
+  if (!Number.isInteger(n) || n < 1) throw new Error("Amount must be a whole number of at least 1");
+  if (n > have) throw new Error(`There ${have === 1 ? "is only 1" : `are only ${have}`} there`);
+  const equips = p.myEquips as unknown[];
+  const twin = place.path.length === 0 && (place.slot === 0 || place.slot === 2) && isOffHandCopy(equips, place.slot + 1);
+  const all = n === have;
+  const inside = all ? countInside(carried(item, place)) : 0;
+  const last = grids[grids.length - 1];
+  if (!all) {
+    item.amount = have - n;
+    if (last) syncCopies(last.grid, last.x, last.y);
+  } else if (last) {
+    for (const row of last.grid) {
+      for (let i = 0; i < row.length; i++) {
+        const c = row[i];
+        if (isRec(c) && c.X === last.x && c.Y === last.y) row[i] = EMPTY;
+      }
+    }
+  } else equips[place.slot] = EMPTY;
+  // The containers it was in changed, so every copy of each of them is made again from its origin.
+  for (let k = grids.length - 2; k >= 0; k--) syncCopies(grids[k].grid, grids[k].x, grids[k].y);
+  if (twin) equips[place.slot + 1] = isRec(equips[place.slot]) ? JSON.parse(JSON.stringify(equips[place.slot])) : EMPTY;
+  return { removed: n, inside };
 }
