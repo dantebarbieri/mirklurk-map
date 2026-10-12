@@ -20,6 +20,7 @@ import {
   carriedBags,
   carriedItems,
   countInside,
+  dryAll,
   fitsSlot,
   freeCells,
   freeSlots,
@@ -27,9 +28,13 @@ import {
   isTwoHandedMelee,
   itemAt,
   moveItem,
+  needing,
   newItem,
+  refuelAll,
   removeItem,
+  repairAll,
   roomFor,
+  setCondition,
   SLOT_TAKES,
   takeOff,
   wearCarried,
@@ -45,6 +50,7 @@ import { xpForLevel } from "../src/player.ts";
 import { TILES } from "../src/rules.ts";
 import { Weather } from "../src/weather.ts";
 import { ITEMS } from "../src/itemdata.ts";
+import { isWet, needsFuel, needsRepair } from "../src/condition.ts";
 import { freshHealth } from "../src/bestiary.ts";
 import { countCoins } from "../src/coins.ts";
 import type { FileMap } from "../src/files.ts";
@@ -429,6 +435,90 @@ Deno.test("wearing a bag kept inside another gives it an empty inventory, as the
   assertEquals(parsePlayer([p]).inventory?.state, "saved");
 });
 
+/** Writes `item` into grid g at (x, y), a copy in every cell its w×h covers, as the game saves it. */
+function placeIn(g: unknown[][], item: Rec, x: number, y: number) {
+  const { w, h } = ITEMS[Number(item.index)];
+  for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) g[j][i] = { ...structuredClone(item), X: x, Y: y };
+}
+/** Every cell of a grid holding the item whose origin is (x, y). */
+const cellsOf = (g: unknown[][], x: number, y: number) => g.flat().filter((c): c is Rec => (c as Rec)?.X === x && (c as Rec)?.Y === y);
+
+/** Worn: a two-handed axe (with its off-hand copy) and a wet helmet; in the backpack a lantern, Lamp Oil, bread and wet logs. */
+function worn() {
+  const pack = empty(7, 5);
+  placeIn(pack, cell(110, 1, 0, 0, { durability: 20, burnTimeLeft: 10.5, lit: false }), 0, 0);
+  placeIn(pack, cell(112, 1, 0, 0, { durability: 60 }), 1, 0);
+  placeIn(pack, cell(25, 1, 0, 0, { durability: 2 }), 2, 0);
+  placeIn(pack, cell(35, 2, 0, 0, { wet: 0.5 }), 4, 0);
+  const axe = cell(29, 1, E, E, { durability: 40 });
+  const p = dressed({
+    0: axe,
+    1: structuredClone(axe),
+    4: cell(54, 1, E, E, { durability: 100, wet: 0.3 }),
+    8: { ...backpack(pack), durability: 40 },
+  });
+  p.wetness = [0.2, 0, 0.5, 0];
+  return { p, equips: p.myEquips as Rec[], g: carriedBags(p)[0].grid as Rec[][] };
+}
+
+Deno.test("condition: Repair all, Refuel all and Dry all restore what each item has, keeping every copy the same", () => {
+  const { p, equips, g } = worn();
+  const indexes = (list: { index: number }[]) => list.map((c) => c.index);
+  assertEquals(indexes(needing(p, "repair")), [29, 54, 110], "worn, then the backpack; not the bread or the oil");
+  assertEquals(indexes(needing(p, "refuel")), [110, 112]);
+  assertEquals(indexes(needing(p, "dry")), [54, 35]);
+
+  assertEquals(indexes(repairAll(p)), [29, 54, 110]);
+  assertEquals([equips[0].durability, equips[1].durability, equips[4].durability], [100, 100, 300], "the off-hand copy too");
+  assertEquals(carriedItems(p).filter((c) => c.index === 29).length, 1, "still listed once");
+  assertEquals(cellsOf(g, 0, 0).map((c) => [c.durability, c.burnTimeLeft]), [[50, 10.5], [50, 10.5]], "both cells of the lantern");
+  assertEquals(cellsOf(g, 2, 0).map((c) => c.durability), [2, 2, 2, 2], "eaten bread stays eaten");
+
+  assertEquals(indexes(refuelAll(p)), [110, 112]);
+  assertEquals(cellsOf(g, 0, 0).map((c) => [c.durability, c.burnTimeLeft, c.lit]), [[50, 100, false], [50, 100, false]]);
+  assertEquals(cellsOf(g, 1, 0).map((c) => c.durability), [150, 150], "a full flask of oil");
+
+  const dried = dryAll(p);
+  assertEquals([indexes(dried.items), dried.body], [[54, 35], true]);
+  assertEquals([equips[4].wet, ...cellsOf(g, 4, 0).map((c) => c.wet)], [0, 0, 0, 0, 0, 0, 0]);
+  assertEquals(p.wetness, [0, 0, 0, 0]);
+
+  assertEquals([repairAll(p), refuelAll(p), dryAll(p)], [[], [], { items: [], body: false }], "nothing left to do");
+  const parsed = parseInventoryGrid(g);
+  assert(parsed.state === "saved" && parsed.items.length === 4 && !parsed.note, "the viewer reads the backpack back");
+  assertEquals(parsePlayer([p]).equipment.map((e) => [e.slot, e.item.durability]), [[0, 100], [4, 300], [8, 40]]);
+});
+
+Deno.test("condition: setting an item's durability, fuel or wetness keeps to what the game allows", () => {
+  const { p, equips, g } = worn();
+  const lantern = { slot: 8, path: [{ part: 0, x: 0, y: 0 }] }, logs = { slot: 8, path: [{ part: 0, x: 4, y: 0 }] };
+  const axe = { slot: 0, path: [] };
+  setCondition(p, axe, 29, { durability: 12 });
+  assertEquals([equips[0].durability, equips[1].durability], [12, 12], "the off-hand copy follows");
+  assertEquals(carriedItems(p).filter((c) => c.index === 29).length, 1);
+  assertThrows(() => setCondition(p, axe, 29, { durability: 0 }), /more than 0 .*breaks/);
+  assertThrows(() => setCondition(p, axe, 29, { durability: 101 }), /at most 100/);
+  assertThrows(() => setCondition(p, axe, 29, { durability: NaN }), /Durability/);
+  assertThrows(() => setCondition(p, { slot: 8, path: [{ part: 0, x: 2, y: 0 }] }, 25, { durability: 0 }), /uses up/);
+  assertThrows(() => setCondition(p, axe, 29, { fuel: 3 }), /burns no fuel/);
+  assertThrows(() => setCondition(p, axe, 29, { wet: 0.5 }), /never gets wet/);
+
+  setCondition(p, logs, 35, { wet: 0.8 });
+  assertEquals(cellsOf(g, 4, 0).map((c) => c.wet), Array(6).fill(0.8), "every cell the logs cover");
+  setCondition(p, logs, 35, { wet: 0 });
+  assertThrows(() => setCondition(p, logs, 35, { wet: 1.2 }), /Wetness/);
+  assertThrows(() => setCondition(p, logs, 35, { durability: 5 }), /no durability/);
+
+  assertThrows(() => setCondition(p, lantern, 110, { fuel: 101 }), /Fuel must be from 0 to 100 turns/);
+  for (const c of cellsOf(g, 0, 0)) c.lit = true;
+  setCondition(p, lantern, 110, { fuel: 0, durability: 7.5 });
+  assertEquals(cellsOf(g, 0, 0).map((c) => [c.durability, c.burnTimeLeft, c.lit]), [[7.5, 0, false], [7.5, 0, false]], "burnt out");
+  assertThrows(() => setCondition(p, lantern, 41, { fuel: 1 }), /no longer there/);
+  const parsed = parseInventoryGrid(g);
+  assert(parsed.state === "saved" && !parsed.note);
+  assertEquals(parsed.items[0].burnTimeLeft, 0, "the viewer reads the fuel back");
+});
+
 Deno.test("spawned creatures have a fresh grid; quest characters are protected", () => {
   const b = newBeing(17, 10, 20);
   assertEquals([b.index, b.x, b.y, b.status, b.state, b.homeX, b.localStage, b.turnLimit], [17, 168, 328, -200, 0, E, -1, E]);
@@ -530,10 +620,17 @@ Deno.test({ name: "real saves: every edit round-trips through the viewer's parse
     healPlayer(p);
     setLevel(p, Math.min(60, before.level + 1));
     setSky(p, { weather: Weather.Rain, rain: 0.5, minute: 600 });
+    repairAll(p);
+    refuelAll(p);
+    dryAll(p);
     // Encoded as save_datajson does: JSON then one NUL byte.
     const text = JSON.stringify(raw);
     const out = new Uint8Array([...new TextEncoder().encode(text), 0]);
     const after = parsePlayer(decodeJson(out));
+    const worn = after.equipment.map((e) => e.item);
+    const items = [...worn, ...worn.flatMap((i) => i.contents.flatMap((c) => c.state === "saved" ? c.items : []))];
+    assert(items.every((i) => !needsRepair(i) && !needsFuel(i) && !isWet(i)), `${name}: repaired, refuelled and dried`);
+    assert(after.wetness.every((v) => v === 0), `${name}: dry clothes`);
     assertEquals(after.level, Math.min(60, before.level + 1), name);
     assertEquals(after.vitals?.wellbeing, 1, name);
     assert(after.health!.cells.flat().every((c) => c.hp !== 0 && c.hp !== -1 && !c.poison), `${name}: healed`);
