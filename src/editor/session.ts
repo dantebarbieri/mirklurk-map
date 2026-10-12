@@ -1,7 +1,7 @@
 // Save editor: one character folder opened for writing with the File System Access API (desktop Chrome and Edge). Edits change
-// parsed copies of the save files (drafts) until they are saved. Saving refuses if the game wrote the folder since it was read, keeps
-// the replaced files in this browser as a backup, writes the Cheated mark into MirkMap.json first and then each changed file the way
-// save_datajson does: JSON and one NUL byte.
+// parsed copies of the save files (drafts) until they are saved; reloading reads the folder again and runs them again on it. Saving
+// refuses if the game wrote the folder since it was read, keeps the replaced files in this browser as a backup, writes the Cheated
+// mark into MirkMap.json first and then each changed file the way save_datajson does: JSON and one NUL byte.
 
 import type { Character, FileMap } from "../files.ts";
 import { captureSnapshot, currentContainers, type LiveDirectory, type LiveFile, type Scan, scanDirectory } from "../live.ts";
@@ -52,7 +52,7 @@ export class StaleError extends Error {}
 /**
  * An edit of one save file's draft: it changes the draft in place and returns a line for the list of unsaved changes, or undefined
  * when there was nothing to change. It reads only the draft (its inputs are fixed when it is made), so it can run again on a fresh
- * draft when an earlier change to the same file is undone.
+ * draft when an earlier change to the same file is undone, or when the save is reloaded after playing.
  */
 export type Edit = (raw: unknown) => string | undefined;
 
@@ -150,6 +150,39 @@ export class EditSession {
   }
 
   /**
+   * Takes the folder as it is now (read again with `open`, after playing in the game) and runs every unsaved change again on it, in
+   * order, so saving checks against and writes over the newest save. A change that no longer applies (it throws, or now changes
+   * nothing, such as setting wellbeing to 100% when the game already has it there) is dropped; their lines are returned. The others
+   * stay, their lines written anew. If anything else goes wrong, the session is left as it was.
+   */
+  rebase(scan: Scan, files: FileMap): Promise<string[]> {
+    return this.serial(async () => {
+      if (this.busy) throw new Error("Wait for the save to finish");
+      const before = { scan: this.scan, files: this.files, drafts: new Map(this.drafts), log: this.log };
+      try {
+        this.scan = scan;
+        this.files = files;
+        this.drafts.clear();
+        const dropped = new Set(this.log.filter((c) => !files.has(c.path)));
+        this.log = this.log.filter((c) => !dropped.has(c));
+        for (const path of this.dirty) {
+          for (;;) {
+            const failed = await this.rebuild(path, this.log);
+            if (failed === undefined) break;
+            dropped.add(failed);
+            this.log = this.log.filter((c) => c !== failed);
+          }
+        }
+        // In the order the changes were made, not file by file.
+        return before.log.filter((c) => dropped.has(c)).map((c) => c.note);
+      } catch (e) {
+        Object.assign(this, before);
+        throw e;
+      }
+    });
+  }
+
+  /**
    * Parses `path` afresh and runs `changes`' edits to it again, recording the lines they give now. Stops at the first edit that no
    * longer applies and returns it, leaving the log as it was; otherwise the log becomes `changes`.
    */
@@ -242,7 +275,7 @@ export class EditSession {
         `The game changed ${
           differs.length === 1 ? differs[0].slice(root.length) : `${differs.length} files`
         } since this folder was read. ` +
-          "Reopen the folder to edit the newest save; these unsaved edits cannot be applied.",
+          "Choose Reload save to read the newest save and run your unsaved changes again on it.",
       );
     }
     return now;
