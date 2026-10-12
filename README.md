@@ -174,8 +174,9 @@ ask the browser to keep their storage.
 Click **Live saves...** in desktop Chrome or Edge on HTTPS (or localhost), then grant **read-only** access to a character folder or the
 whole `Saves` folder. The site polls every 1.5 seconds, discovers added/deleted files, and refreshes after writes have settled. Nothing is
 uploaded, written to the game, or installed. **Stop live saves** stops polling and retains the last displayed snapshot. Opening a folder,
-ZIP, or dropped save manually also stops monitoring. Access is requested again when restarting live mode; it is not stored across reloads.
-Browsers without the directory picker retain manual import.
+ZIP, or dropped save manually also stops monitoring. Access is requested again when restarting live mode. The folder is kept in this browser
+only to hand it to the save editor and back (see [Save editor](#save-editor)): following **Save editor** while Live saves runs, and coming
+back, watches the same folder again without asking for it. Browsers without the directory picker retain manual import.
 
 **This follows saved locations, not live movement.** The game saves before area transitions, on new-area generation, after normal sleep, at
 some story checkpoints, and when saving to the menu. Because a transition save is written while you still stand at the border or door, live
@@ -389,10 +390,39 @@ they keep growing, spreading and dying back as turns pass and when you come back
 ## Save editor
 
 **MirkMap Editor**, at `/edit/` (https://map.mirklurk.danteb.com/edit/, linked as **Save editor** from the map), changes a character's save
-files. It is a separate page built from the same code as the map, which itself never writes your files. It needs desktop Chrome or Edge,
-which can write to a folder you choose. Save and quit to the game's main menu, and stay at the menu until you have saved your edits: the
-game keeps your character in memory and would overwrite them. **Open save folder for editing...** asks for write access to a character
-folder or the whole `Saves` folder. Nothing is uploaded.
+files. It is a separate page built from the same code as the map, which itself never writes your files. Save and quit to the game's main
+menu, and stay at the menu until you have saved your edits: the game keeps your character in memory and would overwrite them.
+
+The map and the editor share what is open, so a save is opened once. **Save editor** opens the editor on the save and character the map
+shows, and the editor's **Back to MirkMap** hands it back the same way:
+
+- **A folder watched with Live saves** goes over as the folder itself (a folder handle, kept in this browser's IndexedDB, the only place a
+  browser can keep one). The editor reads it at once; its first save asks your browser once for permission to change the files. Back on the
+  map, Live saves watches it again.
+- **A world followed from My worlds** opens from the library, and the map follows it again afterwards.
+- **A folder, `.zip` or dropped save opened as a snapshot** goes over as a copy of the character's files, read once (only that character: a
+  whole `Saves` folder can be hundreds of megabytes).
+- A world from someone's share link is theirs: the editor opens on its own.
+
+The editor opens the same kinds of save itself: **Open save folder...** (in desktop Chrome and Edge it asks for write access to a character
+folder or the whole `Saves` folder; elsewhere the folder is read as a copy), **Open .zip**, a folder or `.zip` dropped on the page, and
+**Edit from My worlds...**, which lists your library. Loaded on its own, the editor opens the folder or library world it had open last (a
+folder after a click, if the browser has forgotten that it may read it). Where saving goes depends on where the save came from:
+
+| Opened from                            | **Save** bar                                                                                                     |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| A folder (write access)                | **Save to game files** writes the files in place                                                                 |
+| My worlds                              | **Save to My worlds** updates the world for every synced device; **Download .zip** gives a save to play          |
+| A copy (`.zip`, dropped, or the map's) | **Save to game files...** asks for the folder (Chrome and Edge); **Download .zip** gives the edited save to play |
+
+Saving a copy into the game's folder looks for the same world (the character's name and zone layout) in the folder you choose, the
+character's own folder or the whole `Saves` folder, and runs your unsaved changes again on the save it holds, as **Reload save** does
+(below), so nothing the game saved since is lost. If every change still does what it did on the copy, it saves at once; otherwise it shows
+what they do now, and drops any that no longer apply, for you to check before saving. From then on the editor works on that folder. A
+download leaves the changes unsaved where they came from, carries the Cheated mark in its `MirkMap.json`, and holds the whole character
+folder, as the map's own downloads do (see [Downloading a world to play it](#downloading-a-world-to-play-it)). So editing needs no
+particular browser: on a phone, edit a world from My worlds and save it back there, or download it. My worlds takes one update of a world
+every 30 seconds; a save refused for that keeps its changes, to save again a moment later.
 
 **Edit this character...** first explains that saving any edit marks the world as **Cheated, permanently**, and edit mode starts only once
 you confirm. Each edit is written the way the game itself writes it (decompiled entries in brackets):
@@ -497,22 +527,23 @@ interiors, rifts, landmarks, NPCs and creatures, loot, the layer switches and Re
 as the area's map in the editor; it then turns itself off (Escape turns it off too, and cancelling a question keeps it on). Switching back
 to **Editor** opens the zone or interior the map was showing.
 
-Edits stay in the tab, shown in the map's own player inspection as they will be saved, until **Save to game files**. The bar at the bottom
-lists them; **Undo** beside one takes back just that change. The later changes to the same file run again on the file as it was read (each
-edit is kept as a step that can be replayed, its line written anew), and any that no longer applies, such as removing a creature whose spawn
-was undone, is dropped and named. **Discard changes** drops them all. Saving refuses if the game wrote the folder since it was read. It
-keeps the files it replaces in this browser (the last 10 saves of each world; **Restore** writes them back), then writes the Cheated mark
-first, `Player.save`, the other changed files and the current area's `Containers.save` last, in the game's own order, so Live saves accepts
-the result.
+Edits stay in the tab, shown in the map's own player inspection as they will be saved, until they are saved. The bar at the bottom lists
+them; **Undo** beside one takes back just that change. The later changes to the same file run again on the file as it was read (each edit is
+kept as a step that can be replayed, its line written anew), and any that no longer applies, such as removing a creature whose spawn was
+undone, is dropped and named. **Discard changes** drops them all. Saving refuses if the game wrote the folder since it was read, or if the
+world in My worlds was updated since (from another device, or by Live saves keeping it updated). It keeps the files it replaces in this
+browser (the last 10 saves of each world; **Restore** writes them back, also when the world was opened from somewhere else since), then
+writes the Cheated mark first, `Player.save`, the other changed files and the current area's `Containers.save` last, in the game's own
+order, so Live saves accepts the result. A save to My worlds is one upload of the whole character, dated in that order.
 
 The page can stay open while you play. Save and quit to the game's menu, then choose **Reload save** (at the top, in edit mode): it reads
-the whole folder again (the character, its world and zone maps, creatures and the Cheated mark) and runs the unsaved changes again on the
-newest save, in order, the same way Undo replays them, so they can be saved. Each change keeps what you asked for (skill points set to 5, 10
-arrows added, the weather made Clear) and its line is written anew from the new save (`Skill points 2 → 5`). A change that now does nothing,
-such as wellbeing set to 100% when the game already has it there, or that no longer applies, such as removing a creature that has since
-moved or an item you dropped in the game, is dropped and named. Wellbeing and stats, and time and weather, change only the values you
-changed, so a reload keeps the game's newer clock and stats. If the folder now holds a different world for that character, loading it drops
-the unsaved changes, after asking.
+the whole save again (the character, its world and zone maps, creatures and the Cheated mark; from the folder, or from My worlds after
+another device updated it) and runs the unsaved changes again on the newest save, in order, the same way Undo replays them, so they can be
+saved. Each change keeps what you asked for (skill points set to 5, 10 arrows added, the weather made Clear) and its line is written anew
+from the new save (`Skill points 2 → 5`). A change that now does nothing, such as wellbeing set to 100% when the game already has it there,
+or that no longer applies, such as removing a creature that has since moved or an item you dropped in the game, is dropped and named.
+Wellbeing and stats, and time and weather, change only the values you changed, so a reload keeps the game's newer clock and stats. If the
+folder now holds a different world for that character, loading it drops the unsaved changes, after asking.
 
 ### The Cheated mark
 

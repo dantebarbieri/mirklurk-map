@@ -1,15 +1,25 @@
 // Entry point: pick or drop a save, then render the world.
 
 import { $, h } from "./dom.ts";
-import { type Character, characterIndex, type FileMap, findCharacters, fromDataTransfer, fromFiles } from "./files.ts";
+import {
+  type Character,
+  characterIndex,
+  type FileMap,
+  findCharacters,
+  fromDataTransfer,
+  fromDirectory,
+  fromFiles,
+  named,
+} from "./files.ts";
 import { LAYERS, PLAYER_KEY } from "./objects.ts";
 import { estimatePlayer } from "./estimate.ts";
 import { disposeView, playerSpot, rememberView, renderWorld, selectZone, type State, worldState } from "./view.ts";
 import { loadWorld } from "./world.ts";
-import { type DirectoryPicker, LiveReader, scanDirectory } from "./live.ts";
+import { type DirectoryPicker, type LiveDirectory, LiveReader, scanDirectory } from "./live.ts";
 import { Sharing } from "./sharing.ts";
 import { knownCheated } from "./cheated.ts";
 import { worldId } from "./sharing-format.ts";
+import { fileMapOf, type Handoff, handOff, storedFiles, takeHandoff } from "./handoff.ts";
 
 let files: FileMap | null = null;
 let chars: Character[] = [];
@@ -28,6 +38,8 @@ let liveTimer: number | undefined;
 let sourceToken = 0;
 let follow = true;
 let revision = 0;
+/** The folder each file map on screen was read from (Live saves, or a folder the editor handed back), to hand to the save editor. */
+const folders = new WeakMap<FileMap, LiveDirectory>();
 const sharing: Sharing = new Sharing({
   current: () =>
     files && !sharing.isWatching ? { files, character: chars[activeCharacter], revision, session: sourceToken, live: !!reader } : undefined,
@@ -41,13 +53,13 @@ function status(text: string, error = false) {
   el.classList.toggle("error", error);
 }
 
-async function open(map: FileMap) {
-  const found = findCharacters(map);
+async function open(map: FileMap, want?: Character) {
+  const found = named(findCharacters(map), want);
   if (!found.length) {
     status("No Player.save in what you picked. Choose a character folder from the game's Saves folder.", true);
     return;
   }
-  await show(0, map, found);
+  await show(characterIndex(found, want), map, found);
 }
 
 async function show(i: number, selectedFiles = files, selectedChars = chars, refresh = false): Promise<boolean> {
@@ -158,12 +170,12 @@ function followPlayer(st: State) {
   if (st.inspected !== PLAYER_KEY) st.inspected = undefined;
 }
 
-async function manualImport(read: () => Promise<FileMap>) {
+async function manualImport(read: () => Promise<FileMap>, want?: Character) {
   stopLive();
   const my = sourceToken;
   try {
     const map = await read();
-    if (my === sourceToken) await open(map);
+    if (my === sourceToken) await open(map, want);
   } catch (e) {
     if (my !== sourceToken) return;
     console.error(e);
@@ -171,20 +183,22 @@ async function manualImport(read: () => Promise<FileMap>) {
   }
 }
 
-async function startLive(picker: DirectoryPicker) {
+/** Live saves on the folder `pick` gives: the directory picker, or a folder the save editor handed back. */
+async function startLive(pick: () => Promise<LiveDirectory>, want?: Character) {
   stopLive();
   const my = sourceToken;
   try {
-    const handle = await picker.showDirectoryPicker!({ mode: "read" });
+    const handle = await pick();
     if (my !== sourceToken) return;
     const session = sourceToken;
     status("");
-    const selectedCharacter = chars[activeCharacter];
+    const selectedCharacter = want ?? chars[activeCharacter];
     let first = true;
     reader = new LiveReader(
       () => scanDirectory(handle),
       async (snapshot) => {
         if (session !== sourceToken) return false;
+        folders.set(snapshot.files, handle);
         const found = findCharacters(snapshot.files);
         const selected = first ? selectedCharacter : chars[activeCharacter];
         const i = characterIndex(found, selected);
@@ -206,6 +220,63 @@ async function startLive(picker: DirectoryPicker) {
     liveStatus(`Could not open live folder: ${(e as Error).message}`, true);
   }
 }
+/** The save on screen as the editor opens it: the world followed from My worlds, the folder it was read from, or a copy of it. */
+async function currentHandoff(): Promise<Handoff | undefined> {
+  const world = sharing.following;
+  // The library this page follows the world in, not whichever one another tab may have switched to since.
+  if (world) return { save: { kind: "world", ...world, library: await sharing.library() } };
+  // A world from a share link is someone else's; the editor opens on its own.
+  if (sharing.isWatching || !files) return undefined;
+  const character = chars[activeCharacter];
+  const handle = folders.get(files);
+  if (handle) return { save: { kind: "folder", handle, live: !!reader }, character };
+  status(`Handing ${character?.name ?? "the save"} to the save editor...`);
+  // Only the character on screen: a whole Saves folder can be hundreds of megabytes.
+  return { save: { kind: "files", files: await storedFiles(files, character?.root) }, character };
+}
+
+/** Follows the Save editor link with the save on screen handed over, so the editor opens it without asking for it again. */
+async function toEditor(e: MouseEvent) {
+  if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  const href = (e.currentTarget as HTMLAnchorElement).href;
+  try {
+    const handoff = await currentHandoff();
+    if (handoff) await handOff(handoff, "editor");
+  } catch (err) {
+    // Following the link anyway could open another save there; stay, so the user can try again.
+    console.error("Could not hand the save to the editor", err);
+    status(`Could not hand this save to the save editor: ${(err as Error).message}. Try again, or open it there.`, true);
+    return;
+  }
+  location.href = href;
+}
+
+/** What the save editor handed back when its Back to MirkMap link was followed, shown as it was before: watched, if it was. */
+async function pickUp({ save, character }: Handoff) {
+  if (save.kind === "world") {
+    // The map follows worlds of the library in use; one from a library switched away from since stays where it is.
+    if (await sharing.library() === save.library) sharing.follow(save.id, save.name);
+    else status(`${save.name} is in another of your libraries. Switch to it under My worlds & sync to see it.`);
+    return;
+  }
+  if (save.kind === "files") return manualImport(() => Promise.resolve(fileMapOf(save.files)), character);
+  const dir = save.handle as LiveDirectory & { queryPermission?(options: { mode: "read" }): Promise<PermissionState> };
+  // Reading it again needs a click once the browser forgot it allowed that (after every tab of the site was closed).
+  if (dir.queryPermission && await dir.queryPermission({ mode: "read" }) !== "granted") {
+    status(`To see ${dir.name} here again, choose Open save folder or Live saves.`);
+    return;
+  }
+  if (save.live) await startLive(() => Promise.resolve(dir), character);
+  else {
+    await manualImport(async () => {
+      const map = await fromDirectory(dir);
+      folders.set(map, dir);
+      return map;
+    }, character);
+  }
+}
+
 function wire() {
   const folder = $<HTMLInputElement>("#pick-folder");
   const zip = $<HTMLInputElement>("#pick-zip");
@@ -223,8 +294,9 @@ function wire() {
     liveButton.title = "Live saves require desktop Chrome/Edge over HTTPS or localhost. Manual imports still work.";
     liveStatus(liveButton.title);
   }
-  liveButton.addEventListener("click", () => startLive(picker));
+  liveButton.addEventListener("click", () => startLive(() => picker.showDirectoryPicker!({ mode: "read" })));
   $("#stop-live").addEventListener("click", stopLive);
+  $<HTMLAnchorElement>("#to-editor").addEventListener("click", (e) => void toEditor(e));
   $<HTMLInputElement>("#follow-player").addEventListener("change", (e) => {
     follow = (e.target as HTMLInputElement).checked;
     if (follow && state) {
@@ -265,7 +337,11 @@ async function devSave(name: string) {
 }
 
 wire();
-void sharing.init();
+// The save editor's Back to MirkMap link hands over what it had open; the library's own reopening waits for that.
+takeHandoff("map").catch((e) => console.error("Could not read what the save editor handed over", e)).then((taken) => {
+  void sharing.init(!taken);
+  if (taken) void pickUp(taken.handoff);
+});
 // Offline use and a faster start after the first visit (src/sw.ts). The dev server has no service worker, so this quietly fails there.
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch((e) => console.debug("No service worker", e));
 // An installed app may keep its storage, and with it the library key, when the browser clears space; a browser tab doesn't ask.
