@@ -252,6 +252,47 @@ body.map-move .map-bar label {
   color: var(--gold);
   font-weight: 600;
 }
+.carried {
+  margin-top: 14px;
+}
+.carried summary {
+  cursor: pointer;
+  color: var(--gold2);
+  font-size: 13px;
+  font-weight: 600;
+}
+.carried ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+.carried-list {
+  max-height: 420px;
+  overflow: auto;
+}
+.carried li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  margin: 3px 0;
+}
+.carried li > ul {
+  flex-basis: 100%;
+}
+.carried-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text);
+}
+.carried-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.carried .num {
+  width: 4em;
+}
 
 .savebar {
   position: fixed;

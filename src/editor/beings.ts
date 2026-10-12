@@ -47,10 +47,19 @@ export function spawnBeing(beings: unknown[], index: number, tileX: number, tile
   return being;
 }
 
-/** Removes the being at `i` of Beings.save's list; returns it. */
-export function deleteBeing(beings: unknown[], i: number): Rec {
-  const being = beings[i];
+/**
+ * Removes the being at `i` of Beings.save's list and returns it. Given `same`, the being's JSON when it was picked, it removes the
+ * being that still matches, nearest to `i`, so the removal can run again after an earlier change to the list was undone.
+ */
+export function deleteBeing(beings: unknown[], i: number, same?: string): Rec {
+  let at = i;
+  if (same !== undefined && JSON.stringify(beings[i]) !== same) {
+    const matches = beings.flatMap((b, j) => JSON.stringify(b) === same ? [j] : []);
+    if (!matches.length) throw new Error("That creature is no longer there");
+    at = matches.reduce((best, j) => Math.abs(j - i) < Math.abs(best - i) ? j : best);
+  }
+  const being = beings[at];
   if (!isRec(being)) throw new Error("No creature there");
-  beings.splice(i, 1);
+  beings.splice(at, 1);
   return being;
 }

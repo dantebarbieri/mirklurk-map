@@ -365,6 +365,10 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   topped up first, then each new stack goes in the first free spot, column by column, written in every cell it covers. New items glow gold
   in the game until you look at them. Whatever does not fit is reported, never dropped. Sizes, stack limits and durability come from the
   game's item database (`src/itemdata.ts`).
+- **Removing items**: **What you wear and carry** lists every worn item by slot, with what its containers hold (bags in bags too).
+  **Remove** takes all of an item, or as many of a stack as you say, out of the save: every grid cell it covered is emptied, every copy of
+  the containers it was in is kept the same (the game saves a copy of an item in each cell it covers), and a two-handed weapon's off-hand
+  copy goes with it. A container takes its contents with it, after asking. Items unsaved changes added or changed are tagged **unsaved**.
 - **Where you stand**: a free tile of an outdoor zone you have explored (not water, a wall, a pit or something already standing there),
   picked on the zone's map or on the full map.
 - **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior, with the hit points and armor of a fresh
@@ -375,10 +379,13 @@ interiors, rifts, landmarks, NPCs and creatures, loot, the layer switches and Re
 **Move yourself** makes the next click on free ground in an explored zone move you there, with the same checks as the zone's map; it then
 turns itself off (Escape turns it off too). Switching back to **Editor** opens the zone or interior the map was showing.
 
-Edits stay in the tab, shown in the map's own player inspection as they will be saved, until **Save to game files**. Saving refuses if the
-game wrote the folder since it was read. It keeps the files it replaces in this browser (the last 10 saves of each world; **Restore** writes
-them back), then writes the Cheated mark first, `Player.save`, the other changed files and the current area's `Containers.save` last, in the
-game's own order, so Live saves accepts the result.
+Edits stay in the tab, shown in the map's own player inspection as they will be saved, until **Save to game files**. The bar at the bottom
+lists them; **Undo** beside one takes back just that change. The later changes to the same file run again on the file as it was read (each
+edit is kept as a step that can be replayed, its line written anew), and any that no longer applies, such as removing a creature whose spawn
+was undone, is dropped and named. **Discard changes** drops them all. Saving refuses if the game wrote the folder since it was read. It
+keeps the files it replaces in this browser (the last 10 saves of each world; **Restore** writes them back), then writes the Cheated mark
+first, `Player.save`, the other changed files and the current area's `Containers.save` last, in the game's own order, so Live saves accepts
+the result.
 
 ### The Cheated mark
 

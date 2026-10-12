@@ -9,7 +9,7 @@ import { BEING_NAMES, ITEM_NAMES } from "../gamedata.ts";
 import { worldId } from "../sharing-format.ts";
 import { cheatedInfo, knownCheated } from "../cheated.ts";
 import { isSaveFile, markerText } from "../marker.ts";
-import { type Being, parseBeings, parsePlayer, type PlayerSave } from "../save.ts";
+import { type Being, decodeJson, parseBeings, parsePlayer, type PlayerSave } from "../save.ts";
 import { type Interior, interiorsOf, loadDetail, loadLayer, loadTrees, loadWorld, type World, type Zone } from "../world.ts";
 import { MAX_LEVEL, percent, playerView, STAT_LABELS, temperatureLabel, xpForLevel } from "../player.ts";
 import { creatureView } from "../creature.ts";
@@ -19,7 +19,7 @@ import { spriteBox } from "../predict.ts";
 import { BEINGS, targetsYou } from "../bestiary.ts";
 import { healthText } from "../health.ts";
 import { formatClock, parseSky, Weather, WEATHER_LABELS, weatherKind, type WeatherState } from "../weather.ts";
-import { type Backup, canEdit, type EditDirectory, EditSession, listBackups, type WritablePicker } from "./session.ts";
+import { type Backup, canEdit, type Edit, type EditDirectory, EditSession, listBackups, type WritablePicker } from "./session.ts";
 import {
   healPlayer,
   MAX_DAY,
@@ -35,7 +35,8 @@ import {
   setVitals,
   type VitalsEdit,
 } from "./edits.ts";
-import { addable, addItems, freeCells } from "./items.ts";
+import { addable, addItems, type CarriedItem, carriedItems, countInside, freeCells, itemAt, removeItem } from "./items.ts";
+import { SLOT_NAMES } from "../armor.ts";
 import { deleteBeing, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
 import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, tileBox } from "./ground.ts";
 import { disposeView, rememberView, renderWorld, type State, worldState } from "../view.ts";
@@ -192,21 +193,43 @@ const areaName = (a: Area) => {
 
 // --- Editing ---
 
-async function edit(card: string, path: string, change: (raw: unknown) => string | undefined) {
+/**
+ * Applies an edit and shows its result on `card`. The edit must read only the draft it is given (read form fields and other page
+ * state before making it), because undoing an earlier change runs it again.
+ */
+async function edit(card: string, path: string, change: Edit) {
   try {
-    const raw = await session!.json(path);
-    const text = change(raw);
-    if (text) {
-      session!.changed(path, text);
-      note(card, `${text}. Not saved yet.`);
-    }
+    const text = await session!.apply(path, change);
+    if (text) note(card, `${text}. Not saved yet.`);
   } catch (e) {
     note(card, errorText(e), true);
   }
   await render();
 }
 
-const editPlayer = (card: string, change: (p: Rec) => string | undefined) => edit(card, playerPath(), (raw) => change(playerRecord(raw)));
+const editPlayer = (card: string, change: (p: Rec, raw: unknown) => string | undefined) =>
+  edit(card, playerPath(), (raw) => change(playerRecord(raw), raw));
+
+/** Undoes unsaved change `i`; later changes to the same file run again, and any that no longer apply are dropped and named. */
+async function undoChange(i: number) {
+  const s = session;
+  if (!s || s.saving) return;
+  const what = s.changes[i];
+  try {
+    const dropped = await s.undo(i);
+    notes.clear();
+    status(
+      `Undid: ${what}.` +
+        (dropped.length
+          ? ` Also dropped, as ${dropped.length === 1 ? "it no longer applies" : "they no longer apply"}: ${dropped.join("; ")}.`
+          : ""),
+      dropped.length > 0,
+    );
+  } catch (e) {
+    status(errorText(e), true);
+  }
+  await render();
+}
 
 /** Locks the page while a save or restore writes files, so nothing changes or discards the drafts meanwhile. */
 async function writing<T>(run: () => Promise<T>): Promise<T> {
@@ -296,10 +319,29 @@ async function render() {
   const p = playerRecord(raw);
   const cards: HTMLElement[] = [];
   if (editing) {
-    cards.push(characterCard(v), skyCard(p), itemsCard(v, p), await mapCard(v), backupsCard(await listBackups(s.world).catch(() => [])));
+    const saved = await savedPlayer(s).catch(() => undefined);
+    cards.push(
+      characterCard(v),
+      skyCard(p),
+      itemsCard(v, p, saved),
+      await mapCard(v),
+      backupsCard(await listBackups(s.world).catch(() => [])),
+    );
   }
   if (my !== renderToken) return;
   app.replaceChildren(summary(v, p), ...(editing ? [h("div", { class: "edit-grid" }, ...cards, previewCard(v))] : []));
+}
+
+/** The player record as the files have it, without unsaved changes; read once per session. */
+const savedRecords = new WeakMap<EditSession, Promise<Rec>>();
+function savedPlayer(s: EditSession): Promise<Rec> {
+  let rec = savedRecords.get(s);
+  if (!rec) {
+    const src = s.files.get(`${s.character.root}Player.save`);
+    rec = src ? src.read().then((bytes) => playerRecord(decodeJson(bytes))) : Promise.reject(new Error("Player.save is missing"));
+    savedRecords.set(s, rec);
+  }
+  return rec;
 }
 
 function summary(v: PlayerSave, p: Rec): HTMLElement {
@@ -395,13 +437,14 @@ function characterCard(v: PlayerSave): HTMLElement {
     field(
       "Level",
       level,
-      setButton(() =>
-        editPlayer("character", (p) => {
-          const to = readWhole(level, "Level"), from = Number(p.level);
+      setButton(() => {
+        const to = readWhole(level, "Level");
+        return editPlayer("character", (p) => {
+          const from = Number(p.level);
           setLevel(p, to);
           return to === from ? undefined : `Level ${from} → ${to} (skill points and new hit points follow)`;
-        })
-      ),
+        });
+      }),
     ),
     h(
       "p",
@@ -412,24 +455,26 @@ function characterCard(v: PlayerSave): HTMLElement {
     field(
       "Skill points to spend",
       skill,
-      setButton(() =>
-        editPlayer("character", (p) => {
-          const to = readWhole(skill, "Skill points"), from = Number(p.skillPoints);
+      setButton(() => {
+        const to = readWhole(skill, "Skill points");
+        return editPlayer("character", (p) => {
+          const from = Number(p.skillPoints);
           setSkillPoints(p, to);
           return to === from ? undefined : `Skill points ${from} → ${to}`;
-        })
-      ),
+        });
+      }),
     ),
     field(
       "New hit points to place",
       newHp,
-      setButton(() =>
-        editPlayer("character", (p) => {
-          const to = readWhole(newHp, "New hit points"), from = Number(p.hpAddPoints);
+      setButton(() => {
+        const to = readWhole(newHp, "New hit points");
+        return editPlayer("character", (p) => {
+          const from = Number(p.hpAddPoints);
           setNewHitPoints(p, to);
           return to === from ? undefined : `New hit points ${from} → ${to}`;
-        })
-      ),
+        });
+      }),
     ),
     h("h4", {}, "Health"),
     h("p", {}, v.health ? healthText(v.health) : "Hit points were not saved."),
@@ -448,19 +493,25 @@ function characterCard(v: PlayerSave): HTMLElement {
       ? h("button", {
         type: "button",
         class: "button subtle",
-        onclick: act("character", () =>
-          editPlayer("character", (p) => {
-            const changes: string[] = [];
-            const e: VitalsEdit = {};
-            for (const [key, label, before] of sliders) {
-              const to = Number(inputs.get(key)!.value) / 100;
-              if (Math.round((before ?? 0) * 100) === Math.round(to * 100)) continue;
-              e[key] = to;
-              changes.push(`${label} ${percent(before ?? 0)} → ${percent(to)}`);
-            }
+        onclick: act("character", () => {
+          // The sliders that were moved; the others keep whatever the draft has.
+          const e: VitalsEdit = {};
+          for (const [key, , shown] of sliders) {
+            const to = Number(inputs.get(key)!.value) / 100;
+            if (Math.round((shown ?? 0) * 100) !== Math.round(to * 100)) e[key] = to;
+          }
+          return editPlayer("character", (p, raw) => {
+            const before = parsePlayer(raw).vitals;
+            const changes = sliders.flatMap(([key, label]) => {
+              const to = e[key], from = before?.[key] ?? 0;
+              return to === undefined || Math.round(from * 100) === Math.round(to * 100)
+                ? []
+                : [`${label} ${percent(from)} → ${percent(to)}`];
+            });
             setVitals(p, e);
             return changes.length ? changes.join(", ") : undefined;
-          })),
+          });
+        }),
       }, "Apply wellbeing and stats")
       : null,
     h("p", { class: "muted small" }, "Conditions such as sickness or exhaustion keep affecting wellbeing until they run out."),
@@ -507,19 +558,18 @@ function skyCard(p: Rec): HTMLElement {
     value: Math.round(sky.temperature * 100),
     oninput: () => tempOut.textContent = `${percent(Number(temp.value) / 100)} ${temperatureLabel(Number(temp.value) / 100)}`,
   }) as HTMLInputElement;
-  const apply = act("sky", () =>
-    editPlayer("sky", (rec) => {
-      const [hh, mm] = time.value.split(":").map(Number);
-      if (!Number.isInteger(hh) || !Number.isInteger(mm)) throw new Error("Choose a time");
+  const apply = act("sky", () => {
+    const [hh, mm] = time.value.split(":").map(Number);
+    if (!Number.isInteger(hh) || !Number.isInteger(mm)) throw new Error("Choose a time");
+    const e = {
+      day: readWhole(day, "Day"),
+      minute: hh * 60 + mm,
+      weather: Number(weather.value) as WeatherState,
+      rain: Number(rain.value) / 100,
+      temperature: Number(temp.value) / 100,
+    };
+    return editPlayer("sky", (rec) => {
       const before = parseSky(rec)!;
-      const w = Number(weather.value) as WeatherState;
-      const e = {
-        day: readWhole(day, "Day"),
-        minute: hh * 60 + mm,
-        weather: w,
-        rain: Number(rain.value) / 100,
-        temperature: Number(temp.value) / 100,
-      };
       setSky(rec, e);
       const after = parseSky(rec)!;
       const changes: string[] = [];
@@ -533,7 +583,8 @@ function skyCard(p: Rec): HTMLElement {
         changes.push(`Air ${percent(before.temperature)} → ${percent(after.temperature)}`);
       }
       return changes.length ? changes.join(", ") : undefined;
-    }));
+    });
+  });
   return card(
     "sky",
     "Time and weather",
@@ -563,7 +614,7 @@ const ITEM_CHOICES: Map<string, number> = (() => {
   );
 })();
 
-function itemsCard(v: PlayerSave, p: Rec): HTMLElement {
+function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
   const name = h("input", {
     type: "text",
     list: "item-choices",
@@ -634,7 +685,83 @@ function itemsCard(v: PlayerSave, p: Rec): HTMLElement {
       { class: "muted small" },
       "Items go into the bags you carry, topping up stacks first, exactly as picking them up would. New items glow gold in the game until you look at them.",
     ),
+    carriedView(p, saved),
   );
+}
+
+const itemName = (index: number) => ITEM_NAMES[index] ?? `Item ${index}`;
+
+/** What the player wears and carries, each with Remove; items unsaved changes made or changed are tagged. */
+function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
+  let list: CarriedItem[];
+  try {
+    list = carriedItems(p);
+  } catch (e) {
+    return h("p", { class: "edit-note error" }, errorText(e));
+  }
+  const total = list.reduce((n, c) => n + 1 + countInside(c), 0);
+  const row = (c: CarriedItem, holder?: string): HTMLElement => {
+    const name = itemName(c.index);
+    const before = saved && itemAt(saved, c.place);
+    const changed = !before || before.index !== c.index || Number(before.amount) !== c.amount;
+    const howMany = c.amount > 1 ? numberInput(c.amount, 1, c.amount) : null;
+    howMany?.setAttribute("aria-label", `How many ${name} to remove`);
+    const from = holder ? ` from ${holder}` : ` (worn: ${SLOT_NAMES[c.place.slot] ?? `slot ${c.place.slot + 1}`})`;
+    return h(
+      "li",
+      {},
+      h(
+        "span",
+        { class: "carried-name" },
+        name,
+        c.amount > 1 ? ` ×${c.amount}` : "",
+        holder ? null : h("span", { class: "muted" }, ` ${SLOT_NAMES[c.place.slot] ?? ""}`),
+        changed ? [" ", h("span", { class: "tag" }, "unsaved")] : null,
+      ),
+      h(
+        "span",
+        { class: "carried-controls" },
+        howMany,
+        h("button", {
+          type: "button",
+          class: "button subtle small",
+          onclick: act("items", () => removeCarried(c, howMany, from)),
+        }, "Remove"),
+      ),
+      c.contents.length ? h("ul", {}, c.contents.map((inner) => row(inner, name))) : null,
+    );
+  };
+  return h(
+    "details",
+    { class: "carried", "data-remember": "editor-carried", open: expanded ? expanded.has("editor-carried") : true },
+    h("summary", {}, `What you wear and carry (${total === 1 ? "1 item" : `${total} items`})`),
+    list.length ? h("ul", { class: "carried-list" }, list.map((c) => row(c))) : h("p", { class: "muted" }, "Nothing."),
+    h(
+      "p",
+      { class: "muted small" },
+      "Remove deletes an item from the save; a container goes with everything in it. Items tagged unsaved come from unsaved changes, " +
+        "which you can also undo from the list at the bottom.",
+    ),
+  );
+}
+
+/** Removes some or all of a carried item; a container with things in it asks first. */
+async function removeCarried(c: CarriedItem, howMany: HTMLInputElement | null, from: string) {
+  const name = itemName(c.index);
+  const n = howMany ? readWhole(howMany, "How many") : 1;
+  if (n < 1 || n > c.amount) throw new Error(`Remove from 1 to ${c.amount} ${name}`);
+  const amount = n === c.amount ? "all" : n;
+  const inside = countInside(c);
+  if (
+    amount === "all" && inside &&
+    !confirm(`Removing ${name} also removes the ${inside === 1 ? "item" : `${inside} items`} inside it. Remove anyway?`)
+  ) return;
+  const { place, index } = c;
+  await editPlayer("items", (rec) => {
+    const r = removeItem(rec, place, index, amount);
+    const what = r.removed > 1 ? `${r.removed} × ${name}` : name;
+    return `Removed ${what}${from}${r.inside ? ` and the ${r.inside === 1 ? "item" : `${r.inside} items`} in it` : ""}`;
+  });
 }
 
 // --- Map and creatures ---
@@ -797,9 +924,10 @@ async function mapCard(v: PlayerSave): Promise<HTMLElement> {
       return;
     }
     if (tool === "spawn") {
+      const kind = spawnIndex;
       void edit("map", beingsPath, (raw) => {
-        spawnBeing(raw as unknown[], spawnIndex, tx, ty);
-        return `Spawned a ${BEING_NAMES[spawnIndex]} in ${areaName(a)}, tile ${tx},${ty}`;
+        spawnBeing(raw as unknown[], kind, tx, ty);
+        return `Spawned a ${BEING_NAMES[kind]} in ${areaName(a)}, tile ${tx},${ty}`;
       });
     }
   });
@@ -872,8 +1000,10 @@ async function mapCard(v: PlayerSave): Promise<HTMLElement> {
         isQuestBeing(b.index) && !confirm(`${name} is part of a quest. Removing them can leave that quest unfinishable. Remove anyway?`)
       ) return;
       selected = undefined;
+      // The creature as it is now, so undoing an earlier change cannot make this remove a different one.
+      const same = JSON.stringify((await session!.json(beingsPath) as unknown[])[i]);
       await edit("map", beingsPath, (raw) => {
-        deleteBeing(raw as unknown[], i);
+        deleteBeing(raw as unknown[], i, same);
         return `Removed ${name} from ${areaName(a)}, tile ${b.x >> 4},${b.y >> 4}`;
       });
     });
@@ -1077,7 +1207,22 @@ function updateSavebar() {
   const changes = session?.changes ?? [];
   bar.hidden = !editing || !changes.length;
   $("#change-count").textContent = `${changes.length === 1 ? "1 unsaved change" : `${changes.length} unsaved changes`}`;
-  $("#change-list").replaceChildren(...changes.map((c) => h("li", {}, c)));
+  $("#change-list").replaceChildren(
+    ...changes.map((c, i) =>
+      h(
+        "li",
+        {},
+        c,
+        " ",
+        h("button", {
+          type: "button",
+          class: "button subtle small",
+          title: "Undo just this change; later changes stay",
+          onclick: () => void undoChange(i),
+        }, "Undo"),
+      )
+    ),
+  );
 }
 
 // --- Wiring ---

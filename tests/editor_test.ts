@@ -14,7 +14,7 @@ import {
   setSky,
   setVitals,
 } from "../src/editor/edits.ts";
-import { addable, addItems, carriedBags, freeCells, newItem } from "../src/editor/items.ts";
+import { addable, addItems, carriedBags, carriedItems, countInside, freeCells, itemAt, newItem, removeItem } from "../src/editor/items.ts";
 import { deleteBeing, isQuestBeing, newBeing, spawnable, spawnBeing } from "../src/editor/beings.ts";
 import { Ground, groundMap, tileBox } from "../src/editor/ground.ts";
 import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
@@ -205,6 +205,76 @@ Deno.test("adding reports what does not fit and refuses nonsense", () => {
   assertEquals(addItems(none, 72, 3), { added: 0, left: 3 }, "no containers carried");
 });
 
+Deno.test("carried items are listed by slot and container, nested containers included", () => {
+  const grid = empty(4, 2);
+  grid[0][0] = cell(72, 18, 0, 0);
+  const inner = empty(4, 2);
+  inner[0][0] = cell(72, 5, 0, 0);
+  // A pouch (2×1) inside the pouch: each of its two cells holds a full copy, contents included.
+  const pouch = cell(13, 1, 2, 0, { subParts: [{ type: 0, parentIndex: 13, gridSave: inner }] });
+  grid[0][2] = pouch;
+  grid[0][3] = JSON.parse(JSON.stringify(pouch));
+  const p = player(grid);
+  const list = carriedItems(p);
+  assertEquals(list.length, 1, "one worn item: the pouch in slot 2");
+  const [worn] = list;
+  assertEquals([worn.place, worn.index], [{ slot: 1, path: [] }, 13]);
+  assertEquals(worn.contents.map((c) => [c.index, c.amount, c.place.path]), [
+    [72, 18, [{ part: 0, x: 0, y: 0 }]],
+    [13, 1, [{ part: 0, x: 2, y: 0 }]],
+  ]);
+  assertEquals(worn.contents[1].contents.map((c) => [c.index, c.amount]), [[72, 5]]);
+  assertEquals(countInside(worn), 3);
+  assertEquals(itemAt(p, worn.contents[1].contents[0].place)?.amount, 5);
+});
+
+Deno.test("removing items empties every cell they cover and keeps every copy of their containers the same", () => {
+  const grid = empty(4, 2);
+  grid[0][0] = cell(72, 18, 0, 0);
+  const inner = empty(4, 2);
+  inner[0][0] = cell(72, 5, 0, 0);
+  const pouch = cell(13, 1, 2, 0, { subParts: [{ type: 0, parentIndex: 13, gridSave: inner }] });
+  grid[0][2] = pouch;
+  grid[0][3] = JSON.parse(JSON.stringify(pouch));
+  const p = player(grid);
+  const g = carriedBags(p)[0].grid as Rec[][];
+  const stack = { slot: 1, path: [{ part: 0, x: 0, y: 0 }] };
+  const nested = { slot: 1, path: [{ part: 0, x: 2, y: 0 }, { part: 0, x: 0, y: 0 }] };
+
+  assertEquals(removeItem(p, stack, 72, 3), { removed: 3, inside: 0 });
+  assertEquals(g[0][0].amount, 15, "part of a stack");
+  assertEquals(removeItem(p, nested, 72, 2), { removed: 2, inside: 0 });
+  const innerOf = (c: Rec) => ((c.subParts as Rec[])[0].gridSave as Rec[][])[0][0].amount;
+  assertEquals([innerOf(g[0][2]), innerOf(g[0][3])], [3, 3], "both cells of the inner pouch hold the same contents");
+  assertThrows(() => removeItem(p, nested, 72, 4), /only 3/);
+  assertThrows(() => removeItem(p, stack, 13, 1), /no longer there/);
+  assertThrows(() => removeItem(p, stack, 72, 0), /Amount/);
+
+  assertEquals(removeItem(p, { slot: 1, path: [{ part: 0, x: 2, y: 0 }] }, 13, "all"), { removed: 1, inside: 1 });
+  assertEquals([g[0][2], g[0][3]], [E, E], "every cell the inner pouch covered is empty");
+  assertEquals(removeItem(p, stack, 72, "all"), { removed: 15, inside: 0 });
+  assertEquals(freeCells(p), 8);
+  const parsed = parseInventoryGrid(g);
+  assert(parsed.state === "saved" && !parsed.items.length && !parsed.note, "the viewer reads an empty pouch");
+  assertThrows(() => removeItem(p, stack, 72, "all"), /no longer there/);
+});
+
+Deno.test("removing a worn item empties its slot, and a two-handed weapon's off-hand copy with it", () => {
+  const spear = cell(8, 1, E, E);
+  const helmet = cell(40, 1, E, E);
+  const p = player(empty(1, 1), {
+    myEquips: [spear, JSON.parse(JSON.stringify(spear)), E, cell(30, 12, E, E), helmet],
+    actives: [true, true, false, false],
+  });
+  assertEquals(carriedItems(p).map((c) => [c.place.slot, c.index]), [[0, 8], [3, 30], [4, 40]], "the off-hand copy is not listed");
+  assertEquals(removeItem(p, { slot: 3, path: [] }, 30, 2), { removed: 2, inside: 0 });
+  assertEquals((p.myEquips as Rec[])[3].amount, 10);
+  removeItem(p, { slot: 0, path: [] }, 8, "all");
+  removeItem(p, { slot: 4, path: [] }, 40, "all");
+  assertEquals((p.myEquips as unknown[]).map((e) => e === E ? E : (e as Rec).index), [E, E, E, 30, E]);
+  assertEquals(parsePlayer([p]).equipment.map((e) => e.slot), [3], "the viewer reads the slots back");
+});
+
 Deno.test("spawned creatures have a fresh grid; quest characters are protected", () => {
   const b = newBeing(17, 10, 20);
   assertEquals([b.index, b.x, b.y, b.status, b.state, b.homeX, b.localStage, b.turnLimit], [17, 168, 328, -200, 0, E, -1, E]);
@@ -219,6 +289,13 @@ Deno.test("spawned creatures have a fresh grid; quest characters are protected",
   assertEquals((deleteBeing(list, 0) as Rec).index, 3);
   assertEquals(list.length, 1);
   assertThrows(() => deleteBeing(list, 5), /No creature/);
+  // Removing by content: after the list changed, the same creature is found where it is now.
+  const crowd: unknown[] = [{ index: 1 }, { index: 2 }, { index: 3 }];
+  const third = JSON.stringify(crowd[2]);
+  crowd.shift();
+  assertEquals((deleteBeing(crowd, 2, third) as Rec).index, 3);
+  assertEquals(crowd, [{ index: 2 }]);
+  assertThrows(() => deleteBeing(crowd, 0, third), /no longer there/);
   assertThrows(() => newBeing(12, 0, 0), /cannot be spawned/);
 });
 
