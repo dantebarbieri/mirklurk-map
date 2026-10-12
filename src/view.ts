@@ -20,7 +20,8 @@ import {
 } from "./objects.ts";
 import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts";
 import { fernShade, GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
-import { heatBounds, type Landmark, type LandmarkId, landmarks, pct, shipwreckOdds, zoneHeat } from "./predict.ts";
+import { pct, plural } from "./format.ts";
+import { heatBounds, type Landmark, type LandmarkId, landmarks, shipwreckOdds, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_MARKERS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
@@ -629,7 +630,7 @@ function insideSummary(d: ZoneDetail): string {
   const parts = [...count].sort((a, b) => a[1] - b[1]).map(([n, c]) => (c > 1 ? `${n} ×${c}` : n));
   const foes = d.beings.filter((b) => b.state !== 1 && !NPC_MARKERS.has(b.index)).length;
   const loot = d.containers.filter((c) => c.status === -214).length;
-  if (foes) parts.push(`${foes} creature${foes > 1 ? "s" : ""}`);
+  if (foes) parts.push(plural(foes, "creature"));
   if (loot) parts.push(`${loot} unsearched`);
   return parts.length ? parts.join(", ") : "nothing left";
 }

@@ -3,7 +3,7 @@
 // made itself when available (skipped otherwise):
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
-import { assert, assertEquals } from "./assert.ts";
+import { assert, assertEquals, assertThrows } from "./assert.ts";
 import {
   addRaft,
   dockTile,
@@ -22,24 +22,16 @@ import {
   waterText,
   wetMap,
 } from "../src/editor/raft.ts";
-import { insideOf, isInside, movePlayer, playerRecord, type Rec } from "../src/editor/edits.ts";
+import { insideOf, isInside, movePlayer } from "../src/editor/edits.ts";
 import { habitat, habitatRefusal } from "../src/editor/beings.ts";
 import { reachable } from "../src/editor/ground.ts";
 import { tileIndex, TILES } from "../src/rules.ts";
 import { findCharacters } from "../src/files.ts";
 import { currentContainers } from "../src/live.ts";
-import { decodeJson, parsePlayer } from "../src/save.ts";
+import { decodeJson, parsePlayer, playerRecord } from "../src/save.ts";
+import type { Rec } from "../src/values.ts";
 import { loadDetail, loadHeights, loadLayer, loadWorld } from "../src/world.ts";
 
-function assertThrows(fn: () => unknown, match: RegExp) {
-  try {
-    fn();
-  } catch (e) {
-    if (!match.test((e as Error).message)) throw new Error(`wrong error: ${(e as Error).message}`);
-    return;
-  }
-  throw new Error(`expected an error matching ${match}`);
-}
 const sorted = (r: Rec) => Object.fromEntries(Object.entries(r).sort(([a], [b]) => a.localeCompare(b)));
 const N = TILES * TILES;
 const layers = () => ({ layers: Object.fromEntries(WATER_LAYERS.map((l) => [l, new Uint32Array(N)])), heights: new Float32Array(N) });

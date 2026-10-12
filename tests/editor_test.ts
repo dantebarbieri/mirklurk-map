@@ -2,7 +2,7 @@
 // mark. Real saves are edited in memory (never written) when available (skipped otherwise):
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
-import { assert, assertEquals } from "./assert.ts";
+import { assert, assertEquals, assertThrows } from "./assert.ts";
 import {
   healPlayer,
   hitPointStatus,
@@ -10,8 +10,6 @@ import {
   isInside,
   MAX_STACKS,
   movePlayer,
-  playerRecord,
-  type Rec,
   setConditions,
   setHitPointStatus,
   setLevel,
@@ -51,7 +49,7 @@ import { deleteBeing, isQuestBeing, newBeing, spawnable, spawnBeing } from "../s
 import { Ground, groundMap, reachable, tileBox } from "../src/editor/ground.ts";
 import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
 import { readMarker, writeMarker } from "../src/marker.ts";
-import { decodeJson, parseBeings, parsePlayer } from "../src/save.ts";
+import { decodeJson, parseBeings, parsePlayer, playerRecord } from "../src/save.ts";
 import { parseHealth } from "../src/health.ts";
 import { parseInventoryGrid } from "../src/inventory.ts";
 import { conditionsOf, xpForLevel } from "../src/player.ts";
@@ -62,18 +60,10 @@ import { isWet, needsFuel, needsRepair } from "../src/condition.ts";
 import { freshHealth } from "../src/bestiary.ts";
 import { countCoins } from "../src/coins.ts";
 import type { FileMap } from "../src/files.ts";
+import type { Rec } from "../src/values.ts";
 import type { Interior } from "../src/world.ts";
 
 const E = -4;
-function assertThrows(fn: () => unknown, match: RegExp) {
-  try {
-    fn();
-  } catch (e) {
-    if (!match.test((e as Error).message)) throw new Error(`wrong error: ${(e as Error).message}`);
-    return;
-  }
-  throw new Error(`expected an error matching ${match}`);
-}
 const cell = (index: number, amount: number, X: number, Y: number, extra: Rec = {}): Rec => ({
   index,
   amount,
@@ -146,6 +136,16 @@ Deno.test("vitals set both the value and its target; wellbeing sets every wellbe
   assertEquals([p.haelth, p.nextHaelth], [0.75, 0.75]);
   assertEquals(p.wbgrid, [[E, { haelth: 0.75, myP: 1 }], [{ haelth: 0.75, myP: 2 }, E]]);
   assert(!("focus" in p), "untouched vitals stay absent");
+});
+
+Deno.test("vitals, temperature and rain must be numbers: the save's JSON would keep NaN or infinity as null", () => {
+  const p: Rec = { hunger: 0.5, hungerNext: 0.5, haelth: 0.5, nextHaelth: 0.5, MDweather: Weather.Rain, MDrain: 0.5, MDtemperature: 0.5 };
+  assertThrows(() => setVitals(p, { satiation: NaN }), /Satiation must be a number/);
+  assertThrows(() => setVitals(p, { wellbeing: Infinity }), /Wellbeing must be a number/);
+  assertThrows(() => setSky(p, { temperature: NaN }), /Temperature must be a number/);
+  assertThrows(() => setSky(p, { rain: -Infinity }), /Rain must be a number/);
+  assertThrows(() => setSky(p, { weather: Weather.Rain, rain: NaN }), /Rain must be a number/);
+  assertEquals([p.hunger, p.hungerNext, p.haelth, p.MDrain, p.MDtemperature], [0.5, 0.5, 0.5, 0.5, 0.5]);
 });
 
 Deno.test("healing restores lost and burned hit points, keeps armor and holes, and clears statuses", () => {

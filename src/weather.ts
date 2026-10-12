@@ -5,6 +5,8 @@
 // ticks over, the weather may change. Midnight (`hour >= 24` in gml_Object_manager_day_Step_0) sets the minute to 0 and adds a
 // day. Nothing else changes them, apart from a developer-only debug panel.
 
+import { finite, num, type Rec } from "./values.ts";
+
 /** `localWeather` (MDweather): the weather state machine's three states. */
 export const Weather = { Clear: 0, Cloudy: 1, Rain: 2 } as const;
 export type WeatherState = (typeof Weather)[keyof typeof Weather];
@@ -41,8 +43,6 @@ export const SKY_KEYS = {
 /** Minutes per turn (`minute += 8`). */
 export const TURN_MINUTES = 8;
 export const DAY_MINUTES = 24 * 60;
-/** `manager_day` Create: a new game starts at 07:00 on day 1. */
-export const NEW_GAME_MINUTE = 420;
 /** Rain balance per turn: +1/180 while `rainPower > 0`, else −1/360, kept within −1…1. */
 export const BALANCE_RAIN = 1 / 180;
 export const BALANCE_DRY = -1 / 360;
@@ -53,20 +53,18 @@ export const HEAVY_RAIN = 0.725;
 /** Below this distance from 0 the rain balance changes the odds by under 5%, so it counts as even. */
 export const EVEN_BALANCE = 0.05;
 
-const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
-
 /** Reads `Sky` from Player.save's player record; undefined when the clock itself (MDminute, MDday) is missing. */
-export function parseSky(p: Record<string, unknown>): Sky | undefined {
-  const minute = num(p[SKY_KEYS.minute]), day = num(p[SKY_KEYS.day]);
-  if (minute === undefined || day === undefined) return undefined;
+export function parseSky(p: Rec): Sky | undefined {
+  const minute = p[SKY_KEYS.minute], day = p[SKY_KEYS.day];
+  if (!finite(minute) || !finite(day)) return undefined;
   return {
     minute,
     day,
-    temperature: num(p[SKY_KEYS.temperature]) ?? 0.5,
-    weather: num(p[SKY_KEYS.weather]) ?? Weather.Clear,
-    cloud: num(p[SKY_KEYS.cloud]) ?? 0,
-    rain: num(p[SKY_KEYS.rain]) ?? 0,
-    rainBalance: num(p[SKY_KEYS.rainBalance]) ?? 0,
+    temperature: num(p[SKY_KEYS.temperature], 0.5),
+    weather: num(p[SKY_KEYS.weather], Weather.Clear),
+    cloud: num(p[SKY_KEYS.cloud]),
+    rain: num(p[SKY_KEYS.rain]),
+    rainBalance: num(p[SKY_KEYS.rainBalance]),
   };
 }
 

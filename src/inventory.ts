@@ -1,3 +1,5 @@
+import { finite, isRec, type Rec } from "./values.ts";
+
 export interface SavedItem {
   index: number;
   amount: number;
@@ -12,9 +14,6 @@ export type Inventory =
   | { state: "saved"; items: SavedItem[]; note?: string }
   | { state: "unrolled" | "unavailable"; reason: string };
 
-const record = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-
 /**
  * A container kept inside another (a bag in a bag, or in a chest) holds nothing once the game loads the save: load_player and
  * load_containers give each one a new, empty inventory (item_recreate_grid). Its saved grid is a leftover: save_player refreshes only
@@ -25,7 +24,7 @@ export const NESTED_NOTE = "Empty: the game empties a container kept inside anot
 function item(raw: unknown, depth: number, inGrid = false): SavedItem {
   if (depth > 20) throw new Error("Inventory nesting exceeds 20 levels");
   if (
-    !record(raw) || !Number.isInteger(raw.index) || !finite(raw.index) || raw.index < 0 ||
+    !isRec(raw) || !Number.isInteger(raw.index) || !finite(raw.index) || raw.index < 0 ||
     !finite(raw.amount) || raw.amount < 0
   ) throw new Error("Invalid saved item");
   if (raw.subParts !== undefined && !Array.isArray(raw.subParts)) throw new Error("Invalid item subParts");
@@ -39,7 +38,7 @@ function item(raw: unknown, depth: number, inGrid = false): SavedItem {
     burnTimeLeft: finite(raw.burnTimeLeft) ? raw.burnTimeLeft : undefined,
     wet: finite(raw.wet) ? raw.wet : undefined,
     contents: (raw.subParts ?? []).flatMap((part: unknown): Inventory[] =>
-      record(part) && part.type === 0
+      isRec(part) && part.type === 0
         ? [inGrid ? { state: "saved", items: [], note: NESTED_NOTE } : parseInventoryGrid(part.gridSave, depth + 1)]
         : []
     ),
@@ -64,16 +63,16 @@ export function parseInventoryGrid(raw: unknown, depth = 0): Inventory {
     if (k === undefined) keys.set(v, k = JSON.stringify(v));
     return k;
   };
-  const sameRecord = (a: unknown, b: unknown) => record(a) && (a === b || key(a) === key(b));
+  const sameRecord = (a: unknown, b: unknown) => isRec(a) && (a === b || key(a) === key(b));
   for (let y = 0; y < rows.length; y++) {
     for (let x = 0; x < rows[y].length; x++) {
       const cell = rows[y][x];
       // item_recreate_grid passes over undefined cells (written as null) as it does empty ones (-4).
       if (cell === -4 || cell === null) continue;
-      if (!record(cell) || !Number.isInteger(cell.X) || !Number.isInteger(cell.Y)) throw new Error("Invalid inventory cell");
+      if (!isRec(cell) || !Number.isInteger(cell.X) || !Number.isInteger(cell.Y)) throw new Error("Invalid inventory cell");
       const ix = Number(cell.X), iy = Number(cell.Y);
       const origin = rows[iy]?.[ix];
-      if (record(origin) && origin.X === ix && origin.Y === iy && origin.index === cell.index) {
+      if (isRec(origin) && origin.X === ix && origin.Y === iy && origin.index === cell.index) {
         if (ix === x && iy === y) items.push(item(cell, depth, true));
       } else {
         repaired = true;
@@ -93,7 +92,7 @@ export function parseItemList(raw: unknown): Inventory {
   return { state: "saved", items: raw.filter((v) => v !== -4).map((v) => item(v, 0)) };
 }
 
-export function containerInventory(raw: Record<string, unknown>): Inventory {
+export function containerInventory(raw: Rec): Inventory {
   if (raw.status === -214) return { state: "unrolled", reason: "Not rolled when saved. Generated on first opening in the game." };
   return parseInventoryGrid(raw.gridSave);
 }

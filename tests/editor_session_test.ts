@@ -6,13 +6,13 @@
 import { assert, assertEquals, assertRejects } from "./assert.ts";
 import { type Backup, type EditDirectory, type EditFile, EditSession, StaleError } from "../src/editor/session.ts";
 import { addItems } from "../src/editor/items.ts";
-import { movePlayer, playerRecord, setSkillPoints, setVitals } from "../src/editor/edits.ts";
+import { movePlayer, setSkillPoints, setVitals } from "../src/editor/edits.ts";
 import { addRaft, moveWithRaft } from "../src/editor/raft.ts";
 import { deleteBeing, newBeing, spawnBeing } from "../src/editor/beings.ts";
 import { findCharacters } from "../src/files.ts";
 import { cheatedInfo } from "../src/cheated.ts";
 import { readMarker } from "../src/marker.ts";
-import { decodeJson, parsePlayer } from "../src/save.ts";
+import { decodeJson, parsePlayer, playerRecord } from "../src/save.ts";
 import { loadWorld } from "../src/world.ts";
 import { worldId } from "../src/sharing-format.ts";
 import { countCoins } from "../src/coins.ts";

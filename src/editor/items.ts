@@ -5,7 +5,7 @@
 import { ITEMS } from "../itemdata.ts";
 import { ITEM_NAMES } from "../gamedata.ts";
 import { canGetWet, DURABILITY_LABELS, durabilityKind, fuelMax, isWet, type ItemState, needsFuel, needsRepair } from "../condition.ts";
-import { isRec, type Rec } from "./edits.ts";
+import { isRec, type Rec } from "../values.ts";
 
 /** Empty grid cell (GameMaker's noone). */
 const EMPTY = -4;

@@ -1,5 +1,6 @@
 // Where the quest landmarks are, or where the game's own placement rules can still put them.
 
+import { pct } from "./format.ts";
 import { BEING_NAMES, SPRITES } from "./gamedata.ts";
 import { Area, PLACEMENT, type Placement, SHIPWRECK_TRIES, SHIPWRECK_UNEXPLORED_CHANCE, shipwreckSiteOk, SolidId, TILES } from "./rules.ts";
 import type { Being, Solid, Tree } from "./save.ts";
@@ -169,8 +170,6 @@ export function landmarks(world: World, shipwreck: Map<string, number>): Landmar
   }
   return out;
 }
-
-export const pct = (p: number) => (p >= 0.995 && p < 1 ? ">99%" : p > 0 && p < 0.01 ? "<1%" : `${Math.round(p * 100)}%`);
 
 /** Bounding box of a sprite placed at (x, y) (sprite origin applied), as [left, top, right, bottom]. */
 export function spriteBox(sprite: string, x: number, y: number): [number, number, number, number] {

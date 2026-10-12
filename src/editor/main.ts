@@ -9,7 +9,7 @@ import { BEING_NAMES, ITEM_NAMES } from "../gamedata.ts";
 import { worldId } from "../sharing-format.ts";
 import { cheatedInfo, knownCheated } from "../cheated.ts";
 import { isSaveFile, markerText } from "../marker.ts";
-import { type Being, decodeJson, parseBeings, parsePlaced, parsePlayer, type PlayerSave } from "../save.ts";
+import { type Being, decodeJson, parseBeings, parsePlaced, parsePlayer, playerRecord, type PlayerSave } from "../save.ts";
 import { type Interior, interiorsOf, loadDetail, loadHeights, loadLayer, loadTrees, loadWorld, type World, type Zone } from "../world.ts";
 import {
   CONDITIONS,
@@ -29,6 +29,7 @@ import { spriteBox } from "../predict.ts";
 import { BEINGS, targetsYou } from "../bestiary.ts";
 import { BLEED_DIRS, cellKind, cellPlace, cellTitle, healthGridPicker, parseHealth } from "../health.ts";
 import { formatClock, parseSky, Weather, WEATHER_LABELS, weatherKind, type WeatherState } from "../weather.ts";
+import type { Rec } from "../values.ts";
 import { type Backup, canEdit, type Edit, type EditDirectory, EditSession, listBackups, type WritablePicker } from "./session.ts";
 import {
   type ConditionsEdit,
@@ -42,8 +43,6 @@ import {
   MAX_STACKS,
   MAX_TURNS,
   MIN_RAIN,
-  playerRecord,
-  type Rec,
   setConditions,
   setHitPointStatus,
   setLevel,

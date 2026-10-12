@@ -4,6 +4,7 @@
 // .ini files in the File System Access API (Safe Browsing lists .ini as dangerous there), which the save editor writes with.
 
 import type { FileMap } from "./files.ts";
+import { isRec, type Rec } from "./values.ts";
 
 export const MARKER = "MirkMap.json";
 /** A real marker is a few lines; anything larger is not ours and is ignored. */
@@ -11,15 +12,13 @@ const MAX_MARKER = 64 * 1024;
 const ABOUT = "MirkMap's notes about this world. The game ignores this file.";
 const decoder = new TextDecoder();
 
-export type Notes = { [key: string]: unknown };
-
-export const isNotes = (value: unknown): value is Notes => typeof value === "object" && value !== null && !Array.isArray(value);
+export type Notes = Rec;
 
 /** The notes in a MirkMap.json's text; text that is not a JSON object has none. */
 export function readMarker(text: string): Notes {
   try {
     const value: unknown = JSON.parse(text.replace(/^\uFEFF/, ""));
-    return isNotes(value) ? value : {};
+    return isRec(value) ? value : {};
   } catch {
     return {};
   }

@@ -1,8 +1,14 @@
-import { assert, assertEquals, assertRejects } from "./assert.ts";
-import { decodeJson, decodeTilemap, parseAreaDir, parsePlayer } from "../src/save.ts";
+import { assert, assertEquals, assertRejects, assertThrows } from "./assert.ts";
+import { decodeJson, decodeTilemap, parseAreaDir, parsePlayer, playerRecord } from "../src/save.ts";
 import { readZip } from "../src/zip.ts";
 
 const enc = new TextEncoder();
+
+Deno.test("the player record is Player.save's last element, and only a JSON object is one", () => {
+  assertEquals(playerRecord([{ a: 1 }, { b: 2 }]), { b: 2 });
+  for (const raw of [[], [[1]], [null], [{}, 3], {}, "x"]) assertThrows(() => playerRecord(raw), /no player record/);
+  assertThrows(() => parsePlayer([[]]), /no player record/);
+});
 
 Deno.test("GameMaker JSON: one trailing NUL, optional BOM, empty file", () => {
   assertEquals(decodeJson(enc.encode('[{"a":1}]\0')), [{ a: 1 }]);

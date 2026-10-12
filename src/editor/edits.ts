@@ -3,27 +3,21 @@
 // it does not own, because load_player reads almost all of them without checking that they exist.
 
 import { cellPlace, Hp, Status } from "../health.ts";
-import { Ae, CONDITIONS, MAX_LEVEL, type TimerKey, xpForLevel } from "../player.ts";
+import { Ae, CONDITIONS, MAX_LEVEL, type Stat, STAT_LABELS, type TimerKey, xpForLevel } from "../player.ts";
 import { centerpos, INTERIOR_NAMES, isOutside, TILES } from "../rules.ts";
 import type { PlayerSave } from "../save.ts";
+import { clamp01, isRec, num, type Rec } from "../values.ts";
 import { SKY_KEYS, Weather, type WeatherState } from "../weather.ts";
 import type { Interior } from "../world.ts";
 
-export type Rec = Record<string, unknown>;
-
-export const isRec = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
-const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 function wholeIn(v: number, lo: number, hi: number, what: string): number {
   if (!Number.isInteger(v) || v < lo || v > hi) throw new Error(`${what} must be a whole number from ${lo} to ${hi}`);
   return v;
 }
-
-/** The record the game loads: the last element of Player.save's array (load_player array_pops it). */
-export function playerRecord(raw: unknown): Rec {
-  const p = Array.isArray(raw) ? raw[raw.length - 1] : undefined;
-  if (!isRec(p)) throw new Error("Player.save has no player record");
-  return p;
+/** A 0–1 value, clamped into range; never NaN or infinite, which the save's JSON would keep as null. */
+function fraction(v: number, what: string): number {
+  if (!Number.isFinite(v)) throw new Error(`${what} must be a number`);
+  return clamp01(v);
 }
 
 export const MAX_SKILL_POINTS = 99;
@@ -76,10 +70,10 @@ export function setVitals(p: Rec, v: VitalsEdit) {
   for (const [stat, [now, next]] of Object.entries(VITAL_KEYS)) {
     const value = v[stat as keyof typeof VITAL_KEYS];
     if (value === undefined) continue;
-    p[now] = p[next] = clamp01(value);
+    p[now] = p[next] = fraction(value, STAT_LABELS[stat as Stat]);
   }
   if (v.wellbeing !== undefined) {
-    const w = clamp01(v.wellbeing);
+    const w = fraction(v.wellbeing, "Wellbeing");
     p.haelth = p.nextHaelth = w;
     if (Array.isArray(p.wbgrid)) {
       for (const row of p.wbgrid) if (Array.isArray(row)) { for (const cell of row) if (isRec(cell)) cell.haelth = w; }
@@ -249,7 +243,7 @@ export interface SkyEdit {
 /** player_endturn starts rain at f_r(0.08, 1) and keeps it at least that while it rains. */
 export const MIN_RAIN = 0.08;
 export const MAX_DAY = 9999;
-const rainIn = (v: number) => Math.min(1, Math.max(MIN_RAIN, v));
+const rainIn = (v: number) => Math.max(MIN_RAIN, fraction(v, "Rain"));
 
 /**
  * Time and weather in manager_day's saved keys. Weather is written the way player_endturn leaves it: Clear has no cloud or rain,
@@ -262,7 +256,7 @@ export function setSky(p: Rec, e: SkyEdit) {
     p[SKY_KEYS.day] = day;
   }
   if (e.minute !== undefined) p[SKY_KEYS.minute] = wholeIn(e.minute, 0, 24 * 60 - 1, "Minute");
-  if (e.temperature !== undefined) p[SKY_KEYS.temperature] = clamp01(e.temperature);
+  if (e.temperature !== undefined) p[SKY_KEYS.temperature] = fraction(e.temperature, "Temperature");
   if (e.weather !== undefined) {
     if (!(Object.values(Weather) as number[]).includes(e.weather)) throw new Error(`Unknown weather ${e.weather}`);
     p[SKY_KEYS.weather] = e.weather;

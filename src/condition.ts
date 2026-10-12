@@ -3,6 +3,7 @@
 // and lanterns, and how wet it is. Shared by the map's inventories and the save editor.
 
 import { ITEMS } from "./itemdata.ts";
+import { finite } from "./values.ts";
 
 /** Lamp Oil: its durability is the oil in the flask, which refills a lantern (items_bonus_apply). */
 export const LAMP_OIL = 112;
@@ -54,8 +55,6 @@ export interface Condition {
   wet?: number;
 }
 
-const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-
 export function conditionOf(item: ItemState): Condition {
   const c: Condition = {};
   const kind = durabilityKind(item.index);
@@ -65,7 +64,7 @@ export function conditionOf(item: ItemState): Condition {
   }
   const burn = fuelMax(item.index);
   if (burn !== undefined && finite(item.burnTimeLeft)) c.fuel = { value: item.burnTimeLeft, max: burn };
-  if (isWet(item)) c.wet = item.wet as number;
+  if (isWet(item)) c.wet = item.wet;
   return c;
 }
 
@@ -81,7 +80,7 @@ export function needsFuel(item: ItemState): boolean {
   return (!!c.fuel && c.fuel.value < c.fuel.max) || (c.durability?.kind === "oil" && c.durability.value < c.durability.max);
 }
 
-export const isWet = (item: ItemState) => finite(item.wet) && item.wet > 0;
+export const isWet = (item: ItemState): item is ItemState & { wet: number } => finite(item.wet) && item.wet > 0;
 
 /** A number as GML's string() writes durability (up to two decimals), or burn time to a tenth of a turn. */
 export const amountText = (v: number, places = 2) => String(Math.round(v * 10 ** places) / 10 ** places + 0);
