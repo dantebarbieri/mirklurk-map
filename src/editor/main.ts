@@ -899,6 +899,7 @@ const field = (label: string, input: HTMLElement, ...after: (HTMLElement | strin
   h("label", { class: "edit-field" }, h("span", {}, label), input, ...after, rangeHint(input));
 
 function rangeHint(input: HTMLElement): HTMLElement | null {
+  if (input.dataset.range) return h("span", { class: "range-hint muted small" }, input.dataset.range);
   const min = input.getAttribute("min"), max = input.getAttribute("max");
   if (input.tagName !== "INPUT" || input.getAttribute("type") !== "number" || min === null || max === null) return null;
   return h("span", { class: "range-hint muted small" }, `${min}–${max}`);
@@ -1029,14 +1030,16 @@ function hitPointsEditor(v: PlayerSave, p: Rec): HTMLElement {
           type: "checkbox",
           checked: g.stunned,
           "data-key": "stunned",
-          onchange: act("preview", () => {
-            const to = !g.stunned;
-            return editPlayer("preview", (rec) => {
-              const from = parseHealth(rec.hpgrid, rec.statusgrid)?.stunned;
-              setStunned(rec, to);
-              return from === to ? undefined : to ? "Stunned: you miss your next turn" : "No longer stunned";
-            }, "stunned");
-          }),
+          onchange: (event: Event) => {
+            // The box's own state, read now: a second click before the page is drawn again must not repeat the first.
+            const to = (event.currentTarget as HTMLInputElement).checked;
+            act("preview", () =>
+              editPlayer("preview", (rec) => {
+                const from = parseHealth(rec.hpgrid, rec.statusgrid)?.stunned;
+                setStunned(rec, to);
+                return from === to ? undefined : to ? "Stunned: you miss your next turn" : "No longer stunned";
+              }, "stunned"))();
+          },
         }),
         " Stunned",
       ),
@@ -1332,7 +1335,7 @@ function skyCard(p: Rec): HTMLElement {
     h(
       "p",
       { class: "muted small" },
-      "Each change takes at once. The game eases the air temperature back toward the hour's usual value each turn, and changes the " +
+      "Each change takes effect at once. The game eases the air temperature back toward the hour's usual value each turn, and changes the " +
         "weather when the hour turns. Going back in time stops regrowth in zones you visited later until the clock catches up.",
     ),
   );
@@ -1716,15 +1719,17 @@ function conditionEditor(c: CarriedItem, rec: Rec, holder?: string): HTMLElement
   const now = conditionOf(asState(rec));
   const burn = fuelMax(index);
   const wetNow = isWet(asState(rec)) ? Number(rec.wet) : 0;
-  const amount = (value: number, max: number, what: string, places = 2) =>
+  /** Durability, portions and oil must stay above 0 (at 0 the game breaks or uses up the item); fuel may be 0. */
+  const amount = (value: number, max: number, what: string, places = 2, aboveZero = false) =>
     h("input", {
       type: "number",
       class: "num",
       value: amountText(value, places),
-      min: 0,
+      min: aboveZero ? undefined : 0,
       max,
       step: "any",
-      title: `0 to ${max}`,
+      title: aboveZero ? `More than 0, up to ${max}` : `0 to ${max}`,
+      "data-range": aboveZero ? `above 0–${max}` : undefined,
       "data-key": `condition-${at}-${what}`,
     }) as HTMLInputElement;
   const value = (input: HTMLInputElement, what: string) => {
@@ -1754,7 +1759,7 @@ function conditionEditor(c: CarriedItem, rec: Rec, holder?: string): HTMLElement
       }, `condition-${at}-${what}`);
     });
   const kind = now.durability?.kind;
-  const durability = now.durability && amount(now.durability.value, now.durability.max, "durability");
+  const durability = now.durability && amount(now.durability.value, now.durability.max, "durability", 2, true);
   if (durability) durability.onchange = set("durability", () => ({ durability: value(durability, DURABILITY_LABELS[kind!]) }));
   const fuel = burn !== undefined ? amount(now.fuel?.value ?? burn, burn, "fuel", 1) : undefined;
   if (fuel) fuel.onchange = set("fuel", () => ({ fuel: value(fuel, "Fuel") }));
@@ -2507,7 +2512,7 @@ function previewCard(v: PlayerSave, p: Rec): HTMLElement {
     h(
       "p",
       { class: "muted small" },
-      "Drag a bar, pick a hit point or change a field: each edit takes at once, and can be undone from the list at the bottom.",
+      "Drag a bar, pick a hit point or change a field: each edit takes effect at once, and can be undone from the list at the bottom.",
     ),
     noteView("preview"),
     ...playerView(v, {

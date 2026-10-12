@@ -398,13 +398,14 @@ Deno.test("sharing service: five worlds per library; updates bypass it; a mismat
       headers: { "If-Match": etag },
     });
     assertEquals(exact.status, 200);
-    ctx.advance(SHARE_INTERVAL);
+    // At once, within the update interval: a stale version is refused as stale (412), not as too soon (429).
     const replaced = await ctx.request("PUT", `/library/worlds/${await idOf("Hero0")}`, {
       key: sync,
       body: await packet("Hero0") as BodyInit,
       headers: { "If-Match": etag },
     });
     assertEquals(replaced.status, 412);
+    ctx.advance(SHARE_INTERVAL);
     const gone = await ctx.request("PUT", `/library/worlds/${await idOf("Hero1")}`, {
       key: sync,
       body: await packet("Hero1") as BodyInit,
