@@ -18,7 +18,8 @@ import { loadWorld } from "./world.ts";
 import { type DirectoryPicker, type LiveDirectory, LiveReader, scanDirectory } from "./live.ts";
 import { Sharing } from "./sharing.ts";
 import { knownCheated } from "./cheated.ts";
-import { worldId } from "./sharing-format.ts";
+import { libraryId, worldId } from "./sharing-format.ts";
+import { libraryKey } from "./library.ts";
 import { fileMapOf, type Handoff, handOff, storedFiles, takeHandoff } from "./handoff.ts";
 
 let files: FileMap | null = null;
@@ -223,7 +224,8 @@ async function startLive(pick: () => Promise<LiveDirectory>, want?: Character) {
 /** The save on screen as the editor opens it: the world followed from My worlds, the folder it was read from, or a copy of it. */
 async function currentHandoff(): Promise<Handoff | undefined> {
   const world = sharing.following;
-  if (world) return { save: { kind: "world", ...world } };
+  const key = libraryKey();
+  if (world && key) return { save: { kind: "world", ...world, library: await libraryId(key) } };
   // A world from a share link is someone else's; the editor opens on its own.
   if (sharing.isWatching || !files) return undefined;
   const character = chars[activeCharacter];
@@ -250,7 +252,13 @@ async function toEditor(e: MouseEvent) {
 
 /** What the save editor handed back when its Back to MirkMap link was followed, shown as it was before: watched, if it was. */
 async function pickUp({ save, character }: Handoff) {
-  if (save.kind === "world") return sharing.follow(save.id, save.name);
+  if (save.kind === "world") {
+    const key = libraryKey();
+    // The map follows worlds of the library in use; one from a library switched away from since stays where it is.
+    if (key && await libraryId(key) === save.library) sharing.follow(save.id, save.name);
+    else status(`${save.name} is in another of your libraries. Switch to it under My worlds & sync to see it.`);
+    return;
+  }
   if (save.kind === "files") return manualImport(() => Promise.resolve(fileMapOf(save.files)), character);
   const dir = save.handle as LiveDirectory & { queryPermission?(options: { mode: "read" }): Promise<PermissionState> };
   // Reading it again needs a click once the browser forgot it allowed that (after every tab of the site was closed).

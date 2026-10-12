@@ -625,6 +625,16 @@ Deno.test("editor session: a world from My worlds is saved back to the library, 
     await s.restore(mem.backups[0]);
     assertEquals(await skillPoints(await stored(), player), 0);
 
+    // Saved, but this browser can't keep its backup: the save stands, with a warning, rather than reading as failed.
+    const failing = { backup: () => Promise.reject(new Error("quota exceeded")), remember: () => Promise.resolve() };
+    const fresh = await source.read();
+    const t = new EditSession(source, fresh, fresh.characters[0], id, failing);
+    await t.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 3), "Skill points 0 → 3"));
+    now += SHARE_INTERVAL;
+    assertEquals(await t.save(), 1);
+    assert(/quota exceeded/.test(t.warning ?? ""), String(t.warning));
+    assertEquals([t.changes.length, await skillPoints(await stored(), player)], [0, 3]);
+
     // Deleted on another device: nothing can be saved to it.
     await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 1), "Skill points 0 → 1"));
     await call(`/library/worlds/${id}`, { method: "DELETE" });

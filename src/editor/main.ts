@@ -6,10 +6,10 @@
 import { $, h } from "../dom.ts";
 import { type Character, characterIndex, type FileMap, fromDataTransfer, fromFiles } from "../files.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../gamedata.ts";
-import { worldId, type WorldInfo } from "../sharing-format.ts";
+import { libraryId, worldId, type WorldInfo } from "../sharing-format.ts";
 import { cheatedInfo, knownCheated } from "../cheated.ts";
 import { isSaveFile, markerText } from "../marker.ts";
-import { api, libraryKey } from "../library.ts";
+import { api, libraryKey, libraryKeyFor } from "../library.ts";
 import { offerDownload } from "../download.ts";
 import { fileMapOf, forget, type Handoff, handOff, type OpenSave, remember, storedFiles, takeHandoff } from "../handoff.ts";
 import { type Being, decodeJson, parseBeings, parsePlaced, parsePlayer, type PlayerSave } from "../save.ts";
@@ -231,11 +231,20 @@ async function openFolder() {
   await openSource(new FolderSource(dir));
 }
 
-/** A world in this browser's library (My worlds), which MirkMap keeps. */
-function libraryWorld(id: string): LibrarySource {
-  const key = libraryKey();
-  if (!key) throw new Error("This browser has no library. Add a world to My worlds in MirkMap first.");
-  return new LibrarySource(id, (path, init) => api(path, key, init));
+/**
+ * A world in My worlds, from the library it is in (`library`, its ID) when this browser still keeps that library, or else from the
+ * library in use.
+ */
+async function libraryWorld(id: string, library?: string): Promise<LibrarySource> {
+  const key = library ? await libraryKeyFor(library) : libraryKey();
+  if (!key) {
+    throw new Error(
+      library
+        ? "That world is in a library this browser no longer keeps. Sync it again from another device, or open the world another way."
+        : "This browser has no library. Add a world to My worlds in MirkMap first.",
+    );
+  }
+  return new LibrarySource(id, (path, init) => api(path, key, init), library ?? await libraryId(key));
 }
 
 /** A .zip, dropped files or a folder read without write access, edited as a copy. */
@@ -338,7 +347,9 @@ function showCharacters() {
 async function openSave(s: EditSession): Promise<OpenSave | undefined> {
   if (devCopy) return undefined;
   if (s.source instanceof FolderSource) return { kind: "folder", handle: s.source.dir, live: folderLive };
-  if (s.source instanceof LibrarySource) return { kind: "world", id: s.source.id, name: s.character.name };
+  if (s.source instanceof LibrarySource) {
+    return { kind: "world", id: s.source.id, name: s.character.name, library: s.source.library };
+  }
   return { kind: "files", files: await storedFiles(s.files, s.character.root) };
 }
 
@@ -490,7 +501,7 @@ async function saveCopyToFolder(s: EditSession) {
  * browser still lets the page read it and otherwise after a click.
  */
 async function openHandoff({ save, character }: Handoff, handed: boolean) {
-  if (save.kind === "world") return openSource(libraryWorld(save.id), character);
+  if (save.kind === "world") return openSource(await libraryWorld(save.id, save.library), character);
   if (save.kind === "files") {
     return openSource(new CopySource(fileMapOf(save.files), "what MirkMap had open", character), character);
   }
@@ -503,7 +514,8 @@ async function openHandoff({ save, character }: Handoff, handed: boolean) {
       class: "button",
       type: "button",
       onclick: async () => {
-        if (!await folder.allowed("readwrite", true)) {
+        // Reading is enough until the first save, which asks to write (see writable).
+        if (!await folder.allowed("read", true)) {
           status(`The browser did not let MirkMap open ${folder.dir.name}. Choose Open save folder... instead.`, true);
           return;
         }
@@ -652,10 +664,12 @@ async function save() {
       editing = true;
       const files = n === 1 ? "1 file" : `${n} files`;
       status(
-        library
+        (library
           ? `Saved ${files} to ${s.character.name} in My worlds, where your synced devices see it within 30 seconds. ` +
             "This world is now marked Cheated. To play it, download it."
-          : `Saved ${files}. This world is now marked Cheated. Load it from the game's menu to play it.`,
+          : `Saved ${files}. This world is now marked Cheated. Load it from the game's menu to play it.`) +
+          (s.warning ? ` ${s.warning}.` : ""),
+        !!s.warning,
       );
       await render();
     } catch (e) {
@@ -2534,7 +2548,7 @@ function wire() {
     if (id) {
       void replace(async () => {
         try {
-          await openSource(libraryWorld(id));
+          await openSource(await libraryWorld(id));
         } catch (e) {
           status(errorText(e), true);
         }

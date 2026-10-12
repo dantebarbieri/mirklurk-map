@@ -141,7 +141,8 @@ export type LibraryCall = (path: string, init?: RequestInit) => Promise<Response
 /** A world in My worlds: read from the library, and saved by updating it there, which every synced device then sees. */
 export class LibrarySource implements SaveSource {
   readonly kind = "library";
-  constructor(readonly id: string, private call: LibraryCall) {}
+  /** `library`: the ID of the library the world is in (libraryId of the key `call` uses), to open it from there again. */
+  constructor(readonly id: string, private call: LibraryCall, readonly library = "") {}
 
   private async data(init?: RequestInit): Promise<Response> {
     try {
@@ -279,6 +280,9 @@ export class EditSession {
   get files(): FileMap {
     return this.read.files;
   }
+
+  /** What went wrong after the last save went through (this browser's backup or Cheated record), if anything. */
+  warning?: string;
 
   /** The save as last read or written. */
   get current(): SaveRead {
@@ -535,6 +539,7 @@ export class EditSession {
     const pending = this.pending();
     const changes = [...this.changes];
     return this.exclusive(async () => {
+      this.warning = undefined;
       const { source, character } = this;
       await source.check(this.read, character);
       const writes = await this.plan(pending);
@@ -550,8 +555,13 @@ export class EditSession {
       this.read = await source.write(writes, this.after(writes), character);
       this.clear();
       if (whole) {
-        await this.store.remember(this.world);
-        await this.store.backup(backup);
+        // The world is saved by now: if this browser can't record it, say so rather than report the save as failed.
+        try {
+          await this.store.remember(this.world);
+          await this.store.backup(backup);
+        } catch (e) {
+          this.warning = `This browser could not keep its backup of the replaced files or its Cheated record: ${(e as Error).message}`;
+        }
       }
       return pending.size;
     });
