@@ -95,3 +95,61 @@ export function choose<T extends string>({ title, body, choices, cancel = "Cance
     dialog.showModal();
   });
 }
+
+/**
+ * A small form in the same style: `body` holds its fields in a <form method="dialog">, so Enter in a field submits it, and focus starts
+ * on the first field. On submit, `check` may name a problem, shown in the dialog (which stays open) so it can be put right. Escape,
+ * Cancel or a click outside declines; focus returns to where it was. Resolves true only once submitted without a problem.
+ */
+export function form({ title, body, confirm, cancel = "Cancel", check }: {
+  title: string;
+  body: (string | Content)[];
+  confirm: string;
+  cancel?: string;
+  check?: () => string | undefined;
+}): Promise<boolean> {
+  const previous = document.activeElement as HTMLElement | null;
+  const id = `dialog-${++dialogs}`;
+  const problem = h("p", { class: "dialog-problem", role: "alert" });
+  const dialog = h(
+    "dialog",
+    {
+      class: "dialog",
+      "aria-labelledby": `${id}-title`,
+      onclick: (event: Event) => event.target === dialog && dialog.close("cancel"),
+    },
+    h(
+      "form",
+      {
+        class: "dialog-content",
+        method: "dialog",
+        novalidate: true,
+        onsubmit: (event: Event) => {
+          event.preventDefault();
+          const error = check?.();
+          problem.textContent = error ?? "";
+          if (!error) dialog.close("confirm");
+        },
+      },
+      h("h2", { id: `${id}-title` }, title),
+      body.map((part) => typeof part === "string" ? h("p", {}, part) : part),
+      problem,
+      h(
+        "div",
+        { class: "share-actions dialog-actions" },
+        h("button", { type: "button", class: "button subtle", onclick: () => dialog.close("cancel") }, cancel),
+        h("button", { type: "submit", class: "button" }, confirm),
+      ),
+    ),
+  ) as HTMLDialogElement;
+  document.body.append(dialog);
+  return new Promise((resolve) => {
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      previous?.focus?.();
+      resolve(dialog.returnValue === "confirm");
+    }, { once: true });
+    dialog.showModal();
+    dialog.querySelector<HTMLElement>("input, select, textarea")?.focus();
+  });
+}

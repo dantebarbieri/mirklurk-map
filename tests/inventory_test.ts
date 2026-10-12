@@ -83,6 +83,10 @@ Deno.test("inventory: corrupt grids and item records are explicit errors", async
   await assertRejects(() => parseInventoryGrid([[{ ...item(3), X: 0.5 }]]), /cell/);
   await assertRejects(() => parseItemList([{ index: 3, amount: "many" }]), /item/);
   await assertRejects(() => parseItemList([{ ...item(), wet: Infinity }]), /wet/);
+  await assertRejects(() => parseItemList([{ ...item(), burnTimeLeft: "lots" }]), /burnTimeLeft/);
+  const torch = parseItemList([{ ...item(41), burnTimeLeft: 12.5, lit: true }]);
+  assert(torch.state === "saved");
+  assertEquals(torch.items[0].burnTimeLeft, 12.5, "a torch's fuel is read");
 });
 
 Deno.test("markers: reopened chests, remains, corpses, storage and wood drops remain inspectable", () => {
