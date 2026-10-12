@@ -620,9 +620,13 @@ Deno.test("editor session: a world from My worlds is saved back to the library, 
     assertEquals(await skillPoints(files, player), 9);
     assertEquals(cheatedInfo(decoder.decode(await files.get("Shared/MirkMap.json")!.read()))?.edits, 3);
 
-    // Restoring writes the backup back to the library.
+    // Restoring writes the backup back to the library and drops the unsaved changes; a refused restore keeps them.
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 4), "Skill points 9 → 4"));
+    await assertRejects(() => s.restore(mem.backups[0]), /30 seconds/);
+    assertEquals(s.changes, ["Skill points 9 → 4"]);
     now += SHARE_INTERVAL;
     await s.restore(mem.backups[0]);
+    assertEquals(s.changes.length, 0);
     assertEquals(await skillPoints(await stored(), player), 0);
 
     // Saved, but this browser can't keep its backup: the save stands, with a warning, rather than reading as failed.

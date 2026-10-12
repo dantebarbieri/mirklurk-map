@@ -721,7 +721,7 @@ async function restore(b: Backup) {
   ) return;
   await locked(async () => {
     try {
-      s.discard();
+      // The session drops the unsaved changes once the backup is written back; a refused restore keeps them.
       await s.restore(b);
       status(`Restored the files from before ${when}.`);
     } catch (e) {
