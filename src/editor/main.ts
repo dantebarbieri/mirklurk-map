@@ -35,7 +35,22 @@ import {
   setVitals,
   type VitalsEdit,
 } from "./edits.ts";
-import { addable, addItems, type CarriedItem, carriedItems, countInside, freeCells, itemAt, removeItem } from "./items.ts";
+import {
+  addable,
+  addItems,
+  carriedBags,
+  type CarriedItem,
+  carriedItems,
+  countInside,
+  freeCells,
+  freeSlots,
+  freeSlotsFor,
+  itemAt,
+  removeItem,
+  takeOff,
+  wearCarried,
+  wearNew,
+} from "./items.ts";
 import { SLOT_NAMES } from "../armor.ts";
 import { deleteBeing, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
 import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, tileBox } from "./ground.ts";
@@ -668,15 +683,33 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
     h("datalist", { id: "item-choices" }, [...ITEM_CHOICES.keys()].map((n) => h("option", { value: n }))),
     field("Item", name),
     field("Amount", amount),
-    h("button", {
-      type: "button",
-      class: "button subtle",
-      onclick: act("items", async () => {
-        const index = ITEM_CHOICES.get(name.value.trim());
-        if (index === undefined) throw new Error("Pick an item from the list");
-        await add(index, readWhole(amount, "Amount"));
-      }),
-    }, "Add to bags"),
+    h(
+      "span",
+      { class: "item-actions" },
+      h("button", {
+        type: "button",
+        class: "button subtle",
+        onclick: act("items", async () => {
+          const index = ITEM_CHOICES.get(name.value.trim());
+          if (index === undefined) throw new Error("Pick an item from the list");
+          await add(index, readWhole(amount, "Amount"));
+        }),
+      }, "Add to bags"),
+      h("button", {
+        type: "button",
+        class: "button subtle",
+        title: "Put a new one on, in a free equipment slot it fits",
+        onclick: act("items", async () => {
+          const index = ITEM_CHOICES.get(name.value.trim());
+          if (index === undefined) throw new Error("Pick an item from the list");
+          const n = readWhole(amount, "Amount");
+          await editPlayer("items", (rec) => {
+            const r = wearNew(rec, index, n);
+            return `Put on ${r.amount > 1 ? `${r.amount} × ` : ""}${itemName(index)} (${slotLabel(r.slot)})`;
+          });
+        }),
+      }, "Wear it"),
+    ),
     h("h4", {}, "Coins"),
     h("div", { class: "coin-fields" }, coins.map(([label, , input]) => field(label[0].toUpperCase() + label.slice(1), input))),
     h("button", {
@@ -691,13 +724,35 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
     h(
       "p",
       { class: "muted small" },
-      "Items go into the bags you carry, topping up stacks first, exactly as picking them up would. New items glow gold in the game until you look at them.",
+      "Items go into the bags you carry, topping up stacks first, exactly as picking them up would. New items glow gold in the game until you look at them. " +
+        "Wear it puts a new one on instead, in a free equipment slot it fits.",
+    ),
+    hasBags(p) ? null : h(
+      "p",
+      { class: "edit-note" },
+      "You wear nothing to carry things in. Pick a backpack, a vest or a pouch above and choose Wear it to make room.",
     ),
     carriedView(p, saved),
   );
 }
 
 const itemName = (index: number) => ITEM_NAMES[index] ?? `Item ${index}`;
+/** An equipment slot's name; the second weapon set's hands say so. */
+const slotLabel = (slot: number) => `${SLOT_NAMES[slot] ?? `slot ${slot + 1}`}${slot === 2 || slot === 3 ? " (second set)" : ""}`;
+const hasBags = (p: Rec) => {
+  try {
+    return carriedBags(p).length > 0;
+  } catch {
+    return true;
+  }
+};
+const orNone = <T>(read: () => T[]): T[] => {
+  try {
+    return read();
+  } catch {
+    return [];
+  }
+};
 
 /** What the player wears and carries, each with Remove; items unsaved changes made or changed are tagged. */
 function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
@@ -714,7 +769,8 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
     const changed = !before || before.index !== c.index || Number(before.amount) !== c.amount;
     const howMany = c.amount > 1 ? numberInput(c.amount, 1, c.amount) : null;
     howMany?.setAttribute("aria-label", `How many ${name} to remove`);
-    const from = holder ? ` from ${holder}` : ` (worn: ${SLOT_NAMES[c.place.slot] ?? `slot ${c.place.slot + 1}`})`;
+    const from = holder ? ` from ${holder}` : ` (worn: ${slotLabel(c.place.slot)})`;
+    const wearable = holder !== undefined && orNone(() => freeSlotsFor(p, c.index)).length > 0;
     return h(
       "li",
       {},
@@ -723,12 +779,27 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
         { class: "carried-name" },
         name,
         c.amount > 1 ? ` ×${c.amount}` : "",
-        holder ? null : h("span", { class: "muted" }, ` ${SLOT_NAMES[c.place.slot] ?? ""}`),
+        holder ? null : h("span", { class: "muted" }, ` ${slotLabel(c.place.slot)}`),
         changed ? [" ", h("span", { class: "tag" }, "unsaved")] : null,
       ),
       h(
         "span",
         { class: "carried-controls" },
+        holder === undefined
+          ? h("button", {
+            type: "button",
+            class: "button subtle small",
+            title: "Put it in the first free spot of your other bags",
+            onclick: act("items", () => takeOffWorn(c)),
+          }, "Take off")
+          : wearable
+          ? h("button", {
+            type: "button",
+            class: "button subtle small",
+            title: "Put it on, in a free equipment slot it fits",
+            onclick: act("items", () => wearFromBag(c, from)),
+          }, "Wear")
+          : null,
         howMany,
         h("button", {
           type: "button",
@@ -744,13 +815,27 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
     { class: "carried", "data-remember": "editor-carried", open: expanded ? expanded.has("editor-carried") : true },
     h("summary", {}, `What you wear and carry (${total === 1 ? "1 item" : `${total} items`})`),
     list.length ? h("ul", { class: "carried-list" }, list.map((c) => row(c))) : h("p", { class: "muted" }, "Nothing."),
+    h("p", { class: "muted small" }, `Free slots: ${orNone(() => freeSlots(p)).map(slotLabel).join(", ") || "none"}.`),
     h(
       "p",
       { class: "muted small" },
-      "Remove deletes an item from the save; a container goes with everything in it. Items tagged unsaved come from unsaved changes, " +
-        "which you can also undo from the list at the bottom.",
+      "Take off puts a worn item in your other bags; Wear puts a carried one on, in a free slot it fits, as the game allows. Remove " +
+        "deletes an item from the save; a container goes with everything in it. Items tagged unsaved come from unsaved changes, which " +
+        "you can also undo from the list at the bottom.",
     ),
   );
+}
+
+/** Puts a carried item on, in the first free slot it fits. */
+async function wearFromBag(c: CarriedItem, from: string) {
+  const { place, index } = c;
+  await editPlayer("items", (rec) => `Put on ${itemName(index)}${from} (${slotLabel(wearCarried(rec, place, index))})`);
+}
+
+/** Takes a worn item off, into the first free spot of the other bags. */
+async function takeOffWorn(c: CarriedItem) {
+  const { place: { slot }, index } = c;
+  await editPlayer("items", (rec) => `Took off ${itemName(index)} (${slotLabel(slot)}) into ${itemName(takeOff(rec, slot, index))}`);
 }
 
 /** Removes some or all of a carried item; a container with things in it asks first. */

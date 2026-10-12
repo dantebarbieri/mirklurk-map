@@ -14,7 +14,25 @@ import {
   setSky,
   setVitals,
 } from "../src/editor/edits.ts";
-import { addable, addItems, carriedBags, carriedItems, countInside, freeCells, itemAt, newItem, removeItem } from "../src/editor/items.ts";
+import {
+  addable,
+  addItems,
+  carriedBags,
+  carriedItems,
+  countInside,
+  fitsSlot,
+  freeCells,
+  freeSlots,
+  freeSlotsFor,
+  isTwoHandedMelee,
+  itemAt,
+  newItem,
+  removeItem,
+  SLOT_TAKES,
+  takeOff,
+  wearCarried,
+  wearNew,
+} from "../src/editor/items.ts";
 import { deleteBeing, isQuestBeing, newBeing, spawnable, spawnBeing } from "../src/editor/beings.ts";
 import { Ground, groundMap, tileBox } from "../src/editor/ground.ts";
 import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
@@ -273,6 +291,75 @@ Deno.test("removing a worn item empties its slot, and a two-handed weapon's off-
   removeItem(p, { slot: 4, path: [] }, 40, "all");
   assertEquals((p.myEquips as unknown[]).map((e) => e === E ? E : (e as Rec).index), [E, E, E, 30, E]);
   assertEquals(parsePlayer([p]).equipment.map((e) => e.slot), [3], "the viewer reads the slots back");
+});
+
+Deno.test("equipment: items fit the slots the game lets them into", () => {
+  assertEquals(SLOT_TAKES.length, 16);
+  const slots = (index: number) => SLOT_TAKES.flatMap((_, s) => fitsSlot(index, s) ? [s] : []);
+  assertEquals(slots(12), [8], "a backpack goes on the back");
+  assertEquals(slots(13), [9], "a pouch on the belt");
+  assertEquals(slots(8), [0, 2], "a one-handed weapon in either main hand");
+  assertEquals(slots(29), [0, 2], "a two-handed weapon in a main hand");
+  assertEquals(slots(45), [1, 3], "ammunition in an off hand");
+  assertEquals(slots(0), [1, 3]);
+  assertEquals(slots(41), [0, 1, 2, 3], "type 23 in any hand");
+  assertEquals(slots(72), [], "coins are not worn");
+  assert(isTwoHandedMelee(29) && !isTwoHandedMelee(44) && !isTwoHandedMelee(8), "bows leave the off hand to arrows");
+});
+
+/** A character with 16 equipment slots, as Player.save has them; `worn` fills some. */
+const dressed = (worn: Record<number, Rec>) => {
+  const equips: unknown[] = Array(16).fill(E);
+  for (const [slot, item] of Object.entries(worn)) equips[Number(slot)] = item;
+  return player(empty(1, 1), { myEquips: equips, actives: Array(16).fill(true) });
+};
+const backpack = (grid = empty(7, 5)) => cell(12, 1, E, E, { subParts: [{ type: 0, parentIndex: 12, gridSave: grid }] });
+
+Deno.test("equipment: a character with nothing to carry things in puts on a new backpack, then carries items in it", () => {
+  const p = dressed({ 6: cell(22, 1, E, E) });
+  assertEquals(addItems(p, 72, 5), { added: 0, left: 5 }, "nowhere to put coins");
+  assertEquals(freeSlots(p).length, 15);
+  assertEquals(wearNew(p, 12), { slot: 8, amount: 1 });
+  const pack = (p.myEquips as Rec[])[8];
+  assertEquals([pack.index, pack.X, pack.Y, pack.neww, pack.amount], [12, E, E, true, 1]);
+  assertEquals(freeCells(p), 35, "an empty 7×5 backpack");
+  assertEquals(addItems(p, 72, 5), { added: 5, left: 0 });
+  assertThrows(() => wearNew(p, 26), /no free slot/);
+  assertThrows(() => wearNew(p, 72), /cannot be worn/);
+  assertThrows(() => wearNew(p, 12, 1, 9), /no free slot/);
+  assertEquals(wearNew(p, 45, 50), { slot: 1, amount: ITEMS[45].stack }, "a stack up to its limit");
+  assertEquals(parsePlayer([p]).equipment.map((e) => [e.slot, e.item.index]), [[1, 45], [6, 22], [8, 12]], "the viewer reads it back");
+});
+
+Deno.test("equipment: a two-handed weapon fills the off hand, comes off into a bag and goes back on", () => {
+  const p = dressed({ 1: cell(45, 10, E, E), 8: backpack() });
+  const equips = p.myEquips as unknown[];
+  assertEquals(freeSlotsFor(p, 29), [2], "the first set's off hand holds arrows");
+  assertEquals(freeSlotsFor(p, 44), [0, 2], "a bow needs only the main hand");
+  assertEquals(wearNew(p, 29).slot, 2);
+  assertEquals([(equips[2] as Rec).index, (equips[3] as Rec).index], [29, 29], "a copy in the off hand, as the game saves it");
+  assertEquals(carriedItems(p).filter((c) => c.index === 29).length, 1, "listed once");
+
+  assertEquals(takeOff(p, 2, 29), 12, "into the backpack");
+  assertEquals([equips[2], equips[3]], [E, E]);
+  assertThrows(() => takeOff(p, 2, 29), /no longer worn/);
+  const inPack = carriedItems(p).find((c) => c.index === 12)!.contents.find((c) => c.index === 29)!;
+  assertEquals(inPack.place.path, [{ part: 0, x: 0, y: 0 }]);
+  assertEquals([itemAt(p, inPack.place)!.X, itemAt(p, inPack.place)!.Y], [0, 0]);
+
+  assertEquals(wearCarried(p, inPack.place, 29), 2);
+  assertEquals(freeCells(p), 35, "the backpack is empty again");
+  assertEquals((equips[3] as Rec).index, 29);
+  assertThrows(() => wearCarried(p, inPack.place, 29), /no longer there/);
+});
+
+Deno.test("equipment: taking off needs room in another bag; a backpack never goes into itself", () => {
+  const full = empty(4, 2).map((row, y) => row.map((_, x) => cell(72, 20, x, y)));
+  const p = dressed({ 8: backpack(), 9: cell(13, 1, E, E, { subParts: [{ type: 0, parentIndex: 13, gridSave: full }] }) });
+  assertThrows(() => takeOff(p, 8, 12), /no room/);
+  assertEquals(takeOff(p, 9, 13), 12, "the full pouch goes into the backpack, coins and all");
+  const pouch = carriedItems(p)[0].contents[0];
+  assertEquals([pouch.index, pouch.contents.length], [13, 8]);
 });
 
 Deno.test("spawned creatures have a fresh grid; quest characters are protected", () => {

@@ -293,6 +293,11 @@ body.map-move .map-bar label {
 .carried .num {
   width: 4em;
 }
+.item-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 
 .savebar {
   position: fixed;

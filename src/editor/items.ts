@@ -60,6 +60,8 @@ export function newItem(index: number, amount: number, zone: [number, number], b
 
 /** A carried container's inventory: subParts entries of type 0, whose gridSave is [y][x]. */
 interface Bag {
+  /** The equipment slot of the item it belongs to. */
+  slot: number;
   owner: number;
   grid: unknown[][];
   inventory: Rec;
@@ -77,7 +79,7 @@ export function carriedBags(p: Rec): Bag[] {
       if (!Array.isArray(grid) || !grid.length || grid.some((row) => !Array.isArray(row) || row.length !== grid[0].length)) {
         throw new Error(`The container in equipment slot ${slot + 1} has an unreadable grid`);
       }
-      out.push({ owner: Number(item.index), grid: grid as unknown[][], inventory: part });
+      out.push({ slot, owner: Number(item.index), grid: grid as unknown[][], inventory: part });
     }
   });
   return out;
@@ -224,6 +226,119 @@ function locate(p: Rec, place: ItemPlace): { item: Rec; grids: { grid: unknown[]
 
 /** The item at `place`, if there is one. */
 export const itemAt = (p: Rec, place: ItemPlace): Rec | undefined => locate(p, place)?.item;
+
+/**
+ * What each equipment slot takes, in Player.save's order (myEquips.subSlots[i].takes in gml_Object_obj_player_Create_0): an itemDB
+ * type, or 0 and 21 for the main and off hand of the two weapon sets.
+ */
+export const SLOT_TAKES: readonly number[] = [0, 21, 0, 21, 1, 2, 3, 4, 7, 5, 9, 10, 8, 6, 11, 12];
+/** weapon_is_ranged: bows and crossbows, which are two-handed (type 17) but leave the off hand to their ammunition. */
+const RANGED = new Set([93, 44, 105, 106, 179]);
+/** A two-handed melee weapon: the loader also puts it in the off hand beside it, and the save holds a copy there. */
+export const isTwoHandedMelee = (index: number) => ITEMS[index]?.type === 17 && !RANGED.has(index);
+
+/** item_fits_slot: an item goes in a slot that takes its type; main hands take types 16, 17 and 23, off hands 15, 23 and 24. */
+export function fitsSlot(index: number, slot: number): boolean {
+  const type = ITEMS[index]?.type, takes = SLOT_TAKES[slot];
+  if (type === undefined || takes === undefined) return false;
+  if (type === takes) return true;
+  if (takes === 0) return type === 16 || type === 17 || type === 23;
+  if (takes === 21) return type === 15 || type === 23 || type === 24;
+  return false;
+}
+
+function equipList(p: Rec): unknown[] {
+  const equips = p.myEquips;
+  if (!Array.isArray(equips) || equips.length !== SLOT_TAKES.length) throw new Error("Player.save's equipment slots are not as expected");
+  return equips;
+}
+
+/** The empty slots item `index` could be worn in, in slot order; a two-handed melee weapon also needs the off hand beside it. */
+export function freeSlotsFor(p: Rec, index: number): number[] {
+  const equips = equipList(p);
+  return SLOT_TAKES.flatMap((_, slot) =>
+    fitsSlot(index, slot) && equips[slot] === EMPTY && (!isTwoHandedMelee(index) || equips[slot + 1] === EMPTY) ? [slot] : []
+  );
+}
+
+/** Empty equipment slots, in slot order (an off hand a two-handed weapon fills is not empty). */
+export const freeSlots = (p: Rec): number[] => equipList(p).flatMap((e, slot) => e === EMPTY ? [slot] : []);
+
+/** Puts `item` in `slot`, with a two-handed melee weapon's copy in the off hand beside it. */
+function wear(equips: unknown[], slot: number, item: Rec) {
+  item.X = EMPTY;
+  item.Y = EMPTY;
+  equips[slot] = item;
+  if (isTwoHandedMelee(Number(item.index))) equips[slot + 1] = JSON.parse(JSON.stringify(item));
+}
+
+/** The slot to wear item `index` in: `slot` when given and free, else the first free one it fits. */
+function slotFor(p: Rec, index: number, slot?: number): number {
+  const free = freeSlotsFor(p, index);
+  const at = slot ?? free[0];
+  const name = ITEM_NAMES[index] ?? `Item ${index}`;
+  if (at === undefined || !free.includes(at)) {
+    const fits = SLOT_TAKES.flatMap((_, s) => fitsSlot(index, s) ? [s] : []);
+    throw new Error(fits.length ? `${name} has no free slot to be worn in` : `${name} cannot be worn`);
+  }
+  return at;
+}
+
+/**
+ * Puts a new item `index` on, as the item constructor makes it, in `slot` or the first free slot it fits (item_fits_slot); a stack
+ * (ammunition) takes up to its stack limit. A container worn this way gives an empty inventory to put things in. Returns the slot and
+ * how many were put on.
+ */
+export function wearNew(p: Rec, index: number, amount = 1, slot?: number): { slot: number; amount: number } {
+  if (!addable(index)) throw new Error(`Item ${index} cannot be carried`);
+  if (!Number.isInteger(amount) || amount < 1) throw new Error("Amount must be a whole number of at least 1");
+  const at = slotFor(p, index, slot);
+  const n = Math.min(amount, ITEMS[index].stack);
+  const item = newItem(index, n, [Number(p.areaX), Number(p.areaY)], carriedBags(p)[0]?.inventory);
+  wear(p.myEquips as unknown[], at, item);
+  return { slot: at, amount: n };
+}
+
+/** Takes the item at `place` (in a container) out of it and wears it, with what it holds, in `slot` or the first free slot it fits. */
+export function wearCarried(p: Rec, place: ItemPlace, index: number, slot?: number): number {
+  const found = locate(p, place);
+  const name = ITEM_NAMES[index] ?? `Item ${index}`;
+  if (!found || found.item.index !== index || !place.path.length) throw new Error(`${name} is no longer there`);
+  const at = slotFor(p, index, slot);
+  const item = JSON.parse(JSON.stringify(found.item));
+  removeItem(p, place, index, "all");
+  wear(p.myEquips as unknown[], at, item);
+  return at;
+}
+
+/**
+ * Takes off what is worn in `slot` and puts it, with what it holds, in the first free spot of the other containers worn (column by
+ * column, as item_add does); a two-handed melee weapon's off-hand copy goes too. Returns the container it went into. Throws when
+ * nothing fits it.
+ */
+export function takeOff(p: Rec, slot: number, index: number): number {
+  const equips = equipList(p);
+  const item = equips[slot];
+  const name = ITEM_NAMES[index] ?? `Item ${index}`;
+  if (!isRec(item) || item.index !== index || isOffHandCopy(equips, slot)) throw new Error(`${name} is no longer worn there`);
+  const d = ITEMS[index];
+  if (!d) throw new Error(`Unknown item ${index}`);
+  const twin = (slot === 0 || slot === 2) && isOffHandCopy(equips, slot + 1);
+  for (const bag of carriedBags(p).filter((b) => b.slot !== slot)) {
+    const g = bag.grid;
+    for (let x = 0; x < g[0].length; x++) {
+      for (let y = 0; y < g.length; y++) {
+        if (!fits(g, x, y, d.w, d.h)) continue;
+        const json = JSON.stringify({ ...item, X: x, Y: y });
+        for (let j = y; j < y + d.h; j++) for (let i = x; i < x + d.w; i++) g[j][i] = JSON.parse(json);
+        equips[slot] = EMPTY;
+        if (twin) equips[slot + 1] = EMPTY;
+        return bag.owner;
+      }
+    }
+  }
+  throw new Error(`There is no room for ${name} in your other bags`);
+}
 
 /** Every cell of a grid holding the item at origin (x, y) becomes a copy of the origin cell again. */
 function syncCopies(g: unknown[][], x: number, y: number) {
