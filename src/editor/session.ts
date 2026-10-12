@@ -56,12 +56,22 @@ export class StaleError extends Error {}
  */
 export type Edit = (raw: unknown) => string | undefined;
 
-/** One unsaved change: the file it changes, its line in the list, and the edit itself. */
-interface Change {
+/** One file's part of a change: the edit, and the line it gave when it last ran. */
+interface Part {
   path: string;
-  note: string;
   edit: Edit;
+  note: string;
 }
+
+/**
+ * One unsaved change: usually one file's edit, or several files' edits that only make sense together (moving yourself off a raft
+ * and leaving the raft in its zone), which are undone, run again and dropped together. Its line joins its parts' lines.
+ */
+interface Change {
+  id: number;
+  parts: Part[];
+}
+const noteOf = (c: Change) => c.parts.map((p) => p.note).join("; ");
 
 /** Where a session keeps backups and its record of cheated worlds; this browser's IndexedDB unless a test passes its own. */
 export interface SessionStore {
@@ -74,6 +84,7 @@ export class EditSession {
   private drafts = new Map<string, unknown>();
   /** The unsaved changes, in the order they were made. */
   private log: Change[] = [];
+  private nextId = 0;
   /** Edits and undos run one at a time, so a draft is never rebuilt while another edit is changing it. */
   private queue: Promise<unknown> = Promise.resolve();
 
@@ -115,37 +126,46 @@ export class EditSession {
    * that changes nothing or throws leaves the draft as the recorded changes made it.
    */
   apply(path: string, edit: Edit): Promise<string | undefined> {
+    return this.applyAll([{ path, edit }]);
+  }
+
+  /**
+   * Runs several files' edits, in order, as one unsaved change, whose line (joining theirs) is returned. Unless every one of them
+   * changes something, nothing is recorded and every draft is left as the recorded changes made it.
+   */
+  applyAll(steps: { path: string; edit: Edit }[]): Promise<string | undefined> {
     return this.serial(async () => {
       if (this.busy) throw new Error("Wait for the save to finish");
-      const raw = await this.json(path);
-      let note: string | undefined;
+      if (!steps.length) return undefined;
+      for (const { path } of steps) if (!this.files.has(path)) throw new Error(`${path} is missing`);
+      const parts: Part[] = [];
       try {
-        note = edit(raw);
+        for (const { path, edit } of steps) {
+          const raw = await this.json(path);
+          const note = edit(raw);
+          if (!note) break;
+          parts.push({ path, edit, note });
+        }
       } finally {
-        if (note) this.log.push({ path, note, edit });
-        else await this.rebuild(path, this.log);
+        if (parts.length === steps.length) this.log.push({ id: this.nextId++, parts });
+        else await this.replay(steps.map((s) => s.path), this.log);
       }
-      return note;
+      return parts.length === steps.length ? noteOf(this.log[this.log.length - 1]) : undefined;
     });
   }
 
   /**
-   * Drops unsaved change `i` and runs the later changes to the same file again, on a fresh draft. A later change that no longer
-   * applies (it throws, or changes nothing) is dropped too; their lines are returned. Changes to other files are untouched.
+   * Drops unsaved change `i` and runs the later changes to the files it changed again, on fresh drafts. A later change that no
+   * longer applies (it throws, or changes nothing) is dropped too; their lines are returned. Changes to other files are untouched.
    */
   undo(i: number): Promise<string[]> {
     return this.serial(async () => {
       if (this.busy) throw new Error("Wait for the save to finish");
       const target = this.log[i];
       if (!target) throw new Error("That change was already undone");
-      let rest = this.log.filter((_, j) => j !== i);
-      const dropped: string[] = [];
-      for (;;) {
-        const failed = await this.rebuild(target.path, rest);
-        if (failed === undefined) return dropped;
-        dropped.push(failed.note);
-        rest = rest.filter((c) => c !== failed);
-      }
+      const before = this.log;
+      const dropped = await this.replay(target.parts.map((p) => p.path), before.filter((c) => c !== target));
+      return before.filter((c) => dropped.has(c.id)).map(noteOf);
     });
   }
 
@@ -163,18 +183,11 @@ export class EditSession {
         this.scan = scan;
         this.files = files;
         this.drafts.clear();
-        const dropped = new Set(this.log.filter((c) => !files.has(c.path)));
-        this.log = this.log.filter((c) => !dropped.has(c));
-        for (const path of this.dirty) {
-          for (;;) {
-            const failed = await this.rebuild(path, this.log);
-            if (failed === undefined) break;
-            dropped.add(failed);
-            this.log = this.log.filter((c) => c !== failed);
-          }
-        }
+        const gone = new Set(this.log.filter((c) => c.parts.some((p) => !files.has(p.path))).map((c) => c.id));
+        const kept = this.log.filter((c) => !gone.has(c.id));
+        const dropped = await this.replay(kept.flatMap((c) => c.parts.map((p) => p.path)), kept);
         // In the order the changes were made, not file by file.
-        return before.log.filter((c) => dropped.has(c)).map((c) => c.note);
+        return before.log.filter((c) => gone.has(c.id) || dropped.has(c.id)).map(noteOf);
       } catch (e) {
         Object.assign(this, before);
         throw e;
@@ -183,37 +196,67 @@ export class EditSession {
   }
 
   /**
-   * Parses `path` afresh and runs `changes`' edits to it again, recording the lines they give now. Stops at the first edit that no
-   * longer applies and returns it, leaving the log as it was; otherwise the log becomes `changes`.
+   * Makes `changes` the log and builds the drafts of `paths` afresh from it. A change that no longer applies to one of them is
+   * dropped, and every file it changed is built again without it. Returns the ids of the dropped changes.
    */
-  private async rebuild(path: string, changes: Change[]): Promise<Change | undefined> {
+  private async replay(paths: Iterable<string>, changes: Change[]): Promise<Set<number>> {
+    this.log = changes;
+    const todo = new Set(paths);
+    const dropped = new Set<number>();
+    while (todo.size) {
+      const path = todo.values().next().value!;
+      const failed = await this.rebuild(path);
+      if (!failed) {
+        todo.delete(path);
+        continue;
+      }
+      dropped.add(failed.id);
+      this.log = this.log.filter((c) => c !== failed);
+      for (const p of failed.parts) todo.add(p.path);
+    }
+    return dropped;
+  }
+
+  /**
+   * Parses `path` afresh and runs the log's edits to it again, recording the lines they give now. Stops at the first change that no
+   * longer applies and returns it, leaving the log as it was.
+   */
+  private async rebuild(path: string): Promise<Change | undefined> {
     this.drafts.delete(path);
     const raw = await this.json(path);
     const next: Change[] = [];
-    for (const c of changes) {
-      if (c.path !== path) {
+    for (const c of this.log) {
+      if (!c.parts.some((p) => p.path === path)) {
         next.push(c);
         continue;
       }
-      let note: string | undefined;
-      try {
-        note = c.edit(raw);
-      } catch {
-        note = undefined;
+      const parts: Part[] = [];
+      for (const p of c.parts) {
+        if (p.path !== path) {
+          parts.push(p);
+          continue;
+        }
+        let note: string | undefined;
+        try {
+          note = p.edit(raw);
+        } catch {
+          note = undefined;
+        }
+        if (!note) return c;
+        parts.push({ ...p, note });
       }
-      if (!note) return c;
-      next.push({ ...c, note });
+      next.push({ ...c, parts });
     }
     this.log = next;
   }
 
   get changes(): readonly string[] {
-    return this.log.map((c) => c.note);
+    return this.log.map(noteOf);
   }
 
   /** Files with unsaved changes. */
   private get dirty(): Set<string> {
-    return new Set(this.log.map((c) => c.path));
+    return new Set(this.log.flatMap((c) => c.parts.map((p) => p.path)));
   }
 
   /** The files as saving would leave them: each changed draft encoded as it would be written, every other file as it was read. */

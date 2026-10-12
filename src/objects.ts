@@ -23,6 +23,7 @@ export type Layer =
   | "drops"
   | "camp"
   | "storage"
+  | "rafts"
   | "boulders"
   | "rubble"
   | "rocks"
@@ -50,6 +51,7 @@ export const LAYERS: { id: Layer; label: string; on: boolean }[] = [
   { id: "drops", label: "Dropped items", on: true },
   { id: "camp", label: "Camp", on: true },
   { id: "storage", label: "Storage", on: true },
+  { id: "rafts", label: "Rafts", on: true },
   { id: "boulders", label: "Boulders", on: true },
   { id: "rubble", label: "Rubble", on: true },
   { id: "creatures", label: "Creatures", on: false },
@@ -296,9 +298,26 @@ export function detailMarks(d: ZoneDetail): Mark[] {
 /** Poison radius around a rift's sprite centre; dead rifts do nothing (obj_rift Alarm_0: poisonRadius = 24 * baseRad). */
 export const riftRadius = (sprite: string) => sprite.endsWith("_dead") ? 0 : 24 * (sprite === "spr_rift_16x16" ? 2.5 : 8);
 
+/** Raft Base, which a raft is finished at (it becomes the raft), and the finished raft (Finish Raft's index). */
+const RAFT_BASE = 170, RAFT = 171;
+
 function stationMark(s: Placed): Mark {
+  if (s.index === RAFT || s.index === RAFT_BASE) {
+    const base = s.index === RAFT_BASE;
+    return { layer: "rafts", kind: base ? "raft base" : "raft", x: s.x, y: s.y, name: base ? "Raft Base" : "Raft", item: s.index };
+  }
   const name = ITEM_NAMES[s.index] ?? "Workstation";
   return { layer: "camp", kind: "camp", x: s.x, y: s.y, name, item: ITEM_NAMES[s.index] ? s.index : undefined };
+}
+
+/**
+ * The raft you stand on, in zone (zx, zy): the game saves it with you (ensureRaft) rather than in the zone's stations, and makes
+ * it under you again when it loads the save.
+ */
+export function yourRaftMarks(p: PlayerSave, zx: number, zy: number): Mark[] {
+  if (!p.onRaft || !isOutside(p.area.type) || p.area.x !== zx || p.area.y !== zy) return [];
+  const [x, y] = [centerpos(p.pos[0]), centerpos(p.pos[1])];
+  return [{ layer: "rafts", kind: "raft yours", x, y, name: "Raft", detail: "you stand on it", item: RAFT }];
 }
 
 /** Saved interiors whose entrance no longer exists (so they get a marker of their own). */

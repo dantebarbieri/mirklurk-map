@@ -190,6 +190,9 @@ Deno.test("new items are made as the item constructor makes them", () => {
   assertEquals([inv.type, inv.parentIndex, inv.X, inv.Y, inv.WIDTH, inv.HEIGHT], [0, 196, 33, 900, 48, 48]);
   assertEquals(inv.gridSave, empty(3, 3));
   assert(!addable(31), "fists are not items");
+  assert(!addable(171), "Finish Raft turns a placed Raft Base into the raft");
+  // Kept out of random treasure (NONLOOTABLE), yet carried: a Campfire and a Raft Base to place, quest items, seeds, Water Lilies.
+  for (const i of [38, 170, 108, 132, 75, 227, 175, 179]) assert(addable(i), `item ${i} can be added`);
 });
 
 Deno.test("adding tops up stacks first, then fills free space column by column", () => {
@@ -452,9 +455,9 @@ Deno.test("spawned creatures have a fresh grid; quest characters are protected",
 
 Deno.test("ground: walls and pits block, water is water, shade is free, things take tiles", () => {
   const data = new Uint32Array(TILES * TILES), water = new Uint32Array(TILES * TILES);
-  data[0] = 1, data[1] = 2, data[2] = 3, water[3] = 5;
-  const g = groundMap(data, water, [tileBox(4 * 16 + 3, 9), [5 * 16, 0, 6 * 16 + 15, 15], [0, 0, 15, 15]]);
-  assertEquals([...g.subarray(0, 8)], [
+  data[0] = 1, data[1] = 2, data[2] = 3, water[3] = 5, water[8] = 5;
+  const g = groundMap(data, water, [tileBox(4 * 16 + 3, 9), [5 * 16, 0, 6 * 16 + 15, 15], [0, 0, 15, 15], tileBox(8 * 16, 0)]);
+  assertEquals([...g.subarray(0, 9)], [
     Ground.Blocked,
     Ground.Free,
     Ground.Blocked,
@@ -463,7 +466,8 @@ Deno.test("ground: walls and pits block, water is water, shade is free, things t
     Ground.Taken,
     Ground.Taken,
     0,
-  ]);
+    Ground.Taken,
+  ], "a raft or creature in the water takes its tile too");
 });
 
 Deno.test("the Cheated mark keeps its first time, counts edits and keeps other keys", () => {

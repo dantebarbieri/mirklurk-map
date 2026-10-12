@@ -7,6 +7,7 @@ import { assert, assertEquals, assertRejects } from "./assert.ts";
 import { type Backup, type EditDirectory, type EditFile, EditSession, StaleError } from "../src/editor/session.ts";
 import { addItems } from "../src/editor/items.ts";
 import { movePlayer, playerRecord, setSkillPoints, setVitals } from "../src/editor/edits.ts";
+import { addRaft, moveWithRaft } from "../src/editor/raft.ts";
 import { deleteBeing, newBeing, spawnBeing } from "../src/editor/beings.ts";
 import { findCharacters } from "../src/files.ts";
 import { cheatedInfo } from "../src/cheated.ts";
@@ -391,6 +392,107 @@ Deno.test("editor session: moving to another zone makes that zone's Containers.s
     const base = `${root}/Hero`;
     assert(await mtime(`${base}/[ 1,0 ]/Containers.save`) >= await mtime(`${base}/Player.save`));
     await openSession(root, "Hero");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+// --- A real save, copied ---
+
+/** Moving you from A,1 (where the fixture stands you, at 40,40) to B,1 off your raft, leaving it at tile 2,2 of A,1. */
+const leaveRaft = (s: EditSession) => [
+  {
+    path: `${s.character.root}Player.save`,
+    edit: (raw: unknown) =>
+      moveWithRaft(playerRecord(raw), 1, 0, 50, 60, { from: true, to: false, at: [0, 0, 40, 40] }) ? "Moved you to B,1" : undefined,
+  },
+  { path: "Hero/[ 0,0 ]/Stations.save", edit: (raw: unknown) => (addRaft(raw, 2, 2), "left your raft in A,1") },
+];
+
+/** The fixture with an empty Stations.save in each zone, standing on a raft when `onRaft`. */
+async function raftFixture(root: string, onRaft: boolean) {
+  await fixture(root);
+  const base = `${root}/Hero`;
+  const write = (path: string, value: unknown) =>
+    Deno.writeFile(`${base}/${path}`, new Uint8Array([...encoder.encode(JSON.stringify(value)), 0]));
+  const raw = decodeJson(await Deno.readFile(`${base}/Player.save`));
+  playerRecord(raw).ensureRaft = onRaft;
+  await write("Player.save", raw);
+  for (const zone of ["[ 0,0 ]", "[ 1,0 ]"]) await write(`${zone}/Stations.save`, []);
+  await write("[ 0,0 ]/Containers.save", []);
+  return write;
+}
+
+Deno.test("editor session: a change to several files is one change, made, undone and saved together", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await raftFixture(root, false);
+    const s = await openSession(root, "Hero");
+    const player = `${s.character.root}Player.save`, here = "Hero/[ 0,0 ]/Stations.save", there = "Hero/[ 1,0 ]/Stations.save";
+    await s.apply(player, (raw) => (playerRecord(raw).ensureRaft = true, "Made a raft under you"));
+    assertEquals(await s.applyAll(leaveRaft(s)), "Moved you to B,1; left your raft in A,1");
+    assertEquals(s.changes, ["Made a raft under you", "Moved you to B,1; left your raft in A,1"]);
+    assertEquals((await s.json(here) as unknown[]).length, 1);
+
+    // If any of its edits changes nothing or throws, nothing is recorded and every draft stays as the changes made it.
+    const dock = { path: there, edit: (raw: unknown) => (addRaft(raw, 5, 5), "docked your raft") };
+    assertEquals(await s.applyAll([dock, { path: player, edit: () => undefined }]), undefined);
+    await assertRejects(() =>
+      s.applyAll([dock, {
+        path: player,
+        edit: () => {
+          throw new Error("half done");
+        },
+      }]), /half done/);
+    await assertRejects(() => s.applyAll([dock, { path: "Hero/[ 3,3 ]/Stations.save", edit: () => "x" }]), /missing/);
+    assertEquals(await s.json(there), []);
+    assertEquals(s.changes.length, 2);
+
+    // Undoing the move takes the raft it left back too.
+    assertEquals(await s.undo(1), []);
+    assertEquals(s.changes, ["Made a raft under you"]);
+    assertEquals(await s.json(here), []);
+    assertEquals(playerRecord(await s.json(player)).areaX, 0);
+
+    // Undoing the raft you stood on drops the move off it, raft and all.
+    await s.applyAll(leaveRaft(s));
+    assertEquals(await s.undo(0), ["Moved you to B,1; left your raft in A,1"]);
+    assertEquals([s.changes.length, (await s.json(here) as unknown[]).length], [0, 0]);
+
+    await s.apply(player, (raw) => (playerRecord(raw).ensureRaft = true, "Made a raft under you"));
+    await s.applyAll(leaveRaft(s));
+    assertEquals(await s.save(), 2, "Player.save and A,1's Stations.save");
+    const base = `${root}/Hero`;
+    assertEquals(playerRecord(decodeJson(await Deno.readFile(`${base}/Player.save`))).ensureRaft, false);
+    assertEquals((decodeJson(await Deno.readFile(`${base}/[ 0,0 ]/Stations.save`)) as { x: number }[]).map((r) => r.x), [40]);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("editor session: a reload drops a change to several files whole when one of its edits no longer applies", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    const write = await raftFixture(root, true);
+    const s = await openSession(root, "Hero");
+    const player = `${s.character.root}Player.save`;
+    await s.applyAll(leaveRaft(s));
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 3), "Skill points 0 → 3"));
+
+    // The game is played: you step off your raft onto the shore, and it saves.
+    await new Promise((r) => setTimeout(r, 20));
+    const raw = decodeJson(await Deno.readFile(`${root}/Hero/Player.save`));
+    Object.assign(playerRecord(raw), { ensureRaft: false, xx: 56 });
+    await write("Player.save", raw);
+    await write("[ 0,0 ]/Stations.save", [{ index: 171, x: 40, y: 40 }]);
+    await write("[ 0,0 ]/Containers.save", []);
+
+    const { scan, files } = await EditSession.open(s.dir);
+    assertEquals(await s.rebase(scan, files), ["Moved you to B,1; left your raft in A,1"]);
+    assertEquals(s.changes, ["Skill points 0 → 3"]);
+    assertEquals(await s.json("Hero/[ 0,0 ]/Stations.save"), [{ index: 171, x: 40, y: 40 }], "no second raft");
+    assertEquals(playerRecord(await s.json(player)).xx, 56);
+    assertEquals(await s.save(), 1);
   } finally {
     await Deno.remove(root, { recursive: true });
   }

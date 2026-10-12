@@ -1,5 +1,6 @@
 import { assert, assertEquals } from "./assert.ts";
-import { CREATURE_ICON, detailMarks, riftRadius } from "../src/objects.ts";
+import { CREATURE_ICON, detailMarks, riftRadius, yourRaftMarks } from "../src/objects.ts";
+import type { PlayerSave } from "../src/save.ts";
 import { CREATURE_ICONS } from "../src/mapview.ts";
 import { BEING_NAMES } from "../src/gamedata.ts";
 import { NPC_MARKERS } from "../src/rules.ts";
@@ -41,4 +42,25 @@ Deno.test("creatures: every creature is drawn as its kind's icon, NPCs and unkno
   const viend = marks.find((m) => m.being === 9)!;
   assertEquals([viend.layer, viend.kind, viend.label], ["npcs", "npc", "Dead Unwanted"]);
   assertEquals(Object.keys(CREATURE_ICONS).sort(), [...new Set(Object.values(CREATURE_ICON))].sort(), "no unused icons");
+});
+
+Deno.test("rafts: placed rafts and Raft Bases are their own layer; the raft you stand on is drawn under you", () => {
+  const at = { sprite: "spr_placed_16x16_wider", pic: 1, status: -200, x: 344, y: 744 };
+  const marks = detailMarks({
+    beings: [],
+    containers: [],
+    stations: [{ ...at, index: 171 }, { ...at, pic: 0, index: 170 }, { ...at, sprite: "spr_placed_16x16", pic: 0, index: 38 }],
+    interactables: [],
+    decorations: [],
+  });
+  assertEquals(marks.map((m) => [m.layer, m.kind, m.name, m.item]), [
+    ["rafts", "raft", "Raft", 171],
+    ["rafts", "raft base", "Raft Base", 170],
+    ["camp", "camp", "Campfire", 38],
+  ]);
+  const p = { onRaft: true, area: { x: 2, y: 0, type: 5 }, pos: [340, 750] } as PlayerSave;
+  assertEquals(yourRaftMarks(p, 2, 0).map((m) => [m.layer, m.kind, m.x, m.y, m.item]), [["rafts", "raft yours", 344, 744, 171]]);
+  assertEquals(yourRaftMarks(p, 1, 0), [], "only in your zone");
+  assertEquals(yourRaftMarks({ ...p, onRaft: false }, 2, 0), []);
+  assertEquals(yourRaftMarks({ ...p, area: { x: 2, y: 0, type: 30 } }, 2, 0), [], "never indoors");
 });

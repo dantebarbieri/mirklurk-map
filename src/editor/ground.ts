@@ -1,6 +1,7 @@
 // Save editor: which tiles of an area can take the player or a new creature. The game's own checks (tile_is_solid, tile_is_pit and
 // tile_is_water in gml_GlobalScript_scr_tiles_autotiling, tile_is_free on the pathfinding grid) block Data 1 (solid) and 3 (pit) and
-// water (any Water1 tile); Data 2 is only shade under a canopy. Anything already standing there takes the tile.
+// water (any Water1 tile); Data 2 is only shade under a canopy. Anything already standing there, on ground or water, takes the
+// tile. Creatures go only on free ground; you can also go into water (raft.ts says how deep it is and what happens to a raft).
 
 import { tileIndex, TILES } from "../rules.ts";
 
@@ -33,7 +34,9 @@ export function groundMap(data: Uint32Array | undefined, water1: Uint32Array | u
   for (const [l, t, r, b] of taken) {
     const x0 = Math.max(0, Math.floor(l / 16)), x1 = Math.min(TILES - 1, Math.floor(r / 16));
     const y0 = Math.max(0, Math.floor(t / 16)), y1 = Math.min(TILES - 1, Math.floor(b / 16));
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (out[y * TILES + x] === Ground.Free) out[y * TILES + x] = Ground.Taken;
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) if (out[y * TILES + x] !== Ground.Blocked) out[y * TILES + x] = Ground.Taken;
+    }
   }
   return out;
 }

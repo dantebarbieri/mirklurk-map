@@ -227,6 +227,27 @@ select {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
+/* A question with several ways to go: each is a full-width button with a line saying what it does. */
+.dialog-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.button.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+  text-align: left;
+}
+.choice-label {
+  font-weight: 600;
+}
+.choice-detail {
+  color: var(--text);
+  font-size: 12px;
+}
 /* A question whose yes deletes or drops something: its button is red, and focus starts on Cancel. */
 .dialog.danger {
   border-color: #c96a5f;
@@ -2013,6 +2034,9 @@ body.map-full #zone > .inspection.sheet > .close {
 .lists .sym.camp {
   background: var(--gurb);
 }
+.lists .sym.raft {
+  background: #b07a45;
+}
 .lists .sym.exit {
   background: #fff;
 }
@@ -2088,6 +2112,14 @@ body.map-full #zone > .inspection.sheet > .close {
 }
 .pt.camp > :not(text) {
   fill: var(--gurb);
+}
+.pt.raft > :not(text) {
+  fill: #b07a45;
+}
+.pt.raft.base > :not(text) {
+  fill: rgba(18, 14, 15, .6);
+  stroke: #b07a45;
+  stroke-width: 2px;
 }
 .pt.rift > :not(text) {
   fill: var(--scaal);
@@ -2367,6 +2399,7 @@ svg.hide-loot .L-loot,
 svg.hide-drops .L-drops,
 svg.hide-camp .L-camp,
 svg.hide-storage .L-storage,
+svg.hide-rafts .L-rafts,
 svg.hide-boulders .L-boulders,
 svg.hide-rubble .L-rubble,
 svg.hide-rocks .L-rocks,

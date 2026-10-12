@@ -233,6 +233,8 @@ const POINT: Record<string, (m: Mark) => SVGElement[]> = {
   drop: () => [s("circle", { r: 2.5 })],
   storage: () => [s("rect", { x: -4, y: -4, width: 8, height: 8 })],
   camp: () => [s("path", { d: "M-4 3 L0 -5 L4 3 Z" })],
+  // Placeholder: a log raft seen from above (a Raft Base only outlined).
+  raft: () => [s("rect", { x: -5.5, y: -3.5, width: 11, height: 7, rx: 1 })],
   rift: () => [s("rect", { x: -4, y: -4, width: 8, height: 8, transform: "rotate(45)" })],
   tree: (m) => treeIcon(m.kind),
   bramble: () => [s("path", { d: "M-5 0 H5 M0 -5 V5 M-3.6 -3.6 L3.6 3.6 M3.6 -3.6 L-3.6 3.6" })],
