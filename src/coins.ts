@@ -14,8 +14,8 @@ export interface Coins {
   copper: number;
 }
 
-/** What a coin is worth in copper. */
-export const COPPER_VALUE: Record<number, number> = { [Coin.Copper]: 1, [Coin.Silver]: 100, [Coin.Gold]: 1000 };
+/** What a silver and a gold coin are worth in copper. */
+const SILVER = 100, GOLD = 1000;
 
 /** Every coin in a saved inventory, counting nested bags and pouches; unsaved inventories count as none. */
 export function countCoins(inv: Inventory | undefined): Coins {
@@ -33,16 +33,16 @@ export function countCoins(inv: Inventory | undefined): Coins {
   return out;
 }
 
-export const coinValue = (c: Coins) => c.copper + c.silver * 100 + c.gold * 1000;
+export const coinValue = (c: Coins) => c.copper + c.silver * SILVER + c.gold * GOLD;
 
 /** The fewest coins worth `copper`: 100 copper make a silver, 10 silver a gold. */
 export function fewestCoins(copper: number): Coins {
   const v = Math.max(0, Math.round(copper));
-  return { gold: Math.floor(v / 1000), silver: Math.floor((v % 1000) / 100), copper: v % 100 };
+  return { gold: Math.floor(v / GOLD), silver: Math.floor((v % GOLD) / SILVER), copper: v % SILVER };
 }
 
 /** A price in silver, as the game's coins (to the nearest copper). */
-export const priceCoins = (silver: number) => fewestCoins(silver * 100);
+export const priceCoins = (silver: number) => fewestCoins(silver * SILVER);
 
 const COIN_ORDER: [keyof Coins, number][] = [["gold", Coin.Gold], ["silver", Coin.Silver], ["copper", Coin.Copper]];
 

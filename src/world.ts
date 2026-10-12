@@ -157,8 +157,9 @@ export async function loadWorld(files: FileMap, root: string, character: string)
   for (const d of interiorDirs) {
     interiors.push({ ...d, kind: null, parent: null, sealed: false, solids: await solidsOf(d.dir) });
   }
-  const leadsTo = (s: Solid, at: [number, number]) =>
-    s.transPoint && s.transPoint.length >= 3 && centerpos(s.transPoint[1]) === at[0] && centerpos(s.transPoint[2]) === at[1];
+  /** A solid whose way in (transPoint: area type, x, y) leads to the interior entered at `at`. */
+  const leadsTo = (s: Solid, at: [number, number]): s is Solid & { transPoint: number[] } =>
+    !!s.transPoint && s.transPoint.length >= 3 && centerpos(s.transPoint[1]) === at[0] && centerpos(s.transPoint[2]) === at[1];
   for (const it of interiors) {
     if (it.at[0] === -1) {
       it.kind = 23 + it.at[1];
@@ -167,24 +168,25 @@ export async function loadWorld(files: FileMap, root: string, character: string)
       continue;
     }
     const [zx, zy] = it.zone;
-    const ext = zones[zy]?.[zx]?.solids.find((s) => leadsTo(s, it.at));
+    const outside = zones[zy]?.[zx];
+    const ext = outside?.solids.find((s) => leadsTo(s, it.at));
     if (ext) {
-      it.kind = ext.transPoint![0];
+      it.kind = ext.transPoint[0];
       continue;
     }
     for (const other of interiors) {
       if (other === it || other.zone[0] !== zx || other.zone[1] !== zy) continue;
-      const stairs = other.solids.find((s) => leadsTo(s, it.at) && s.transPoint![0] !== zones[zy]?.[zx]?.type);
+      const stairs = other.solids.filter((s) => leadsTo(s, it.at)).find((s) => s.transPoint[0] !== outside?.type);
       if (stairs) {
-        it.kind = stairs.transPoint![0];
+        it.kind = stairs.transPoint[0];
         it.parent = other;
         break;
       }
     }
     if (it.kind === null) {
-      it.kind = kindFromExit(it.solids, zones[zy]?.[zx]?.type ?? -1);
+      it.kind = kindFromExit(it.solids, outside?.type ?? -1);
       it.kindGuessed = true;
-      it.sealed = !!zones[zy]?.[zx]?.dir;
+      it.sealed = !!outside?.dir;
     }
   }
 
@@ -220,30 +222,31 @@ async function tryList<T>(world: World, path: string, parse: (raw: unknown) => T
   }
 }
 
-const detailCache = new WeakMap<object, Map<string, Promise<ZoneDetail>>>();
+/** `load` once per world and area folder: later calls share the first one's promise, so each folder is read and parsed once. */
+function perFolder<T>(load: (world: World, dir: string) => Promise<T>): (world: World, dir: string) => Promise<T> {
+  const cache = new WeakMap<World, Map<string, Promise<T>>>();
+  return (world, dir) => {
+    let folders = cache.get(world);
+    if (!folders) cache.set(world, folders = new Map());
+    let p = folders.get(dir);
+    if (!p) folders.set(dir, p = load(world, dir));
+    return p;
+  };
+}
 
 /** Beings, loot and placed objects of an area folder (zone or interior). */
-export function loadDetail(world: World, dir: string): Promise<ZoneDetail> {
-  let cache = detailCache.get(world);
-  if (!cache) detailCache.set(world, cache = new Map());
-  let p = cache.get(dir);
-  if (!p) {
-    p = (async () => ({
-      beings: await tryList(world, `${dir}Beings.save`, parseBeings),
-      containers: await tryList(
-        world,
-        `${dir}Containers.save`,
-        (raw) => parseContainers(raw, (message) => world.warnings.push(`${dir}Containers.save: ${message}`)),
-      ),
-      stations: await tryList(world, `${dir}Stations.save`, parsePlaced),
-      interactables: await tryList(world, `${dir}Interactables.save`, parsePlaced),
-      decorations: await tryList(world, `${dir}Decoration.save`, parsePlaced),
-      groundLoot: await loadGroundLoot(world, dir),
-    }))();
-    cache.set(dir, p);
-  }
-  return p;
-}
+export const loadDetail = perFolder(async (world, dir): Promise<ZoneDetail> => ({
+  beings: await tryList(world, `${dir}Beings.save`, parseBeings),
+  containers: await tryList(
+    world,
+    `${dir}Containers.save`,
+    (raw) => parseContainers(raw, (message) => world.warnings.push(`${dir}Containers.save: ${message}`)),
+  ),
+  stations: await tryList(world, `${dir}Stations.save`, parsePlaced),
+  interactables: await tryList(world, `${dir}Interactables.save`, parsePlaced),
+  decorations: await tryList(world, `${dir}Decoration.save`, parsePlaced),
+  groundLoot: await loadGroundLoot(world, dir),
+}));
 
 async function loadGroundLoot(world: World, dir: string): Promise<NonNullable<ZoneDetail["groundLoot"]>> {
   const out: NonNullable<ZoneDetail["groundLoot"]> = [];
@@ -264,16 +267,8 @@ async function loadGroundLoot(world: World, dir: string): Promise<NonNullable<Zo
   return out;
 }
 
-const treeCache = new WeakMap<object, Map<string, Promise<Tree[]>>>();
-
 /** Saved plants of an area folder, parsed once per world like `loadDetail`. */
-export function loadTrees(world: World, dir: string): Promise<Tree[]> {
-  let cache = treeCache.get(world);
-  if (!cache) treeCache.set(world, cache = new Map());
-  let p = cache.get(dir);
-  if (!p) cache.set(dir, p = tryList(world, `${dir}Trees.save`, parseTrees));
-  return p;
-}
+export const loadTrees = perFolder((world, dir): Promise<Tree[]> => tryList(world, `${dir}Trees.save`, parseTrees));
 
 export async function loadLayer(world: World, dir: string, layer: string): Promise<Grid<Uint32Array> | null> {
   const src = world.files.get(`${dir}${layer}.tmap`);
