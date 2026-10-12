@@ -160,3 +160,6 @@ export const coordLabel = (x: number, y: number) => `${"ABCDE"[x] ?? "?"},${y + 
 
 /** Outdoor area types (area_is_outside). */
 export const isOutside = (t: number) => [0, 1, 2, 3, 4, 5, 22, 23, 100].includes(t);
+
+/** Scaal's depths (Rift depths I–III, area types 24–26): saved in folders RW1–RW3 rather than by zone and entrance. */
+export const isRiftDepths = (t: number) => t >= 24 && t <= 26;

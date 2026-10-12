@@ -1,7 +1,7 @@
 import { type FileMap, findCharacters, type Source } from "./files.ts";
 import { parseItemList } from "./inventory.ts";
 import { isSaveFile } from "./marker.ts";
-import { centerpos, isOutside } from "./rules.ts";
+import { centerpos, isOutside, isRiftDepths } from "./rules.ts";
 import {
   decodeHeights,
   decodeJson,
@@ -85,7 +85,7 @@ export function currentContainers(files: FileMap, root: string, p: PlayerSave): 
     if (!path.startsWith(root) || !path.endsWith("/Containers.save")) return false;
     const folder = path.slice(root.length).split("/");
     if (folder.length !== 2) return false;
-    if (p.area.type >= 24 && p.area.type <= 26) return folder[0] === `RW${p.area.type - 23}`;
+    if (isRiftDepths(p.area.type)) return folder[0] === `RW${p.area.type - 23}`;
     const at = parseAreaDir(folder[0]);
     return at && at[0] === p.area.x && at[1] === p.area.y &&
       (isOutside(p.area.type)

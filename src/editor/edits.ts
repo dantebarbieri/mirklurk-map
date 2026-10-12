@@ -4,7 +4,7 @@
 
 import { cellPlace, Hp, Status } from "../health.ts";
 import { Ae, CONDITIONS, MAX_LEVEL, type Stat, STAT_LABELS, type TimerKey, xpForLevel } from "../player.ts";
-import { centerpos, INTERIOR_NAMES, isOutside, TILES } from "../rules.ts";
+import { centerpos, INTERIOR_NAMES, isOutside, isRiftDepths, TILES } from "../rules.ts";
 import type { PlayerSave } from "../save.ts";
 import { clamp01, isRec, num, type Rec } from "../values.ts";
 import { SKY_KEYS, Weather, type WeatherState } from "../weather.ts";
@@ -284,15 +284,13 @@ export interface Inside {
   entrance?: [number, number];
 }
 
-const isDepths = (type: number) => type >= 24 && type <= 26;
-
 /**
  * You are saved in interior `it`: your area type is an interior's and names its folder as savearea does, Scaal's depths by type
  * and the rest by zone and entrance. Outdoors entranceX/entranceY still hold the last door you used, so they mean nothing there.
  */
 export function isInside(p: PlayerSave, it: Interior): boolean {
   if (isOutside(p.area.type)) return false;
-  if (isDepths(p.area.type)) return it.at[0] === -1 && it.at[1] === p.area.type - 23;
+  if (isRiftDepths(p.area.type)) return it.at[0] === -1 && it.at[1] === p.area.type - 23;
   return it.zone[0] === p.area.x && it.zone[1] === p.area.y && it.at[0] === centerpos(p.entrance[0]) &&
     it.at[1] === centerpos(p.entrance[1]);
 }
@@ -317,7 +315,7 @@ export function movePlayer(p: Rec, zoneX: number, zoneY: number, tileX: number, 
   if (inside) {
     if (type === undefined) throw new Error("That interior's zone is not in the world");
     if (isOutside(inside.type) || !(inside.type in INTERIOR_NAMES)) throw new Error(`Area type ${inside.type} is not an interior`);
-    if (!inside.entrance && !isDepths(inside.type)) throw new Error("An interior is named by the entrance it is entered by");
+    if (!inside.entrance && !isRiftDepths(inside.type)) throw new Error("An interior is named by the entrance it is entered by");
   } else if (type === undefined || !isOutside(type)) throw new Error("The player can only be moved to an outdoor zone or an interior");
   wholeIn(tileX, 0, TILES - 1, "Tile column");
   wholeIn(tileY, 0, TILES - 1, "Tile row");

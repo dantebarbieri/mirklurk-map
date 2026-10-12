@@ -5,6 +5,8 @@ import {
   centerpos,
   coordLabel,
   gridpos,
+  INTERIOR_NAMES,
+  isRiftDepths,
   isSandTile,
   PLACEMENT,
   reflect,
@@ -56,4 +58,9 @@ Deno.test("shipwreck site test", () => {
 Deno.test("labels and reflection", () => {
   assertEquals(coordLabel(2, 1), "C,2");
   assertEquals(reflect(0, 2), [4, 2]);
+});
+
+Deno.test("Scaal's depths are the three rift depth levels, no other area", () => {
+  assertEquals([23, 24, 25, 26, 27].map(isRiftDepths), [false, true, true, true, false]);
+  assert(Object.entries(INTERIOR_NAMES).every(([t, name]) => isRiftDepths(Number(t)) === name.startsWith("Rift depths")));
 });
