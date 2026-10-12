@@ -244,7 +244,10 @@ async function toEditor(e: MouseEvent) {
     const handoff = await currentHandoff();
     if (handoff) await handOff(handoff, "editor");
   } catch (err) {
+    // Following the link anyway could open another save there; stay, so the user can try again.
     console.error("Could not hand the save to the editor", err);
+    status(`Could not hand this save to the save editor: ${(err as Error).message}. Try again, or open it there.`, true);
+    return;
   }
   location.href = href;
 }

@@ -2531,7 +2531,10 @@ async function backToMap(e: MouseEvent) {
     const save = await openSave(s);
     if (save) await handOff({ save, character: s.character }, "map");
   } catch (err) {
+    // Following the link anyway could show another save there; stay, so the user can try again.
     console.error("Could not hand the save to MirkMap", err);
+    status(`Could not hand this save to MirkMap: ${errorText(err)}. Try again, or open it there.`, true);
+    return;
   }
   location.href = href;
 }
