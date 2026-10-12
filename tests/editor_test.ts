@@ -5,6 +5,8 @@
 import { assert, assertEquals } from "./assert.ts";
 import {
   healPlayer,
+  insideOf,
+  isInside,
   movePlayer,
   playerRecord,
   type Rec,
@@ -41,7 +43,7 @@ import {
   wearNew,
 } from "../src/editor/items.ts";
 import { deleteBeing, isQuestBeing, newBeing, spawnable, spawnBeing } from "../src/editor/beings.ts";
-import { Ground, groundMap, tileBox } from "../src/editor/ground.ts";
+import { Ground, groundMap, reachable, tileBox } from "../src/editor/ground.ts";
 import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
 import { readMarker, writeMarker } from "../src/marker.ts";
 import { decodeJson, parseBeings, parsePlayer } from "../src/save.ts";
@@ -54,6 +56,7 @@ import { isWet, needsFuel, needsRepair } from "../src/condition.ts";
 import { freshHealth } from "../src/bestiary.ts";
 import { countCoins } from "../src/coins.ts";
 import type { FileMap } from "../src/files.ts";
+import type { Interior } from "../src/world.ts";
 
 const E = -4;
 function assertThrows(fn: () => unknown, match: RegExp) {
@@ -171,6 +174,46 @@ Deno.test("moving the player stands them on a tile centre of an outdoor zone", (
   assertEquals([p.entranceX, p.entranceY], [440, 2120], "entrance kept");
   assertThrows(() => movePlayer(p, 3, 1, 1, 1), /outdoor/);
   assertThrows(() => movePlayer(p, 0, 0, TILES, 1), /Tile/);
+});
+
+Deno.test("moving the player inside names the interior as savearea does: type and entrance, Scaal's depths by type", () => {
+  const p = player([[E]], { entranceX: 8, entranceY: 8 });
+  movePlayer(p, 1, 0, 80, 79, { type: 11, entrance: [1960, 1704] });
+  assertEquals([p.areaX, p.areaY, p.areaType, p.entranceX, p.entranceY, p.xx, p.yy], [1, 0, 11, 1960, 1704, 1288, 1272]);
+  movePlayer(p, 4, 4, 80, 80, { type: 24 });
+  assertEquals([p.areaX, p.areaY, p.areaType, p.entranceX, p.entranceY], [4, 4, 24, 1960, 1704], "the depths need no entrance");
+  movePlayer(p, 2, 0, 5, 5);
+  assertEquals([p.areaType, p.entranceX], [2, 1960], "out again, the entrance stays as the game leaves it");
+  assertThrows(() => movePlayer(p, 1, 0, 1, 1, { type: 1, entrance: [8, 8] }), /not an interior/);
+  assertThrows(() => movePlayer(p, 1, 0, 1, 1, { type: 99, entrance: [8, 8] }), /not an interior/);
+  assertThrows(() => movePlayer(p, 1, 0, 1, 1, { type: 10 }), /entrance/);
+});
+
+Deno.test("an interior is named by the type you are saved with there, else by what leads to it; never by a guess", () => {
+  const it = (over: Partial<Interior> = {}): Interior => ({
+    zone: [1, 0],
+    at: [440, 2120],
+    dir: "Saves/A/[ 1,0,440,2120 ]/",
+    kind: 10,
+    parent: null,
+    sealed: false,
+    solids: [],
+    ...over,
+  });
+  const at = (type: number, entrance: [number, number] = [440, 2120], area: [number, number] = [1, 0]) =>
+    parsePlayer([player([[E]], { areaX: area[0], areaY: area[1], areaType: type, entranceX: entrance[0], entranceY: entrance[1] })]);
+  assertEquals(insideOf(it(), at(1)), { type: 10, entrance: [440, 2120] }, "outdoors, the last door used means nothing");
+  assert(!isInside(at(1), it()));
+  assert(isInside(at(12), it()));
+  assertEquals(insideOf(it(), at(12)), { type: 12, entrance: [440, 2120] }, "inside, the saved type wins");
+  assert(!isInside(at(12, [440, 2136]), it()));
+  assert(!isInside(at(12, undefined, [2, 0]), it()));
+  assertEquals(insideOf(it({ kind: 11, kindGuessed: true }), at(1)), undefined, "a guessed kind is refused");
+  assertEquals(insideOf(it({ kind: 11, kindGuessed: true }), at(12)), { type: 12, entrance: [440, 2120] }, "unless you are in it");
+  assertEquals(insideOf(it({ kind: null }), at(1)), undefined);
+  const depths = it({ zone: [4, 4], at: [-1, 2], dir: "Saves/A/RW2/", kind: 25 });
+  assertEquals(insideOf(depths, at(1)), { type: 25 });
+  assert(isInside(at(25, [8, 8], [0, 0]), depths), "the depths are named by type alone");
 });
 
 Deno.test("new items are made as the item constructor makes them", () => {
@@ -558,6 +601,34 @@ Deno.test("ground: walls and pits block, water is water, shade is free, things t
     0,
     Ground.Taken,
   ], "a raft or creature in the water takes its tile too");
+});
+
+Deno.test("ground inside: only the floor a way out can be walked to is open, not the room around the walls or a walled-off pocket", () => {
+  const data = new Uint32Array(TILES * TILES).fill(0);
+  const t = (x: number, y: number) => y * TILES + x;
+  // A walled room from 10,10 to 20,20 in open ground, as quest rooms stand, with a row of pits cutting off its bottom; its way out
+  // is used from 15,11.
+  for (let i = 10; i <= 20; i++) {
+    data[t(i, 10)] =
+      data[t(i, 20)] =
+      data[t(10, i)] =
+      data[t(20, i)] =
+        1;
+  }
+  for (let x = 11; x < 20; x++) data[t(x, 17)] = 3;
+  const reach = reachable(data, [t(15, 11)])!;
+  assert(reach[t(15, 11)] && reach[t(11, 16)], "the floor beside the door and across the room");
+  assert(!reach[t(15, 10)] && !reach[t(15, 18)] && !reach[t(5, 5)], "not the wall, the pocket past the pits, or outside");
+  const water = new Uint32Array(TILES * TILES);
+  water[t(12, 12)] = 5;
+  const g = groundMap(data, water, [tileBox(16 * 16, 16 * 16), tileBox(5 * 16, 5 * 16)], reach);
+  assertEquals(
+    [g[t(15, 11)], g[t(12, 12)], g[t(16, 16)], g[t(15, 18)], g[t(5, 5)], g[t(10, 15)], g[t(12, 17)]],
+    [Ground.Free, Ground.Water, Ground.Taken, Ground.Shut, Ground.Shut, Ground.Blocked, Ground.Blocked],
+  );
+  assertEquals(reachable(data, [t(5, 5)]), undefined, "outside the room the walk reaches the edge");
+  assertEquals(reachable(data, []), undefined);
+  assertEquals(reachable(undefined, [t(15, 11)]), undefined);
 });
 
 Deno.test("the Cheated mark keeps its first time, counts edits and keeps other keys", () => {

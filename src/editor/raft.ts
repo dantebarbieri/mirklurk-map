@@ -5,7 +5,7 @@
 // (scr_pathfinding).
 
 import { isSlopeTile, Thresh, tileIndex, TILES } from "../rules.ts";
-import { isRec, movePlayer, type Rec } from "./edits.ts";
+import { type Inside, isRec, movePlayer, type Rec } from "./edits.ts";
 
 /** The finished raft's item and station index (Finish Raft). */
 export const RAFT = 171;
@@ -60,15 +60,25 @@ export interface RaftPlan {
   at?: [number, number, number, number];
 }
 
-/** Moves you (movePlayer) on a raft or not. Returns whether anything changed. */
-export function moveWithRaft(p: Rec, zoneX: number, zoneY: number, tileX: number, tileY: number, plan: RaftPlan): boolean {
+/** Moves you (movePlayer) on a raft or not, outdoors or `inside` an interior, where no raft goes. Returns whether anything changed. */
+export function moveWithRaft(
+  p: Rec,
+  zoneX: number,
+  zoneY: number,
+  tileX: number,
+  tileY: number,
+  plan: RaftPlan,
+  inside?: Inside,
+): boolean {
   if (onRaft(p) !== plan.from) throw new Error(plan.from ? "You are no longer on a raft" : "You are on a raft now");
+  if (inside && plan.to) throw new Error("A raft cannot go inside");
   const where = () => [p.areaX, p.areaY, p.xx, p.yy];
   if (plan.at && where().some((v, i) => v !== plan.at![i])) throw new Error("You have moved since");
-  const before = [...where(), p.areaType, onRaft(p)].join();
-  movePlayer(p, zoneX, zoneY, tileX, tileY);
+  const state = () => [...where(), p.areaType, p.entranceX, p.entranceY, onRaft(p)].join();
+  const before = state();
+  movePlayer(p, zoneX, zoneY, tileX, tileY, inside);
   if (plan.to || "ensureRaft" in p) p.ensureRaft = plan.to;
-  return [...where(), p.areaType, onRaft(p)].join() !== before;
+  return state() !== before;
 }
 
 /** The tile layers and heights (Ygrid.save) of an area that say how deep its water is; any may be missing. */
