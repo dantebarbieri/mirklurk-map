@@ -2,8 +2,7 @@
 
 import { h, s } from "./dom.ts";
 import { backCloses, isFullMap, onFullMap, setFullMap } from "./fullscreen.ts";
-import type { Layer, Mark } from "./objects.ts";
-import { describe } from "./objects.ts";
+import { describe, type Layer, type Mark } from "./objects.ts";
 import { ROOM } from "./rules.ts";
 
 /**
@@ -592,6 +591,7 @@ export class MapView {
   private moved = false;
   private settleTimer = 0;
   private pingTimer = 0;
+  private sheetTimer = 0;
   private waiting: (() => void)[] = [];
   private popup?: { card: HTMLElement; close: () => void };
   /** Gives up Back's hold on the floating card (see `holdBack`). */
@@ -748,6 +748,8 @@ export class MapView {
     cancelAnimationFrame(this.roomFrame);
     clearTimeout(this.settleTimer);
     clearTimeout(this.pingTimer);
+    // A sheet still settling would place this map's card again, and take Back's hold from the map drawn next.
+    clearTimeout(this.sheetTimer);
     this.onSettle = undefined;
     this.release();
   }
@@ -920,7 +922,7 @@ export class MapView {
    * follows and settles as `sheetSnap` says. A tap (or press) on the grabber toggles between half and full height.
    */
   private wireSheet(card: HTMLElement) {
-    const onGrabber = (e: Event) => !!(e.target as Element | null)?.closest?.(".grabber");
+    const onGrabber = (e: Event) => e.target instanceof Element && !!e.target.closest(".grabber");
     let drag: { y: number; height: number; half: number; full: number; moved: boolean; trail: { y: number; t: number }[] } | undefined;
     let dragged = false;
     const start = (y: number) => {
@@ -1035,7 +1037,8 @@ export class MapView {
     card.style.transition = `height ${SHEET_MS}ms ease-out, transform ${SHEET_MS}ms ease-out`;
     if (to === "closed") card.style.transform = "translateY(100%)";
     else card.style.height = `${to === "full" ? full : half}px`;
-    setTimeout(finish, SHEET_MS + 20);
+    clearTimeout(this.sheetTimer);
+    this.sheetTimer = setTimeout(finish, SHEET_MS + 20);
   }
 
   /**
@@ -1388,7 +1391,8 @@ export class MapView {
       if (suppressClick) return;
       const target = tapTarget ?? e.target;
       // A fingertip is far wider than most symbols, so a touch that misses every one picks the nearest within reach.
-      const near = touch && origin && !(target as Element | null)?.closest?.(".pt") ? this.pointNear(origin.x, origin.y) : undefined;
+      const onSymbol = target instanceof Element && !!target.closest(".pt");
+      const near = touch && origin && !onSymbol ? this.pointNear(origin.x, origin.y) : undefined;
       const m = near ?? this.markAt(target);
       this.picker.hidden = true;
       if (m && onOpen) {
@@ -1475,7 +1479,7 @@ export class MapView {
   }
 
   private markAt(target: EventTarget | null): Mark | undefined {
-    const el = (target as Element | null)?.closest?.("[data-i]");
+    const el = target instanceof Element ? target.closest("[data-i]") : null;
     const i = el ? Number(el.getAttribute("data-i")) : -1;
     return i >= 0 ? this.marks[i] : undefined;
   }
