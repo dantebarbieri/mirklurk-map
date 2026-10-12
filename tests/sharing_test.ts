@@ -140,6 +140,11 @@ Deno.test("sharing: a save larger than the upload limit fits once compressed", a
   const packed = await packSave(files, { name: "Hero", root: "Saves/Hero/" });
   assert(packed.length < MAX_UPLOAD);
   assertEquals((await (await unpackSave(packed)).files.get("Shared/[ 0,0 ]/Zone.save")!.read()).length, big.length);
+
+  const noise = new Uint8Array(MAX_UPLOAD + 1024 * 1024);
+  for (let i = 0; i < noise.length; i += 65536) crypto.getRandomValues(noise.subarray(i, i + 65536));
+  files.set("Saves/Hero/[ 0,0 ]/Zone.save", { read: () => Promise.resolve(noise) });
+  await assertRejects(() => packSave(files, { name: "Hero", root: "Saves/Hero/" }), /64 MiB sharing limit, even compressed/);
 });
 
 Deno.test("sharing: decompression is bounded by the declared size and rejects a stream that disagrees with it", async () => {

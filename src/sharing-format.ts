@@ -146,9 +146,50 @@ function validPath(path: string): boolean {
 const SAVE_LIMIT = "Save exceeds the 256 MiB / 4,096-file sharing limit";
 const isGzip = (bytes: Uint8Array) => bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
 
-async function gzip(bytes: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new CompressionStream("gzip"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+const STEP = 1024 * 1024;
+const INVALID = "Invalid compressed save";
+
+/**
+ * Feeds `parts` through a (de)compressor a mebibyte at a time, without copying them first, and hands each output chunk to `take`, which
+ * throws to stop early: output never has to be held beyond what `take` keeps.
+ */
+async function pipe(stream: CompressionStream | DecompressionStream, parts: Uint8Array[], take: (chunk: Uint8Array) => void) {
+  const writer = stream.writable.getWriter();
+  const writing = (async () => {
+    for (const part of parts) for (let i = 0; i < part.length; i += STEP) await writer.write(part.subarray(i, i + STEP) as BufferSource);
+    await writer.close();
+  })();
+  writing.catch(() => {});
+  const reader = stream.readable.getReader();
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      take(value);
+    }
+    await writing;
+  } catch (e) {
+    await reader.cancel().catch(() => {});
+    await writer.abort().catch(() => {});
+    throw e;
+  }
+}
+
+async function gzip(parts: Uint8Array[], max: number, limit: string): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  await pipe(new CompressionStream("gzip"), parts, (chunk) => {
+    size += chunk.length;
+    if (size > max) throw new Error(limit);
+    chunks.push(chunk);
+  });
+  const result = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
 }
 
 /**
@@ -156,31 +197,27 @@ async function gzip(bytes: Uint8Array): Promise<Uint8Array> {
  * never make it allocate more, and one whose output disagrees with its trailer is rejected.
  */
 async function gunzip(bytes: Uint8Array, max: number): Promise<Uint8Array> {
-  if (bytes.length < 18) throw new Error("Invalid compressed save");
+  if (bytes.length < 18) throw new Error(INVALID);
   const size = new DataView(bytes.buffer, bytes.byteOffset + bytes.length - 4, 4).getUint32(0, true);
   if (size > max) throw new Error(SAVE_LIMIT);
   const result = new Uint8Array(size);
-  const reader = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip")).getReader();
   let offset = 0;
   try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (value.length > size - offset) throw new Error("Invalid compressed save");
-      result.set(value, offset);
-      offset += value.length;
-    }
-  } catch (e) {
-    await reader.cancel().catch(() => {});
-    throw e instanceof Error && e.message === "Invalid compressed save" ? e : new Error("Invalid compressed save");
+    await pipe(new DecompressionStream("gzip"), [bytes], (chunk) => {
+      if (chunk.length > size - offset) throw new Error(INVALID);
+      result.set(chunk, offset);
+      offset += chunk.length;
+    });
+  } catch {
+    throw new Error(INVALID);
   }
-  if (offset !== size) throw new Error("Invalid compressed save");
+  if (offset !== size) throw new Error(INVALID);
   return result;
 }
 
 /**
  * One character, gzip-compressed. The limits apply to the decompressed bytes, which the reader allocates up front from the size the
- * package declares, so a small upload can't expand without bound.
+ * package declares, so a small upload can't expand without bound. The files are compressed where they are, never copied into one frame.
  */
 export async function packSave(files: FileMap, character: Character): Promise<Uint8Array> {
   const entries: { path: string; size: number; modified: number }[] = [];
@@ -196,31 +233,28 @@ export async function packSave(files: FileMap, character: Character): Promise<Ui
     entries.push({ path: relative, size: bytes.length, modified: source.lastModified ?? 0 });
     chunks.push(bytes);
   }
-  const json = encoder.encode(JSON.stringify({ name: character.name, entries }));
-  if (4 + json.length + size > MAX_SAVE) throw new Error(SAVE_LIMIT);
-  // Framed in place rather than with frame(), so a large save is copied once.
-  const raw = new Uint8Array(4 + json.length + size);
-  new DataView(raw.buffer).setUint32(0, json.length);
-  raw.set(json, 4);
-  let offset = 4 + json.length;
-  for (const chunk of chunks) {
-    raw.set(chunk, offset);
-    offset += chunk.length;
-  }
-  parsePackage(raw);
-  const packed = await gzip(raw);
-  if (packed.length > MAX_UPLOAD) throw new Error("Save exceeds the 64 MiB sharing limit, even compressed");
-  return packed;
+  const header = { name: character.name, entries };
+  const json = encoder.encode(JSON.stringify(header));
+  if (json.length > 1024 * 1024 || 4 + json.length + size > MAX_SAVE) throw new Error(SAVE_LIMIT);
+  readManifest(header, size, (index) => chunks[index]);
+  const length = new Uint8Array(4);
+  new DataView(length.buffer).setUint32(0, json.length);
+  return gzip([length, json, ...chunks], MAX_UPLOAD, "Save exceeds the 64 MiB sharing limit, even compressed");
 }
 
 /** Reads a package: gzip-compressed, or uncompressed as older clients uploaded them. */
 export async function unpackSave(bytes: Uint8Array): Promise<{ name: string; files: FileMap; grid: number[][] }> {
   if (bytes.length > MAX_UPLOAD) throw new Error("Save exceeds the 64 MiB sharing limit");
-  return parsePackage(isGzip(bytes) ? await gunzip(bytes, MAX_SAVE) : bytes);
+  const { header, body } = unframe(isGzip(bytes) ? await gunzip(bytes, MAX_SAVE) : bytes);
+  return readManifest(header, body.length, (_, start, size) => body.subarray(start, start + size));
 }
 
-function parsePackage(bytes: Uint8Array): { name: string; files: FileMap; grid: number[][] } {
-  const { header, body } = unframe(bytes);
+/** Checks a manifest against a body of `length` bytes, whose files `part` returns by index and position. */
+function readManifest(
+  header: unknown,
+  length: number,
+  part: (index: number, start: number, size: number) => Uint8Array,
+): { name: string; files: FileMap; grid: number[][] } {
   if (!header || typeof header !== "object" || !("name" in header) || !("entries" in header)) {
     throw new Error("Invalid save manifest");
   }
@@ -231,30 +265,26 @@ function parsePackage(bytes: Uint8Array): { name: string; files: FileMap; grid: 
   if (!Array.isArray(entries) || !entries.length || entries.length > MAX_FILES) throw new Error("Invalid save file count");
   const files: FileMap = new Map();
   let offset = 0;
-  for (const entry of entries) {
+  let player: Uint8Array | undefined;
+  for (const [index, entry] of entries.entries()) {
     if (!entry || typeof entry !== "object") throw new Error("Invalid file entry");
     const { path, size, modified } = entry;
     if (
       typeof path !== "string" || !validPath(path) || files.has(`Shared/${path}`) ||
-      !Number.isSafeInteger(size) || size < 0 || size > body.length - offset ||
+      !Number.isSafeInteger(size) || size < 0 || size > length - offset ||
       typeof modified !== "number" || !Number.isFinite(modified) || modified < 0
     ) throw new Error("Invalid save file entry");
     if (path.endsWith("Player.save") && path !== "Player.save") throw new Error("Upload only one character at a time");
-    const content = body.subarray(offset, offset + size);
+    const content = part(index, offset, size);
+    if (path === "Player.save") player = content;
     files.set(`Shared/${path}`, { read: () => Promise.resolve(content), lastModified: modified || undefined });
     offset += size;
   }
-  if (offset !== body.length) throw new Error("Unexpected trailing save data");
+  if (offset !== length) throw new Error("Unexpected trailing save data");
   // Validate synchronously from the manifest's player slice before accepting storage.
-  const player = entries.find((entry) => entry.path === "Player.save");
   if (!player) throw new Error("Player.save is required");
-  if (player.size > 4 * 1024 * 1024) throw new Error("Player.save exceeds the 4 MiB limit");
-  let start = 0;
-  for (const entry of entries) {
-    if (entry === player) break;
-    start += entry.size;
-  }
-  const { grid } = parsePlayer(decodeJson(body.subarray(start, start + player.size)));
+  if (player.length > 4 * 1024 * 1024) throw new Error("Player.save exceeds the 4 MiB limit");
+  const { grid } = parsePlayer(decodeJson(player));
   return { name, files, grid };
 }
 
