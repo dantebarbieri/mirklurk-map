@@ -1,4 +1,5 @@
-// Helpers shared by the tools: bundling for the browser, joining bytes, and writing generated sources.
+// Helpers shared by the tools: bundling for the browser, joining and hashing bytes, removing and writing files, and the dev server's
+// check of the save paths it serves.
 
 /** The repository root. */
 export const root = new URL("../", import.meta.url);
@@ -33,7 +34,7 @@ export async function contentHash(bytes: Uint8Array): Promise<string> {
 }
 
 /** Removes folder `dir` and everything in it, if it is there. */
-export async function removeTree(dir: URL) {
+export async function removeTree(dir: string | URL) {
   try {
     await Deno.remove(dir, { recursive: true });
   } catch (e) {
@@ -47,4 +48,15 @@ export async function writeSource(path: string, text: string) {
   const { success, stderr } = await new Deno.Command(Deno.execPath(), { args: ["fmt", "--quiet", path], cwd: root, stderr: "piped" })
     .output();
   if (!success) throw new Error(`deno fmt ${path} failed: ${new TextDecoder().decode(stderr)}`);
+}
+
+/**
+ * The character and file a dev server request for `/__saves/<character>/<file>` names (an empty file lists the folder), or
+ * undefined when it would step out of that character's folder. `path` is already decoded, so "..\" steps up as well as "../":
+ * Windows takes either separator.
+ */
+export function saveRequest(path: string): { character: string; file: string } | undefined {
+  const m = /^\/__saves\/([^/]+)\/(.*)$/.exec(path);
+  if (!m || m[1].includes("..") || m[2].split(/[\\/]/).includes("..")) return undefined;
+  return { character: m[1], file: m[2] };
 }

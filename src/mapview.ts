@@ -556,6 +556,36 @@ export function stackAt(marks: Mark[], m: Mark): Mark[] {
   return k ? [m, ...marks.filter((o) => o !== m && o.box?.join() === k)] : [m];
 }
 
+/**
+ * Named timeouts that are cancelled together, so disposing of their owner leaves none to fire; setting a name again replaces
+ * the one waiting under it.
+ */
+export class Timeouts<Name extends string> {
+  private waiting = new Map<Name, number>();
+
+  /** Runs `f` after `ms`, instead of whatever was waiting under `name`. */
+  set(name: Name, f: () => void, ms: number) {
+    this.clear(name);
+    this.waiting.set(
+      name,
+      setTimeout(() => {
+        this.waiting.delete(name);
+        f();
+      }, ms),
+    );
+  }
+
+  clear(name: Name) {
+    clearTimeout(this.waiting.get(name));
+    this.waiting.delete(name);
+  }
+
+  clearAll() {
+    for (const id of this.waiting.values()) clearTimeout(id);
+    this.waiting.clear();
+  }
+}
+
 export class MapView {
   readonly el: HTMLElement;
   readonly svg: SVGSVGElement;
@@ -589,9 +619,8 @@ export class MapView {
   private onSettle?: () => void;
   private pointers = new Map<number, TouchPoint>();
   private moved = false;
-  private settleTimer = 0;
-  private pingTimer = 0;
-  private sheetTimer = 0;
+  /** Every timeout the map sets, so `dispose` cancels them all. */
+  private timeouts = new Timeouts<"settle" | "ping" | "sheet" | "slide">();
   private waiting: (() => void)[] = [];
   private popup?: { card: HTMLElement; close: () => void };
   /** Gives up Back's hold on the floating card (see `holdBack`). */
@@ -746,10 +775,8 @@ export class MapView {
     cancelAnimationFrame(this.frame);
     cancelAnimationFrame(this.glideFrame);
     cancelAnimationFrame(this.roomFrame);
-    clearTimeout(this.settleTimer);
-    clearTimeout(this.pingTimer);
-    // A sheet still settling would place this map's card again, and take Back's hold from the map drawn next.
-    clearTimeout(this.sheetTimer);
+    // A sheet still settling, for one, would place this map's card again and take Back's hold from the map drawn next.
+    this.timeouts.clearAll();
     this.onSettle = undefined;
     this.release();
   }
@@ -1037,8 +1064,7 @@ export class MapView {
     card.style.transition = `height ${SHEET_MS}ms ease-out, transform ${SHEET_MS}ms ease-out`;
     if (to === "closed") card.style.transform = "translateY(100%)";
     else card.style.height = `${to === "full" ? full : half}px`;
-    clearTimeout(this.sheetTimer);
-    this.sheetTimer = setTimeout(finish, SHEET_MS + 20);
+    this.timeouts.set("sheet", finish, SHEET_MS + 20);
   }
 
   /**
@@ -1058,7 +1084,7 @@ export class MapView {
 
   private slideIn(card: HTMLElement) {
     card.classList.add("sheet-in");
-    setTimeout(() => card.classList.remove("sheet-in"), 400);
+    this.timeouts.set("slide", () => card.classList.remove("sheet-in"), 400);
   }
 
   /** Glides the map to bring `m` into sight: above the sheet when docked, else anywhere on the map. */
@@ -1110,7 +1136,7 @@ export class MapView {
   }
 
   private settle() {
-    clearTimeout(this.settleTimer);
+    this.timeouts.clear("settle");
     if (this.pointers.size || !this.moved) return;
     this.moved = false;
     this.onSettle?.();
@@ -1245,8 +1271,7 @@ export class MapView {
     // (being built for a redraw) has only a guessed size, so it waits for its first resize to report.
     if (this.svg.clientWidth) this.onView?.([this.vx, this.vy - this.room / 2 * this.vw / Math.min(w, h), this.vw]);
     this.moved = true;
-    clearTimeout(this.settleTimer);
-    this.settleTimer = setTimeout(() => this.settle(), SETTLE_MS);
+    this.timeouts.set("settle", () => this.settle(), SETTLE_MS);
   }
 
   zoomBy(f: number, cx = this.vx + this.vw / 2, cy = this.vy + this.vw / 2) {
@@ -1284,8 +1309,7 @@ export class MapView {
     // Restyled in between, so the animation restarts.
     void g.getBoundingClientRect();
     g.classList.add("ping");
-    clearTimeout(this.pingTimer);
-    this.pingTimer = setTimeout(() => g.classList.remove("ping"), PING_MS);
+    this.timeouts.set("ping", () => g.classList.remove("ping"), PING_MS);
   }
 
   /** Centres the view on a marker, zooming in if the whole zone is showing. */

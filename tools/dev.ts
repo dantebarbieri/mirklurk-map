@@ -3,7 +3,7 @@
 //   deno task dev            (saves default to ../Saves, override with MIRKLURK_SAVES)
 
 import { UploadStore } from "../server/uploads.ts";
-import { bundle, root } from "./shared.ts";
+import { bundle, root, saveRequest } from "./shared.ts";
 
 const uploads = Deno.env.get("ENABLE_UPLOADS") === "true" ? new UploadStore(".uploads") : undefined;
 if (uploads) {
@@ -67,13 +67,12 @@ Deno.serve({ hostname: "127.0.0.1", port }, async (req, info) => {
         headers: { "content-type": types[file.split(".").pop()!], "cache-control": "no-store" },
       });
     }
-    const m = /^\/__saves\/([^/]+)\/(.*)$/.exec(path);
-    // The path is decoded, so "..\" counts as a step up too (Windows takes either separator).
-    if (m && !m[1].includes("..") && !m[2].split(/[\\/]/).includes("..")) {
-      const dir = `${saves}/${m[1]}`;
-      if (m[2] === "") return Response.json(await listDir(dir));
-      return new Response(await Deno.readFile(`${dir}/${m[2]}`), {
-        headers: { "content-type": types[m[2].split(".").pop()!] ?? "application/octet-stream" },
+    const save = saveRequest(path);
+    if (save) {
+      const dir = `${saves}/${save.character}`;
+      if (save.file === "") return Response.json(await listDir(dir));
+      return new Response(await Deno.readFile(`${dir}/${save.file}`), {
+        headers: { "content-type": types[save.file.split(".").pop()!] ?? "application/octet-stream" },
       });
     }
   } catch (e) {

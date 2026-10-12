@@ -19,6 +19,7 @@ import {
   sheetSnap,
   stackAt,
   surveying,
+  Timeouts,
   TOUCH_REACH,
   visibleRect,
   zonesInView,
@@ -340,4 +341,19 @@ Deno.test("locate: centres on the player, zoomed in to at most LOCATE_SIZE, abov
   const [x, y, size] = locateView(ROOM, 1000, 1200, 0.5);
   assertEquals([x, y, size], [808, 1104, LOCATE_SIZE]);
   assertEquals(y - 0.5 / 2 * size + size / 2, 1200);
+});
+
+Deno.test("map timeouts: a name holds one timeout at a time, and none fires after the map clears them all", async () => {
+  const fired: string[] = [];
+  const t = new Timeouts<"sheet" | "settle">();
+  t.set("sheet", () => fired.push("replaced"), 1);
+  t.set("sheet", () => fired.push("sheet"), 1);
+  t.set("settle", () => fired.push("settle"), 1);
+  await new Promise((r) => setTimeout(r, 20));
+  assertEquals(fired.sort(), ["settle", "sheet"]);
+  // A sheet still settling when its map is disposed must not place that map's card again.
+  t.set("sheet", () => fired.push("after dispose"), 1);
+  t.clearAll();
+  await new Promise((r) => setTimeout(r, 20));
+  assertEquals(fired.sort(), ["settle", "sheet"]);
 });
