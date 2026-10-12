@@ -42,6 +42,7 @@ import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, tileBox } fr
 import { disposeView, rememberView, renderWorld, type State, worldState } from "../view.ts";
 import { LAYERS } from "../objects.ts";
 import { setFullMap } from "../fullscreen.ts";
+import { ask } from "../dialog.ts";
 
 /** An area the map card shows: an outdoor zone or one of its interiors. */
 interface Area {
@@ -266,11 +267,18 @@ async function restore(b: Backup) {
   if (session?.saving) return;
   const when = new Date(b.at).toLocaleString();
   if (
-    !confirm(
-      `Write back the ${
-        b.files.length === 1 ? "file" : `${b.files.length} files`
-      } this world had before the edits saved ${when}? Unsaved edits are dropped. The Cheated mark stays.`,
-    )
+    !await ask({
+      title: `Restore the files from before ${when}?`,
+      body: [
+        `This writes back the ${b.files.length === 1 ? "file" : `${b.files.length} files`} the world had before the edits saved then: ${
+          b.changes.join("; ")
+        }.`,
+        session?.changes.length ? h("p", { class: "warning" }, "Your unsaved changes are dropped.") : null,
+        "The Cheated mark stays.",
+      ],
+      confirm: "Restore",
+      danger: true,
+    })
   ) return;
   await writing(async () => {
     try {
@@ -754,7 +762,12 @@ async function removeCarried(c: CarriedItem, howMany: HTMLInputElement | null, f
   const inside = countInside(c);
   if (
     amount === "all" && inside &&
-    !confirm(`Removing ${name} also removes the ${inside === 1 ? "item" : `${inside} items`} inside it. Remove anyway?`)
+    !await ask({
+      title: `Remove ${name} and what is in it?`,
+      body: [`The ${inside === 1 ? "item" : `${inside} items`} inside it ${inside === 1 ? "goes" : "go"} too.`],
+      confirm: "Remove all",
+      danger: true,
+    })
   ) return;
   const { place, index } = c;
   await editPlayer("items", (rec) => {
@@ -997,7 +1010,13 @@ async function mapCard(v: PlayerSave): Promise<HTMLElement> {
       const b = beings[i];
       const name = BEING_NAMES[b.index] ?? "creature";
       if (
-        isQuestBeing(b.index) && !confirm(`${name} is part of a quest. Removing them can leave that quest unfinishable. Remove anyway?`)
+        isQuestBeing(b.index) &&
+        !await ask({
+          title: `Remove ${name}?`,
+          body: [h("p", { class: "warning" }, `${name} is part of a quest. Removing them can leave that quest unfinishable.`)],
+          confirm: "Remove anyway",
+          danger: true,
+        })
       ) return;
       selected = undefined;
       // The creature as it is now, so undoing an earlier change cannot make this remove a different one.
@@ -1225,6 +1244,17 @@ function updateSavebar() {
   );
 }
 
+/** Asks before `action` drops the unsaved changes; true when there are none or the user agrees. */
+async function dropChanges(action: string, confirm: string): Promise<boolean> {
+  const n = session?.changes.length ?? 0;
+  return !n || await ask({
+    title: "Drop your unsaved changes?",
+    body: [`${action} drops ${n === 1 ? "your unsaved change" : `your ${n} unsaved changes`}. The save files stay as they are.`],
+    confirm,
+    danger: true,
+  });
+}
+
 // --- Wiring ---
 
 function wire() {
@@ -1232,20 +1262,21 @@ function wire() {
     $("#unsupported").hidden = false;
     $<HTMLButtonElement>("#open-folder").disabled = true;
   }
-  $("#open-folder").addEventListener("click", () => {
-    if (session?.changes.length && !confirm("Drop your unsaved changes and open another folder?")) return;
+  $("#open-folder").addEventListener("click", async () => {
+    if (!await dropChanges("Opening another folder", "Drop them and open")) return;
     editing = false;
     void openFolder();
   });
-  $<HTMLSelectElement>("#character").addEventListener("change", (e) => {
+  $<HTMLSelectElement>("#character").addEventListener("change", async (e) => {
     const select = e.target as HTMLSelectElement;
-    if (session?.changes.length && !confirm("Drop your unsaved changes and switch character?")) {
+    const to = Number(select.value);
+    if (!await dropChanges(`Switching to ${chars[to]?.name ?? "another character"}`, "Drop them and switch")) {
       select.value = String(active);
       return;
     }
     editing = false;
     notes.clear();
-    void openCharacter(Number(select.value));
+    void openCharacter(to);
   });
   $("#save").addEventListener("click", () => void save());
   $("#show-editor").addEventListener("click", () => showView("edit"));
@@ -1255,13 +1286,22 @@ function wire() {
     setMoving((e.target as HTMLInputElement).checked);
   });
   addEventListener("keydown", (e) => {
-    if (e.key !== "Escape" || !moving || e.defaultPrevented) return;
+    // An open dialog takes Escape for itself.
+    if (e.key !== "Escape" || !moving || e.defaultPrevented || document.querySelector("dialog[open]")) return;
     // Handled here, so a full-screen map stays full screen.
     e.preventDefault();
     setMoving(false);
   });
-  $("#discard").addEventListener("click", () => {
-    if (session?.saving || !confirm("Discard all unsaved changes?")) return;
+  $("#discard").addEventListener("click", async () => {
+    const n = session?.changes.length ?? 0;
+    if (
+      session?.saving || !n || !await ask({
+        title: "Discard all unsaved changes?",
+        body: [`${n === 1 ? "Your unsaved change is" : `All ${n} unsaved changes are`} dropped. The save files stay as they are.`],
+        confirm: "Discard",
+        danger: true,
+      })
+    ) return;
     session?.discard();
     notes.clear();
     void render();

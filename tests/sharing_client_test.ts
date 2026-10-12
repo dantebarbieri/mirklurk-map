@@ -43,6 +43,8 @@ async function world(name = "Hero", version = "v1", updated = Date.now()): Promi
 let focusing: ((element: ElementStub) => void) | undefined;
 /** Disabling the focused element moves focus away from it, as browsers do. */
 let blurring: ((element: ElementStub) => void) | undefined;
+/** Told when a modal dialog opens; set by the BrowserStub in use. */
+let showing: ((dialog: ElementStub) => void) | undefined;
 
 /** Only the DOM surface used by Sharing; events still use real EventTarget dispatch. */
 class ElementStub extends EventTarget {
@@ -109,6 +111,11 @@ class ElementStub extends EventTarget {
   showModal() {
     this.open = true;
     this.find((e) => e.attributes.has("autofocus"))?.focus();
+    showing?.(this);
+  }
+  /** This element and everything in it, in document order. */
+  all(): ElementStub[] {
+    return [this, ...this.children.flatMap((c) => typeof c === "string" ? [] : c.all())];
   }
   close(value?: string) {
     if (!this.open) return;
@@ -184,7 +191,10 @@ class BrowserStub {
   clipboard = "";
   /** Every request fails as if the network were gone. */
   down = false;
+  /** Questions (src/dialog.ts) are answered as they open, confirmed while `confirmAnswer` holds; off, a test answers them itself. */
+  autoAnswer = true;
   confirmAnswer = true;
+  /** What each question answered so far said: its title, then its paragraphs. */
   readonly confirms: string[] = [];
   current?: ShareSource;
   acceptDisplay = true;
@@ -204,10 +214,17 @@ class BrowserStub {
       removeItem: (key: string) => this.storage.delete(key),
     });
     this.install(globalThis, "navigator", { clipboard: { writeText: (text: string) => Promise.resolve(void (this.clipboard = text)) } });
-    this.install(globalThis, "confirm", (message: string) => {
-      this.confirms.push(message);
-      return this.confirmAnswer;
+    // The page never uses the browser's own confirm(); a call fails the test.
+    this.install(globalThis, "confirm", () => {
+      throw new Error("confirm() was called");
     });
+    showing = (dialog) => {
+      if (!this.autoAnswer) return;
+      this.confirms.push(dialog.all().filter((e) => e.tag === "h2" || e.tag === "p").map((e) => e.textContent).join("\n\n"));
+      const answer = this.confirmAnswer ? "confirm" : "cancel";
+      dialog.all().find((e) => e.tag === "button" && e.attributes.get("value") === answer)!.click();
+    };
+    this.restorations.push(() => showing = undefined);
     this.install(globalThis, "setInterval", (callback: () => void) => this.timers.push(callback));
     focusing = (element) => this.document.activeElement = element;
     blurring = (element) => this.document.activeElement === element && (this.document.activeElement = this.body);
@@ -453,10 +470,16 @@ Deno.test("sharing client: a sync link joins that library, keeps the previous on
 
       b.confirmAnswer = false;
       b.el("#library-list").button("Remove from this browser").click();
+      await b.settle();
       assertEquals(b.stored().saved.length, 1);
       b.confirmAnswer = true;
       b.el("#library-list").button("Remove from this browser").click();
+      await b.settle();
       assertEquals(b.stored().saved, []);
+      assertEquals(b.confirms.slice(1), [
+        "Remove Dante from this browser?\n\nIts worlds stay online until they expire, but only a device that still syncs it can bring it back here.",
+        "Remove Dante from this browser?\n\nIts worlds stay online until they expire, but only a device that still syncs it can bring it back here.",
+      ]);
       assert(b.el("#saved-libraries").hidden);
     },
     { current: { key: keyA, name: "Laptop" }, saved: [], auto: true },
@@ -545,6 +568,7 @@ Deno.test("sharing client: a shared world downloads as a playable save marked Fr
       assert(!b.el("#download-world").disabled);
 
       // A modal dialog asks first: focus moves into it, and Escape declines and puts focus back.
+      b.autoAnswer = false;
       const trigger = b.el("#download-world");
       trigger.focus();
       trigger.click();
@@ -752,6 +776,21 @@ Deno.test("sharing client: share and sync cards show a QR code and copy links; d
     card.button("Close").click();
     assert(card.hidden);
     await b.reply(await b.request("DELETE", "/library/pair"), new Response(null, { status: 204 }));
+
+    // A destructive question: an alertdialog described by its body, red Delete, and focus on Cancel so Enter alone deletes nothing.
+    b.autoAnswer = false;
+    b.el("#world-list").button("Delete").click();
+    await b.settle();
+    const question = b.dialog()!;
+    assertEquals(question.attributes.get("role"), "alertdialog");
+    const described = question.all().find((e) => e.attributes.get("id") === question.attributes.get("aria-describedby"));
+    assertEquals(described?.textContent, "It disappears from all your synced devices, and its share link stops working.");
+    assert(question.button("Delete").attributes.get("class")!.includes("danger"));
+    assert(b.document.activeElement === question.button("Cancel"), "focus starts on Cancel");
+    question.escape();
+    await b.settle();
+    assertEquals([b.dialog(), b.pending()], [undefined, 0]);
+    b.autoAnswer = true;
 
     b.confirmAnswer = false;
     b.el("#world-list").button("Delete").click();

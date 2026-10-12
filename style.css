@@ -227,6 +227,18 @@ select {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
+/* A question whose yes deletes or drops something: its button is red, and focus starts on Cancel. */
+.dialog.danger {
+  border-color: #c96a5f;
+}
+.button.danger {
+  border-color: #e0786b;
+  background: color-mix(in srgb, #e0786b 18%, transparent);
+  color: #ffc9c0;
+}
+.button.danger:hover {
+  background: color-mix(in srgb, #e0786b 30%, transparent);
+}
 .viewing {
   padding: 6px 0;
   color: var(--gold);
