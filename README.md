@@ -123,10 +123,10 @@ at 4 MiB before JSON parsing, to bound validation memory use.
 
 **Download** saves a world as a `.zip` you can play, for example to move a character between PCs. **Download save**, next to **Stop
 following**, does the same for the world you are following or viewing from a share link (the version on screen). The ZIP holds the
-character's folder, byte-for-byte as it was added: every `.save`, `.tmap`, `.ini` and map `.png` the game wrote, with their saved times. Put
-that folder (for example `Hero`) into the game's `Saves` folder, so that `Saves\Hero\Player.save` exists, and load it in the game. Open the
-ZIP in Explorer and drag the folder in, or use **Extract All...** with `Saves` itself as the destination (Explorer suggests a new folder
-named after the ZIP). MirkMap can also open the ZIP directly with **Open .zip**.
+character's folder, byte-for-byte as it was added: every `.save`, `.tmap`, `.ini` and map `.png` the game wrote, with their saved times, and
+MirkMap's own `MirkMap.json`. Put that folder (for example `Hero`) into the game's `Saves` folder, so that `Saves\Hero\Player.save` exists,
+and load it in the game. Open the ZIP in Explorer and drag the folder in, or use **Extract All...** with `Saves` itself as the destination
+(Explorer suggests a new folder named after the ZIP). MirkMap can also open the ZIP directly with **Open .zip**.
 
 The game names a character after its folder, so the folder is the character's name. If `Saves` already has a folder of that name, move the
 old one out first: extracting over it would mix two versions, and files the newer save no longer has (the game deletes the file of an item
@@ -135,17 +135,18 @@ pile when you pick it up) would bring those items back.
 A world downloaded from a **share link** is someone else's: its ZIP is named `Hero (From Share).zip` and keeps the folder name `Hero`.
 Before it downloads, a dialog warns that putting it into a `Saves` folder that already has a character called Hero overwrites that
 character; to keep both, rename one of the two folders first. **Download** goes ahead; **Cancel**, Escape or a click outside the dialog
-backs out, and focus returns to **Download save**. The download carries `from_share=1` in a hidden `MirkMap.ini` next to `Player.save`, so
-MirkMap shows the world as **Hero (From Share)** with an **S** badge, both when the folder or ZIP is opened and in a library it is added to.
-The game never reads, lists or removes that file, so it survives playing; delete it (or its `from_share` line) to drop the badge. Downloads
-from your own library are not marked, but keep any `MirkMap.ini` the world already had.
+backs out, and focus returns to **Download save**. The download carries `"fromShare": true` in a hidden `MirkMap.json` next to
+`Player.save`, so MirkMap shows the world as **Hero (From Share)** with an **S** badge, both when the folder or ZIP is opened and in a
+library it is added to. The game never reads, lists or removes that file, so it survives playing; delete it (or its `fromShare` entry) to
+drop the badge. Downloads from your own library are not marked, but keep any `MirkMap.json` the world already had.
 
-`MirkMap.ini` is MirkMap's own notes about a world: a plain INI file (UTF-8, CRLF) with one `[MirkMap]` section that any MirkMap feature can
-add keys to, keeping the others. Downloads give it the Windows hidden attribute, which Explorer applies when extracting. Downloads are built
-in the browser from the package MirkMap already fetches to show the world, so they add no server storage or new endpoint, and the server
-records only a `fromShare` flag (from the uploaded `MirkMap.ini`, read again on every upload) in the world's small metadata record. Uploads
-stay uncompressed; the ZIP is deflated to 12-18% of the world's size (a new character's 2 MB to about 250 KB, a 58 MB world to 8.5 MB, built
-in about a second).
+`MirkMap.json` is MirkMap's own notes about a world: one JSON object (UTF-8) that any MirkMap feature can add keys to, keeping the others.
+It is JSON rather than INI because Chrome and Edge on Windows refuse `.ini` files in the File System Access API that Live saves and the save
+editor use (Safe Browsing lists `.ini` as a dangerous file type there). Downloads give it the Windows hidden attribute, which Explorer
+applies when extracting. Downloads are built in the browser from the package MirkMap already fetches to show the world, so they add no
+server storage or new endpoint, and the server records only a `fromShare` flag (from the uploaded `MirkMap.json`, read again on every
+upload) in the world's small metadata record. Uploads stay uncompressed; the ZIP is deflated to 12-18% of the world's size (a new
+character's 2 MB to about 250 KB, a 58 MB world to 8.5 MB, built in about a second).
 
 ### As an app, and offline
 
@@ -375,18 +376,18 @@ game's own order, so Live saves accepts the result.
 
 ### The Cheated mark
 
-- `MirkMap.ini` in the character folder gets `cheated=1`, `cheated_since` (the first saved edit) and `cheated_edits` in its `[MirkMap]`
-  section, next to MirkMap's other notes such as `from_share`. The game never reads or removes it, and uploads include it.
+- `MirkMap.json` in the character folder gets `"cheated": { "since": …, "edits": … }` (the first saved edit's time and the number of saved
+  edits), next to MirkMap's other notes such as `fromShare`. The game never reads or removes it, and uploads include it.
 - This browser remembers every world it saved edits to, so the map still shows the mark if the file is removed, and puts it back into the
   world when it is added to your library.
 - The upload server remembers, for good, each library world that was ever uploaded with the mark (`cheated.json` beside the stored worlds,
-  not subject to the 30-day retention). A later upload of it without `MirkMap.ini` gets the file back before it is stored, so every synced
+  not subject to the 30-day retention). A later upload of it without `MirkMap.json` gets the file back before it is stored, so every synced
   copy, share and download carries it. Another library's copy of the same world is its own, so someone who edits a world downloaded from
   your share link marks only their copy.
 - MirkMap shows the world with a **C** badge and "(Cheated)" after its name, both for the open world and in **My worlds**.
 
-Restoring a backup undoes edits, not the mark. On a computer that never saved edits to a world and never uploaded it, deleting `MirkMap.ini`
-does remove the mark; everywhere else it stays.
+Restoring a backup undoes edits, not the mark. On a computer that never saved edits to a world and never uploaded it, deleting
+`MirkMap.json` does remove the mark; everywhere else it stays.
 
 ## How the guesses work
 

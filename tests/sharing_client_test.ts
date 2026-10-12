@@ -12,6 +12,7 @@ import {
   type WorldInfo,
 } from "../src/sharing-format.ts";
 import { readZip } from "../src/zip.ts";
+import { readMarker } from "../src/marker.ts";
 import { assert, assertEquals } from "./assert.ts";
 
 const storageKey = "mirklurk-library-v1";
@@ -536,9 +537,9 @@ Deno.test("sharing client: a shared world downloads as a playable save marked Fr
     async (b) => {
       await b.init();
       assert(b.el("#download-world").disabled);
-      // The sharer's own MirkMap.ini keys (here a save editor's) survive the download.
+      // The sharer's own MirkMap.json keys (here a save editor's) survive the download.
       const files = new Map(source().files);
-      files.set("Hero/MirkMap.ini", { read: () => Promise.resolve(new TextEncoder().encode("[MirkMap]\r\ncheated=1\r\n")) });
+      files.set("Hero/MirkMap.json", { read: () => Promise.resolve(new TextEncoder().encode('{"cheated":true}')) });
       const packed = await packSave(files, { name: "Hero", root: "Hero/" });
       await b.reply(await b.request("GET", "/view/data"), new Response(packed as BodyInit, { headers: { ETag: '"v1"' } }));
       assert(!b.el("#download-world").disabled);
@@ -585,10 +586,12 @@ Deno.test("sharing client: a shared world downloads as a playable save marked Fr
       assertEquals(b.pending(), 0);
       assertEquals(b.links.map((l) => l.download), ["Hero (From Share).zip"]);
       const entries = await readZip(b.blobs.get(b.links[0].href!)!);
-      assertEquals(entries.map((e) => e.name), ["Hero/Player.save", "Hero/MirkMap.ini"]);
+      assertEquals(entries.map((e) => e.name), ["Hero/Player.save", "Hero/MirkMap.json"]);
       assertEquals([...await entries[0].read()], [...playerBytes]);
-      const marker = new TextDecoder().decode(await entries[1].read());
-      assert(/^\[MirkMap\]\r\ncheated=1\r\nfrom_share=1\r\nshare_downloaded=\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\r\n$/.test(marker), marker);
+      const marker = readMarker(new TextDecoder().decode(await entries[1].read()));
+      assertEquals(Object.keys(marker), ["cheated", "fromShare", "shareDownloaded"]);
+      assertEquals([marker.cheated, marker.fromShare], [true, true]);
+      assert(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(String(marker.shareDownloaded)), String(marker.shareDownloaded));
       assert(b.status().startsWith("Downloaded Hero (From Share).zip. To play it, put its Hero folder into the game's Saves folder"));
       assert(b.status().includes("that character would be overwritten: rename one of the folders first"), b.status());
       assert(!b.el("#share-status").classList.contains("error"));

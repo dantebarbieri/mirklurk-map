@@ -1,11 +1,11 @@
 // The "Cheated" mark. Saving any edit from the save editor marks the world for good, in three places:
-// - MirkMap.ini in the character folder (cheated=1), which travels with uploads and shares and survives the game's own saves;
-// - this browser's IndexedDB, keyed by world ID, so a deleted MirkMap.ini still shows the mark on this device;
+// - MirkMap.json in the character folder ("cheated"), which travels with uploads and shares and survives the game's own saves;
+// - this browser's IndexedDB, keyed by world ID, so a deleted MirkMap.json still shows the mark on this device;
 // - the upload server, which keeps the mark for a world ID once any upload of it carried one (server/uploads.ts).
 // MirkMap shows a cheated world with a C badge wherever it shows the world.
 
 import type { FileMap } from "./files.ts";
-import { MARKER, markerFlag, markerPath, markerText, readMarker, writeMarker } from "./marker.ts";
+import { isNotes, MARKER, markerPath, markerText, readMarker, writeMarker } from "./marker.ts";
 
 export const CHEATED_KEY = "cheated";
 
@@ -16,36 +16,38 @@ export interface CheatedInfo {
   edits?: number;
 }
 
-/** The mark in a MirkMap.ini's text, or undefined when it has none. */
+/** The mark in a MirkMap.json's text ("cheated": true, or an object with its details), or undefined when it has none. */
 export function cheatedInfo(text: string | undefined): CheatedInfo | undefined {
   if (text === undefined) return undefined;
-  const m = readMarker(text);
-  if (!markerFlag(m, CHEATED_KEY)) return undefined;
-  const edits = Number(m.get("cheated_edits"));
-  return { since: m.get("cheated_since") || undefined, edits: Number.isInteger(edits) && edits > 0 ? edits : undefined };
+  const mark = readMarker(text)[CHEATED_KEY];
+  if (mark === true) return { since: undefined, edits: undefined };
+  if (!isNotes(mark)) return undefined;
+  const { since, edits } = mark;
+  return {
+    since: typeof since === "string" && since ? since : undefined,
+    edits: typeof edits === "number" && Number.isInteger(edits) && edits > 0 ? edits : undefined,
+  };
 }
 
-/** MirkMap.ini's text with the mark set: the first edit's time is kept and the edit count goes up by one. */
+/** MirkMap.json's text with the mark set: the first edit's time is kept and the edit count goes up by one. */
 export function markCheated(text: string | undefined, now = new Date()): string {
-  const before = text === undefined ? undefined : readMarker(text);
-  const edits = Number(before?.get("cheated_edits"));
+  const before = cheatedInfo(text);
+  const mark = text === undefined ? undefined : readMarker(text)[CHEATED_KEY];
   return writeMarker(text, {
-    cheated: "1",
-    cheated_since: before?.get("cheated_since") || now.toISOString(),
-    cheated_edits: String((Number.isInteger(edits) && edits > 0 ? edits : 0) + 1),
+    [CHEATED_KEY]: { ...(isNotes(mark) ? mark : {}), since: before?.since ?? now.toISOString(), edits: (before?.edits ?? 0) + 1 },
   });
 }
 
-/** Whether the character at `root` carries the mark in its MirkMap.ini. */
+/** Whether the character at `root` carries the mark in its MirkMap.json. */
 export async function isCheated(files: FileMap, root: string): Promise<boolean> {
   return cheatedInfo(await markerText(files, root)) !== undefined;
 }
 
-/** MirkMap.ini's text with the mark, without counting an edit: for restoring a mark that went missing. */
+/** MirkMap.json's text with the mark, without counting an edit: for restoring a mark that went missing. */
 export const ensureCheated = (text: string | undefined): string =>
-  text !== undefined && cheatedInfo(text) ? text : writeMarker(text, { [CHEATED_KEY]: "1" });
+  text !== undefined && cheatedInfo(text) ? text : writeMarker(text, { [CHEATED_KEY]: true });
 
-/** The files with the character's MirkMap.ini carrying the mark (added when missing, other keys kept). */
+/** The files with the character's MirkMap.json carrying the mark (added when missing, other keys kept). */
 export async function withCheatedMarker(files: FileMap, root: string): Promise<FileMap> {
   const path = markerPath(files, root) ?? `${root}${MARKER}`;
   const bytes = new TextEncoder().encode(ensureCheated(await markerText(files, root)));

@@ -37,9 +37,9 @@ interface WorldRecord {
   /** The share key derives from the sync key and this salt; a new salt revokes the old share link. */
   salt: string;
   view: string;
-  /** The package's MirkMap.ini says from_share=1; read again on every upload. */
+  /** The package's MirkMap.json says "fromShare": true; read again on every upload. */
   fromShare?: true;
-  /** Edited with the save editor (src/cheated.ts); the stored package always carries the mark in its MirkMap.ini. */
+  /** Edited with the save editor (src/cheated.ts); the stored package always carries the mark in its MirkMap.json. */
   cheated?: true;
 }
 interface LibraryRecord {
@@ -547,7 +547,7 @@ export class UploadStore {
       if (await worldId(unpacked.name, unpacked.grid) !== id) {
         throw new HttpError(409, "This save is a different world from the one it would update, so nothing was changed");
       }
-      // Once an upload of this library's world carried the Cheated mark, every later one keeps it: a package that lost MirkMap.ini gets it back.
+      // Once an upload of this library's world carried the Cheated mark, every later one keeps it: a package that lost MirkMap.json gets it back.
       const marked = await isCheated(unpacked.files, "Shared/");
       const cheated = marked || this.cheated.has(key);
       let stored = body;

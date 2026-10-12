@@ -76,9 +76,9 @@ export interface World {
   warnings: string[];
   files: FileMap;
   savedAt?: number;
-  /** Downloaded from a share link: MirkMap.ini says from_share=1. */
+  /** Downloaded from a share link: MirkMap.json says "fromShare": true. */
   fromShare?: boolean;
-  /** Changed with the save editor: MirkMap.ini says cheated=1, or this browser saved edits to it (main.ts). */
+  /** Changed with the save editor: MirkMap.json has the "cheated" mark, or this browser saved edits to it (main.ts). */
   cheated?: boolean;
 }
 

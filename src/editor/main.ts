@@ -7,7 +7,7 @@ import { type Character, characterIndex, findCharacters } from "../files.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../gamedata.ts";
 import { worldId } from "../sharing-format.ts";
 import { cheatedInfo, knownCheated } from "../cheated.ts";
-import { markerText } from "../marker.ts";
+import { isSaveFile, markerText } from "../marker.ts";
 import { type Being, parseBeings, parsePlayer, type PlayerSave } from "../save.ts";
 import { type Interior, interiorsOf, loadDetail, loadLayer, loadTrees, loadWorld, type World, type Zone } from "../world.ts";
 import { MAX_LEVEL, percent, playerView, STAT_LABELS, temperatureLabel, xpForLevel } from "../player.ts";
@@ -996,7 +996,7 @@ async function devOpen(name: string, fresh: boolean) {
     const base = `/__saves/${encodeURIComponent(name)}/`;
     const list: string[] = await (await fetch(base)).json();
     for (const path of list) {
-      if (!/\.(save|tmap|png|ini)$/i.test(path)) continue;
+      if (!isSaveFile(path)) continue;
       const parts = path.split("/");
       let d = root as EditDirectory & { getDirectoryHandle(n: string, o?: { create?: boolean }): Promise<EditDirectory> };
       for (const part of parts.slice(0, -1)) d = await d.getDirectoryHandle(part, { create: true }) as typeof d;

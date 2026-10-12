@@ -1,6 +1,6 @@
 // Save editor: one character folder opened for writing with the File System Access API (desktop Chrome and Edge). Edits change
 // parsed copies of the save files (drafts) until they are saved. Saving refuses if the game wrote the folder since it was read, keeps
-// the replaced files in this browser as a backup, writes the Cheated mark into MirkMap.ini first and then each changed file the way
+// the replaced files in this browser as a backup, writes the Cheated mark into MirkMap.json first and then each changed file the way
 // save_datajson does: JSON and one NUL byte.
 
 import type { Character, FileMap } from "../files.ts";

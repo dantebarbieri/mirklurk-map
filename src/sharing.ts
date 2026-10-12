@@ -463,7 +463,7 @@ export class Sharing {
     const revision = `${tagOf(source)}:${source.revision}`;
     try {
       if (!auto) this.report(`${adding ? "Adding" : "Updating"} ${name}...`);
-      // A world this browser edited keeps the Cheated mark even if its MirkMap.ini was removed.
+      // A world this browser edited keeps the Cheated mark even if its MirkMap.json was removed.
       const files = await knownCheated(id) ? await withCheatedMarker(source.files, source.character.root) : source.files;
       const bytes = await packSave(files, source.character);
       const now = this.hooks.current();
@@ -503,7 +503,7 @@ export class Sharing {
 
   /**
    * Downloads a world as a ZIP the game can load. The version on screen is used when this world is open; another library world is
-   * fetched first. A world from a share link keeps its folder (= character) name and is marked from_share in MirkMap.ini, after a
+   * fetched first. A world from a share link keeps its folder (= character) name and is marked fromShare in MirkMap.json, after a
    * warning that it would replace a character of the same name.
    */
   private async download(target: Watch) {

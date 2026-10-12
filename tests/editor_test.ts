@@ -17,7 +17,7 @@ import {
 import { addable, addItems, carriedBags, freeCells, newItem } from "../src/editor/items.ts";
 import { deleteBeing, isQuestBeing, newBeing, spawnable, spawnBeing } from "../src/editor/beings.ts";
 import { Ground, groundMap, tileBox } from "../src/editor/ground.ts";
-import { cheatedInfo, isCheated, markCheated } from "../src/cheated.ts";
+import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
 import { readMarker, writeMarker } from "../src/marker.ts";
 import { decodeJson, parseBeings, parsePlayer } from "../src/save.ts";
 import { parseInventoryGrid } from "../src/inventory.ts";
@@ -239,18 +239,30 @@ Deno.test("ground: walls and pits block, water is water, shade is free, things t
 });
 
 Deno.test("the Cheated mark keeps its first time, counts edits and keeps other keys", () => {
-  const shared = writeMarker(undefined, { from_share: "1" });
+  const shared = writeMarker(undefined, { fromShare: true });
   const once = markCheated(shared, new Date("2026-10-11T12:00:00Z"));
   const twice = markCheated(once, new Date("2027-01-01T00:00:00Z"));
   assertEquals(cheatedInfo(twice), { since: "2026-10-11T12:00:00.000Z", edits: 2 });
-  assertEquals(readMarker(twice).get("from_share"), "1");
+  assertEquals(readMarker(twice).fromShare, true);
   assertEquals(cheatedInfo(shared), undefined);
   assertEquals(cheatedInfo(undefined), undefined);
-  assertEquals(cheatedInfo("[MirkMap]\r\ncheated=yes\r\n"), { since: undefined, edits: undefined });
+  assertEquals(cheatedInfo('{"cheated":true}'), { since: undefined, edits: undefined });
+  assertEquals(cheatedInfo('{"cheated":{"since":"","edits":1.5,"note":"x"}}'), { since: undefined, edits: undefined });
+  for (const text of ['{"cheated":false}', '{"cheated":"1"}', '{"cheated":null}', "[MirkMap]\r\ncheated=1\r\n"]) {
+    assertEquals(cheatedInfo(text), undefined, text);
+  }
+  // A mark without details gets them on the next edit, keeping its other entries.
+  assertEquals(readMarker(markCheated('{"cheated":{"note":"x"}}', new Date("2026-10-11T12:00:00Z"))).cheated, {
+    note: "x",
+    since: "2026-10-11T12:00:00.000Z",
+    edits: 1,
+  });
+  assertEquals(cheatedInfo(ensureCheated(shared)), { since: undefined, edits: undefined });
+  assertEquals(ensureCheated(twice), twice);
 });
 
-Deno.test("isCheated reads the character's MirkMap.ini in any letter case", async () => {
-  const files: FileMap = new Map([["Saves/Ann/mirkmap.INI", {
+Deno.test("isCheated reads the character's MirkMap.json in any letter case", async () => {
+  const files: FileMap = new Map([["Saves/Ann/mirkmap.JSON", {
     read: () => Promise.resolve(new TextEncoder().encode(markCheated(undefined))),
   }]]);
   assert(await isCheated(files, "Saves/Ann/"));

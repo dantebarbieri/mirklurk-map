@@ -62,7 +62,7 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
   status(`Reading ${c.name}…`);
   try {
     const world = await loadWorld(selectedFiles, c.root, c.name);
-    // The editor's record in this browser keeps the Cheated mark even when MirkMap.ini was removed.
+    // The editor's record in this browser keeps the Cheated mark even when MirkMap.json was removed.
     world.cheated ||= await knownCheated(await worldId(c.name, world.player.grid));
     const shipwreck = new Map<string, number>();
     for (const z of world.zones.flat()) {

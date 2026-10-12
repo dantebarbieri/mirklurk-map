@@ -1,4 +1,5 @@
 import type { Character, FileMap } from "./files.ts";
+import { isSaveFile } from "./marker.ts";
 import { decodeJson, parsePlayer } from "./save.ts";
 
 export const MAX_UPLOAD = 64 * 1024 * 1024;
@@ -26,7 +27,7 @@ export interface WorldInfo {
   version: string;
   size: number;
   share: string;
-  /** Its MirkMap.ini says it was downloaded from a share link; sent only when true. */
+  /** Its MirkMap.json says it was downloaded from a share link; sent only when true. */
   fromShare?: true;
   /** Edited with the save editor at some point (src/cheated.ts); sent only when true, and never cleared. */
   cheated?: true;
@@ -136,7 +137,7 @@ export function unframe(bytes: Uint8Array): { header: unknown; body: Uint8Array 
 function validPath(path: string): boolean {
   return path.length <= 240 && !path.includes("\\") && !hasControl(path) &&
     path.split("/").every((part) => part.length > 0 && part !== "." && part !== "..") &&
-    /\.(save|tmap|png|ini)$/i.test(path);
+    isSaveFile(path);
 }
 
 /** One character, uncompressed: limits apply to actual bytes, not a ZIP's claimed size. */
