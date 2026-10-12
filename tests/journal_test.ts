@@ -18,8 +18,9 @@ import {
   targetName,
 } from "../src/journal.ts";
 import { Area, INTERIOR_NAMES } from "../src/rules.ts";
-import { type FileMap, findCharacters } from "../src/files.ts";
+import { findCharacters } from "../src/files.ts";
 import { loadWorld, type World } from "../src/world.ts";
+import { HAVE_SAVES, readTree } from "./saves.ts";
 
 /** A world with the fort at `fort` ([x, y]) and every other zone a Common Bog. */
 function save(mainQuest: number, fort: [number, number] = [0, 2], over: Partial<JournalSave> = {}): JournalSave {
@@ -125,31 +126,12 @@ Deno.test("journal: link splitting takes whole words and prefers the longer phra
   assertEquals(targetName({ kind: "interior", type: 30 }), "Undercroft");
 });
 
-const dir = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
-const present = (() => {
-  try {
-    return Deno.statSync(dir).isDirectory;
-  } catch {
-    return false;
-  }
-})();
-
-function readTree(root: string, prefix = "Saves/", out: FileMap = new Map()): FileMap {
-  for (const e of Deno.readDirSync(root)) {
-    const p = `${root}/${e.name}`;
-    if (e.isDirectory) readTree(p, `${prefix}${e.name}/`, out);
-    else out.set(`${prefix}${e.name}`, { read: () => Deno.readFile(p) });
-  }
-  return out;
-}
-
 async function worlds(): Promise<World[]> {
-  const files = readTree(dir);
+  const files = readTree();
   return await Promise.all(findCharacters(files).map((c) => loadWorld(files, c.root, c.name)));
 }
 
-Deno.test({ name: "journal: real saves", ignore: !present }, async () => {
+Deno.test({ name: "journal: real saves", ignore: !HAVE_SAVES }, async () => {
   for (const w of await worlds()) {
     const p = w.player, name = w.character;
     const e = journalEntries(p);
@@ -166,7 +148,7 @@ Deno.test({ name: "journal: real saves", ignore: !present }, async () => {
   }
 });
 
-Deno.test({ name: "journal: real saves find the people and places where they are", ignore: !present }, async () => {
+Deno.test({ name: "journal: real saves find the people and places where they are", ignore: !HAVE_SAVES }, async () => {
   const all = await worlds();
   const by = (n: string) => all.find((w) => w.character === n);
   const lilly = by("Lilly"), demo = by("StatusDemo");

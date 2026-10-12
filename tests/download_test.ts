@@ -2,6 +2,7 @@
 //   MIRKLURK_SAVES="…\Saves" deno task test      (the real-save round trip is skipped when no saves are found)
 
 import { assert, assertEquals, assertRejects } from "./assert.ts";
+import { HAVE_SAVES, SAVES } from "./saves.ts";
 import { type FileMap, findCharacters, fromFiles } from "../src/files.ts";
 import { isFromShare, isSaveFile, MARKER, readMarker, writeMarker } from "../src/marker.ts";
 import { folderName, saveZip } from "../src/download.ts";
@@ -177,16 +178,6 @@ Deno.test("download: a world from a share link is marked From Share, keeping oth
   await assertRejects(() => saveZip("Hero", new Map(), "Shared/"), /no files/);
 });
 
-const savesDir = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
-const savesPresent = (() => {
-  try {
-    return Deno.statSync(savesDir).isDirectory;
-  } catch {
-    return false;
-  }
-})();
-
 /** Every file in a folder, whatever its type, so nothing the game wrote can be missed. Read-only. */
 function readAll(root: string, prefix: string, out = new Map<string, string>()): Map<string, string> {
   for (const entry of Deno.readDirSync(root)) {
@@ -199,15 +190,15 @@ function readAll(root: string, prefix: string, out = new Map<string, string>()):
 
 Deno.test({
   name: "download: real characters survive upload, the server and download byte-for-byte, as complete folders",
-  ignore: !savesPresent,
+  ignore: !HAVE_SAVES,
 }, async () => {
   const directory = await Deno.makeTempDir({ prefix: "mirklurk-download-" });
   const store = new UploadStore(directory);
   await store.init();
   let checked = 0;
   try {
-    for (const entry of [...Deno.readDirSync(savesDir)].filter((e) => e.isDirectory).sort((a, b) => a.name.localeCompare(b.name))) {
-      const disk = readAll(`${savesDir}/${entry.name}`, `${entry.name}/`);
+    for (const entry of [...Deno.readDirSync(SAVES)].filter((e) => e.isDirectory).sort((a, b) => a.name.localeCompare(b.name))) {
+      const disk = readAll(`${SAVES}/${entry.name}`, `${entry.name}/`);
       if (!disk.has(`${entry.name}/Player.save`)) continue;
       const files: FileMap = new Map();
       for (const [path, real] of disk) {

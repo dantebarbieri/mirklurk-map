@@ -20,6 +20,7 @@ import {
 } from "../src/bestiary.ts";
 import { BEING_NAMES, DAMAGE_CLASS_NAMES } from "../src/gamedata.ts";
 import { NPC_BEINGS } from "../src/rules.ts";
+import { HAVE_SAVES, SAVES } from "./saves.ts";
 
 const rectangular = (g: number[][]) => g.length > 0 && g.every((r) => r.length > 0 && r.length === g[0].length);
 
@@ -103,16 +104,6 @@ Deno.test("bestiary: fresh hit points match saved full-health beings", () => {
   assertEquals(freshHealth(-1), undefined);
 });
 
-const dir = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
-const present = (() => {
-  try {
-    return Deno.statSync(dir).isDirectory;
-  } catch {
-    return false;
-  }
-})();
-
 function* beingSaves(root: string): Generator<string> {
   for (const e of Deno.readDirSync(root)) {
     const p = `${root}/${e.name}`;
@@ -121,9 +112,9 @@ function* beingSaves(root: string): Generator<string> {
   }
 }
 
-Deno.test({ name: "real saves: no saved being has more hit points or armor than a fresh one", ignore: !present }, () => {
+Deno.test({ name: "real saves: no saved being has more hit points or armor than a fresh one", ignore: !HAVE_SAVES }, () => {
   let full = 0;
-  for (const file of beingSaves(dir)) {
+  for (const file of beingSaves(SAVES)) {
     const beings = JSON.parse(Deno.readTextFileSync(file).replace(/\0+$/, "")) as { index: number; hpgrid?: number[][] }[];
     for (const b of beings) {
       const fresh = freshHealth(b.index);

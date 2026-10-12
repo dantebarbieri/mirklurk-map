@@ -4,6 +4,7 @@
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
 import { assert, assertEquals, assertThrows } from "./assert.ts";
+import { HAVE_SAVES, readTree } from "./saves.ts";
 import {
   addRaft,
   dockTile,
@@ -224,25 +225,8 @@ Deno.test("creatures live where the game lets them: swimmers in water, walkers o
 
 // --- Real saves ---
 
-const dir = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
-const present = (() => {
-  try {
-    return Deno.statSync(dir).isDirectory;
-  } catch {
-    return false;
-  }
-})();
-
-Deno.test({ name: "real saves: the game's own rafts float, are written like ours, and dock at a shore", ignore: !present }, async () => {
-  const files = new Map<string, { read: () => Promise<Uint8Array> }>();
-  const walk = (root: string, prefix: string) => {
-    for (const e of Deno.readDirSync(root)) {
-      if (e.isDirectory) walk(`${root}/${e.name}`, `${prefix}${e.name}/`);
-      else files.set(`${prefix}${e.name}`, { read: () => Deno.readFile(`${root}/${e.name}`) });
-    }
-  };
-  walk(dir, "Saves/");
+Deno.test({ name: "real saves: the game's own rafts float, are written like ours, and dock at a shore", ignore: !HAVE_SAVES }, async () => {
+  const files = readTree();
   let rafts = 0;
   for (const c of findCharacters(files)) {
     const world = await loadWorld(files, c.root, c.name);
@@ -273,15 +257,8 @@ Deno.test({ name: "real saves: the game's own rafts float, are written like ours
   console.log(`  ${rafts} rafts checked`);
 });
 
-Deno.test({ name: "real saves: the game's own creatures stand where they can live", ignore: !present }, async () => {
-  const files = new Map<string, { read: () => Promise<Uint8Array> }>();
-  const walk = (root: string, prefix: string) => {
-    for (const e of Deno.readDirSync(root)) {
-      if (e.isDirectory) walk(`${root}/${e.name}`, `${prefix}${e.name}/`);
-      else files.set(`${prefix}${e.name}`, { read: () => Deno.readFile(`${root}/${e.name}`) });
-    }
-  };
-  walk(dir, "Saves/");
+Deno.test({ name: "real saves: the game's own creatures stand where they can live", ignore: !HAVE_SAVES }, async () => {
+  const files = readTree();
   let checked = 0, fish = 0;
   for (const c of findCharacters(files)) {
     const world = await loadWorld(files, c.root, c.name);
@@ -309,16 +286,9 @@ Deno.test({ name: "real saves: the game's own creatures stand where they can liv
 
 Deno.test({
   name: "real saves: moving into each interior names the folder the game wrote, onto floor its way out reaches",
-  ignore: !present,
+  ignore: !HAVE_SAVES,
 }, async () => {
-  const files = new Map<string, { read: () => Promise<Uint8Array> }>();
-  const walk = (root: string, prefix: string) => {
-    for (const e of Deno.readDirSync(root)) {
-      if (e.isDirectory) walk(`${root}/${e.name}`, `${prefix}${e.name}/`);
-      else files.set(`${prefix}${e.name}`, { read: () => Deno.readFile(`${root}/${e.name}`) });
-    }
-  };
-  walk(dir, "Saves/");
+  const files = readTree();
   let moved = 0, refused = 0, standing = 0;
   for (const c of findCharacters(files)) {
     const world = await loadWorld(files, c.root, c.name);

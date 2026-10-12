@@ -3,6 +3,7 @@
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
 import { assert, assertEquals, assertThrows } from "./assert.ts";
+import { SAVES } from "./saves.ts";
 import {
   healPlayer,
   hitPointStatus,
@@ -731,11 +732,9 @@ Deno.test("isCheated reads the character's MirkMap.json in any letter case", asy
 
 // --- Real saves, edited in memory only ---
 
-const dir = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
 const characters: string[] = [];
 try {
-  for (const e of Deno.readDirSync(dir)) if (e.isDirectory) characters.push(e.name);
+  for (const e of Deno.readDirSync(SAVES)) if (e.isDirectory) characters.push(e.name);
 } catch {
   // No saves here.
 }
@@ -745,7 +744,7 @@ Deno.test({ name: "real saves: every edit round-trips through the viewer's parse
   for (const name of characters) {
     let bytes: Uint8Array;
     try {
-      bytes = Deno.readFileSync(`${dir}/${name}/Player.save`);
+      bytes = Deno.readFileSync(`${SAVES}/${name}/Player.save`);
     } catch {
       continue;
     }

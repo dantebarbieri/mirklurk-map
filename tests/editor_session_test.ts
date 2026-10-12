@@ -4,6 +4,7 @@
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
 import { assert, assertEquals, assertRejects } from "./assert.ts";
+import { SAVES } from "./saves.ts";
 import { type Backup, type EditDirectory, type EditFile, EditSession, StaleError } from "../src/editor/session.ts";
 import { addItems } from "../src/editor/items.ts";
 import { movePlayer, setSkillPoints, setVitals } from "../src/editor/edits.ts";
@@ -500,11 +501,9 @@ Deno.test("editor session: a reload drops a change to several files whole when o
 
 // --- A real save, copied ---
 
-const saves = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
 const real = ["Tiberius", "Lorroakan", "Lilly"].find((n) => {
   try {
-    return Deno.statSync(`${saves}/${n}/Player.save`).isFile;
+    return Deno.statSync(`${SAVES}/${n}/Player.save`).isFile;
   } catch {
     return false;
   }
@@ -525,7 +524,7 @@ async function copyTree(from: string, to: string) {
 Deno.test({ name: "editor session: a copy of a real save takes edits and still loads in the map", ignore: !real }, async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
   try {
-    await copyTree(`${saves}/${real}`, `${root}/${real}`);
+    await copyTree(`${SAVES}/${real}`, `${root}/${real}`);
     const s = await openSession(root, real!);
     const player = `${s.character.root}Player.save`;
     const before = parsePlayer(await s.json(player));
