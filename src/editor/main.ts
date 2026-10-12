@@ -492,7 +492,7 @@ async function saveCopyToFolder(s: EditSession) {
       status(errorText(e), true);
     }
   });
-  if (same) await save();
+  if (same && session === s) await save();
   else await render();
 }
 
@@ -660,6 +660,8 @@ async function save() {
   await locked(async () => {
     try {
       const n = await s.save();
+      // Another save opened meanwhile (with the keyboard: the page is locked to the pointer) stays on screen.
+      if (session !== s) return;
       cheated = true;
       notes.clear();
       await install(s.source, s.current, s.character, true);
@@ -688,6 +690,7 @@ async function download() {
   try {
     const zip = await s.download();
     offerDownload(zip);
+    if (session !== s) return;
     cheated = true;
     status(
       `Downloaded ${zip.filename} with your changes and the Cheated mark. To play it, put its ${zip.folder} folder into the game's ` +
@@ -723,6 +726,7 @@ async function restore(b: Backup) {
     try {
       // The session drops the unsaved changes once the backup is written back; a refused restore keeps them.
       await s.restore(b);
+      if (session !== s) return;
       status(`Restored the files from before ${when}.`);
     } catch (e) {
       status(errorText(e), true);
