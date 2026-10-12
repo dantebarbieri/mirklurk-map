@@ -325,6 +325,8 @@ async function install(src: SaveSource, read: SaveRead, want: Character | undefi
     forgetMapImages();
     showCharacters();
     document.body.classList.add("loaded");
+    // A save is open now: the offer to reopen the last folder is stale.
+    document.querySelector<HTMLElement>("#reopen")?.toggleAttribute("hidden", true);
     status(`${c.name} loaded from ${sourceText(src)}${loaded.warnings.length ? ` with ${loaded.warnings.length} warnings` : ""}.`);
     void rememberOpen();
   } catch (e) {
@@ -513,15 +515,17 @@ async function openHandoff({ save, character }: Handoff, handed: boolean) {
     h("button", {
       class: "button",
       type: "button",
-      onclick: async () => {
-        // Reading is enough until the first save, which asks to write (see writable).
-        if (!await folder.allowed("read", true)) {
-          status(`The browser did not let MirkMap open ${folder.dir.name}. Choose Open save folder... instead.`, true);
-          return;
-        }
-        again.hidden = true;
-        await openSource(folder, character, live);
-      },
+      // Like every other way of opening a save, it asks before dropping unsaved changes.
+      onclick: () =>
+        void replace(async () => {
+          // Reading is enough until the first save, which asks to write (see writable).
+          if (!await folder.allowed("read", true)) {
+            status(`The browser did not let MirkMap open ${folder.dir.name}. Choose Open save folder... instead.`, true);
+            return;
+          }
+          again.hidden = true;
+          await openSource(folder, character, live);
+        }),
     }, `Open ${folder.dir.name} again`),
     h("span", { class: "muted" }, ` The folder ${handed ? "MirkMap had" : "you had"} open; your browser asks first.`),
   );
