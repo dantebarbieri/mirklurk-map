@@ -66,10 +66,10 @@ export interface State {
   /** Live mode only: where the player probably went after this save. */
   estimate?: Estimate | null;
   /**
-   * The save editor's Move tool: a click on a zone map's empty ground (not on a mark) calls this with the zone under it and the tile
-   * clicked, instead of selecting that zone.
+   * The save editor's Move tool: a click on a zone or interior map's empty ground (not on a mark) calls this with the zone under it,
+   * the tile clicked and, inside, the interior shown, instead of selecting that zone.
    */
-  onGround?: (zone: Zone, tx: number, ty: number) => void;
+  onGround?: (zone: Zone, tx: number, ty: number, inside?: Interior) => void;
 }
 
 /**
@@ -1370,6 +1370,10 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string) {
       ? new TerrainRaster(st.terrain, [{ dir: it.dir, kind: it.kind, solids: it.solids, x: 0, y: 0, label: kind }])
       : undefined,
     view,
+    onMapClick: (px: number, py: number) => {
+      const tx = Math.floor(px / (ROOM / TILES)), ty = Math.floor(py / (ROOM / TILES));
+      if (st.onGround && tx >= 0 && ty >= 0 && tx < TILES && ty < TILES) st.onGround(z, tx, ty, it);
+    },
     marks,
     heats: [],
     player: you.interior === it.dir && you.at ? youMark(st, you, you.at[0], you.at[1], youLabel(st, you, false)) : undefined,

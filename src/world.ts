@@ -47,6 +47,8 @@ export interface Interior {
   dir: string;
   /** Area type of this interior (transPoint[0] of the entrance that leads here). */
   kind: number | null;
+  /** No saved entrance or stairs leads here, so `kind` is only implied by the way out (kindFromExit) and may be wrong. */
+  kindGuessed?: boolean;
   /** The interior whose stairs lead here, for deeper levels. */
   parent: Interior | null;
   /** No saved solid leads here any more (e.g. Fort Solid after the explosion). */
@@ -181,6 +183,7 @@ export async function loadWorld(files: FileMap, root: string, character: string)
     }
     if (it.kind === null) {
       it.kind = kindFromExit(it.solids, zones[zy]?.[zx]?.type ?? -1);
+      it.kindGuessed = true;
       it.sealed = !!zones[zy]?.[zx]?.dir;
     }
   }

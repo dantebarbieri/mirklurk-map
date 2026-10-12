@@ -1,6 +1,6 @@
 // The save editor's water and raft rules: how deep you stand, where a raft floats, where a raft you leave docks, moving you on or off
-// a raft, and where each kind of creature can live. Real saves check them against rafts and creatures the game placed itself when
-// available (skipped otherwise):
+// a raft or inside, and where each kind of creature can live. Real saves check them against rafts, creatures and interiors the game
+// made itself when available (skipped otherwise):
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
 import { assert, assertEquals } from "./assert.ts";
@@ -22,10 +22,13 @@ import {
   waterText,
   wetMap,
 } from "../src/editor/raft.ts";
-import type { Rec } from "../src/editor/edits.ts";
+import { insideOf, isInside, movePlayer, playerRecord, type Rec } from "../src/editor/edits.ts";
 import { habitat, habitatRefusal } from "../src/editor/beings.ts";
-import { TILES } from "../src/rules.ts";
+import { reachable } from "../src/editor/ground.ts";
+import { tileIndex, TILES } from "../src/rules.ts";
 import { findCharacters } from "../src/files.ts";
+import { currentContainers } from "../src/live.ts";
+import { decodeJson, parsePlayer } from "../src/save.ts";
 import { loadDetail, loadHeights, loadLayer, loadWorld } from "../src/world.ts";
 
 function assertThrows(fn: () => unknown, match: RegExp) {
@@ -154,6 +157,28 @@ Deno.test("moving on a raft keeps it under you; moving off or onto one needs you
   assert(!("ensureRaft" in old), "a save without ensureRaft does not get one for nothing");
   moveWithRaft(old, 2, 0, 2, 2, { from: false, to: true });
   assertEquals(old.ensureRaft, true);
+});
+
+Deno.test("no raft goes inside: you leave it to go in; moving between interiors counts even on the same spot", () => {
+  const p: Rec = {
+    areaX: 2,
+    areaY: 0,
+    areaType: 1,
+    xx: 344,
+    yy: 744,
+    entranceX: 8,
+    entranceY: 8,
+    ensureRaft: true,
+    worldGrid: [[0, 1, 1]],
+  };
+  const cave = { type: 10, entrance: [1368, 1384] as [number, number] };
+  assertThrows(() => moveWithRaft(p, 2, 0, 80, 80, { from: true, to: true }, cave), /cannot go inside/);
+  assertEquals([p.areaType, p.ensureRaft], [1, true], "nothing changed");
+  assert(moveWithRaft(p, 2, 0, 80, 80, { from: true, to: false, at: [2, 0, 344, 744] }, cave));
+  assertEquals([p.areaType, p.entranceX, p.entranceY, p.xx, p.yy, p.ensureRaft], [10, 1368, 1384, 1288, 1288, false]);
+  assert(!moveWithRaft(p, 2, 0, 80, 80, { from: false, to: false }, cave), "nothing changed");
+  assert(moveWithRaft(p, 2, 0, 80, 80, { from: false, to: false }, { type: 11, entrance: [840, 1880] }), "another cave, same spot");
+  assertEquals([p.areaType, p.entranceX, p.entranceY], [11, 840, 1880]);
 });
 
 Deno.test("rafts are left and taken in Stations.save as the game saves a finished raft", () => {
@@ -288,4 +313,49 @@ Deno.test({ name: "real saves: the game's own creatures stand where they can liv
     }
   }
   console.log(`  ${checked} creatures checked, ${fish} fish spawned into shallows`);
+});
+
+Deno.test({
+  name: "real saves: moving into each interior names the folder the game wrote, onto floor its way out reaches",
+  ignore: !present,
+}, async () => {
+  const files = new Map<string, { read: () => Promise<Uint8Array> }>();
+  const walk = (root: string, prefix: string) => {
+    for (const e of Deno.readDirSync(root)) {
+      if (e.isDirectory) walk(`${root}/${e.name}`, `${prefix}${e.name}/`);
+      else files.set(`${prefix}${e.name}`, { read: () => Deno.readFile(`${root}/${e.name}`) });
+    }
+  };
+  walk(dir, "Saves/");
+  let moved = 0, refused = 0, standing = 0;
+  for (const c of findCharacters(files)) {
+    const world = await loadWorld(files, c.root, c.name);
+    const raw = decodeJson(await files.get(`${c.root}Player.save`)!.read());
+    for (const it of world.interiors) {
+      const data = (await loadLayer(world, it.dir, "Data"))?.data;
+      const exits = it.solids.flatMap((s) => s.transPoint ? [(s.transPoint[2] >> 4) * TILES + (s.transPoint[1] >> 4)] : []);
+      const reach = reachable(data, exits);
+      assert(reach, `${c.name} ${it.dir}: the way out leads to enclosed floor`);
+      if (isInside(world.player, it)) {
+        const [x, y] = world.player.pos;
+        assert(reach[(y >> 4) * TILES + (x >> 4)], `${c.name} ${it.dir}: where the game saved you is reachable`);
+        standing++;
+      }
+      const inside = insideOf(it, world.player);
+      if (!inside) {
+        refused++;
+        continue;
+      }
+      const p = playerRecord(structuredClone(raw));
+      const floor = reach.findIndex((r, i) => r === 1 && tileIndex(data![i]) !== 1 && tileIndex(data![i]) !== 3);
+      movePlayer(p, it.zone[0], it.zone[1], floor % TILES, Math.floor(floor / TILES), inside);
+      const after = parsePlayer([p]);
+      assert(isInside(after, it), `${c.name} ${it.dir}: you are in it`);
+      // savearea: the folder the game loads you into, which Containers.save the editor writes last.
+      assertEquals(currentContainers(files, c.root, after), `${it.dir}Containers.save`, `${c.name} ${it.dir}`);
+      moved++;
+    }
+  }
+  assert(moved > 0);
+  console.log(`  ${moved} interiors moved into, ${refused} refused (kind only guessed), ${standing} where you stand`);
 });

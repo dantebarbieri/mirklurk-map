@@ -14,7 +14,7 @@ import { type Interior, interiorsOf, loadDetail, loadHeights, loadLayer, loadTre
 import { MAX_LEVEL, percent, playerView, STAT_LABELS, temperatureLabel, xpForLevel } from "../player.ts";
 import { creatureView } from "../creature.ts";
 import { Coin, coinsView, countCoins } from "../coins.ts";
-import { centerpos, coordLabel, INTERIOR_NAMES, isOutside, TILES } from "../rules.ts";
+import { coordLabel, INTERIOR_NAMES, isOutside, TILES } from "../rules.ts";
 import { spriteBox } from "../predict.ts";
 import { BEINGS, targetsYou } from "../bestiary.ts";
 import { healthText } from "../health.ts";
@@ -22,6 +22,8 @@ import { formatClock, parseSky, Weather, WEATHER_LABELS, weatherKind, type Weath
 import { type Backup, canEdit, type Edit, type EditDirectory, EditSession, listBackups, type WritablePicker } from "./session.ts";
 import {
   healPlayer,
+  insideOf,
+  isInside,
   MAX_DAY,
   MAX_SKILL_POINTS,
   MIN_RAIN,
@@ -55,7 +57,7 @@ import {
 } from "./items.ts";
 import { SLOT_NAMES } from "../armor.ts";
 import { deleteBeing, habitat, habitatRefusal, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
-import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, tileBox } from "./ground.ts";
+import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, reachable, tileBox } from "./ground.ts";
 import {
   addRaft,
   dockTile,
@@ -257,10 +259,8 @@ function playerArea(p: PlayerSave): Area | undefined {
   const w = world!;
   const zone = w.zones[p.area.y]?.[p.area.x];
   if (!zone) return undefined;
-  if (!isOutside(p.area.type)) {
-    const inside = interiorsOf(w, zone.x, zone.y).find((it) => isPlayerIn(p, it));
-    if (inside) return { zone, interior: inside, dir: inside.dir };
-  }
+  const inside = interiorsOf(w, zone.x, zone.y).find((it) => isInside(p, it));
+  if (inside) return { zone, interior: inside, dir: inside.dir };
   return zone.dir ? { zone, dir: zone.dir } : firstArea();
 }
 
@@ -284,12 +284,6 @@ function mapArea(place: MapPlace): Area | undefined {
   if (interior && parent) return { zone: parent, interior, dir: interior.dir };
   const zone = place.selected && w.zones[place.selected[1]]?.[place.selected[0]];
   return zone && zone.dir ? { zone, dir: zone.dir } : undefined;
-}
-
-function isPlayerIn(p: PlayerSave, it: Interior): boolean {
-  if (p.area.type >= 24 && p.area.type <= 26) return it.at[0] === -1 && it.at[1] === p.area.type - 23;
-  return it.zone[0] === p.area.x && it.zone[1] === p.area.y && it.at[0] === centerpos(p.entrance[0]) &&
-    it.at[1] === centerpos(p.entrance[1]);
 }
 
 const areaName = (a: Area) => {
@@ -1030,7 +1024,8 @@ const SCALE = 3;
 
 /**
  * What stands on each tile of an area, with the unsaved edits: its ground, its creatures, its rafts and whether you are there.
- * `ground` counts your own tile as taken; `aroundYou` does not, for where a raft you leave can go.
+ * `ground` counts your own tile as taken; `aroundYou` does not, for where a raft you leave can go. Inside, only the floor that its
+ * ways out and stairs can be walked to from is open.
  */
 async function areaGround(a: Area, v: PlayerSave) {
   const w = world!, s = session!;
@@ -1044,6 +1039,9 @@ async function areaGround(a: Area, v: PlayerSave) {
   const trees = await loadTrees(w, a.dir);
   const detail = await loadDetail(w, a.dir);
   const solids = a.interior ? a.interior.solids : a.zone.solids;
+  const reach = a.interior
+    ? reachable(data?.data, solids.flatMap((s) => s.transPoint ? [(s.transPoint[2] >> 4) * TILES + (s.transPoint[1] >> 4)] : []))
+    : undefined;
   const youHere = playerArea(v)?.dir === a.dir;
   const taken: Box[] = [
     ...solids.map((s) => spriteBox(s.sprite, s.x, s.y)),
@@ -1057,12 +1055,12 @@ async function areaGround(a: Area, v: PlayerSave) {
     beings,
     youHere,
     rafts: stations.filter((st) => st.index === RAFT),
-    ground: groundMap(data?.data, water1?.data, [...taken, ...(youHere ? [tileBox(v.pos[0], v.pos[1])] : [])]),
-    aroundYou: groundMap(data?.data, water1?.data, taken),
+    ground: groundMap(data?.data, water1?.data, [...taken, ...(youHere ? [tileBox(v.pos[0], v.pos[1])] : [])], reach),
+    aroundYou: groundMap(data?.data, water1?.data, taken, reach),
   };
 }
 
-/** The layers of an outdoor zone that say how deep its water is and where a raft can go. */
+/** The layers of an area that say how deep its water is and, outdoors, where a raft can go. */
 async function waterOf(dir: string): Promise<WaterLayers> {
   const w = world!;
   const [grids, heights] = await Promise.all([Promise.all(WATER_LAYERS.map((l) => loadLayer(w, dir, l))), loadHeights(w, dir)]);
@@ -1071,13 +1069,29 @@ async function waterOf(dir: string): Promise<WaterLayers> {
   return { layers, heights: heights?.data };
 }
 
+/** Why interior `it` cannot be moved into, or undefined when it can. */
+function insideRefusal(it: Interior, v: PlayerSave): string | undefined {
+  if (!insideOf(it, v)) {
+    return "No saved entrance or stairs lead here any more, so which kind of interior this is (and how the game would load it) is " +
+      "only a guess; you cannot move here.";
+  }
+}
+
 /** Why you cannot be moved to tile tx,ty of area a, or undefined when you can. Water is allowed: `chooseMove` asks first. */
-function moveRefusal(a: Area, tx: number, ty: number, ground: Uint8Array): string | undefined {
-  if (a.interior) return "You can move only to an outdoor zone you have explored.";
+function moveRefusal(a: Area, tx: number, ty: number, ground: Uint8Array, v: PlayerSave): string | undefined {
+  const why = a.interior && insideRefusal(a.interior, v);
+  if (why) return why;
   const k = ground[ty * TILES + tx] as GroundKind;
-  if (k === Ground.Blocked || k === Ground.Taken) return `Tile ${tx},${ty} is ${GROUND_TEXT[k]}; pick ground or water.`;
+  if (k === Ground.Blocked || k === Ground.Taken || k === Ground.Shut) {
+    return `Tile ${tx},${ty} is ${GROUND_TEXT[k]}; pick ground or water.`;
+  }
+  const what = a.interior ? "area" : "zone";
+  // manager_area Alarm_2 loads an area only when its folder has Ygrid.save, and makes a new one otherwise.
+  if (!session!.files.has(`${a.dir}Ygrid.save`)) {
+    return `This ${what} has no Ygrid.save, so the game would make it anew instead of loading it; you cannot move there.`;
+  }
   if (!session!.files.has(`${a.dir}Containers.save`)) {
-    return "The game has not finished saving this zone (it has no Containers.save), so you cannot move there.";
+    return `The game has not finished saving this ${what} (it has no Containers.save), so you cannot move there.`;
   }
 }
 
@@ -1105,9 +1119,9 @@ async function parkedRafts(at: [number, number]) {
 }
 
 /**
- * Works out how to move you to tile tx,ty of the outdoor zone a, which moveRefusal allows: straight away onto ground, or, asking
- * first, into water (with your raft, a new one or none) or off your raft (docking it at that shore or leaving it where it is).
- * Returns the edits to make, or undefined when the question is cancelled.
+ * Works out how to move you to tile tx,ty of area a (an outdoor zone or an interior), which moveRefusal allows: straight away onto
+ * ground, or, asking first, into water (outdoors with your raft, a new one or none) or off your raft (docking it at that shore or
+ * leaving it where it is; a raft never goes inside). Returns the edits to make, or undefined when the question is cancelled.
  */
 async function chooseMove(a: Area, tx: number, ty: number): Promise<Step[] | undefined> {
   const s = session!, w = world!;
@@ -1117,8 +1131,11 @@ async function chooseMove(a: Area, tx: number, ty: number): Promise<Step[] | und
   const i = ty * TILES + tx;
   const water = await waterOf(a.dir);
   const isWater = ground[i] === Ground.Water;
-  const height = tileHeight(water, i);
-  const canRaft = isWater && raftable(water, i);
+  const height = tileHeight(water, i, !a.interior);
+  const canRaft = isWater && !a.interior && raftable(water, i);
+  // Fixed now, so undoing an earlier change cannot make this move go to another interior.
+  const inside = a.interior ? insideOf(a.interior, v) : undefined;
+  if (a.interior && !inside) throw new Error(insideRefusal(a.interior, v));
   const fromRaft = onRaft(p);
   const where = `${areaName(a)}, tile ${tx},${ty}`;
   const at = [p.areaX, p.areaY, p.xx, p.yy].map(Number) as [number, number, number, number];
@@ -1129,7 +1146,9 @@ async function chooseMove(a: Area, tx: number, ty: number): Promise<Step[] | und
   const move = (to: boolean, text: string, stay = false): Step => ({
     path: playerPath(),
     edit: (r) =>
-      moveWithRaft(playerRecord(r), a.zone.x, a.zone.y, tx, ty, { from: fromRaft, to, at: stay ? at : undefined }) ? text : undefined,
+      moveWithRaft(playerRecord(r), a.zone.x, a.zone.y, tx, ty, { from: fromRaft, to, at: stay ? at : undefined }, inside)
+        ? text
+        : undefined,
   });
   const inWater = isWater ? `, in ${waterKind(height)}` : "";
   if (!fromRaft && !isWater) return [move(false, `Moved you to ${where}`)];
@@ -1176,7 +1195,7 @@ async function chooseMove(a: Area, tx: number, ty: number): Promise<Step[] | und
         detail: "A finished raft under you, as the game makes one when it loads you on a raft.",
         steps: [move(true, `Moved you to ${where}, on a new raft`)],
       });
-    } else body.push("A raft could not float there: it needs deeper water, without reeds.");
+    } else if (!a.interior) body.push("A raft could not float there: it needs deeper water, without reeds.");
     choices.push({
       value: "swim",
       label: canRaft ? "Go without a raft" : "Go into the water",
@@ -1203,14 +1222,16 @@ async function chooseMove(a: Area, tx: number, ty: number): Promise<Step[] | und
   } else {
     title = "Leave your raft?";
     body.push(
-      `You are on your raft, and it cannot go to tile ${tx},${ty} of ${areaName(a)}: ` +
-        (isWater
-          ? `that is ${waterKind(height)} (${waterEffect(height)}), and a raft needs deeper water without reeds.`
-          : "that is dry ground."),
+      a.interior
+        ? `You are on your raft, and a raft cannot go into ${areaName(a)}.`
+        : `You are on your raft, and it cannot go to tile ${tx},${ty} of ${areaName(a)}: ` +
+          (isWater
+            ? `that is ${waterKind(height)} (${waterEffect(height)}), and a raft needs deeper water without reeds.`
+            : "that is dry ground."),
     );
     const from: [number, number] = [you[0] - a.zone.x * TILES, you[1] - a.zone.y * TILES];
     const free = aroundYou.map((k) => k === Ground.Free || k === Ground.Water ? 1 : 0);
-    const dock = s.files.has(`${a.dir}Stations.save`) ? dockTile(raftMap(water), wetMap(water), free, i, from) : undefined;
+    const dock = !a.interior && s.files.has(`${a.dir}Stations.save`) ? dockTile(raftMap(water), wetMap(water), free, i, from) : undefined;
     if (dock !== undefined) {
       const [dx, dy] = [dock % TILES, Math.floor(dock / TILES)];
       choices.push({
@@ -1222,7 +1243,7 @@ async function chooseMove(a: Area, tx: number, ty: number): Promise<Step[] | und
           { path: `${a.dir}Stations.save`, edit: (r) => (addRaft(r, dx, dy), `docked your raft at tile ${dx},${dy}`) },
         ],
       });
-    } else body.push("No water a raft floats on can be reached from that land in this zone, so it cannot dock there.");
+    } else if (!a.interior) body.push("No water a raft floats on can be reached from that land in this zone, so it cannot dock there.");
     if (leave) {
       choices.push({
         value: "leave",
@@ -1284,8 +1305,9 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
         g.fillStyle = k === Ground.Water ? "#3d4f63" : "#2a1f22";
         g.fillRect(x, y, SCALE, SCALE);
       }
-      // What the tool cannot use is darkened: where the chosen creature cannot be; for you, walls and what is already there.
-      if (tool === "spawn" ? !spawnOk[i] : tool === "move" && (k === Ground.Blocked || k === Ground.Taken)) {
+      // What the tool cannot use is darkened: where the chosen creature cannot be; for you, walls, what is already there and,
+      // inside, floor no way out leads to.
+      if (tool === "spawn" ? !spawnOk[i] : tool === "move" && (k === Ground.Blocked || k === Ground.Taken || k === Ground.Shut)) {
         g.fillStyle = "rgba(20, 10, 12, .45)";
         g.fillRect(x, y, SCALE, SCALE);
       }
@@ -1357,7 +1379,7 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
       return;
     }
     if (tool === "move") {
-      const refusal = moveRefusal(a, tx, ty, ground);
+      const refusal = moveRefusal(a, tx, ty, ground, v);
       if (refusal) {
         note("map", refusal, true);
         void render();
@@ -1467,6 +1489,7 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
       });
     });
   const sel = selected !== undefined ? beings[selected] : undefined;
+  const cannotMove = a.interior && insideRefusal(a.interior, v);
   return card(
     "map",
     "Where you stand and creatures",
@@ -1476,14 +1499,14 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
       { class: "map-tools" },
       areaSelect,
       toolRadio("inspect", "Select a creature"),
-      toolRadio("move", "Move yourself here", !!a.interior),
+      toolRadio("move", "Move yourself here", !!cannotMove),
       toolRadio("spawn", "Spawn"),
       spawnSelect,
     ),
     !hasBeings ? h("p", { class: "muted small" }, "This area has no saved creature list, so creatures cannot be added here.") : null,
     h("div", { class: "map-frame" }, canvas),
     caption,
-    a.interior ? h("p", { class: "muted small" }, "You can move only to an outdoor zone you have explored.") : null,
+    cannotMove ? h("p", { class: "muted small" }, cannotMove) : null,
     youOnRaft ? h("p", { class: "muted small" }, "You are on your raft: the game makes it under you when it loads the save.") : null,
     sel
       ? h(
@@ -1519,10 +1542,11 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
     h(
       "p",
       { class: "muted small" },
-      "Dark tiles are what the tool cannot use: walls, pits and what is already there, and for the creature to spawn, where it " +
-        "cannot live: swimmers need water, walkers keep out of deep water and off brambles, and flyers go anywhere. Point at a dark " +
-        "tile to see why. Brown marks are rafts. Moving you into water, or off your raft, asks first what happens to a raft. Loading " +
-        "the save keeps creatures where you put them; entering their area later moves each to a nearby tile that suits it.",
+      "Dark tiles are what the tool cannot use: walls, pits and what is already there; for you, inside, also floor that no way " +
+        "out leads to; and for the creature to spawn, where it cannot live: swimmers need water, walkers keep out of deep water and " +
+        "off brambles, and flyers go anywhere. Point at a dark tile to see why. Brown marks are rafts. Moving you into water, or off " +
+        "your raft, asks first what happens to a raft; a raft never goes inside. Loading the save keeps creatures where you put " +
+        "them; entering their area later moves each to a nearby tile that suits it.",
     ),
   );
 }
@@ -1566,24 +1590,34 @@ async function renderMap(my: number) {
 /** Turns the full map's Move tool on or off; it is only on in edit mode. */
 function setMoving(on: boolean) {
   moving = on && editing;
-  if (map) map.state.onGround = moving ? (zone, tx, ty) => void moveFromMap(zone, tx, ty) : undefined;
+  if (map) map.state.onGround = moving ? (zone, tx, ty, inside) => void moveFromMap(zone, tx, ty, inside) : undefined;
   updateMapBar();
 }
 
 /**
- * The full map's Move tool: moves you to the clicked tile when it is ground or water (asking first about water and rafts, like the
- * zone's map), then turns itself off. Cancelling the question keeps it on.
+ * The full map's Move tool: moves you to the clicked tile of a zone or interior (`inside`) when it is ground or water (asking first
+ * about water and rafts, like the zone's map), then turns itself off. Cancelling the question keeps it on.
  */
-async function moveFromMap(z: Zone, tx: number, ty: number) {
+async function moveFromMap(z: Zone, tx: number, ty: number, inside?: Interior) {
   if (!moving || !editing || session?.saving) return;
-  const zone = world!.zones[z.y][z.x];
   try {
-    if (!zone.dir) {
-      throw new Error(`${coordLabel(zone.x, zone.y)} ${zone.name} is not explored yet; you can move only to a zone you have explored.`);
+    let a: Area;
+    if (inside) {
+      // The full map reads the save as it would be saved; the editor's own world has the same folders.
+      const it = world!.interiors.find((i) => i.dir === inside.dir);
+      const zone = it && world!.zones[it.zone[1]]?.[it.zone[0]];
+      if (!it || !zone) throw new Error("That interior is not in the save being edited.");
+      a = { zone, interior: it, dir: it.dir };
+    } else {
+      const zone = world!.zones[z.y][z.x];
+      if (!zone.dir) {
+        throw new Error(`${coordLabel(zone.x, zone.y)} ${zone.name} is not explored yet; you can move only to a zone you have explored.`);
+      }
+      a = { zone, dir: zone.dir };
     }
-    const a: Area = { zone, dir: zone.dir };
-    const { ground } = await areaGround(a, parsePlayer(await session!.json(playerPath())));
-    const refusal = moveRefusal(a, tx, ty, ground);
+    const v = parsePlayer(await session!.json(playerPath()));
+    const { ground } = await areaGround(a, v);
+    const refusal = moveRefusal(a, tx, ty, ground, v);
     if (refusal) throw new Error(refusal);
     const steps = await chooseMove(a, tx, ty);
     if (!steps || !moving) return;

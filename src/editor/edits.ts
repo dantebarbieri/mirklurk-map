@@ -4,8 +4,10 @@
 
 import { Hp } from "../health.ts";
 import { MAX_LEVEL, xpForLevel } from "../player.ts";
-import { isOutside, TILES } from "../rules.ts";
+import { centerpos, INTERIOR_NAMES, isOutside, TILES } from "../rules.ts";
+import type { PlayerSave } from "../save.ts";
 import { SKY_KEYS, Weather, type WeatherState } from "../weather.ts";
+import type { Interior } from "../world.ts";
 
 export type Rec = Record<string, unknown>;
 
@@ -149,18 +151,56 @@ export function zoneType(p: Rec, x: number, y: number): number | undefined {
 }
 
 /**
- * Puts the player on a tile of an outdoor zone. The game stands the player on tile centres and loads the zone named by
- * areaX/areaY/areaType from its folder, so the zone must already exist (the caller checks the folder). A raft (ensureRaft) is made
- * under the player wherever they load.
+ * An interior to stand in, as Player.save names it (savearea in scr_saveload): its area type, and the entrance it is entered by,
+ * whose position (the last two numbers of its folder's name, [ x,y,ex,ey ]) the game keeps in entranceX/entranceY. Scaal's depths
+ * (types 24–26, folders RW1–RW3) are named by their type alone, so they need no entrance.
  */
-export function movePlayer(p: Rec, zoneX: number, zoneY: number, tileX: number, tileY: number) {
+export interface Inside {
+  type: number;
+  entrance?: [number, number];
+}
+
+const isDepths = (type: number) => type >= 24 && type <= 26;
+
+/**
+ * You are saved in interior `it`: your area type is an interior's and names its folder as savearea does, Scaal's depths by type
+ * and the rest by zone and entrance. Outdoors entranceX/entranceY still hold the last door you used, so they mean nothing there.
+ */
+export function isInside(p: PlayerSave, it: Interior): boolean {
+  if (isOutside(p.area.type)) return false;
+  if (isDepths(p.area.type)) return it.at[0] === -1 && it.at[1] === p.area.type - 23;
+  return it.zone[0] === p.area.x && it.zone[1] === p.area.y && it.at[0] === centerpos(p.entrance[0]) &&
+    it.at[1] === centerpos(p.entrance[1]);
+}
+
+/**
+ * How Player.save names interior `it` (see Inside): the area type you are saved with when you are in it, otherwise the transPoint
+ * of the entrance or stairs that lead there. Undefined when that is only a guess, because none is saved any more.
+ */
+export function insideOf(it: Interior, p: PlayerSave): Inside | undefined {
+  const type = isInside(p, it) ? p.area.type : it.kindGuessed ? null : it.kind;
+  if (type === null || isOutside(type) || !(type in INTERIOR_NAMES)) return undefined;
+  return it.at[0] === -1 ? { type } : { type, entrance: [it.at[0], it.at[1]] };
+}
+
+/**
+ * Puts the player on a tile of an outdoor zone, or of one of its interiors (`inside`). The game stands the player on tile centres
+ * and loads the area named by areaX/areaY/areaType (and, inside, entranceX/entranceY) from its folder, so the area must already
+ * exist (the caller checks the folder). A raft (ensureRaft) is made under the player wherever they load.
+ */
+export function movePlayer(p: Rec, zoneX: number, zoneY: number, tileX: number, tileY: number, inside?: Inside) {
   const type = zoneType(p, zoneX, zoneY);
-  if (type === undefined || !isOutside(type)) throw new Error("The player can only be moved to an outdoor zone");
+  if (inside) {
+    if (type === undefined) throw new Error("That interior's zone is not in the world");
+    if (isOutside(inside.type) || !(inside.type in INTERIOR_NAMES)) throw new Error(`Area type ${inside.type} is not an interior`);
+    if (!inside.entrance && !isDepths(inside.type)) throw new Error("An interior is named by the entrance it is entered by");
+  } else if (type === undefined || !isOutside(type)) throw new Error("The player can only be moved to an outdoor zone or an interior");
   wholeIn(tileX, 0, TILES - 1, "Tile column");
   wholeIn(tileY, 0, TILES - 1, "Tile row");
   p.areaX = zoneX;
   p.areaY = zoneY;
-  p.areaType = type;
+  p.areaType = inside ? inside.type : type;
+  if (inside?.entrance) [p.entranceX, p.entranceY] = inside.entrance;
   p.xx = tileX * 16 + 8;
   p.yy = tileY * 16 + 8;
 }

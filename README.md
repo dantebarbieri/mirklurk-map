@@ -394,8 +394,8 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   `item_fits_slot`): main hands take weapons (types 16, 17 and 23), off hands types 15, 23 and 24, and the rest their own type; a two-handed
   melee weapon (type 17 that is not a bow, `weapon_is_ranged`) also needs the off hand beside it and is saved there too. The game rebuilds
   worn containers, weights and looks from the save when it loads.
-- **Where you stand**: a tile of an outdoor zone you have explored that is not a wall, a pit or something already standing there (a
-  creature, a placed raft), picked on the zone's map or on the full map. Ground moves you at once. Water and rafts ask first, never refuse:
+- **Where you stand**: a tile of a zone or interior you have explored that is not a wall, a pit or something already standing there (a
+  creature, a placed raft), picked on the area's map or on the full map. Ground moves you at once. Water and rafts ask first, never refuse:
   - The question says how deep the water is (`tile_get_height`): shallow, chest-deep, or deep, where you swim, using stamina every turn, and
     drown once it runs out (`player_set_ae_water`). Pointing at a tile on the zone's map says so too, and whether a raft floats there
     (`rafting_possible_here`: the ground below the water threshold, no reeds or low hinderances).
@@ -411,6 +411,18 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   on load), so bringing it only keeps that flag. A raft you leave or dock is written to that zone's `Stations.save` as Finish Raft leaves it
   (station 171), and one you bring from a zone is taken out of it. A move that changes several files is one change: the bar lists it as one
   line, and Undo, or a reload where it no longer applies (you are on a raft now, or no longer where you left it), takes all of it back.
+
+  Moving inside a cave, ruin cellar, quest room or Scaal's depths, or into one, works the same way, without rafts: a raft never goes inside,
+  so from your raft you leave it where it is (or, where it cannot stay, lose it). The game names the area you are in by `areaX`/`areaY`,
+  `areaType` and the entrance it was entered by (`entranceX`/`entranceY`), and loads the folder `[ x,y,ex,ey ]` they name, or `RW1`–`RW3`
+  for Scaal's depths by type alone (`savearea` in `gml_GlobalScript_scr_saveload`); a move inside writes all of them, taking the type from
+  the entrance or stairs leading there (their `transPoint`), or your saved one when you are already inside. An interior no saved entrance or
+  stairs lead to any more (the Fort interior and Undercroft once Fort Solid is gone) has only a guessed type, so you can move inside it only
+  when you are already there. Inside, only the floor that its way out (and any stairs) can be walked to from, past walls and pits, is
+  offered: quest rooms stand in open ground the game never lets you reach. The game loads an area only when its folder has `Ygrid.save`
+  (`manager_area` Alarm_2) and makes a new one otherwise, so an area without it is refused. Arriving this way is not walking in: what the
+  game does on entering through a door (quest steps on reaching the Library or Scaal's depths, regrowth since your last visit) waits for the
+  next time you do.
 - **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior where it can live, with the hit points and
   armor of a fresh one, or remove creatures. Removing a quest character (NPCs, the Dead Unwanted who becomes Viend, and Scaal) asks first.
   Where a creature can live is the game's own rule (`tile_meets_classneeds`), which it checks wherever a creature spawns or moves. It also
@@ -424,9 +436,9 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
 
 **Full map**, beside **Editor** at the top, shows the character in MirkMap's own map, as saving would leave it: every zone, caves and
 interiors, rifts, landmarks, NPCs and creatures, loot, the layer switches and Realistic mode, before or during edit mode. In edit mode,
-**Move yourself** makes the next click on ground or water in an explored zone move you there, with the same checks and questions as the
-zone's map; it then turns itself off (Escape turns it off too, and cancelling a question keeps it on). Switching back to **Editor** opens
-the zone or interior the map was showing.
+**Move yourself** makes the next click on ground or water in an explored zone or interior move you there, with the same checks and questions
+as the area's map in the editor; it then turns itself off (Escape turns it off too, and cancelling a question keeps it on). Switching back
+to **Editor** opens the zone or interior the map was showing.
 
 Edits stay in the tab, shown in the map's own player inspection as they will be saved, until **Save to game files**. The bar at the bottom
 lists them; **Undo** beside one takes back just that change. The later changes to the same file run again on the file as it was read (each
