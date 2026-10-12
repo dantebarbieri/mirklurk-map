@@ -22,8 +22,11 @@
   <body class="editor">
     <header class="top">
       <h1><img class="logo" src="icons/favicon.svg" alt="" width="20" height="20">MirkMap Editor</h1>
-      <a class="button subtle" href="./">Back to MirkMap</a>
-      <button id="open-folder" class="button" type="button">Open save folder for editing...</button>
+      <a id="back-to-map" class="button subtle" href="./" title="MirkMap's map, showing the save open here">Back to MirkMap</a>
+      <button id="open-folder" class="button" type="button">Open save folder...</button>
+      <input id="pick-folder" type="file" webkitdirectory multiple hidden>
+      <label class="button subtle">Open .zip<input id="pick-zip" type="file" accept=".zip,application/zip" hidden></label>
+      <select id="open-world" aria-label="Edit a world from My worlds" hidden></select>
       <select id="character" aria-label="Character" hidden></select>
       <span id="view-switch" class="view-switch" role="group" aria-label="View" hidden>
         <button id="show-editor" type="button" aria-pressed="true">Editor</button>
@@ -48,14 +51,20 @@
         <abbr class="badge badge-cheated" title="Cheated: edited with the save editor">C</abbr> badge on this device, in your synced
         library and to anyone you share it with. You will be asked to confirm before editing.</p>
         <p>Save and quit to the game's main menu first, and stay at the menu until you have saved your edits here: the game keeps
-        your character in memory and would overwrite them. Choose your character's folder from the game's <code>Saves</code>
-        folder, for example <code>…\steamapps\common\Mirklurk Every Step Matters\Saves\YourName</code>, or the whole
-        <code>Saves</code> folder. You can keep this page open while you play: save and quit to the menu again, then choose
-        <b>Reload save</b> to edit the newest save, with your unsaved changes kept.</p>
-        <p id="unsupported" class="warning" hidden>Editing needs a desktop browser that can write to a folder you choose
-        (Chrome or Edge). Your files stay on this computer; nothing is uploaded.</p>
-        <p class="muted">Edits happen in this browser tab and are written only to the folder you choose. Before each save, the files
-        it replaces are kept in this browser, so you can restore them.</p>
+        your character in memory and would overwrite them. The save open in MirkMap opens here too when you follow its
+        <b>Save editor</b> link, and this page opens the folder or world you had open last. Or choose your character's folder from
+        the game's <code>Saves</code> folder, for example
+        <code>…\steamapps\common\Mirklurk Every Step Matters\Saves\YourName</code>, or the whole <code>Saves</code> folder; open a
+        <code>.zip</code> of it or drop it on the page; or pick a world from <b>My worlds</b>. You can keep this page open while you
+        play: save and quit to the menu again, then choose <b>Reload save</b> to edit the newest save, with your unsaved changes
+        kept.</p>
+        <p id="reopen" hidden></p>
+        <p id="unsupported" class="warning" hidden>This browser can't write to a folder you choose (desktop Chrome and Edge can), so
+        a save folder or <code>.zip</code> opens as a copy here: download it with your edits to play it. Worlds from My worlds are
+        saved back to My worlds.</p>
+        <p class="muted">Edits happen in this browser tab and are written only where you save them: the folder you choose, or your
+        library when the world came from My worlds. Before each save, the files it replaces are kept in this browser, so you can
+        restore them.</p>
       </section>
     </main>
     <footer id="savebar" class="savebar" hidden>
@@ -65,16 +74,19 @@
       </details>
       <span class="savebar-actions">
         <button id="discard" class="button subtle" type="button">Discard changes</button>
+        <button id="download" class="button subtle" type="button" hidden
+          title="A .zip of this save with your changes and the Cheated mark, for the game's Saves folder">Download .zip</button>
         <button id="save" class="button" type="button">Save to game files</button>
       </span>
     </footer>
+    <div class="drop-hint" aria-hidden="true">Drop the save folder or .zip</div>
     <dialog id="disclosure" class="disclosure" aria-labelledby="disclosure-title">
       <div class="disclosure-body">
         <h2 id="disclosure-title">Editing marks this world as Cheated, permanently</h2>
         <p id="disclosure-already" class="warning" hidden>This world is already marked Cheated.</p>
         <ul>
-          <li>The first time you save an edit, MirkMap writes a <code>cheated</code> entry to <code>MirkMap.json</code> in this
-          character's folder and remembers the world in this browser.</li>
+          <li>The first time you save or download an edit, MirkMap writes a <code>cheated</code> entry to <code>MirkMap.json</code>
+          in this character's save and remembers the world in this browser.</li>
           <li>MirkMap shows the world with a <abbr class="badge badge-cheated" title="Cheated">C</abbr> badge here, in your
           synced library and in every share of it. Once uploaded, the server keeps the mark even if the file is removed later.</li>
           <li>Restoring a backup undoes edits, not the mark. Nothing in MirkMap removes it.</li>

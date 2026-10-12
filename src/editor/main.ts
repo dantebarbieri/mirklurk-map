@@ -4,11 +4,14 @@
 // own world view (view.ts) of the save as it would be saved, where the Move tool picks where you stand.
 
 import { $, h } from "../dom.ts";
-import { type Character, characterIndex, findCharacters } from "../files.ts";
+import { type Character, characterIndex, type FileMap, fromDataTransfer, fromFiles } from "../files.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../gamedata.ts";
-import { worldId } from "../sharing-format.ts";
+import { libraryId, worldId, type WorldInfo } from "../sharing-format.ts";
 import { cheatedInfo, knownCheated } from "../cheated.ts";
 import { isSaveFile, markerText } from "../marker.ts";
+import { api, libraryKey, libraryKeyFor } from "../library.ts";
+import { offerDownload } from "../download.ts";
+import { fileMapOf, forget, type Handoff, handOff, type OpenSave, remember, storedFiles, takeHandoff } from "../handoff.ts";
 import { type Being, decodeJson, parseBeings, parsePlaced, parsePlayer, playerRecord, type PlayerSave } from "../save.ts";
 import { type Interior, interiorsOf, loadDetail, loadHeights, loadLayer, loadTrees, loadWorld, type World, type Zone } from "../world.ts";
 import {
@@ -30,7 +33,20 @@ import { BEINGS, targetsYou } from "../bestiary.ts";
 import { BLEED_DIRS, cellKind, cellPlace, cellTitle, healthGridPicker, parseHealth } from "../health.ts";
 import { formatClock, parseSky, Weather, WEATHER_LABELS, weatherKind, type WeatherState } from "../weather.ts";
 import type { Rec } from "../values.ts";
-import { type Backup, canEdit, type Edit, type EditDirectory, EditSession, listBackups, type WritablePicker } from "./session.ts";
+import {
+  type Backup,
+  canWriteFolders,
+  CopySource,
+  type Edit,
+  type EditDirectory,
+  EditSession,
+  FolderSource,
+  LibrarySource,
+  listBackups,
+  type SaveRead,
+  type SaveSource,
+  type WritablePicker,
+} from "./session.ts";
 import {
   type ConditionsEdit,
   healPlayer,
@@ -133,7 +149,10 @@ type View = "edit" | "map";
 /** Where the full map was looking, to keep it there when the map is drawn again. */
 type MapPlace = Pick<State, "selected" | "interiorDir" | "viewport" | "inspected" | "expanded">;
 
-let dir: EditDirectory | undefined;
+/** The save being opened or open; a failed open puts back the session's. */
+let source: SaveSource | undefined;
+/** The folder open came from MirkMap's Live saves, which watches it again when it gets the folder back. */
+let folderLive = false;
 let chars: Character[] = [];
 let active = 0;
 let session: EditSession | undefined;
@@ -184,38 +203,120 @@ const noteView = (card: string) => {
   return n ? h("p", { class: `edit-note${n.error ? " error" : ""}`, role: "status" }, n.text) : null;
 };
 
-// --- Opening a folder ---
+// --- Opening a save ---
 
+const picker = globalThis as WritablePicker;
+
+/** Where the save open came from, as the page names it. */
+function sourceText(src: SaveSource): string {
+  if (src instanceof FolderSource) return `the folder ${src.dir.name}`;
+  if (src instanceof LibrarySource) return "My worlds";
+  return (src as CopySource).label;
+}
+
+/** The game's folder, opened to write where the browser can (desktop Chrome and Edge); elsewhere it is read as a copy. */
 async function openFolder() {
-  const picker = globalThis as WritablePicker;
+  if (!canWriteFolders()) {
+    $<HTMLInputElement>("#pick-folder").click();
+    return;
+  }
+  let dir: EditDirectory;
   try {
     dir = await picker.showDirectoryPicker!({ mode: "readwrite", id: "mirklurk-saves" });
-    devCopy = false;
   } catch (e) {
     if ((e as DOMException).name !== "AbortError") status(`Could not open the folder: ${errorText(e)}`, true);
     return;
   }
-  await openCharacter(0);
+  await openSource(new FolderSource(dir));
 }
 
-/** Reads the folder again and shows character `i`; edit mode ends and unsaved edits are dropped. */
-async function openCharacter(i: number, keepArea = false) {
-  if (!dir) return;
+/**
+ * A world in My worlds, from the library it is in (`library`, its ID) when this browser still keeps that library, or else from the
+ * library in use.
+ */
+async function libraryWorld(id: string, library?: string): Promise<LibrarySource> {
+  const key = library ? await libraryKeyFor(library) : libraryKey();
+  if (!key) {
+    throw new Error(
+      library
+        ? "That world is in a library this browser no longer keeps. Sync it again from another device, or open the world another way."
+        : "This browser has no library. Add a world to My worlds in MirkMap first.",
+    );
+  }
+  return new LibrarySource(id, (path, init) => api(path, key, init), library ?? await libraryId(key));
+}
+
+/** A .zip, dropped files or a folder read without write access, edited as a copy. */
+async function openCopy(read: Promise<FileMap>, label: string) {
   status("Reading the save...");
   try {
-    const { scan, files } = await EditSession.open(dir);
-    const found = findCharacters(files);
-    const pick = chars.length ? characterIndex(found, chars[i]) : i;
-    chars = found;
-    active = Math.min(pick, chars.length - 1);
-    const c = chars[active];
-    const loaded = await loadWorld(files, c.root, c.name);
+    await openSource(await CopySource.of(await read, label));
+  } catch (e) {
+    console.error(e);
+    status(`Could not read the save: ${errorText(e)}`, true);
+  }
+}
+
+/**
+ * Opens the save `next` and shows the character `want` (or the first); edit mode ends and unsaved edits are dropped once it is read.
+ * Until then, and if it can't be read, the save open stays as it was. `live`: a folder MirkMap's Live saves was watching, which it
+ * watches again when it gets the folder back; `dev`: the dev server's throwaway copy (devOpen).
+ */
+async function openSource(next: SaveSource, want?: Character, live = false, dev = false) {
+  source = next;
+  await openCharacter(0, want, { live, dev });
+}
+
+/**
+ * Reads the save again and shows character `i` (or `want`); edit mode ends and unsaved edits are dropped. `fresh`: the save is newly
+ * opened, with these settings.
+ */
+async function openCharacter(i: number, want?: Character, fresh?: Fresh) {
+  const src = source;
+  if (!src) return;
+  status("Reading the save...");
+  let read: SaveRead;
+  try {
+    read = await src.read();
+  } catch (e) {
+    console.error(e);
+    if (source !== src) return;
+    source = session?.source;
+    status(errorText(e), true);
+    return;
+  }
+  if (source === src) await install(src, read, want ?? (fresh ? undefined : chars[i]), false, fresh);
+}
+
+/** A newly opened save's settings (see openSource). */
+interface Fresh {
+  live: boolean;
+  dev: boolean;
+}
+
+/** Shows the character `want` (or the first) of the save `read` from `src`, in a fresh session. */
+async function install(src: SaveSource, read: SaveRead, want: Character | undefined, keepArea = false, fresh?: Fresh) {
+  try {
+    const found = read.characters;
+    if (!found.length) throw new Error("No Player.save found. Choose a character's folder or the game's Saves folder.");
+    const c = found[characterIndex(found, want)];
+    const loaded = await loadWorld(read.files, c.root, c.name);
     const id = await worldId(c.name, loaded.player.grid);
-    // Another character or folder starts the full map afresh; after a save or restore it stays where it was.
+    const marked = cheatedInfo(await markerText(read.files, c.root)) !== undefined || await knownCheated(id);
+    if (source !== src) return;
+    if (fresh) {
+      editing = false;
+      notes.clear();
+      folderLive = fresh.live;
+      devCopy = fresh.dev;
+    }
+    chars = found;
+    active = found.indexOf(c);
+    // Another character or save starts the full map afresh; after a save or restore it stays where it was.
     if (!keepArea) closeMap();
-    session = new EditSession(dir, scan, files, c, id);
+    session = new EditSession(src, read, c, id);
     world = loaded;
-    cheated = cheatedInfo(await markerText(files, c.root)) !== undefined || await knownCheated(id);
+    cheated = marked;
     if (!keepArea || !area) area = playerArea(loaded.player);
     else area = sameArea(area);
     selected = undefined;
@@ -223,9 +324,14 @@ async function openCharacter(i: number, keepArea = false) {
     forgetMapImages();
     showCharacters();
     document.body.classList.add("loaded");
-    status(`${c.name} loaded${loaded.warnings.length ? ` with ${loaded.warnings.length} warnings` : ""}.`);
+    // A save is open now: the offer to reopen the last folder is stale.
+    document.querySelector<HTMLElement>("#reopen")?.toggleAttribute("hidden", true);
+    status(`${c.name} loaded from ${sourceText(src)}${loaded.warnings.length ? ` with ${loaded.warnings.length} warnings` : ""}.`);
+    void rememberOpen();
   } catch (e) {
     console.error(e);
+    if (source !== src) return;
+    source = session?.source;
     status(errorText(e), true);
     return;
   }
@@ -238,48 +344,78 @@ function showCharacters() {
   select.hidden = chars.length < 2;
 }
 
+/** The open save as MirkMap and the editor hand it over; undefined for the dev server's throwaway copy. */
+async function openSave(s: EditSession): Promise<OpenSave | undefined> {
+  if (devCopy) return undefined;
+  if (s.source instanceof FolderSource) return { kind: "folder", handle: s.source.dir, live: folderLive };
+  if (s.source instanceof LibrarySource) {
+    return { kind: "world", id: s.source.id, name: s.character.name, library: s.source.library };
+  }
+  return { kind: "files", files: await storedFiles(s.files, s.character.root) };
+}
+
+/** Remembers the folder or library world open, so the editor opens it again next time it loads; a copy is not kept. */
+async function rememberOpen() {
+  const s = session;
+  if (!s || devCopy) return;
+  try {
+    if (s.source.kind === "copy") await forget();
+    else await remember({ save: (await openSave(s))!, character: s.character });
+  } catch (e) {
+    console.debug("Could not remember the open save", e);
+  }
+}
+
+/** Shows the save `read` that `s` now edits, once its unsaved changes ran again on it. */
+function settle(s: EditSession, read: SaveRead, c: Character, loaded: World, marked: boolean) {
+  chars = read.characters;
+  active = chars.indexOf(c);
+  world = loaded;
+  cheated = marked;
+  area = area ? sameArea(area) : playerArea(loaded.player);
+  selected = undefined;
+  hpPick = undefined;
+  savedRecords.delete(s);
+  forgetMapImages();
+  showCharacters();
+  notes.clear();
+}
+
+/** "Your unsaved change still applies. Dropped, as ...": what running the changes again on another save did. */
+function rerunText(s: EditSession, dropped: string[]): string {
+  const n = s.changes.length;
+  return (n ? ` ${n === 1 ? "Your unsaved change still applies" : `Your ${n} unsaved changes still apply`}.` : "") +
+    (dropped.length
+      ? ` Dropped, as ${dropped.length === 1 ? "it no longer applies" : "they no longer apply"}: ${dropped.join("; ")}.`
+      : "");
+}
+
 /**
- * Reads the folder again, after playing in the game, and runs the unsaved changes again on the newest save, so they can still be
- * saved. Changes that no longer apply, or now change nothing, are dropped and named. If the folder now holds another world, loading
- * it drops the changes, after asking.
+ * Reads the save again (after playing in the game, or after another device updated the world in My worlds) and runs the unsaved
+ * changes again on the newest save, so they can still be saved. Changes that no longer apply, or now change nothing, are dropped and
+ * named. If the folder now holds another world, loading it drops the changes, after asking.
  */
 async function reloadSave() {
   const s = session;
-  if (!dir || !s || s.saving) return;
+  if (!s || s.saving || s.source.kind === "copy") return;
   status("Reading the save again...");
   let otherWorld = false;
   await locked(async () => {
     try {
-      const { scan, files } = await EditSession.open(dir!);
-      const found = findCharacters(files);
-      const c = found.find((ch) => ch.root === s.character.root);
+      const read = await s.source.read();
+      const c = read.characters.find((ch) => ch.root === s.character.root);
       if (!c) throw new Error(`${s.character.name}'s save is no longer in this folder. Open the folder again to choose a character.`);
-      const loaded = await loadWorld(files, c.root, c.name);
+      const loaded = await loadWorld(read.files, c.root, c.name);
       if (await worldId(c.name, loaded.player.grid) !== s.world) {
         otherWorld = true;
         return;
       }
-      const marked = cheatedInfo(await markerText(files, c.root)) !== undefined || await knownCheated(s.world);
-      const dropped = await s.rebase(scan, files);
+      const marked = cheatedInfo(await markerText(read.files, c.root)) !== undefined || await knownCheated(s.world);
+      const dropped = await s.rebase(read);
       if (session !== s) return;
-      chars = found;
-      active = found.indexOf(c);
-      world = loaded;
-      cheated = marked;
-      area = area ? sameArea(area) : playerArea(loaded.player);
-      selected = undefined;
-      hpPick = undefined;
-      savedRecords.delete(s);
-      forgetMapImages();
-      showCharacters();
-      notes.clear();
-      const n = s.changes.length;
+      settle(s, read, c, loaded, marked);
       status(
-        `Reloaded ${c.name}'s save${loaded.warnings.length ? ` with ${loaded.warnings.length} warnings` : ""}.` +
-          (n ? ` ${n === 1 ? "Your unsaved change still applies" : `Your ${n} unsaved changes still apply`}.` : "") +
-          (dropped.length
-            ? ` Dropped, as ${dropped.length === 1 ? "it no longer applies" : "they no longer apply"}: ${dropped.join("; ")}.`
-            : ""),
+        `Reloaded ${c.name}'s save${loaded.warnings.length ? ` with ${loaded.warnings.length} warnings` : ""}.` + rerunText(s, dropped),
         dropped.length > 0,
       );
     } catch (e) {
@@ -299,6 +435,119 @@ async function reloadSave() {
     return;
   }
   await render();
+}
+
+/**
+ * Saves a copy's changes into the game's folder: asks for it (the character's folder or the Saves folder), finds the same world
+ * there and runs the unsaved changes again on the save it holds, as Reload save does, so nothing the game saved since is lost. Saves
+ * at once when every change still does what it did on the copy; otherwise shows what they do now, to check before saving.
+ */
+async function saveCopyToFolder(s: EditSession) {
+  let dir: EditDirectory;
+  try {
+    dir = await picker.showDirectoryPicker!({ mode: "readwrite", id: "mirklurk-saves" });
+  } catch (e) {
+    if ((e as DOMException).name !== "AbortError") status(`Could not open the folder: ${errorText(e)}`, true);
+    return;
+  }
+  const folder = new FolderSource(dir);
+  const before = [...s.changes];
+  let same = false;
+  status(`Reading ${dir.name}...`);
+  await locked(async () => {
+    try {
+      const read = await folder.read();
+      let c: Character | undefined;
+      for (const ch of read.characters) {
+        if (ch.name !== s.character.name) continue;
+        const p = parsePlayer(decodeJson(await read.files.get(`${ch.root}Player.save`)!.read()));
+        if (await worldId(ch.name, p.grid) === s.world) {
+          c = ch;
+          break;
+        }
+      }
+      if (!c) {
+        throw new Error(
+          `${dir.name} has no save of this world of ${s.character.name}. Choose ${s.character.name}'s folder in the game's Saves ` +
+            "folder, or the Saves folder itself.",
+        );
+      }
+      const loaded = await loadWorld(read.files, c.root, c.name);
+      const marked = cheatedInfo(await markerText(read.files, c.root)) !== undefined || await knownCheated(s.world);
+      const dropped = await s.rebase(read, { source: folder, character: c });
+      if (session !== s) return;
+      source = folder;
+      folderLive = false;
+      settle(s, read, c, loaded, marked);
+      void rememberOpen();
+      same = !dropped.length && s.changes.every((line, i) => line === before[i]);
+      if (!same) {
+        status(
+          `The save in ${dir.name} is not the one this copy was made from, so your changes ran again on it.` +
+            rerunText(s, dropped) + " Nothing is saved yet: check them below, then save.",
+          true,
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      status(errorText(e), true);
+    }
+  });
+  if (same && session === s) await save();
+  else await render();
+}
+
+/**
+ * What the map or the editor had open, opened here: a world from My worlds, a copy of files, or a folder, read at once while this
+ * browser still lets the page read it and otherwise after a click.
+ */
+async function openHandoff({ save, character }: Handoff, handed: boolean) {
+  if (save.kind === "world") return openSource(await libraryWorld(save.id, save.library), character);
+  if (save.kind === "files") {
+    return openSource(new CopySource(fileMapOf(save.files), "what MirkMap had open", character), character);
+  }
+  const folder = new FolderSource(save.handle as EditDirectory);
+  const live = handed && !!save.live;
+  if (await folder.allowed("read", false)) return openSource(folder, character, live);
+  const again = $("#reopen");
+  again.replaceChildren(
+    h("button", {
+      class: "button",
+      type: "button",
+      // Like every other way of opening a save, it asks before dropping unsaved changes.
+      onclick: () =>
+        void replace(async () => {
+          // Reading is enough until the first save, which asks to write (see writable).
+          if (!await folder.allowed("read", true)) {
+            status(`The browser did not let MirkMap open ${folder.dir.name}. Choose Open save folder... instead.`, true);
+            return;
+          }
+          again.hidden = true;
+          await openSource(folder, character, live);
+        }),
+    }, `Open ${folder.dir.name} again`),
+    h("span", { class: "muted" }, ` The folder ${handed ? "MirkMap had" : "you had"} open; your browser asks first.`),
+  );
+  again.hidden = false;
+}
+
+/** The worlds in this browser's library, offered in the header to edit. */
+async function listWorlds() {
+  const key = libraryKey();
+  if (!key) return;
+  try {
+    const { worlds } = await (await api("/library", key)).json() as { worlds: WorldInfo[] };
+    // Each world is opened from the library it was listed from, even if another tab switches libraries meanwhile.
+    const library = await libraryId(key);
+    const select = $<HTMLSelectElement>("#open-world");
+    select.replaceChildren(
+      h("option", { value: "" }, "Edit from My worlds..."),
+      ...worlds.map((w) => h("option", { value: w.id, "data-library": library }, `${w.name}${w.cheated ? " (Cheated)" : ""}`)),
+    );
+    select.hidden = !worlds.length;
+  } catch (e) {
+    console.debug("My worlds are unavailable", e);
+  }
 }
 
 function playerArea(p: PlayerSave): Area | undefined {
@@ -383,26 +632,52 @@ async function undoChange(i: number) {
 /** Locks the page while a save or restore writes files, or a reload reads them, so nothing changes or discards the drafts meanwhile. */
 async function locked<T>(run: () => Promise<T>): Promise<T> {
   document.body.classList.add("busy");
-  $<HTMLButtonElement>("#save").disabled = true;
+  const buttons = [$<HTMLButtonElement>("#save"), $<HTMLButtonElement>("#download")];
+  for (const b of buttons) b.disabled = true;
   try {
     return await run();
   } finally {
     document.body.classList.remove("busy");
-    $<HTMLButtonElement>("#save").disabled = false;
+    for (const b of buttons) b.disabled = false;
   }
 }
 
+/**
+ * Whether the session's folder may be written; asking needs this click. MirkMap hands over a folder it was allowed to read, and the
+ * browser forgets what it allowed once every tab of the site is closed.
+ */
+async function writable(s: EditSession): Promise<boolean> {
+  if (!(s.source instanceof FolderSource) || await s.source.allowed("readwrite", true)) return true;
+  status(`Saving needs your browser's permission to change the files in ${s.source.dir.name}. Try again to be asked again.`, true);
+  return false;
+}
+
+/** Saves the unsaved changes where the save came from: the game's folder or My worlds. A copy asks for the game's folder first. */
 async function save() {
-  if (session?.saving) return;
-  status("Saving...");
+  const s = session;
+  if (!s || s.saving) return;
+  if (s.source instanceof CopySource) return saveCopyToFolder(s);
+  if (!await writable(s)) return;
+  const library = s.source instanceof LibrarySource;
+  status(library ? `Saving ${s.character.name} to My worlds...` : "Saving...");
   await locked(async () => {
     try {
-      const n = await session!.save();
+      const n = await s.save();
+      // Another save opened meanwhile (with the keyboard: the page is locked to the pointer) stays on screen.
+      if (session !== s) return;
       cheated = true;
       notes.clear();
-      await openCharacter(active, true);
+      await install(s.source, s.current, s.character, true);
       editing = true;
-      status(`Saved ${n === 1 ? "1 file" : `${n} files`}. This world is now marked Cheated. Load it from the game's menu to play it.`);
+      const files = n === 1 ? "1 file" : `${n} files`;
+      status(
+        (library
+          ? `Saved ${files} to ${s.character.name} in My worlds, where your synced devices see it within 30 seconds. ` +
+            "This world is now marked Cheated. To play it, download it."
+          : `Saved ${files}. This world is now marked Cheated. Load it from the game's menu to play it.`) +
+          (s.warning ? ` ${s.warning}.` : ""),
+        !!s.warning,
+      );
       await render();
     } catch (e) {
       console.error(e);
@@ -411,8 +686,30 @@ async function save() {
   });
 }
 
+/** Downloads the save as saving would leave it, with the Cheated mark; the changes stay unsaved where the save came from. */
+async function download() {
+  const s = session;
+  if (!s || s.saving) return;
+  try {
+    const zip = await s.download();
+    offerDownload(zip);
+    if (session !== s) return;
+    cheated = true;
+    status(
+      `Downloaded ${zip.filename} with your changes and the Cheated mark. To play it, put its ${zip.folder} folder into the game's ` +
+        `Saves folder and load ${zip.folder}; if Saves already has an older ${zip.folder} folder, move it out first.` +
+        (s.source.kind === "library" ? " Your changes are not in My worlds until you save them there." : ""),
+    );
+  } catch (e) {
+    console.error(e);
+    status(`Could not download the save: ${errorText(e)}`, true);
+  }
+  await render();
+}
+
 async function restore(b: Backup) {
-  if (session?.saving) return;
+  const s = session;
+  if (!s || s.saving) return;
   const when = new Date(b.at).toLocaleString();
   if (
     !await ask({
@@ -421,23 +718,24 @@ async function restore(b: Backup) {
         `This writes back the ${b.files.length === 1 ? "file" : `${b.files.length} files`} the world had before the edits saved then: ${
           b.changes.join("; ")
         }.`,
-        session?.changes.length ? h("p", { class: "warning" }, "Your unsaved changes are dropped.") : null,
+        s.changes.length ? h("p", { class: "warning" }, "Your unsaved changes are dropped.") : null,
         "The Cheated mark stays.",
       ],
       confirm: "Restore",
       danger: true,
-    })
+    }) || !await writable(s)
   ) return;
   await locked(async () => {
     try {
-      session!.discard();
-      await session!.restore(b);
+      // The session drops the unsaved changes once the backup is written back; a refused restore keeps them.
+      await s.restore(b);
+      if (session !== s) return;
       status(`Restored the files from before ${when}.`);
     } catch (e) {
       status(errorText(e), true);
       return;
     }
-    await openCharacter(active, true);
+    await install(s.source, s.current, s.character, true);
     editing = true;
     await render();
   });
@@ -462,7 +760,13 @@ async function render() {
   updateSavebar();
   updateViewSwitch();
   updateMapBar();
-  $("#reload").hidden = !s || !editing;
+  const reload = $<HTMLButtonElement>("#reload");
+  reload.hidden = !s || !editing || s.source.kind === "copy";
+  reload.title = s?.source.kind === "library"
+    ? "Read this world from My worlds again, after another device updated it. Your unsaved changes stay and run again on the " +
+      "newest version; any that no longer change anything are dropped."
+    : "Read the save folder again after playing in the game. Your unsaved changes stay and run again on the newest save; any " +
+      "that no longer change anything are dropped.";
   if (!s || !world) return;
   if (view === "map") return renderMap(my);
   let raw: unknown, v: PlayerSave;
@@ -474,7 +778,7 @@ async function render() {
     return;
   }
   const p = playerRecord(raw);
-  const cards: HTMLElement[] = [];
+  const cards: (HTMLElement | null)[] = [];
   if (editing) {
     const saved = await savedPlayer(s).catch(() => undefined);
     cards.push(
@@ -484,7 +788,8 @@ async function render() {
       skyCard(p),
       itemsCard(v, p, saved),
       await mapCard(v, p),
-      backupsCard(await listBackups(s.world).catch(() => [])),
+      // A copy has no backups to restore into; once saved into the game's folder it does.
+      s.source.kind === "copy" ? null : backupsCard(await listBackups(s.world).catch(() => [])),
     );
   }
   if (my !== renderToken) return;
@@ -504,9 +809,21 @@ function savedPlayer(s: EditSession): Promise<Rec> {
 }
 
 function summary(v: PlayerSave, p: Rec): HTMLElement {
-  const c = session!.character;
+  const s = session!, c = s.character;
   const sky = parseSky(p);
   const where = playerArea(v);
+  const from = s.source instanceof FolderSource
+    ? `From the folder ${s.source.dir.name}. Saving writes the game's files there.`
+    : s.source instanceof LibrarySource
+    ? "From My worlds. Saving updates it there, for every device that syncs your library; downloading gives you a save to play."
+    : `A copy, from ${sourceText(s.source)}. Download it with your changes to play it${
+      canWriteFolders() ? ", or save them into the game's folder" : ""
+    }.`;
+  const mode = s.source.kind === "folder"
+    ? "Played since? Save and quit to the game's menu and choose Reload save at the top: your unsaved changes stay."
+    : s.source.kind === "library"
+    ? "Updated since on another device? Choose Reload save at the top: your unsaved changes stay."
+    : "";
   return h(
     "section",
     { class: "edit-summary" },
@@ -522,12 +839,14 @@ function summary(v: PlayerSave, p: Rec): HTMLElement {
       `Level ${v.level} · ${where ? areaName(where) : "unknown area"}`,
       sky ? ` · Day ${sky.day}, ${formatClock(sky.minute)} · ${WEATHER_LABELS[weatherKind(sky)]}` : "",
     ),
+    h("p", { class: "muted" }, from),
     editing
       ? h(
         "p",
         { class: "muted" },
-        "Edit mode. Changes stay in this tab until you save them with the bar at the bottom. Played since? Save and quit to the " +
-          "game's menu and choose Reload save at the top: your unsaved changes stay.",
+        `Edit mode. Changes stay in this tab until you ${
+          s.source.kind === "copy" ? "download or save" : "save"
+        } them with the bar at the bottom. ${mode}`.trim(),
       )
       : h(
         "p",
@@ -2153,7 +2472,16 @@ function previewCard(v: PlayerSave): HTMLElement {
 function updateSavebar() {
   const bar = $("#savebar");
   const changes = session?.changes ?? [];
+  const kind = session?.source.kind;
   bar.hidden = !editing || !changes.length;
+  const save = $<HTMLButtonElement>("#save");
+  save.textContent = kind === "library" ? "Save to My worlds" : kind === "copy" ? "Save to game files..." : "Save to game files";
+  save.title = kind === "copy"
+    ? "Choose the game's Saves folder or this character's folder in it; your changes run again on the save there, then are saved"
+    : "";
+  save.hidden = kind === "copy" && !canWriteFolders();
+  // A folder's own files are saved in place; the editor reads them without the game's .ini files, so it does not zip them.
+  $("#download").hidden = kind === "folder";
   $("#change-count").textContent = `${changes.length === 1 ? "1 unsaved change" : `${changes.length} unsaved changes`}`;
   $("#change-list").replaceChildren(
     ...changes.map((c, i) =>
@@ -2184,17 +2512,80 @@ async function dropChanges(action: string, confirm: string): Promise<boolean> {
   });
 }
 
+/** Opens a save after asking to drop the unsaved changes, if there are any. */
+async function replace(open: () => Promise<void> | void) {
+  if (await dropChanges("Opening another save", "Drop them and open")) await open();
+}
+
+/**
+ * Follows the link back to MirkMap with the save open handed over, so the map shows it: the folder (watched again with Live saves
+ * when it came from there), the world from My worlds, or the copy as it was opened.
+ */
+async function backToMap(e: MouseEvent) {
+  const s = session;
+  if (!s || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  const href = (e.currentTarget as HTMLAnchorElement).href;
+  try {
+    const save = await openSave(s);
+    if (save) await handOff({ save, character: s.character }, "map");
+  } catch (err) {
+    // Following the link anyway could show another save there; stay, so the user can try again.
+    console.error("Could not hand the save to MirkMap", err);
+    status(`Could not hand this save to MirkMap: ${errorText(err)}. Try again, or open it there.`, true);
+    return;
+  }
+  location.href = href;
+}
+
 // --- Wiring ---
 
 function wire() {
-  if (!canEdit()) {
-    $("#unsupported").hidden = false;
-    $<HTMLButtonElement>("#open-folder").disabled = true;
+  if (!canWriteFolders()) $("#unsupported").hidden = false;
+  $("#open-folder").addEventListener("click", () => void replace(openFolder));
+  const folderInput = $<HTMLInputElement>("#pick-folder"), zipInput = $<HTMLInputElement>("#pick-zip");
+  for (const input of [folderInput, zipInput]) {
+    input.addEventListener("change", () => {
+      const list = Array.from(input.files ?? []);
+      input.value = "";
+      if (!list.length) return;
+      const label = input === zipInput ? list[0].name : `a copy of the folder ${list[0].webkitRelativePath.split("/")[0] || "you chose"}`;
+      void replace(() => openCopy(fromFiles(list), label));
+    });
   }
-  $("#open-folder").addEventListener("click", async () => {
-    if (!await dropChanges("Opening another folder", "Drop them and open")) return;
-    editing = false;
-    void openFolder();
+  const worlds = $<HTMLSelectElement>("#open-world");
+  worlds.addEventListener("change", () => {
+    const id = worlds.value, library = worlds.selectedOptions[0]?.dataset.library;
+    worlds.value = "";
+    if (id) {
+      void replace(async () => {
+        try {
+          await openSource(await libraryWorld(id, library));
+        } catch (e) {
+          status(errorText(e), true);
+        }
+      });
+    }
+  });
+  $<HTMLAnchorElement>("#back-to-map").addEventListener("click", (e) => void backToMap(e));
+  let depth = 0;
+  addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    if (++depth === 1) document.body.classList.add("dragging");
+  });
+  addEventListener("dragleave", () => {
+    if (--depth <= 0) (depth = 0), document.body.classList.remove("dragging");
+  });
+  addEventListener("dragover", (e) => e.preventDefault());
+  addEventListener("drop", (e) => {
+    e.preventDefault();
+    depth = 0;
+    document.body.classList.remove("dragging");
+    if (!e.dataTransfer || document.body.classList.contains("busy")) return;
+    // Read at once: the dropped items are gone once this event is over.
+    const files = fromDataTransfer(e.dataTransfer);
+    files.catch(() => undefined);
+    void replace(() => openCopy(files, "the dropped save"));
   });
   $<HTMLSelectElement>("#character").addEventListener("change", async (e) => {
     const select = e.target as HTMLSelectElement;
@@ -2208,6 +2599,7 @@ function wire() {
     void openCharacter(to);
   });
   $("#save").addEventListener("click", () => void save());
+  $("#download").addEventListener("click", () => void download());
   $("#reload").addEventListener("click", () => void reloadSave());
   $("#show-editor").addEventListener("click", () => showView("edit"));
   $("#show-map").addEventListener("click", () => showView("map"));
@@ -2257,7 +2649,7 @@ function wire() {
     else expanded.delete(d.dataset.remember);
   }, true);
   addEventListener("beforeunload", (e) => {
-    // A dev copy (devOpen) is a throwaway copy in this browser, so only a real save folder asks before leaving.
+    // A dev copy (devOpen) is a throwaway copy in this browser, so only a real save asks before leaving.
     if (session?.changes.length && !devCopy) e.preventDefault();
   });
 }
@@ -2304,12 +2696,19 @@ async function devOpen(name: string, fresh: boolean) {
     };
     for (const path of list.filter((p) => p.endsWith("/Containers.save"))) await touch(path);
   }
-  dir = root;
-  devCopy = true;
-  await openCharacter(0);
+  await openSource(new FolderSource(root), undefined, false, true);
 }
 
 const dev = new URLSearchParams(location.search);
+void listWorlds();
 if (dev.get("dev") && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   void devOpen(dev.get("dev")!, dev.has("fresh")).catch((e) => status(`Dev copy failed: ${errorText(e)}`, true));
+} else {
+  // What MirkMap handed over, or the folder or library world open here last time.
+  takeHandoff("editor").then(async (taken) => {
+    if (taken && !source) await openHandoff(taken.handoff, taken.handed);
+  }).catch((e) => {
+    console.error(e);
+    status(`Could not open the save again: ${errorText(e)}`, true);
+  });
 }

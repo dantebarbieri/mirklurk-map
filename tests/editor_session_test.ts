@@ -1,25 +1,41 @@
 // The save editor's session against real files: a character folder copied to a temporary directory, opened through stand-ins for
 // the File System Access API's handles. Checks the write order Live saves rely on, the Cheated mark, backups, stale-save refusal
-// and restoring. A real save is edited too when available (copied, never changed in place):
+// and restoring; a world in My worlds (against the upload server's own code) and a copy, downloaded or saved into the game's folder;
+// and handing a save between MirkMap and the editor. A real save is edited too when available (copied, never changed in place):
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
 import { assert, assertEquals, assertRejects } from "./assert.ts";
 import { SAVES } from "./saves.ts";
-import { type Backup, type EditDirectory, type EditFile, EditSession, StaleError } from "../src/editor/session.ts";
+import {
+  type Backup,
+  CopySource,
+  type EditDirectory,
+  type EditFile,
+  EditSession,
+  FolderSource,
+  type LibraryCall,
+  LibrarySource,
+  StaleError,
+} from "../src/editor/session.ts";
 import { addItems } from "../src/editor/items.ts";
 import { movePlayer, setSkillPoints, setVitals } from "../src/editor/edits.ts";
 import { addRaft, moveWithRaft } from "../src/editor/raft.ts";
 import { deleteBeing, newBeing, spawnBeing } from "../src/editor/beings.ts";
-import { findCharacters } from "../src/files.ts";
 import { cheatedInfo } from "../src/cheated.ts";
 import { readMarker } from "../src/marker.ts";
 import { decodeJson, parsePlayer, playerRecord } from "../src/save.ts";
 import { loadWorld } from "../src/world.ts";
-import { worldId } from "../src/sharing-format.ts";
+import { identify, newToken, packSave, SHARE_INTERVAL, unpackSave, worldId } from "../src/sharing-format.ts";
 import { countCoins } from "../src/coins.ts";
 import { isOutside } from "../src/rules.ts";
+import { type FileMap, fromDirectory } from "../src/files.ts";
+import { ShareError } from "../src/library.ts";
+import { fileMapOf, storedFiles } from "../src/handoff.ts";
+import { readZip } from "../src/zip.ts";
+import { UploadStore } from "../server/uploads.ts";
 
 const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 
 class DiskFile implements EditFile {
   readonly kind = "file";
@@ -85,11 +101,11 @@ function memoryStore() {
 }
 
 async function openSession(root: string, name: string, store = memoryStore().store) {
-  const dir = new DiskDirectory(name, `${root}/${name}`);
-  const { scan, files } = await EditSession.open(dir);
-  const character = findCharacters(files)[0];
-  const player = parsePlayer(decodeJson(await files.get(`${character.root}Player.save`)!.read()));
-  return new EditSession(dir, scan, files, character, await worldId(character.name, player.grid), store);
+  const source = new FolderSource(new DiskDirectory(name, `${root}/${name}`));
+  const read = await source.read();
+  const character = read.characters[0];
+  const player = parsePlayer(decodeJson(await read.files.get(`${character.root}Player.save`)!.read()));
+  return new EditSession(source, read, character, await worldId(character.name, player.grid), store);
 }
 
 const grid = (t: number) => Array.from({ length: 5 }, () => Array(5).fill(t));
@@ -347,13 +363,13 @@ Deno.test("editor session: reloading after the game saved runs the unsaved chang
     await assertRejects(() => s.save(), /since this folder was read/);
 
     // A reload that cannot be read leaves the session as it was.
-    const { scan, files } = await EditSession.open(s.dir);
-    const broken = new Map(files).set(player, { read: () => Promise.resolve(encoder.encode("[")) });
-    await assertRejects(() => s.rebase(scan, broken));
+    const read = await s.source.read();
+    const broken = new Map(read.files).set(player, { read: () => Promise.resolve(encoder.encode("[")) });
+    await assertRejects(() => s.rebase({ ...read, files: broken }));
     assertEquals(s.changes.length, 4);
     assertEquals(playerRecord(await s.json(player)).skillPoints, 5);
 
-    assertEquals(await s.rebase(scan, files), ["Wellbeing 0 → 1", "Removed the wolf"]);
+    assertEquals(await s.rebase(read), ["Wellbeing 0 → 1", "Removed the wolf"]);
     assertEquals(s.changes, ["Skill points 2 → 5", "Spawned a troll"], "the changes that still apply, their lines written anew");
     assertEquals(await s.save(), 2, "no longer stale");
     const saved = playerRecord(decodeJson(await Deno.readFile(`${base}/Player.save`)));
@@ -373,8 +389,7 @@ Deno.test("editor session: a reload drops the changes to a file the game no long
     await s.apply("Hero/[ 1,0 ]/Beings.save", (raw) => (spawnBeing(raw as unknown[], 3, 20, 30), "Spawned a troll"));
     await s.apply(`${s.character.root}Player.save`, (raw) => (setSkillPoints(playerRecord(raw), 4), "Skill points 0 → 4"));
     await Deno.remove(`${root}/Hero/[ 1,0 ]`, { recursive: true });
-    const { scan, files } = await EditSession.open(s.dir);
-    assertEquals(await s.rebase(scan, files), ["Spawned a troll"]);
+    assertEquals(await s.rebase(await s.source.read()), ["Spawned a troll"]);
     assertEquals(s.changes, ["Skill points 0 → 4"]);
     assertEquals(await s.save(), 1);
   } finally {
@@ -398,7 +413,7 @@ Deno.test("editor session: moving to another zone makes that zone's Containers.s
   }
 });
 
-// --- A real save, copied ---
+// --- Changes to several files ---
 
 /** Moving you from A,1 (where the fixture stands you, at 40,40) to B,1 off your raft, leaving it at tile 2,2 of A,1. */
 const leaveRaft = (s: EditSession) => [
@@ -488,12 +503,258 @@ Deno.test("editor session: a reload drops a change to several files whole when o
     await write("[ 0,0 ]/Stations.save", [{ index: 171, x: 40, y: 40 }]);
     await write("[ 0,0 ]/Containers.save", []);
 
-    const { scan, files } = await EditSession.open(s.dir);
-    assertEquals(await s.rebase(scan, files), ["Moved you to B,1; left your raft in A,1"]);
+    assertEquals(await s.rebase(await s.source.read()), ["Moved you to B,1; left your raft in A,1"]);
     assertEquals(s.changes, ["Skill points 0 → 3"]);
     assertEquals(await s.json("Hero/[ 0,0 ]/Stations.save"), [{ index: 171, x: 40, y: 40 }], "no second raft");
     assertEquals(playerRecord(await s.json(player)).xx, 56);
     assertEquals(await s.save(), 1);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+// --- My worlds, copies, and handing a save over ---
+
+/** Every file under `dir`, .ini files too, as a picked folder or a .zip gives them (the File System Access API hides .ini files). */
+async function readTree(dir: string, prefix: string, out: FileMap = new Map()): Promise<FileMap> {
+  for await (const e of Deno.readDir(dir)) {
+    const path = `${dir}/${e.name}`;
+    if (e.isDirectory) await readTree(path, `${prefix}${e.name}/`, out);
+    else {
+      const bytes = await Deno.readFile(path), lastModified = (await Deno.stat(path)).mtime!.getTime();
+      out.set(`${prefix}${e.name}`, { read: () => Promise.resolve(bytes), lastModified });
+    }
+  }
+  return out;
+}
+
+/** Library calls answered by the upload server's own code, failing as src/library.ts's api does. */
+function libraryCall(store: UploadStore, key: string): LibraryCall {
+  return async (path, init = {}) => {
+    const response = await store.handle(
+      new Request(`http://localhost/api${path}`, {
+        ...init,
+        headers: { ...init.headers as Record<string, string>, Authorization: `Bearer ${key}` },
+      }),
+      "192.0.2.1",
+    );
+    if (!response.ok && response.status !== 304) throw new ShareError(response.status, (await response.json()).error);
+    return response;
+  };
+}
+
+async function unzip(blob: Blob): Promise<Map<string, Uint8Array>> {
+  const out = new Map<string, Uint8Array>();
+  for (const entry of await readZip(blob)) out.set(entry.name, await entry.read());
+  return out;
+}
+
+const skillPoints = async (files: FileMap, path: string) => parsePlayer(decodeJson(await files.get(path)!.read())).skillPoints;
+
+Deno.test("editor session: a world from My worlds is saved back to the library, refusing a version updated elsewhere", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  let now = 1_800_000_000_000;
+  const server = new UploadStore(`${root}/server`, () => now);
+  try {
+    await fixture(root);
+    await Deno.mkdir(`${root}/server`);
+    await server.init();
+    const call = libraryCall(server, newToken());
+    const put = async (files: FileMap, root: string) => {
+      const hero = { name: "Hero", root };
+      return call(`/library/worlds/${await identify(files, hero)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: await packSave(files, hero) as BodyInit,
+      });
+    };
+    // MirkMap adds the world from the folder, .ini files and all.
+    const disk = await readTree(`${root}/Hero`, "Hero/");
+    const id = (await (await put(disk, "Hero/")).json()).id;
+
+    const source = new LibrarySource(id, call);
+    const read = await source.read();
+    assertEquals(read.characters, [{ name: "Hero", root: "Shared/" }]);
+    const mem = memoryStore();
+    const s = new EditSession(source, read, read.characters[0], id, mem.store);
+    const player = "Shared/Player.save";
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 5), "Skill points 0 → 5"));
+    now += SHARE_INTERVAL;
+    assertEquals(await s.save(), 1);
+    assertEquals(s.changes.length, 0);
+    const stored = async () => unpackSave(new Uint8Array(await (await call(`/library/worlds/${id}/data`)).arrayBuffer())).files;
+    let files = await stored();
+    assertEquals(await skillPoints(files, player), 5);
+    assertEquals(cheatedInfo(decoder.decode(await files.get("Shared/MirkMap.json")!.read()))?.edits, 1);
+    assertEquals(decoder.decode(await files.get("Shared/[ 0,0 ]/LastVisit.ini")!.read()), "[Visit]\r\nday=1\r\n", "untouched files stay");
+    assert((await (await call("/library")).json()).worlds[0].cheated, "the library lists it as Cheated");
+    assertEquals([mem.backups.length, mem.backups[0].root, mem.remembered], [1, "Shared/", [id]]);
+
+    // Saved twice in a row: the version it saved is the one it checks against next.
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 6), "Skill points 5 → 6"));
+    await assertRejects(() => s.save(), /30 seconds/);
+    assertEquals([s.changes.length, mem.backups.length], [1, 1], "a refused upload keeps the change, and no backup");
+    now += SHARE_INTERVAL;
+    assertEquals(await s.save(), 1);
+
+    // Another device updates the world: saving refuses until the newest version is read again.
+    await s.apply(player, (raw) => {
+      const p = playerRecord(raw), from = p.skillPoints;
+      setSkillPoints(p, 9);
+      return `Skill points ${from} → 9`;
+    });
+    now += SHARE_INTERVAL;
+    const other = new Map(await stored());
+    const newer = decodeJson(await other.get(player)!.read());
+    playerRecord(newer).skillPoints = 2;
+    other.set(player, { read: () => Promise.resolve(new Uint8Array([...encoder.encode(JSON.stringify(newer)), 0])), lastModified: now });
+    await put(other, "Shared/");
+    now += SHARE_INTERVAL;
+    const stale = await s.save().then(() => undefined, (e) => e);
+    assert(stale instanceof StaleError && /updated in My worlds/.test(stale.message), String(stale));
+    assertEquals(await s.rebase(await source.read()), []);
+    assertEquals(s.changes, ["Skill points 2 → 9"]);
+    assertEquals(await s.save(), 1);
+    files = await stored();
+    assertEquals(await skillPoints(files, player), 9);
+    assertEquals(cheatedInfo(decoder.decode(await files.get("Shared/MirkMap.json")!.read()))?.edits, 3);
+
+    // Restoring writes the backup back to the library and drops the unsaved changes; a refused restore keeps them.
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 4), "Skill points 9 → 4"));
+    await assertRejects(() => s.restore(mem.backups[0]), /30 seconds/);
+    assertEquals(s.changes, ["Skill points 9 → 4"]);
+    now += SHARE_INTERVAL;
+    await s.restore(mem.backups[0]);
+    assertEquals(s.changes.length, 0);
+    assertEquals(await skillPoints(await stored(), player), 0);
+
+    // Saved, but this browser can't keep its backup: the save stands, with a warning, rather than reading as failed.
+    const failing = { backup: () => Promise.reject(new Error("quota exceeded")), remember: () => Promise.resolve() };
+    const fresh = await source.read();
+    const t = new EditSession(source, fresh, fresh.characters[0], id, failing);
+    await t.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 3), "Skill points 0 → 3"));
+    now += SHARE_INTERVAL;
+    assertEquals(await t.save(), 1);
+    assert(/quota exceeded/.test(t.warning ?? ""), String(t.warning));
+    assertEquals([t.changes.length, await skillPoints(await stored(), player)], [0, 3]);
+
+    // Deleted on another device: nothing can be saved to it.
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 1), "Skill points 0 → 1"));
+    await call(`/library/worlds/${id}`, { method: "DELETE" });
+    await assertRejects(() => s.save(), /no longer in My worlds/);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("editor session: a copy downloads with its changes and the mark, then saves into the game's folder at its own path", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(`${root}/Saves`);
+    // A .zip of the Hero folder: its files sit under Hero/, where the Saves folder has them under Saves/Hero/.
+    const copy = await CopySource.of(await readTree(`${root}/Saves/Hero`, "Hero/"), "Hero.zip");
+    const read = await copy.read();
+    const hero = read.characters[0];
+    assertEquals(hero, { name: "Hero", root: "Hero/" });
+    const grid = parsePlayer(decodeJson(await read.files.get("Hero/Player.save")!.read())).grid;
+    const mem = memoryStore();
+    const s = new EditSession(copy, read, hero, await worldId("Hero", grid), mem.store);
+    await s.apply("Hero/Player.save", (raw) => (setSkillPoints(playerRecord(raw), 7), "Skill points 0 → 7"));
+    await s.apply("Hero/[ 1,0 ]/Beings.save", (raw) => (spawnBeing(raw as unknown[], 3, 20, 30), "Spawned a troll"));
+    await assertRejects(() => s.save(), /Choose where to save this copy/);
+
+    const zip = await s.download();
+    assertEquals([zip.filename, zip.folder], ["Hero.zip", "Hero"]);
+    const back = await unzip(zip.blob);
+    assertEquals(parsePlayer(decodeJson(back.get("Hero/Player.save")!)).skillPoints, 7);
+    assertEquals((decodeJson(back.get("Hero/[ 1,0 ]/Beings.save")!) as unknown[]).length, 1);
+    assertEquals(cheatedInfo(decoder.decode(back.get("Hero/MirkMap.json")!))?.edits, 1);
+    assertEquals(decoder.decode(back.get("Hero/[ 0,0 ]/LastVisit.ini")!), "[Visit]\r\nday=1\r\n");
+    const unzipped: FileMap = new Map([...back].map(([path, bytes]) => [path, { read: () => Promise.resolve(bytes) }]));
+    assert((await loadWorld(unzipped, "Hero/", "Hero")).cheated, "the map reads the download as Cheated");
+    assertEquals([s.changes.length, mem.backups.length, mem.remembered], [2, 0, [s.world]], "the changes stay unsaved");
+
+    // Saved into the Saves folder: the changes edit the same files there, under its own path.
+    const folder = new FolderSource(new DiskDirectory("Saves", `${root}/Saves`));
+    const there = await folder.read();
+    const target = there.characters.find((c) => c.name === "Hero")!;
+    assertEquals(target.root, "Saves/Hero/");
+    assertEquals(await s.rebase(there, { source: folder, character: target }), []);
+    assert(s.source === folder && s.character === target, "the session moved to the folder");
+    assertEquals(s.changes, ["Skill points 0 → 7", "Spawned a troll"]);
+    assertEquals(await s.save(), 2);
+    const base = `${root}/Saves/Hero`;
+    assertEquals(parsePlayer(decodeJson(await Deno.readFile(`${base}/Player.save`))).skillPoints, 7);
+    assertEquals((decodeJson(await Deno.readFile(`${base}/[ 1,0 ]/Beings.save`)) as unknown[]).length, 1);
+    assert(cheatedInfo(await Deno.readTextFile(`${base}/MirkMap.json`)));
+    assertEquals(mem.backups[0].root, "Saves/Hero/");
+
+    // That backup, restored where the Hero folder itself was opened, finds its files under Hero/.
+    const direct = await openSession(`${root}/Saves`, "Hero", mem.store);
+    assertEquals(direct.character.root, "Hero/");
+    await direct.restore(mem.backups[0]);
+    assertEquals(parsePlayer(decodeJson(await Deno.readFile(`${base}/Player.save`))).skillPoints, 0);
+    assertEquals(await Deno.readFile(`${base}/[ 1,0 ]/Beings.save`).then((b) => decodeJson(b)), []);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("editor session: a copy saved into a folder holding a newer save runs its changes on that save", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(root);
+    const copy = new CopySource(await readTree(`${root}/Hero`, "Hero/"), "Hero.zip");
+    const read = await copy.read();
+    const grid = parsePlayer(decodeJson(await read.files.get("Hero/Player.save")!.read())).grid;
+    const s = new EditSession(copy, read, read.characters[0], await worldId("Hero", grid), memoryStore().store);
+    await s.apply("Hero/Player.save", (raw) => {
+      const p = playerRecord(raw), from = p.skillPoints;
+      setSkillPoints(p, 4);
+      return from === 4 ? undefined : `Skill points ${from} → 4`;
+    });
+    await s.apply("Hero/[ 1,0 ]/Beings.save", (raw) => (spawnBeing(raw as unknown[], 3, 20, 30), "Spawned a troll"));
+    // Played since the copy was made: the game gave 4 skill points and dropped zone B,1's creatures file.
+    const raw = decodeJson(await Deno.readFile(`${root}/Hero/Player.save`));
+    playerRecord(raw).skillPoints = 4;
+    await Deno.writeFile(`${root}/Hero/Player.save`, new Uint8Array([...encoder.encode(JSON.stringify(raw)), 0]));
+    await Deno.remove(`${root}/Hero/[ 1,0 ]/Beings.save`);
+    await Deno.writeFile(`${root}/Hero/[ 0,0 ]/Containers.save`, await Deno.readFile(`${root}/Hero/[ 0,0 ]/Containers.save`));
+    const folder = new FolderSource(new DiskDirectory("Hero", `${root}/Hero`));
+    const there = await folder.read();
+    assertEquals(await s.rebase(there, { source: folder, character: there.characters[0] }), ["Skill points 0 → 4", "Spawned a troll"]);
+    assertEquals(s.changes, []);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("handing a save over: a copy of files reads back the same, and a folder handle lists every file under its name", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(root);
+    const files = await readTree(`${root}/Hero`, "Hero/");
+    const back = fileMapOf(await storedFiles(new Map([...files, ["Other/Player.save", files.get("Hero/Player.save")!]]), "Hero/"));
+    assertEquals([...back.keys()], [...files.keys()], "only the character handed over");
+    for (const [path, source] of files) {
+      assertEquals([...await back.get(path)!.read()], [...await source.read()], path);
+      assertEquals(back.get(path)!.lastModified, source.lastModified);
+    }
+    const listed = await fromDirectory(new DiskDirectory("Hero", `${root}/Hero`));
+    // The browser hides .ini files from folder handles (see DiskDirectory), as it does for Live saves.
+    assertEquals([...listed.keys()].sort(), [...files.keys()].filter((p) => !p.endsWith(".ini")).sort());
+    assertEquals([...await listed.get("Hero/Player.save")!.read()], [...await files.get("Hero/Player.save")!.read()]);
+
+    // A world from My worlds sits under Shared/: handed over as a copy, it keeps its character's name, so it downloads as Hero.
+    const shared: FileMap = new Map([...files].map(([path, source]) => [`Shared/${path.slice("Hero/".length)}`, source]));
+    const hero = { name: "Hero", root: "Shared/" };
+    const copy = new CopySource(fileMapOf(await storedFiles(shared, hero.root)), "what MirkMap had open", hero);
+    const read = await copy.read();
+    assertEquals(read.characters, [hero]);
+    const grid = parsePlayer(decodeJson(await read.files.get("Shared/Player.save")!.read())).grid;
+    const s = new EditSession(copy, read, hero, await worldId("Hero", grid), memoryStore().store);
+    assertEquals(s.world, await identify(files, { name: "Hero", root: "Hero/" }), "the same world as the folder's");
+    assertEquals((await s.download()).filename, "Hero.zip");
   } finally {
     await Deno.remove(root, { recursive: true });
   }
