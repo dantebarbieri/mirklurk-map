@@ -1242,7 +1242,9 @@ function markGroup(st: State, map: MapView, open: (m: Mark) => void, title: stri
         onmouseenter: () => map.highlight(m),
         onmouseleave: () => map.highlight(null),
       },
-      m.layer === "trees" || m.layer === "creatures" || m.gather ? markIcon(m.kind) : h("span", { class: `sym ${m.kind}` }),
+      m.layer === "trees" || m.layer === "creatures" || m.layer === "rafts" || m.gather
+        ? markIcon(m.kind)
+        : h("span", { class: `sym ${m.kind}` }),
       m.interior ? h("button", { type: "button", class: "link", title: "Look inside", onclick: () => open(m) }, m.name) : h("button", {
         type: "button",
         class: "plain",

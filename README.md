@@ -238,6 +238,12 @@ draws NPCs only as dots. Placed items such as Hidden Hollows and workstations, a
 show theirs too, and inventory rows show each item's icon. Treasure chests, remains and the Camp stash have no wiki picture yet. The
 pictures are downloaded from the wiki at development time (`deno task wiki`) and bundled with the site; it never contacts the wiki itself.
 
+Rafts use SVG symbols drawn by Astra (GPT-6 Astra) from the game's world sprite: the Raft Base's two lashed crossbars, and the finished
+raft's log deck and paddle. The map, legend and list rows share these symbols. The raft you stand on peeks out below your person marker
+without changing its saved tile. A finished raft has no inventory picture: its inspection shows frame 1 of the game's bundled
+`spr_placed_16x16_wider` strip, credited to the game and Edym Pixels, rather than to the wiki. Raft Bases keep the wiki's picture. The game
+strip is same-origin, content-hashed and kept offline with the other bundled art.
+
 **Realistic mode** is off by default; enable it with the **Realistic** toggle. It reconstructs explored zones and interiors from saved
 `.tmap` layers using the game's own tilesets, including animated-tile first frames, atlas borders, mirroring and rotation. Buildings, rocks,
 placed objects and procedural trees use their saved sprites/geometry. NPCs, creatures and carcasses remain markers; this is a static
