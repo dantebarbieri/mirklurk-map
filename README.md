@@ -27,11 +27,13 @@ Save and quit to the menu, then pick `…\steamapps\common\Mirklurk Every Step M
 folder on the page, or open a `.zip` of it. Picking the whole `Saves` folder offers a character list. `Player.save` alone also works; zone
 maps and objects then stay empty.
 
-Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset; **World** to fit the whole 5×5 world. Pinching also
-pans around the fingers' midpoint. Tap a marker to inspect it, or hover for its name and tile; click a list entry to find it on the map.
-Markers keep their small size at any zoom, so a tap that misses every marker's symbol picks the nearest one within a fingertip's reach.
-Touch gestures inside the map control the map, while outside it normal page scrolling and browser zoom remain available. Controls and panels
-adapt to narrow phone screens.
+Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset; **World** to fit the whole 5×5 world. The crosshair
+below them does the opposite and locates your character: it zooms in on them wherever they are, opening the interior they are inside (a
+building, cave or dungeon level) or their zone, and their marker pulses a moment (it also turns the You layer back on). Pinching also pans
+around the fingers' midpoint. Tap a marker to inspect it, or hover for its name and tile; click a list entry to find it on the map. Markers
+keep their small size at any zoom, so a tap that misses every marker's symbol picks the nearest one within a fingertip's reach. Touch
+gestures inside the map control the map, while outside it normal page scrolling and browser zoom remain available. Controls and panels adapt
+to narrow phone screens.
 
 The corner button above `+` shows the map full screen, the easiest way to use it on a phone. It stays full screen while you pan into other
 zones, look inside entrances and come back, switch Realistic mode, or a live or shared save refreshes; the button, Escape or the browser's
@@ -48,11 +50,12 @@ Whenever the map is at least 600 pixels wide, and always in full screen, a trans
 tapped to show or hide it (a group's title switches the whole group), and Realistic mode. It mirrors the layer chips below the map, which
 still offer everything, and collapses to its title; it starts collapsed on small screens.
 
-The zone map continues into its neighbours, with their maps and the markers of the enabled layers (loaded as each zone first comes into
-view). Pan into a neighbour and the selection follows: once it fills two thirds of the map along the way you are panning, the grid, the
-title and the map's gold outline move to it, and its details open in place when you let go, keeping the view and any open inspection.
-Peeking over a border, or hovering on one, never flips the selection back and forth. Zoomed out beyond about one and a half zones the map is
-a survey and keeps the selection; zoom into a zone to select it, or click a neighbouring zone to jump to it.
+The zone map continues into its neighbours, with their maps, the markers of the enabled layers and the ground overlays (brambles, rift
+vines, sharp ground, water and ferns), each loaded as its zone first comes into view. Pan into a neighbour and the selection follows: once
+it fills two thirds of the map along the way you are panning, the grid, the title and the map's gold outline move to it, and its details
+open in place when you let go, keeping the view and any open inspection. Peeking over a border, or hovering on one, never flips the
+selection back and forth. Zoomed out beyond about one and a half zones the map is a survey: it keeps the selection but hides the gold
+outline; zoom into a zone to select it, or click a neighbouring zone to jump to it.
 
 ### My worlds, sync and sharing (opt-in)
 
