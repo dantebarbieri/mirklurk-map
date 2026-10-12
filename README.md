@@ -205,10 +205,15 @@ always Cold. Everything is the state at save time; see _Time and weather_ below 
 
 ### Inventory, containers and wiki
 
-Expand **Saved equipment & inventory** to see equipped items and nested bag contents, stack quantities, saved durability values (not
+Expand **Saved equipment & inventory** to see equipped items and what their bags hold, stack quantities, saved durability values (not
 percentages), and wetness, under a roll-up of every coin you carry (see [the player](#creatures-merchants-and-you)). Click a
 container/corpse/drop marker or list entry to inspect its saved contents. Reopened chests, empty containers, wood drops and separate
 `LOOT-x_y.save` ground-loot records are included.
+
+A bag kept inside another bag or a chest shows as empty, because that is how the game loads it: `load_player` and `load_containers` give
+every such container a new, empty inventory (`item_recreate_grid`), and `save_player` refreshes only worn containers' grids. Its saved grid
+is a leftover from when it was last worn, written as those items are now wherever they went, sometimes with `null` for one the game freed;
+MirkMap ignores it, as the game does. The game itself only lets an empty container be put inside another (`item_fits`).
 
 Ground-loot files remain separate, labeled entries even when a container occupies the same tile; the two records may describe different
 contents or save times. If one container inventory is malformed during manual import, its marker remains with unavailable contents and a
@@ -362,19 +367,24 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   `player_endturn` leaves them, and days alive move with the day. The game eases the air temperature back toward the hour's usual value, and
   going back in time stops regrowth in zones visited later until the clock catches up.
 - **Items and coins**: added to the bags you carry exactly as picking them up would (`item_pickup`, `item_stack`, `item_add`). Stacks are
-  topped up first, then each new stack goes in the first free spot, column by column, written in every cell it covers. New items glow gold
-  in the game until you look at them. Whatever does not fit is reported, never dropped. Sizes, stack limits and durability come from the
-  game's item database (`src/itemdata.ts`).
-- **Removing items**: **What you wear and carry** lists every worn item by slot, with what its containers hold (bags in bags too).
-  **Remove** takes all of an item, or as many of a stack as you say, out of the save: every grid cell it covered is emptied, every copy of
-  the containers it was in is kept the same (the game saves a copy of an item in each cell it covers), and a two-handed weapon's off-hand
-  copy goes with it. A container takes its contents with it, after asking. Items unsaved changes added or changed are tagged **unsaved**.
-- **Wearing items**: **Wear it** puts a new item on instead of in a bag, so a character with no bag (a new one, or one whose gear was
-  removed) can put on a backpack, vest or pouch and then carry things. **Wear** puts a carried item on, contents included, and **Take off**
-  puts a worn one in the first free spot of your other bags (column by column, as `item_add` does). Each slot takes what the game lets into
-  it (`takes` in `gml_Object_obj_player_Create_0`, `item_fits_slot`): main hands take weapons (types 16, 17 and 23), off hands types 15, 23
-  and 24, and the rest their own type; a two-handed melee weapon (type 17 that is not a bow, `weapon_is_ranged`) also needs the off hand
-  beside it and is saved there too. The game rebuilds worn containers, weights and looks from the save when it loads.
+  topped up first, then each new stack goes in the first free spot, column by column, written in every cell it covers. What finds no room
+  upright anywhere is then turned sideways (`sideflipped`, covering height × width), as you could turn it in the game; nothing already in
+  your bags is rearranged. New items glow gold in the game until you look at them. Whatever does not fit is reported, never dropped. Sizes,
+  stack limits and durability come from the game's item database (`src/itemdata.ts`).
+- **Removing items**: **What you wear and carry** lists every worn item by slot, with what its containers hold, and each container's size
+  and free cells (a bag kept inside another holds nothing, as above). **Remove** takes all of an item, or as many of a stack as you say, out
+  of the save: every grid cell it covered is emptied, every copy of the containers it was in is kept the same (the game saves a copy of an
+  item in each cell it covers), and a two-handed weapon's off-hand copy goes with it. A container takes its contents with it, after asking.
+  Items unsaved changes added or changed are tagged **unsaved**.
+- **Moving and wearing items**: **Wear it** puts a new item on instead of in a bag, so a character with no bag (a new one, or one whose gear
+  was removed) can put on a backpack, vest or pouch and then carry things. **Move to** beside an item lists only the containers you wear
+  that have room for it (its first free spot, column by column as `item_add` scans, upright first, then turned sideways) and a free slot it
+  fits; a worn item can be taken off into one of them. A container moves only when empty, and never into itself, as `item_fits` allows: the
+  game would empty it otherwise. So to swap a small backpack for a large one, move what it holds into another bag you wear, remove it, and
+  put the large one on with **Wear it**. Each slot takes what the game lets into it (`takes` in `gml_Object_obj_player_Create_0`,
+  `item_fits_slot`): main hands take weapons (types 16, 17 and 23), off hands types 15, 23 and 24, and the rest their own type; a two-handed
+  melee weapon (type 17 that is not a bow, `weapon_is_ranged`) also needs the off hand beside it and is saved there too. The game rebuilds
+  worn containers, weights and looks from the save when it loads.
 - **Where you stand**: a free tile of an outdoor zone you have explored (not water, a wall, a pit or something already standing there),
   picked on the zone's map or on the full map.
 - **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior, with the hit points and armor of a fresh

@@ -99,11 +99,13 @@ body.map-move .map-bar label {
   font-size: 13px;
   color: var(--gold2);
 }
-.edit-card.edit-map {
+.edit-card.edit-map,
+.edit-card.edit-items {
   grid-column: span 2;
 }
 @media (max-width: 720px) {
-  .edit-card.edit-map {
+  .edit-card.edit-map,
+  .edit-card.edit-items {
     grid-column: auto;
   }
 }
@@ -266,8 +268,8 @@ body.map-move .map-bar label {
   padding-left: 18px;
 }
 .carried-list {
-  max-height: 420px;
-  overflow: auto;
+  max-height: 480px;
+  overflow: hidden auto;
 }
 .carried li {
   display: flex;
@@ -286,12 +288,25 @@ body.map-move .map-bar label {
 }
 .carried-controls {
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 4px;
   margin-left: auto;
+  min-width: 0;
+}
+.carried-controls .button {
+  flex: none;
+  white-space: nowrap;
 }
 .carried .num {
   width: 4em;
+}
+.carried .move-to {
+  flex: 0 1 15em;
+  min-width: 7em;
+  padding: 1px 4px;
+  font-size: 12px;
 }
 .item-actions {
   display: inline-flex;

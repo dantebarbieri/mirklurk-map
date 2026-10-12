@@ -13,7 +13,14 @@ export type Inventory =
 const record = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
-function item(raw: unknown, depth: number): SavedItem {
+/**
+ * A container kept inside another (a bag in a bag, or in a chest) holds nothing once the game loads the save: load_player and
+ * load_containers give each one a new, empty inventory (item_recreate_grid). Its saved grid is a leftover: save_player refreshes only
+ * worn containers', so it is the grid from when the bag was last worn, its cells written as those items are now, wherever they went.
+ */
+export const NESTED_NOTE = "Empty: the game empties a container kept inside another one when it loads the save.";
+
+function item(raw: unknown, depth: number, inGrid = false): SavedItem {
   if (depth > 20) throw new Error("Inventory nesting exceeds 20 levels");
   if (
     !record(raw) || !Number.isInteger(raw.index) || !finite(raw.index) || raw.index < 0 ||
@@ -29,16 +36,17 @@ function item(raw: unknown, depth: number): SavedItem {
     durability: finite(raw.durability) ? raw.durability : undefined,
     wet: finite(raw.wet) ? raw.wet : undefined,
     contents: (raw.subParts ?? []).flatMap((part: unknown): Inventory[] =>
-      record(part) && part.type === 0 ? [parseInventoryGrid(part.gridSave, depth + 1)] : []
+      record(part) && part.type === 0
+        ? [inGrid ? { state: "saved", items: [], note: NESTED_NOTE } : parseInventoryGrid(part.gridSave, depth + 1)]
+        : []
     ),
   };
 }
 
 /**
- * GameMaker repeats each item in every occupied cell; only its X,Y origin counts.
- * The game can save a wrong origin (e.g. a bag stored inside its own pouch), so such
- * cells fall back to the top-left of their block of identical records. Every saved
- * field, including nested contents, must match for cells to join one block.
+ * GameMaker repeats each item in every occupied cell; only its X,Y origin counts. A saved cell can carry a wrong origin (its record
+ * is shared with wherever the item went later), so such cells fall back to the top-left of their block of identical records; every
+ * saved field must match for cells to join one block. A container kept in the grid holds nothing as the game loads it (NESTED_NOTE).
  */
 export function parseInventoryGrid(raw: unknown, depth = 0): Inventory {
   if (raw === undefined) return { state: "unavailable", reason: "Contents were not recorded in this save." };
@@ -57,15 +65,16 @@ export function parseInventoryGrid(raw: unknown, depth = 0): Inventory {
   for (let y = 0; y < rows.length; y++) {
     for (let x = 0; x < rows[y].length; x++) {
       const cell = rows[y][x];
-      if (cell === -4) continue;
+      // item_recreate_grid passes over undefined cells (written as null) as it does empty ones (-4).
+      if (cell === -4 || cell === null) continue;
       if (!record(cell) || !Number.isInteger(cell.X) || !Number.isInteger(cell.Y)) throw new Error("Invalid inventory cell");
       const ix = Number(cell.X), iy = Number(cell.Y);
       const origin = rows[iy]?.[ix];
       if (record(origin) && origin.X === ix && origin.Y === iy && origin.index === cell.index) {
-        if (ix === x && iy === y) items.push(item(cell, depth));
+        if (ix === x && iy === y) items.push(item(cell, depth, true));
       } else {
         repaired = true;
-        if (!sameRecord(rows[y][x - 1], cell) && !sameRecord(rows[y - 1]?.[x], cell)) items.push(item(cell, depth));
+        if (!sameRecord(rows[y][x - 1], cell) && !sameRecord(rows[y - 1]?.[x], cell)) items.push(item(cell, depth, true));
       }
     }
   }
