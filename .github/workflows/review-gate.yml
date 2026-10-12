@@ -1,6 +1,6 @@
 # Required check "copilot-review": a pull request cannot merge while Copilot's review is still running, or before Copilot has reviewed
-# it. Copilot is requested automatically by the main-branch ruleset (on open, on every push and for drafts) and stays a requested
-# reviewer until it submits; this job polls until then. Unresolved review threads are blocked separately by the ruleset.
+# it. Copilot is requested automatically by the main-branch ruleset (on open, on every push and for drafts); this job polls the pull
+# request's timeline until that review is submitted. Unresolved review threads are blocked separately by the ruleset.
 name: Review gate
 
 on:
@@ -11,6 +11,7 @@ on:
 
 permissions:
   pull-requests: read
+  issues: read # the pull request timeline, the only place an in-progress Copilot review shows
 
 concurrency:
   group: review-gate-${{ github.event.pull_request.number }}
@@ -36,9 +37,13 @@ jobs:
             pr=$(gh api "repos/$REPO/pulls/$PR")
             if [ "$(jq -r .state <<<"$pr")" != open ]; then echo "Pull request is closed."; exit 0; fi
             if [ "$(jq -r .head.sha <<<"$pr")" != "$HEAD" ]; then echo "Superseded by a newer commit; its own run decides."; exit 0; fi
-            pending=$(jq '[.requested_reviewers[] | select(.login == "Copilot")] | length' <<<"$pr")
+            # Copilot never appears in requested_reviewers; its latest timeline event says whether a review is running.
+            last=$(gh api --paginate "repos/$REPO/issues/$PR/timeline?per_page=100" --jq '.[] | select(
+              ((.event == "review_requested" or .event == "review_request_removed") and .requested_reviewer.login == "Copilot")
+              or (.event == "reviewed" and (.user.login == "Copilot" or .user.login == "copilot-pull-request-reviewer[bot]"))
+              or (.event | startswith("copilot_work"))) | .event' | tail -n 1)
             reviews=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews?per_page=100" --jq ".[] | select(.user.login == \"$bot\") | .commit_id")
-            if [ "$pending" -gt 0 ]; then
+            if [ "$last" = review_requested ] || [ "$last" = copilot_work_started ]; then
               echo "Copilot's review is in progress."
             elif grep -qx "$HEAD" <<<"$reviews"; then
               echo "Copilot has reviewed $HEAD."; exit 0
