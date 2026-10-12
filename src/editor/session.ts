@@ -97,6 +97,16 @@ export class EditSession {
     return this.notes;
   }
 
+  /** The files as saving would leave them: each changed draft encoded as it would be written, every other file as it was read. */
+  preview(): FileMap {
+    const out: FileMap = new Map(this.files);
+    for (const path of this.dirty) {
+      const bytes = encodeSave(this.drafts.get(path));
+      out.set(path, { read: () => Promise.resolve(bytes), lastModified: this.files.get(path)?.lastModified });
+    }
+    return out;
+  }
+
   discard() {
     if (this.busy) throw new Error("Wait for the save to finish");
     this.clear();

@@ -3,12 +3,9 @@
 import { $, h } from "./dom.ts";
 import { type Character, characterIndex, type FileMap, findCharacters, fromDataTransfer, fromFiles } from "./files.ts";
 import { LAYERS, PLAYER_KEY } from "./objects.ts";
-import { landmarks, shipwreckOdds } from "./predict.ts";
-import { Area } from "./rules.ts";
 import { estimatePlayer } from "./estimate.ts";
-import { disposeView, playerSpot, rememberView, renderWorld, selectZone, type State } from "./view.ts";
-import { TerrainStore } from "./terrain.ts";
-import { loadLayer, loadWorld } from "./world.ts";
+import { disposeView, playerSpot, rememberView, renderWorld, selectZone, type State, worldState } from "./view.ts";
+import { loadWorld } from "./world.ts";
 import { type DirectoryPicker, LiveReader, scanDirectory } from "./live.ts";
 import { Sharing } from "./sharing.ts";
 import { knownCheated } from "./cheated.ts";
@@ -64,24 +61,13 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
     const world = await loadWorld(selectedFiles, c.root, c.name);
     // The editor's record in this browser keeps the Cheated mark even when MirkMap.json was removed.
     world.cheated ||= await knownCheated(await worldId(c.name, world.player.grid));
-    const shipwreck = new Map<string, number>();
-    for (const z of world.zones.flat()) {
-      if (z.type !== Area.BrokenFen || !z.dir) continue;
-      const [w1, lo] = await Promise.all([loadLayer(world, z.dir, "Water1"), loadLayer(world, z.dir, "Lower")]);
-      if (w1 && lo) shipwreck.set(`${z.x},${z.y}`, shipwreckOdds(w1.data, lo.data).perEntry);
-    }
+    if (my !== showToken) return false;
+    const prepared = await worldState(world, selectedFiles, prefs);
+    preparedUrls.push(...prepared.urls);
+    // After worldState: its shipwreck odds read Broken Fen layers, and a layer that cannot be read adds a warning.
     if (refresh && world.warnings.length) throw new Error(world.warnings.join("; "));
     if (my !== showToken) return false;
-    const mapUrls = new Map<string, string>();
-    for (const z of world.zones.flat()) {
-      if (!z.mapPath) continue;
-      const bytes = await selectedFiles.get(z.mapPath)!.read();
-      if (my !== showToken) return false;
-      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/png" }));
-      preparedUrls.push(url);
-      mapUrls.set(`${z.x},${z.y}`, url);
-    }
-    const st: State = { world, marks: landmarks(world, shipwreck), mapUrls, prefs, terrain: new TerrainStore(world) };
+    const st = prepared.state;
     const same = refresh && state && chars[activeCharacter]?.root === c.root;
     // Estimates are only for live views (local live saves or a watched shared link); manual imports show the save as is.
     if (reader || sharing.isWatching) st.estimate = estimatePlayer(world, same ? state!.world.player : undefined);

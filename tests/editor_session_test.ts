@@ -246,6 +246,33 @@ Deno.test("editor session: a save writes the edits as they were when it started,
   }
 });
 
+Deno.test("editor session: the preview the full map draws has the unsaved edits, and nothing is written", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(root);
+    const s = await openSession(root, "Hero");
+    const player = `${s.character.root}Player.save`;
+    const before = await Deno.readFile(`${root}/Hero/Player.save`);
+    assert([...s.preview()].every(([path, src]) => s.files.get(path) === src), "no edits: the files as read");
+    movePlayer(playerRecord(await s.json(player)), 1, 0, 50, 60);
+    s.changed(player, "Moved");
+    spawnBeing(await s.json("Hero/[ 1,0 ]/Beings.save") as unknown[], 3, 20, 30);
+    s.changed("Hero/[ 1,0 ]/Beings.save", "Spawned a troll");
+    await s.json("Hero/[ 0,0 ]/Beings.save");
+
+    const preview = s.preview();
+    assertEquals([...preview.keys()], [...s.files.keys()]);
+    assert(preview.get("Hero/[ 0,0 ]/Beings.save") === s.files.get("Hero/[ 0,0 ]/Beings.save"), "a draft read but not changed");
+    const shown = await loadWorld(preview, s.character.root, s.character.name);
+    assertEquals([shown.player.area.x, shown.player.area.y, shown.player.pos[0] >> 4, shown.player.pos[1] >> 4], [1, 0, 50, 60]);
+    assertEquals((decodeJson(await preview.get("Hero/[ 1,0 ]/Beings.save")!.read()) as unknown[]).length, 1);
+    assertEquals([...await Deno.readFile(`${root}/Hero/Player.save`)], [...before], "nothing written");
+    assertEquals(s.changes.length, 2);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("editor session: moving to another zone makes that zone's Containers.save the last file written", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
   try {

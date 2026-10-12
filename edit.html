@@ -25,8 +25,18 @@
       <a class="button subtle" href="./">Back to MirkMap</a>
       <button id="open-folder" class="button" type="button">Open save folder for editing...</button>
       <select id="character" aria-label="Character" hidden></select>
+      <span id="view-switch" class="view-switch" role="group" aria-label="View" hidden>
+        <button id="show-editor" type="button" aria-pressed="true">Editor</button>
+        <button id="show-map" type="button" aria-pressed="false"
+          title="MirkMap's map of this world, with your unsaved changes: rifts, caves, creatures, loot and more">Full map</button>
+      </span>
       <span id="status" role="status"></span>
     </header>
+    <div id="map-bar" class="map-bar" hidden>
+      <span id="map-about" class="muted"></span>
+      <label id="map-move-control"><input id="map-move" type="checkbox"> Move yourself: click free ground in an explored zone</label>
+      <span id="map-note" class="edit-note" role="status"></span>
+    </div>
     <main id="app">
       <section class="intro">
         <p>Change a Mirklurk character: skill points, items and coins, where you stand, the time and weather, creatures, your level,

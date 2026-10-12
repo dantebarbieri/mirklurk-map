@@ -18,7 +18,7 @@ import {
 } from "./objects.ts";
 import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts";
 import { fernShade, GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
-import { heatBounds, type Landmark, type LandmarkId, pct, zoneHeat } from "./predict.ts";
+import { heatBounds, type Landmark, type LandmarkId, landmarks, pct, shipwreckOdds, zoneHeat } from "./predict.ts";
 import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_MARKERS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
@@ -26,6 +26,7 @@ import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts"
 import { coinRollup, equippedBadge } from "./player.ts";
 import { skyChip, skyPanel } from "./skyview.ts";
 import { entityWiki } from "./wiki.ts";
+import type { FileMap } from "./files.ts";
 import {
   type Interior,
   interiorsOf,
@@ -63,6 +64,39 @@ export interface State {
   expanded?: Set<string>;
   /** Live mode only: where the player probably went after this save. */
   estimate?: Estimate | null;
+  /**
+   * The save editor's Move tool: a click on a zone map's empty ground (not on a mark) calls this with the zone under it and the tile
+   * clicked, instead of selecting that zone.
+   */
+  onGround?: (zone: Zone, tx: number, ty: number) => void;
+}
+
+/**
+ * A view of `world` read from `files`, with each zone's own map as a blob: URL (revoke `urls` once the view is replaced) and the
+ * landmark guesses, which use the Broken Fen's shipwreck odds.
+ */
+export async function worldState(world: World, files: FileMap, prefs: State["prefs"]): Promise<{ state: State; urls: string[] }> {
+  const shipwreck = new Map<string, number>();
+  for (const z of world.zones.flat()) {
+    if (z.type !== Area.BrokenFen || !z.dir) continue;
+    const [w1, lo] = await Promise.all([loadLayer(world, z.dir, "Water1"), loadLayer(world, z.dir, "Lower")]);
+    if (w1 && lo) shipwreck.set(key(z.x, z.y), shipwreckOdds(w1.data, lo.data).perEntry);
+  }
+  const mapUrls = new Map<string, string>();
+  const urls: string[] = [];
+  try {
+    for (const z of world.zones.flat()) {
+      if (!z.mapPath) continue;
+      const bytes = await files.get(z.mapPath)!.read();
+      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/png" }));
+      urls.push(url);
+      mapUrls.set(key(z.x, z.y), url);
+    }
+  } catch (e) {
+    urls.forEach((u) => URL.revokeObjectURL(u));
+    throw e;
+  }
+  return { state: { world, marks: landmarks(world, shipwreck), mapUrls, prefs, terrain: new TerrainStore(world) }, urls };
 }
 
 const HEAT_COLOR: Record<LandmarkId, string> = {
@@ -614,7 +648,11 @@ async function renderZone(st: State, z: Zone, glide = false) {
     bounds: [-z.x * ROOM, -z.y * ROOM, 5 * ROOM],
     onMapClick: (px: number, py: number) => {
       const x = z.x + Math.floor(px / ROOM), y = z.y + Math.floor(py / ROOM);
-      if (x >= 0 && x < 5 && y >= 0 && y < 5 && (x !== z.x || y !== z.y)) selectZone(st, x, y);
+      if (x < 0 || x >= 5 || y < 0 || y >= 5) return;
+      if (st.onGround) {
+        const tile = ROOM / TILES;
+        st.onGround(world.zones[y][x], Math.floor((px - (x - z.x) * ROOM) / tile), Math.floor((py - (y - z.y) * ROOM) / tile));
+      } else if (x !== z.x || y !== z.y) selectZone(st, x, y);
     },
     marks,
     heats: heats.map((ht) => ({ cls: `m-${ht.id}`, url: heatUrl(ht.heat, HEAT_COLOR[ht.id]), bounds: heatBounds(ht.heat) })),
