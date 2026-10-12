@@ -4,6 +4,7 @@
 
 import { ITEMS } from "../itemdata.ts";
 import { ITEM_NAMES } from "../gamedata.ts";
+import { canGetWet, DURABILITY_LABELS, durabilityKind, fuelMax, isWet, type ItemState, needsFuel, needsRepair } from "../condition.ts";
 import { isRec, type Rec } from "./edits.ts";
 
 /** Empty grid cell (GameMaker's noone). */
@@ -488,4 +489,118 @@ export function removeItem(p: Rec, place: ItemPlace, index: number, amount: numb
   for (let k = grids.length - 2; k >= 0; k--) syncCopies(grids[k].grid, grids[k].x, grids[k].y);
   if (twin) equips[place.slot + 1] = isRec(equips[place.slot]) ? JSON.parse(JSON.stringify(equips[place.slot])) : EMPTY;
   return { removed: n, inside };
+}
+
+// --- Condition: durability, fuel and wetness (src/condition.ts says which items have which) ---
+
+/**
+ * Changes the item at `place` with `change`, then makes every copy the save keeps of it match again: the other grid cells it covers,
+ * the containers it is in, and a two-handed melee weapon's off-hand copy.
+ */
+function update(p: Rec, place: ItemPlace, index: number, change: (item: Rec) => void) {
+  const found = locate(p, place);
+  if (!found || found.item.index !== index) throw new Error(`${ITEM_NAMES[index] ?? `Item ${index}`} is no longer there`);
+  const equips = p.myEquips as unknown[];
+  const twin = place.path.length === 0 && (place.slot === 0 || place.slot === 2) && isOffHandCopy(equips, place.slot + 1);
+  change(found.item);
+  for (let k = found.grids.length - 1; k >= 0; k--) syncCopies(found.grids[k].grid, found.grids[k].x, found.grids[k].y);
+  if (twin) equips[place.slot + 1] = JSON.parse(JSON.stringify(equips[place.slot]));
+}
+
+/** Everything worn and what worn containers hold, in carriedItems' order. */
+const everything = (p: Rec): CarriedItem[] =>
+  carriedItems(p).flatMap(function all(c): CarriedItem[] {
+    return [c, ...c.contents.flatMap(all)];
+  });
+
+/** What the Repair all, Refuel all and Dry all helpers restore. */
+export type Upkeep = "repair" | "refuel" | "dry";
+const NEEDS: Record<Upkeep, (item: ItemState) => boolean> = { repair: needsRepair, refuel: needsFuel, dry: isWet };
+
+/** The items worn or in worn containers that `what` would change. */
+export function needing(p: Rec, what: Upkeep): CarriedItem[] {
+  return everything(p).filter((c) => {
+    const rec = itemAt(p, c.place);
+    return !!rec && NEEDS[what](rec as unknown as ItemState);
+  });
+}
+
+/**
+ * Repairs every item worn or carried to its full durability (durabilityMax), as repair kits do up to that maximum. Food portions and
+ * lamp oil are used up, not worn, so they are left as they are. Returns the items repaired.
+ */
+export function repairAll(p: Rec): CarriedItem[] {
+  const list = needing(p, "repair");
+  for (const c of list) update(p, c.place, c.index, (item) => void (item.durability = ITEMS[c.index].durability));
+  return list;
+}
+
+/** Fills every torch's and lantern's burn time (burnTimeLeft to burnTime) and every Lamp Oil flask. Returns the items refuelled. */
+export function refuelAll(p: Rec): CarriedItem[] {
+  const list = needing(p, "refuel");
+  for (const c of list) {
+    const burn = fuelMax(c.index);
+    update(p, c.place, c.index, (item) => {
+      if (burn !== undefined) item.burnTimeLeft = burn;
+      else item.durability = ITEMS[c.index].durability;
+    });
+  }
+  return list;
+}
+
+/**
+ * Dries every item worn or carried (wet 0), and the clothes on your body (Player.save's wetness, head, torso, legs and feet), which
+ * the preview lists as wet clothes. Returns the items dried and whether your body was wet.
+ */
+export function dryAll(p: Rec): { items: CarriedItem[]; body: boolean } {
+  const items = needing(p, "dry");
+  for (const c of items) update(p, c.place, c.index, (item) => void (item.wet = 0));
+  let body = false;
+  if (Array.isArray(p.wetness)) {
+    p.wetness = p.wetness.map((v) => {
+      if (typeof v !== "number" || !(v > 0)) return v;
+      body = true;
+      return 0;
+    });
+  }
+  return { items, body };
+}
+
+export interface ConditionEdit {
+  /** Durability, portions or oil left: more than 0 (the game breaks or uses up an item at 0) and at most durabilityMax. */
+  durability?: number;
+  /** Burn time left in turns, 0 to burnTime; at 0 a lit torch or lantern goes out, as it does when it burns down. */
+  fuel?: number;
+  /** 0–1, only on items that get wet in the game (or to dry one that somehow is). */
+  wet?: number;
+}
+
+/** Sets the condition of the item at `place`: only the values given, each checked against what the game allows for that item. */
+export function setCondition(p: Rec, place: ItemPlace, index: number, e: ConditionEdit) {
+  const name = ITEM_NAMES[index] ?? `Item ${index}`;
+  const kind = durabilityKind(index), burn = fuelMax(index);
+  if (e.durability !== undefined) {
+    if (!kind) throw new Error(`${name} has no durability the game shows`);
+    const max = ITEMS[index].durability!;
+    if (!Number.isFinite(e.durability) || e.durability <= 0 || e.durability > max) {
+      const ends = kind === "durability" ? "breaks" : "uses up";
+      throw new Error(`${DURABILITY_LABELS[kind]} must be more than 0 and at most ${max}: at 0 the game ${ends} ${name}`);
+    }
+  }
+  if (e.fuel !== undefined) {
+    if (burn === undefined) throw new Error(`${name} burns no fuel`);
+    if (!Number.isFinite(e.fuel) || e.fuel < 0 || e.fuel > burn) throw new Error(`Fuel must be from 0 to ${burn} turns`);
+  }
+  if (e.wet !== undefined) {
+    if (!Number.isFinite(e.wet) || e.wet < 0 || e.wet > 1) throw new Error("Wetness must be from 0% to 100%");
+    if (e.wet > 0 && !canGetWet(index)) throw new Error(`${name} never gets wet in the game`);
+  }
+  update(p, place, index, (item) => {
+    if (e.durability !== undefined) item.durability = e.durability;
+    if (e.fuel !== undefined) {
+      item.burnTimeLeft = e.fuel;
+      if (e.fuel <= 0 && item.lit === true) item.lit = false;
+    }
+    if (e.wet !== undefined) item.wet = e.wet;
+  });
 }

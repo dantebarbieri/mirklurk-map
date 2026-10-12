@@ -28,11 +28,13 @@ Save and quit to the menu, then pick `…\steamapps\common\Mirklurk Every Step M
 folder on the page, or open a `.zip` of it. Picking the whole `Saves` folder offers a character list. `Player.save` alone also works; zone
 maps and objects then stay empty.
 
-Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset; **World** to fit the whole 5×5 world. Pinching also
-pans around the fingers' midpoint. Tap a marker to inspect it, or hover for its name and tile; click a list entry to find it on the map.
-Markers keep their small size at any zoom, so a tap that misses every marker's symbol picks the nearest one within a fingertip's reach.
-Touch gestures inside the map control the map, while outside it normal page scrolling and browser zoom remain available. Controls and panels
-adapt to narrow phone screens.
+Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset; **World** to fit the whole 5×5 world. The crosshair
+below them does the opposite and locates your character: it zooms in on them wherever they are, opening the interior they are inside (a
+building, cave or dungeon level) or their zone, and their marker pulses a moment (it also turns the You layer back on). Pinching also pans
+around the fingers' midpoint. Tap a marker to inspect it, or hover for its name and tile; click a list entry to find it on the map. Markers
+keep their small size at any zoom, so a tap that misses every marker's symbol picks the nearest one within a fingertip's reach. Touch
+gestures inside the map control the map, while outside it normal page scrolling and browser zoom remain available. Controls and panels adapt
+to narrow phone screens.
 
 The corner button above `+` shows the map full screen, the easiest way to use it on a phone. It stays full screen while you pan into other
 zones, look inside entrances and come back, switch Realistic mode, or a live or shared save refreshes; the button, Escape or the browser's
@@ -49,11 +51,12 @@ Whenever the map is at least 600 pixels wide, and always in full screen, a trans
 tapped to show or hide it (a group's title switches the whole group), and Realistic mode. It mirrors the layer chips below the map, which
 still offer everything, and collapses to its title; it starts collapsed on small screens.
 
-The zone map continues into its neighbours, with their maps and the markers of the enabled layers (loaded as each zone first comes into
-view). Pan into a neighbour and the selection follows: once it fills two thirds of the map along the way you are panning, the grid, the
-title and the map's gold outline move to it, and its details open in place when you let go, keeping the view and any open inspection.
-Peeking over a border, or hovering on one, never flips the selection back and forth. Zoomed out beyond about one and a half zones the map is
-a survey and keeps the selection; zoom into a zone to select it, or click a neighbouring zone to jump to it.
+The zone map continues into its neighbours, with their maps, the markers of the enabled layers and the ground overlays (brambles, rift
+vines, sharp ground, water and ferns), each loaded as its zone first comes into view. Pan into a neighbour and the selection follows: once
+it fills two thirds of the map along the way you are panning, the grid, the title and the map's gold outline move to it, and its details
+open in place when you let go, keeping the view and any open inspection. Peeking over a border, or hovering on one, never flips the
+selection back and forth. Zoomed out beyond about one and a half zones the map is a survey: it keeps the selection but hides the gold
+outline; zoom into a zone to select it, or click a neighbouring zone to jump to it.
 
 ### My worlds, sync and sharing (opt-in)
 
@@ -206,10 +209,11 @@ always Cold. Everything is the state at save time; see _Time and weather_ below 
 
 ### Inventory, containers and wiki
 
-Expand **Saved equipment & inventory** to see equipped items and what their bags hold, stack quantities, saved durability values (not
-percentages), and wetness, under a roll-up of every coin you carry (see [the player](#creatures-merchants-and-you)). Click a
-container/corpse/drop marker or list entry to inspect its saved contents. Reopened chests, empty containers, wood drops and separate
-`LOOT-x_y.save` ground-loot records are included.
+Expand **Saved equipment & inventory** to see equipped items and what their bags hold, stack quantities and each item's condition as the
+game's tooltip shows it: durability out of its maximum (portions left for bread, oil left for Lamp Oil), fuel for torches and lanterns
+(turns of burning left out of a full one's) and wetness, with a quarter or less left highlighted. All of this sits under a roll-up of every
+coin you carry (see [the player](#creatures-merchants-and-you)). Click a container/corpse/drop marker or list entry to inspect its saved
+contents. Reopened chests, empty containers, wood drops and separate `LOOT-x_y.save` ground-loot records are included.
 
 A bag kept inside another bag or a chest shows as empty, because that is how the game loads it: `load_player` and `load_containers` give
 every such container a new, empty inventory (`item_recreate_grid`), and `save_player` refreshes only worn containers' grids. Its saved grid
@@ -421,8 +425,16 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   `item_fits_slot`): main hands take weapons (types 16, 17 and 23), off hands types 15, 23 and 24, and the rest their own type; a two-handed
   melee weapon (type 17 that is not a bow, `weapon_is_ranged`) also needs the off hand beside it and is saved there too. The game rebuilds
   worn containers, weights and looks from the save when it loads.
-- **Where you stand**: a tile of an outdoor zone you have explored that is not a wall, a pit or something already standing there (a
-  creature, a placed raft), picked on the zone's map or on the full map. Ground moves you at once. Water and rafts ask first, never refuse:
+- **Durability, fuel and wetness**: every item in **What you wear and carry** shows its condition, current and maximum (see _Item condition_
+  below). **Repair all** sets every worn or carried item's durability to its maximum, as repair kits do; food portions and lamp oil are used
+  up rather than worn, so they stay. **Refuel all** fills every torch's and lantern's burn time and every Lamp Oil flask. **Dry all** dries
+  every item and the clothes on your body (`wetness`, which the preview lists as wet clothes). Each says how many items it would change, and
+  is greyed out when none. **Condition…** beside an item sets its durability, fuel or wetness to any value the game allows, lower too:
+  durability, portions and oil above 0, since the game breaks or uses up an item at 0 (`item_durloss`, `items_bonus_apply`), fuel from 0 (a
+  lit torch or lantern at 0 goes out, as one that burns down does), and wetness only on items that can get wet. Every copy the save keeps of
+  the item (each cell it covers, a two-handed weapon's off-hand copy) changes with it.
+- **Where you stand**: a tile of a zone or interior you have explored that is not a wall, a pit or something already standing there (a
+  creature, a placed raft), picked on the area's map or on the full map. Ground moves you at once. Water and rafts ask first, never refuse:
   - The question says how deep the water is (`tile_get_height`): shallow, chest-deep, or deep, where you swim, using stamina every turn, and
     drown once it runs out (`player_set_ae_water`). Pointing at a tile on the zone's map says so too, and whether a raft floats there
     (`rafting_possible_here`: the ground below the water threshold, no reeds or low hinderances).
@@ -438,6 +450,18 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   on load), so bringing it only keeps that flag. A raft you leave or dock is written to that zone's `Stations.save` as Finish Raft leaves it
   (station 171), and one you bring from a zone is taken out of it. A move that changes several files is one change: the bar lists it as one
   line, and Undo, or a reload where it no longer applies (you are on a raft now, or no longer where you left it), takes all of it back.
+
+  Moving inside a cave, ruin cellar, quest room or Scaal's depths, or into one, works the same way, without rafts: a raft never goes inside,
+  so from your raft you leave it where it is (or, where it cannot stay, lose it). The game names the area you are in by `areaX`/`areaY`,
+  `areaType` and the entrance it was entered by (`entranceX`/`entranceY`), and loads the folder `[ x,y,ex,ey ]` they name, or `RW1`–`RW3`
+  for Scaal's depths by type alone (`savearea` in `gml_GlobalScript_scr_saveload`); a move inside writes all of them, taking the type from
+  the entrance or stairs leading there (their `transPoint`), or your saved one when you are already inside. An interior no saved entrance or
+  stairs lead to any more (the Fort interior and Undercroft once Fort Solid is gone) has only a guessed type, so you can move inside it only
+  when you are already there. Inside, only the floor that its way out (and any stairs) can be walked to from, past walls and pits, is
+  offered: quest rooms stand in open ground the game never lets you reach. The game loads an area only when its folder has `Ygrid.save`
+  (`manager_area` Alarm_2) and makes a new one otherwise, so an area without it is refused. Arriving this way is not walking in: what the
+  game does on entering through a door (quest steps on reaching the Library or Scaal's depths, regrowth since your last visit) waits for the
+  next time you do.
 - **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior where it can live, with the hit points and
   armor of a fresh one, or remove creatures. Removing a quest character (NPCs, the Dead Unwanted who becomes Viend, and Scaal) asks first.
   Where a creature can live is the game's own rule (`tile_meets_classneeds`), which it checks wherever a creature spawns or moves. It also
@@ -451,9 +475,9 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
 
 **Full map**, beside **Editor** at the top, shows the character in MirkMap's own map, as saving would leave it: every zone, caves and
 interiors, rifts, landmarks, NPCs and creatures, loot, the layer switches and Realistic mode, before or during edit mode. In edit mode,
-**Move yourself** makes the next click on ground or water in an explored zone move you there, with the same checks and questions as the
-zone's map; it then turns itself off (Escape turns it off too, and cancelling a question keeps it on). Switching back to **Editor** opens
-the zone or interior the map was showing.
+**Move yourself** makes the next click on ground or water in an explored zone or interior move you there, with the same checks and questions
+as the area's map in the editor; it then turns itself off (Escape turns it off too, and cancelling a question keeps it on). Switching back
+to **Editor** opens the zone or interior the map was showing.
 
 Edits stay in the tab, shown in the map's own player inspection as they will be saved, until **Save to game files**. The bar at the bottom
 lists them; **Undo** beside one takes back just that change. The later changes to the same file run again on the file as it was read (each
@@ -620,6 +644,16 @@ well and the loader skips that copy, so the viewer drops it too. `player_update_
 `player_real_combat_check` gives `min(floor(totalArmor), being_get_armor_max)` armor points to distribute, the cap being 3 layers on each
 living hit point (`gml_GlobalScript_scr_ai_related`); when it ends, the layers are removed. Armor values and maximum durability are the item
 database's (`gml_Object_databank_Alarm_1`).
+
+**Item condition** (`src/condition.ts`). An item's tooltip (`item_draw_info` in `gml_GlobalScript_scr_items`) shows its saved `durability`
+out of the item database's `durabilityMax` when that is over 1, except on materials, coins, gems and quest items (types 14, 25 and 26): as
+_Portions left_ for food, medicine and remedies (types 19, 20 and 13; only the Loaf of Bread has more than one), as _Oil left_ for Lamp Oil,
+else as _Durability_. A new item starts full (the `item` constructor), and one not saved counts as full. Torches and lanterns
+(`item_is_lightsource`) also keep `burnTimeLeft`, the turns they burn while lit, which starts at the database's `burnTime`; a Lamp Oil flask
+pours up to 10 of its oil into a lantern at a time (`items_bonus_apply`). `wet` runs from 0 to 1 and shows when above 0, to 0.1%
+(`textf_floatpercent`). Only items with a `waterproof` value ever get wet: worn gear in the rain, what a worn bag or a chest holds
+(`wet_inventory`, `gml_Object_obj_container_Alarm_1`), and wood from a tree, wet by its trunk's life above 0.5
+(`gml_Object_obj_tree_Step_0`).
 
 **Where you are** (`src/estimate.ts`). You are drawn as a head-and-shoulders pictogram filled with your character's hair colour (`hairBlend`
 in `Player.save`), outlined dark or light by its perceived lightness, on the world grid and on the zone or interior map. The game offers

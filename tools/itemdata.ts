@@ -3,8 +3,8 @@
 //   deno run -R -W --allow-run tools/itemdata.ts "<CodeEntries dir>"
 //
 // Reads global.itemDB (gml_Object_databank_Alarm_1), the item and inventory constructors (gml_GlobalScript_scr_items) and crafting
-// (gml_Object_UI_Draw_64). Only numbers the save editor needs to add items the way the game does are copied: sizes, stack limits,
-// durability, container grids and which entries are never an item you carry.
+// (gml_Object_UI_Draw_64). Only numbers the save editor needs to add items the way the game does and show their condition are
+// copied: sizes, stack limits, durability, burn time, waterproofing, container grids and which entries are never an item you carry.
 
 const [dir] = Deno.args;
 if (!dir) {
@@ -30,6 +30,7 @@ interface Entry {
   uncarried?: true;
   bag?: [number, number];
   burn?: number;
+  waterproof?: number;
 }
 const table = new Map<number, Entry>();
 
@@ -56,6 +57,10 @@ for (const m of databank.matchAll(/ds_map_set\(global\.itemDB, (UnknownEnum\.Val
   // are still carried. What has no inventory sprite (Unarmed, the bare hands) never is.
   if (!sprite) entry.uncarried = true;
   if (keys.has("burnTime")) entry.burn = Number(keys.get("burnTime"));
+  if (keys.has("waterproof")) {
+    entry.waterproof = Number(keys.get("waterproof"));
+    if (!Number.isFinite(entry.waterproof)) throw new Error(`Item ${index} has an unreadable waterproof`);
+  }
   table.set(index, entry);
 }
 
@@ -112,6 +117,11 @@ export interface ItemData {
   bag?: [number, number];
   /** Torches and lanterns: burnTime, which a new one has left (burnTimeLeft). */
   burn?: number;
+  /**
+   * waterproof, 0–1: only items with one get wet (rain on worn gear, wet_inventory in a worn bag, obj_container Alarm_1 in a chest,
+   * wet wood from a tree); how much wetness the game lets through or dries off scales with it.
+   */
+  waterproof?: number;
 }
 
 export const ITEMS: Record<number, ItemData> = {

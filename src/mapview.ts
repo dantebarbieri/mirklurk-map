@@ -175,6 +175,8 @@ export interface MapSpec {
   onView?: (view: [number, number, number]) => void;
   /** Called once the view comes to rest: when the last finger or button lifts after moving it, or shortly after a wheel or button zoom. */
   onSettle?: () => void;
+  /** Shows a Locate button, which calls this to find the player wherever they are (see `locate`). */
+  onLocate?: () => void;
   /**
    * Details of the selected mark. In full screen the card floats beside the mark as it moves (style.css positions it
    * absolutely), or on a narrow map docks as a bottom sheet (its grabber is a `.grabber` button in the card), and Escape
@@ -185,6 +187,21 @@ export interface MapSpec {
 
 /** How much of the map, along the axis panned across, the next zone must fill before panning selects it. */
 export const FOCUS_SHARE = 2 / 3;
+
+/** A view `size` game units across is too zoomed out for any zone to fill FOCUS_SHARE of it: a survey of several zones. */
+export const surveying = (size: number) => size * FOCUS_SHARE > ROOM;
+
+/** How much of the world, in game units, Locate shows around the player at most: 24 tiles across. */
+export const LOCATE_SIZE = 384;
+
+/**
+ * Locate's view of point (x, y) from a view `size` across: zoomed in to LOCATE_SIZE unless already closer, and centred on
+ * the point within the part of the map left uncovered when a bottom sheet covers `cover` of its shorter side.
+ */
+export function locateView(size: number, x: number, y: number, cover = 0): [number, number, number] {
+  const w = Math.min(size, LOCATE_SIZE);
+  return [x - w / 2, y - w / 2 + cover * w / 2, w];
+}
 
 /**
  * The zone of an n×n world that a viewport (in origin's coordinates) is about, given the zone it was about: per axis,
@@ -198,7 +215,7 @@ export function focusZone(
   current: [number, number],
   n = 5,
 ): [number, number] {
-  if (size * FOCUS_SHARE > ROOM) return current;
+  if (surveying(size)) return current;
   const margin = (FOCUS_SHARE - 0.5) * size;
   const axis = (centre: number, at: number) =>
     centre >= at * ROOM - margin && centre < (at + 1) * ROOM + margin ? at : Math.min(n - 1, Math.max(0, Math.floor(centre / ROOM)));
@@ -497,6 +514,8 @@ export function markIcon(kind: string): SVGElement {
 
 /** Quiet time after a wheel or button zoom before the view counts as settled (wheels have no end event). */
 const SETTLE_MS = 250;
+/** How long the player's marker pulses after Locate (style.css's `you-ping`, twice). */
+const PING_MS = 1500;
 
 type Box = [number, number, number, number];
 export const boxArea = ([l, t, r, b]: Box) => (r - l + 1) * (b - t + 1);
@@ -572,6 +591,7 @@ export class MapView {
   private pointers = new Map<number, TouchPoint>();
   private moved = false;
   private settleTimer = 0;
+  private pingTimer = 0;
   private waiting: (() => void)[] = [];
   private popup?: { card: HTMLElement; close: () => void };
   /** Gives up Back's hold on the floating card (see `holdBack`). */
@@ -669,6 +689,25 @@ export class MapView {
             "World",
           )
           : null,
+        spec.onLocate
+          ? h(
+            "button",
+            {
+              class: "zoom locate",
+              type: "button",
+              "aria-label": "Locate player",
+              title: "Locate player: zoom in on them, even indoors",
+              onclick: spec.onLocate,
+            },
+            s(
+              "svg",
+              { viewBox: "0 0 16 16", "aria-hidden": "true" },
+              s("circle", { cx: 8, cy: 8, r: 4.5 }),
+              s("circle", { class: "dot", cx: 8, cy: 8, r: 1.5 }),
+              s("path", { d: "M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" }),
+            ),
+          )
+          : null,
       ),
       this.tip,
       this.picker,
@@ -708,6 +747,7 @@ export class MapView {
     cancelAnimationFrame(this.glideFrame);
     cancelAnimationFrame(this.roomFrame);
     clearTimeout(this.settleTimer);
+    clearTimeout(this.pingTimer);
     this.onSettle = undefined;
     this.release();
   }
@@ -1097,14 +1137,15 @@ export class MapView {
     this.apply();
   }
 
-  private image(url: string, cls: string) {
-    return s("image", { href: url, x: 0, y: 0, width: ROOM, height: ROOM, class: cls, preserveAspectRatio: "none" });
+  private image(url: string, cls: string, x = 0, y = 0) {
+    return s("image", { href: url, x, y, width: ROOM, height: ROOM, class: cls, preserveAspectRatio: "none" });
   }
 
-  setOverlay(id: string, url: string | null) {
+  /** Shows (or with null removes) overlay `id`, a zone-sized image whose top left is (x, y); its first word is its kind. */
+  setOverlay(id: string, url: string | null, x = 0, y = 0) {
     this.overlay.querySelector(`[data-id="${id}"]`)?.remove();
     if (url) {
-      const img = this.image(url, `overlay ${id}`);
+      const img = this.image(url, `overlay ${id.split(" ")[0]}`, x, y);
       img.setAttribute("data-id", id);
       this.overlay.append(img);
     }
@@ -1216,6 +1257,32 @@ export class MapView {
   reset() {
     [this.vx, this.vy, this.vw] = this.home;
     this.apply();
+  }
+
+  /**
+   * Zooms in on the player's marker, the opposite of World (see `locateView`; above a docked sheet), and with `ping` makes
+   * it pulse a moment so the eye finds it.
+   */
+  locate(ping = true) {
+    const m = this.you;
+    if (!m) return;
+    cancelAnimationFrame(this.glideFrame);
+    const [w, h] = this.screen();
+    [this.vx, this.vy, this.vw] = locateView(this.vw, m.x, m.y, this.room / Math.min(w, h));
+    this.apply();
+    if (ping) this.ping();
+  }
+
+  /** Pulses the player's marker (style.css), from the start if it already is. */
+  private ping() {
+    const g = this.markLayer.querySelector(".pt.you");
+    if (!g) return;
+    g.classList.remove("ping");
+    // Restyled in between, so the animation restarts.
+    void g.getBoundingClientRect();
+    g.classList.add("ping");
+    clearTimeout(this.pingTimer);
+    this.pingTimer = setTimeout(() => g.classList.remove("ping"), PING_MS);
   }
 
   /** Centres the view on a marker, zooming in if the whole zone is showing. */
