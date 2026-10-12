@@ -1,6 +1,7 @@
 // Turns picked folders, dropped folders or a ZIP into a flat path -> file map.
 
 import { readZip } from "./zip.ts";
+import type { LiveDirectory } from "./live.ts";
 
 export interface Source {
   read(): Promise<Uint8Array>;
@@ -69,6 +70,19 @@ export async function fromDataTransfer(dt: DataTransfer): Promise<FileMap> {
   return map;
 }
 
+/** Every file of a folder handle (a folder chosen with the directory picker), under the folder's name as a picked folder has them. */
+export async function fromDirectory(dir: LiveDirectory): Promise<FileMap> {
+  const map: FileMap = new Map();
+  async function walk(folder: LiveDirectory, prefix: string) {
+    for await (const handle of folder.values()) {
+      if (handle.kind === "directory") await walk(handle, `${prefix}${handle.name}/`);
+      else map.set(prefix + handle.name, fileSource(await handle.getFile()));
+    }
+  }
+  await walk(dir, `${dir.name}/`);
+  return map;
+}
+
 export interface Character {
   name: string;
   /** Path prefix ending in "/" (or "" when Player.save was picked on its own). */
@@ -80,6 +94,13 @@ export function characterIndex(characters: Character[], selected?: Character): n
   const exact = characters.findIndex((c) => c.root === selected?.root);
   return exact >= 0 ? exact : Math.max(0, characters.findIndex((c) => c.name === selected?.name));
 }
+
+/**
+ * The characters, with `known`'s name for the one at its root: a world from My worlds or a share link sits under "Shared/", and a
+ * Player.save picked on its own under no folder, so their folder does not name them.
+ */
+export const named = (characters: Character[], known?: Character): Character[] =>
+  characters.map((c) => known && c.root === known.root ? { ...c, name: known.name } : c);
 
 /** Every folder that contains a Player.save is a character (Saves/<name>/Player.save). */
 export function findCharacters(files: FileMap): Character[] {
