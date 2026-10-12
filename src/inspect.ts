@@ -1,6 +1,7 @@
 import { h, s } from "./dom.ts";
 import art from "./artdata.json" with { type: "json" };
 import { ITEM_NAMES } from "./gamedata.ts";
+import { conditionOf, type ConditionPart, conditionParts } from "./condition.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { type Mark, markKey } from "./objects.ts";
 import type { Gather, GatherKind } from "./gather.ts";
@@ -73,14 +74,26 @@ export const markImage = (m: Mark) =>
     ? itemImage(m.item)
     : placeImage(m.name);
 
+/**
+ * An item's condition after its name: " (durability 87/180, wet 40%)" in an inventory list (`inline`), or " · Durability 87/180 ·
+ * Wet 40%" after other details. What has a quarter or less left is marked low.
+ */
+export function conditionView(parts: ConditionPart[], inline = false): HTMLElement {
+  const text = (p: ConditionPart) => (inline ? p.text[0].toLowerCase() + p.text.slice(1) : p.text);
+  return h(
+    "span",
+    { class: "item-condition muted" },
+    inline ? " (" : null,
+    parts.map((p, i) => [inline ? (i ? ", " : null) : " · ", h("span", { class: p.low ? "low" : null }, text(p))]),
+    inline ? ")" : null,
+  );
+}
+
 function itemRow(item: SavedItem, key: string, expanded?: Set<string>, badge?: Node | null): HTMLElement {
   const name = ITEM_NAMES[item.index] ?? `Item ${item.index}`;
   const url = itemWiki(name);
   const icon = itemImage(item.index);
-  const condition = [
-    item.durability !== undefined ? `durability ${Math.round(item.durability * 100) / 100}` : "",
-    item.wet !== undefined && item.wet > 0 ? `wet ${Math.round(item.wet * 100)}%` : "",
-  ].filter(Boolean).join(", ");
+  const condition = conditionParts(conditionOf(item));
   return h(
     "li",
     {},
@@ -88,7 +101,7 @@ function itemRow(item: SavedItem, key: string, expanded?: Set<string>, badge?: N
     icon ? picture(icon, "", "item-icon", 24, 20, true) : null,
     url ? wikiLink(url, name) : name,
     ` x${item.amount}`,
-    condition ? h("span", { class: "muted" }, ` (${condition})`) : null,
+    condition.length ? conditionView(condition, true) : null,
     !url ? wikiLink(wikiUrl("Items"), "Item guide") : null,
     item.contents.map((contents, i) => {
       const pocket = `${key}/pocket${i}`;

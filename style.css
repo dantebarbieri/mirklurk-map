@@ -227,6 +227,13 @@ select {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
+/* A form's problem on submit (src/dialog.ts form), shown until it is put right. */
+.dialog-problem {
+  color: #ff8a80;
+}
+.dialog-problem:empty {
+  display: none;
+}
 /* A question with several ways to go: each is a full-width button with a line saying what it does. */
 .dialog-choices {
   display: flex;
@@ -370,6 +377,10 @@ body.loaded main > * {
 .inventory-items .wiki {
   margin-left: 0;
   font-size: inherit;
+}
+/* An item's durability, fuel and wetness; what is nearly used up stands out. */
+.item-condition .low {
+  color: #ffb74d;
 }
 .inspection details .wiki {
   margin-left: 0;

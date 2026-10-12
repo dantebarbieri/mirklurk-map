@@ -308,6 +308,32 @@ body.map-move .map-bar label {
   padding: 1px 4px;
   font-size: 12px;
 }
+/* Repair all, Refuel all and Dry all, above the list they change. */
+.upkeep {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.carried .item-condition {
+  font-size: 12px;
+}
+/* The Condition… dialog's fields (src/dialog.ts form). */
+.dialog .edit-field > span:first-child {
+  flex-basis: 96px;
+}
+.dialog input[type="number"] {
+  width: 7em;
+  padding: 3px 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.dialog output {
+  min-width: 4em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 .item-actions {
   display: inline-flex;
   flex-wrap: wrap;

@@ -44,17 +44,37 @@ import {
   carriedBags,
   type CarriedItem,
   carriedItems,
+  type ConditionEdit,
   countInside,
+  dryAll,
   freeCells,
   freeSlots,
   freeSlotsFor,
   itemAt,
   moveItem,
+  needing,
+  refuelAll,
   removeItem,
+  repairAll,
   roomFor,
+  setCondition,
+  type Upkeep,
   wearCarried,
   wearNew,
 } from "./items.ts";
+import {
+  amountText,
+  canGetWet,
+  conditionOf,
+  conditionParts,
+  DURABILITY_LABELS,
+  durabilityKind,
+  fuelMax,
+  isWet,
+  type ItemState,
+  wetText,
+} from "../condition.ts";
+import { conditionView } from "../inspect.ts";
 import { SLOT_NAMES } from "../armor.ts";
 import { deleteBeing, habitat, habitatRefusal, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
 import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, reachable, tileBox } from "./ground.ts";
@@ -79,7 +99,7 @@ import {
 import { disposeView, rememberView, renderWorld, type State, worldState } from "../view.ts";
 import { LAYERS } from "../objects.ts";
 import { setFullMap } from "../fullscreen.ts";
-import { ask, type Choice, choose } from "../dialog.ts";
+import { ask, type Choice, choose, form } from "../dialog.ts";
 
 /** An area the map card shows: an outdoor zone or one of its interiors. */
 interface Area {
@@ -868,11 +888,13 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
   const total = list.reduce((n, c) => n + 1 + countInside(c), 0);
   const row = (c: CarriedItem, holder?: string): HTMLElement => {
     const name = itemName(c.index);
+    const rec = itemAt(p, c.place);
     const before = saved && itemAt(saved, c.place);
-    const changed = !before || before.index !== c.index || Number(before.amount) !== c.amount;
+    const changed = !before || !rec || before.index !== c.index || Number(before.amount) !== c.amount || !sameCondition(before, rec);
     const howMany = c.amount > 1 ? numberInput(c.amount, 1, c.amount) : null;
     howMany?.setAttribute("aria-label", `How many ${name} to remove`);
     const from = holder ? ` from ${holder}` : ` (worn: ${slotLabel(c.place.slot)})`;
+    const condition = rec ? conditionParts(conditionOf(asState(rec))) : [];
     // Where it can go: worn containers with room for it, and a free slot it fits.
     const wearIn = holder !== undefined ? orNone(() => freeSlotsFor(p, c.index))[0] : undefined;
     const choices = [
@@ -900,11 +922,20 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
         c.amount > 1 ? ` ×${c.amount}` : "",
         holder ? null : h("span", { class: "muted" }, ` ${slotLabel(c.place.slot)}`),
         sizes.map((b) => h("span", { class: "muted" }, ` · ${bagRoom(b)}`)),
+        condition.length ? conditionView(condition) : null,
         changed ? [" ", h("span", { class: "tag" }, "unsaved")] : null,
       ),
       h(
         "span",
         { class: "carried-controls" },
+        rec && hasCondition(c.index, rec)
+          ? h("button", {
+            type: "button",
+            class: "button subtle small",
+            title: `Set ${name}'s ${conditionWords(c.index, rec)}`,
+            onclick: act("items", () => editCondition(p, c, rec, holder)),
+          }, "Condition…")
+          : null,
         moveTo,
         moveTo
           ? h("button", {
@@ -927,6 +958,7 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
     "details",
     { class: "carried", "data-remember": "editor-carried", open: expanded ? expanded.has("editor-carried") : true },
     h("summary", {}, `What you wear and carry (${total === 1 ? "1 item" : `${total} items`})`),
+    upkeepView(p),
     list.length ? h("ul", { class: "carried-list" }, list.map((c) => row(c))) : h("p", { class: "muted" }, "Nothing."),
     h("p", { class: "muted small" }, `Free slots: ${orNone(() => freeSlots(p)).map(slotLabel).join(", ") || "none"}.`),
     h(
@@ -934,8 +966,8 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
       { class: "muted small" },
       "Move to lists the containers you wear that have room for an item (upright, or turned sideways), and a free slot it fits. " +
         "A container moves only when empty: the game empties one kept inside another when it loads. Remove deletes an item from the " +
-        "save; a container goes with everything in it. Items tagged unsaved come from unsaved changes, which you can also undo from " +
-        "the list at the bottom.",
+        "save; a container goes with everything in it. Condition… sets an item's durability, fuel or wetness to any value the game " +
+        "allows. Items tagged unsaved come from unsaved changes, which you can also undo from the list at the bottom.",
     ),
   );
 }
@@ -992,6 +1024,170 @@ async function removeCarried(c: CarriedItem, howMany: HTMLInputElement | null, f
     const r = removeItem(rec, place, index, amount);
     const what = r.removed > 1 ? `${r.removed} × ${name}` : name;
     return `Removed ${what}${from}${r.inside ? ` and the ${r.inside === 1 ? "item" : `${r.inside} items`} in it` : ""}`;
+  });
+}
+
+// --- Condition: durability, fuel and wetness ---
+
+const asState = (rec: Rec) => rec as unknown as ItemState;
+/** Fields the game changes as an item wears, burns, gets wet or dries; a change to one marks the item unsaved. */
+const CONDITION_KEYS = ["durability", "burnTimeLeft", "wet", "lit"];
+const sameCondition = (a: Rec, b: Rec) => CONDITION_KEYS.every((k) => a[k] === b[k]);
+/** Something about the item that Condition… can set: durability the game shows, fuel, or wetness. */
+const hasCondition = (index: number, rec: Rec) =>
+  !!durabilityKind(index) || fuelMax(index) !== undefined || canGetWet(index) || isWet(asState(rec));
+const joinAnd = (words: string[]) => words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}` : words[0];
+/** "durability, fuel and wetness": what Condition… sets on the item. */
+function conditionWords(index: number, rec: Rec): string {
+  const kind = durabilityKind(index);
+  return joinAnd([
+    kind ? DURABILITY_LABELS[kind].toLowerCase() : "",
+    fuelMax(index) !== undefined ? "fuel" : "",
+    canGetWet(index) || isWet(asState(rec)) ? "wetness" : "",
+  ].filter(Boolean));
+}
+
+/** The items a helper changed, by name: "Steel Dagger, 2 × Torch and Wool Shirt". */
+function nameList(list: CarriedItem[]): string {
+  const counts = new Map<string, number>();
+  for (const c of list) counts.set(itemName(c.index), (counts.get(itemName(c.index)) ?? 0) + 1);
+  const names = [...counts].map(([name, n]) => (n > 1 ? `${n} × ${name}` : name));
+  return joinAnd(names.length > 6 ? [...names.slice(0, 5), `${names.length - 5} more`] : names);
+}
+
+const bodyWet = (p: Rec) => Array.isArray(p.wetness) && p.wetness.some((v) => typeof v === "number" && v > 0);
+
+const UPKEEP: { what: Upkeep; label: string; tip: string; none: string }[] = [
+  {
+    what: "repair",
+    label: "Repair all",
+    tip: "Restore the durability of everything you wear and carry to its maximum (food portions and lamp oil are not wear)",
+    none: "Nothing you wear or carry needs repair",
+  },
+  {
+    what: "refuel",
+    label: "Refuel all",
+    tip: "Fill the burn time of every torch and lantern you carry, and every Lamp Oil flask",
+    none: "Every torch, lantern and Lamp Oil flask you carry is full",
+  },
+  {
+    what: "dry",
+    label: "Dry all",
+    tip: "Dry everything you wear and carry, and the clothes on your body",
+    none: "Nothing you wear or carry is wet",
+  },
+];
+
+/** Repair all, Refuel all and Dry all, each with how many items it would change, and disabled when there are none. */
+function upkeepView(p: Rec): HTMLElement {
+  return h(
+    "div",
+    { class: "upkeep", role: "group", "aria-label": "Restore everything you wear and carry" },
+    UPKEEP.map(({ what, label, tip, none }) => {
+      const n = orNone(() => needing(p, what)).length;
+      const idle = !n && !(what === "dry" && bodyWet(p));
+      return h("button", {
+        type: "button",
+        class: "button subtle small",
+        disabled: idle,
+        title: idle ? none : tip,
+        onclick: act("items", () => upkeep(what)),
+      }, n ? `${label} (${n})` : label);
+    }),
+  );
+}
+
+async function upkeep(what: Upkeep) {
+  await editPlayer("items", (rec) => {
+    if (what === "repair") {
+      const list = repairAll(rec);
+      return list.length ? `Repaired ${nameList(list)}` : undefined;
+    }
+    if (what === "refuel") {
+      const list = refuelAll(rec);
+      return list.length ? `Refuelled ${nameList(list)}` : undefined;
+    }
+    const r = dryAll(rec);
+    const dried = [r.items.length ? nameList(r.items) : "", r.body ? "the clothes on your body" : ""].filter(Boolean);
+    return dried.length ? `Dried ${dried.join(", and ")}` : undefined;
+  });
+}
+
+/**
+ * Sets one item's durability, fuel or wetness in a dialog, to anything the game allows (lower too); only the values changed there
+ * are written.
+ */
+async function editCondition(p: Rec, c: CarriedItem, rec: Rec, holder?: string) {
+  const { place, index } = c;
+  const name = itemName(index);
+  const where = holder ? ` in ${holder}` : ` (worn: ${slotLabel(place.slot)})`;
+  const now = conditionOf(asState(rec));
+  const burn = fuelMax(index);
+  const wetNow = isWet(asState(rec)) ? Number(rec.wet) : 0;
+  const amount = (value: number, max: number, places = 2) =>
+    h("input", { type: "number", class: "num", value: amountText(value, places), min: 0, max, step: "any" }) as HTMLInputElement;
+  const durability = now.durability && amount(now.durability.value, now.durability.max);
+  const fuel = burn !== undefined ? amount(now.fuel?.value ?? burn, burn, 1) : undefined;
+  const wetOut = h("output", {}, wetText(wetNow));
+  const wet = canGetWet(index) || wetNow > 0
+    ? h("input", {
+      type: "range",
+      min: 0,
+      max: 100,
+      step: 1,
+      value: Math.round(wetNow * 100),
+      oninput: () => wetOut.textContent = `${wet!.value}%`,
+    }) as HTMLInputElement
+    : undefined;
+  const value = (input: HTMLInputElement) => (input.value.trim() === "" ? NaN : Number(input.value));
+  // Only what was changed here, so an untouched value (such as a fraction the game left) stays exactly as it is.
+  const read = (): ConditionEdit => ({
+    ...(durability && durability.value !== durability.defaultValue ? { durability: value(durability) } : {}),
+    ...(fuel && fuel.value !== fuel.defaultValue ? { fuel: value(fuel) } : {}),
+    ...(wet && wet.value !== wet.defaultValue ? { wet: Number(wet.value) / 100 } : {}),
+  });
+  const kind = now.durability?.kind;
+  const about = [
+    kind === "durability" ? "Durability wears down with use; at 0 the game breaks the item." : "",
+    kind === "portions" ? "Each portion eaten or used takes one; at 0 it is used up." : "",
+    kind === "oil" ? "Oil left refills lanterns; at 0 the flask is used up." : "",
+    fuel ? "Fuel is the turns it burns while lit; at 0 it goes out and cannot be lit." : "",
+  ].filter(Boolean).join(" ");
+  const ok = await form({
+    title: `Condition of ${name}`,
+    body: [
+      h("p", { class: "muted" }, holder ? `In ${holder}` : `Worn: ${slotLabel(place.slot)}`),
+      durability && kind ? field(DURABILITY_LABELS[kind], durability, `of ${now.durability!.max}`) : null,
+      fuel ? field("Fuel", fuel, `of ${burn} turns`) : null,
+      wet ? field("Wet", wet, wetOut) : null,
+      about ? h("p", { class: "muted small" }, about) : null,
+    ],
+    confirm: "Apply",
+    check: () => {
+      try {
+        setCondition(structuredClone(p), place, index, read());
+      } catch (e) {
+        return errorText(e);
+      }
+    },
+  });
+  const e = read();
+  if (!ok || !Object.keys(e).length) return;
+  await editPlayer("items", (draft) => {
+    const old = itemAt(draft, place);
+    const was = old ? conditionOf(asState(old)) : {};
+    const wasWet = old && isWet(asState(old)) ? Number(old.wet) : 0;
+    setCondition(draft, place, index, e);
+    const changes: string[] = [];
+    if (e.durability !== undefined && was.durability && e.durability !== was.durability.value) {
+      const { kind, value, max } = was.durability;
+      changes.push(`${DURABILITY_LABELS[kind].toLowerCase()} ${amountText(value)} → ${amountText(e.durability)} of ${max}`);
+    }
+    if (e.fuel !== undefined && e.fuel !== was.fuel?.value) {
+      changes.push(`fuel ${was.fuel ? amountText(was.fuel.value, 1) : "none"} → ${amountText(e.fuel, 1)} of ${burn} turns`);
+    }
+    if (e.wet !== undefined && e.wet !== wasWet) changes.push(`wet ${wetText(wasWet)} → ${wetText(e.wet)}`);
+    return changes.length ? `${name}${where}: ${changes.join(", ")}` : undefined;
   });
 }
 

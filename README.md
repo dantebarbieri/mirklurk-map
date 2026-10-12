@@ -205,10 +205,11 @@ always Cold. Everything is the state at save time; see _Time and weather_ below 
 
 ### Inventory, containers and wiki
 
-Expand **Saved equipment & inventory** to see equipped items and what their bags hold, stack quantities, saved durability values (not
-percentages), and wetness, under a roll-up of every coin you carry (see [the player](#creatures-merchants-and-you)). Click a
-container/corpse/drop marker or list entry to inspect its saved contents. Reopened chests, empty containers, wood drops and separate
-`LOOT-x_y.save` ground-loot records are included.
+Expand **Saved equipment & inventory** to see equipped items and what their bags hold, stack quantities and each item's condition as the
+game's tooltip shows it: durability out of its maximum (portions left for bread, oil left for Lamp Oil), fuel for torches and lanterns
+(turns of burning left out of a full one's) and wetness, with a quarter or less left highlighted. All of this sits under a roll-up of every
+coin you carry (see [the player](#creatures-merchants-and-you)). Click a container/corpse/drop marker or list entry to inspect its saved
+contents. Reopened chests, empty containers, wood drops and separate `LOOT-x_y.save` ground-loot records are included.
 
 A bag kept inside another bag or a chest shows as empty, because that is how the game loads it: `load_player` and `load_containers` give
 every such container a new, empty inventory (`item_recreate_grid`), and `save_player` refreshes only worn containers' grids. Its saved grid
@@ -394,6 +395,14 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   `item_fits_slot`): main hands take weapons (types 16, 17 and 23), off hands types 15, 23 and 24, and the rest their own type; a two-handed
   melee weapon (type 17 that is not a bow, `weapon_is_ranged`) also needs the off hand beside it and is saved there too. The game rebuilds
   worn containers, weights and looks from the save when it loads.
+- **Durability, fuel and wetness**: every item in **What you wear and carry** shows its condition, current and maximum (see _Item condition_
+  below). **Repair all** sets every worn or carried item's durability to its maximum, as repair kits do; food portions and lamp oil are used
+  up rather than worn, so they stay. **Refuel all** fills every torch's and lantern's burn time and every Lamp Oil flask. **Dry all** dries
+  every item and the clothes on your body (`wetness`, which the preview lists as wet clothes). Each says how many items it would change, and
+  is greyed out when none. **Condition…** beside an item sets its durability, fuel or wetness to any value the game allows, lower too:
+  durability, portions and oil above 0, since the game breaks or uses up an item at 0 (`item_durloss`, `items_bonus_apply`), fuel from 0 (a
+  lit torch or lantern at 0 goes out, as one that burns down does), and wetness only on items that can get wet. Every copy the save keeps of
+  the item (each cell it covers, a two-handed weapon's off-hand copy) changes with it.
 - **Where you stand**: a tile of a zone or interior you have explored that is not a wall, a pit or something already standing there (a
   creature, a placed raft), picked on the area's map or on the full map. Ground moves you at once. Water and rafts ask first, never refuse:
   - The question says how deep the water is (`tile_get_height`): shallow, chest-deep, or deep, where you swim, using stamina every turn, and
@@ -605,6 +614,16 @@ well and the loader skips that copy, so the viewer drops it too. `player_update_
 `player_real_combat_check` gives `min(floor(totalArmor), being_get_armor_max)` armor points to distribute, the cap being 3 layers on each
 living hit point (`gml_GlobalScript_scr_ai_related`); when it ends, the layers are removed. Armor values and maximum durability are the item
 database's (`gml_Object_databank_Alarm_1`).
+
+**Item condition** (`src/condition.ts`). An item's tooltip (`item_draw_info` in `gml_GlobalScript_scr_items`) shows its saved `durability`
+out of the item database's `durabilityMax` when that is over 1, except on materials, coins, gems and quest items (types 14, 25 and 26): as
+_Portions left_ for food, medicine and remedies (types 19, 20 and 13; only the Loaf of Bread has more than one), as _Oil left_ for Lamp Oil,
+else as _Durability_. A new item starts full (the `item` constructor), and one not saved counts as full. Torches and lanterns
+(`item_is_lightsource`) also keep `burnTimeLeft`, the turns they burn while lit, which starts at the database's `burnTime`; a Lamp Oil flask
+pours up to 10 of its oil into a lantern at a time (`items_bonus_apply`). `wet` runs from 0 to 1 and shows when above 0, to 0.1%
+(`textf_floatpercent`). Only items with a `waterproof` value ever get wet: worn gear in the rain, what a worn bag or a chest holds
+(`wet_inventory`, `gml_Object_obj_container_Alarm_1`), and wood from a tree, wet by its trunk's life above 0.5
+(`gml_Object_obj_tree_Step_0`).
 
 **Where you are** (`src/estimate.ts`). You are drawn as a head-and-shoulders pictogram filled with your character's hair colour (`hairBlend`
 in `Player.save`), outlined dark or light by its perceived lightness, on the world grid and on the zone or interior map. The game offers
