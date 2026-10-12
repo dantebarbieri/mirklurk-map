@@ -258,6 +258,8 @@ interface Part {
 interface Change {
   id: number;
   parts: Part[];
+  /** What the change set, such as one slider: a later change with the same key replaces it rather than adding another. */
+  key?: string;
 }
 const noteOf = (c: Change) => c.parts.map((p) => p.note).join("; ");
 
@@ -321,20 +323,29 @@ export class EditSession {
    * Runs `edit` on the draft of `path` and records it as an unsaved change when it returns a note, which is also returned. An edit
    * that changes nothing or throws leaves the draft as the recorded changes made it.
    */
-  apply(path: string, edit: Edit): Promise<string | undefined> {
-    return this.applyAll([{ path, edit }]);
+  apply(path: string, edit: Edit, key?: string): Promise<string | undefined> {
+    return this.applyAll([{ path, edit }], key);
   }
 
   /**
    * Runs several files' edits, in order, as one unsaved change, whose line (joining theirs) is returned. Unless every one of them
    * changes something, nothing is recorded and every draft is left as the recorded changes made it.
+   *
+   * `key` names what the change sets (one slider, one field): when the last change has the same key, this one replaces it, so
+   * dragging a slider is one change, from where it started. Setting it back to where it started leaves no change at all; an edit
+   * that throws leaves the last change in place.
    */
-  applyAll(steps: { path: string; edit: Edit }[]): Promise<string | undefined> {
+  applyAll(steps: { path: string; edit: Edit }[], key?: string): Promise<string | undefined> {
     return this.serial(async () => {
       if (this.busy) throw new Error("Wait for the save to finish");
       if (!steps.length) return undefined;
       for (const { path } of steps) if (!this.files.has(path)) throw new Error(`${path} is missing`);
+      const last = this.log[this.log.length - 1];
+      const replaced = key !== undefined && last?.key === key ? last : undefined;
+      const touched = [...steps.map((s) => s.path), ...(replaced?.parts.map((p) => p.path) ?? [])];
+      if (replaced) await this.replay(touched, this.log.slice(0, -1));
       const parts: Part[] = [];
+      let failed = true;
       try {
         for (const { path, edit } of steps) {
           const raw = await this.json(path);
@@ -342,9 +353,10 @@ export class EditSession {
           if (!note) break;
           parts.push({ path, edit, note });
         }
+        failed = false;
       } finally {
-        if (parts.length === steps.length) this.log.push({ id: this.nextId++, parts });
-        else await this.replay(steps.map((s) => s.path), this.log);
+        if (parts.length === steps.length) this.log.push({ id: this.nextId++, parts, ...(key === undefined ? {} : { key }) });
+        else await this.replay(touched, failed && replaced ? [...this.log, replaced] : this.log);
       }
       return parts.length === steps.length ? noteOf(this.log[this.log.length - 1]) : undefined;
     });
