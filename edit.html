@@ -30,6 +30,8 @@
         <button id="show-map" type="button" aria-pressed="false"
           title="MirkMap's map of this world, with your unsaved changes: rifts, caves, creatures, loot and more">Full map</button>
       </span>
+      <button id="reload" class="button subtle" type="button" hidden
+        title="Read the save folder again after playing in the game. Your unsaved changes stay and run again on the newest save; any that no longer change anything are dropped.">Reload save</button>
       <span id="status" role="status"></span>
     </header>
     <div id="map-bar" class="map-bar" hidden>
@@ -48,7 +50,8 @@
         <p>Save and quit to the game's main menu first, and stay at the menu until you have saved your edits here: the game keeps
         your character in memory and would overwrite them. Choose your character's folder from the game's <code>Saves</code>
         folder, for example <code>…\steamapps\common\Mirklurk Every Step Matters\Saves\YourName</code>, or the whole
-        <code>Saves</code> folder.</p>
+        <code>Saves</code> folder. You can keep this page open while you play: save and quit to the menu again, then choose
+        <b>Reload save</b> to edit the newest save, with your unsaved changes kept.</p>
         <p id="unsupported" class="warning" hidden>Editing needs a desktop browser that can write to a folder you choose
         (Chrome or Edge). Your files stay on this computer; nothing is uploaded.</p>
         <p class="muted">Edits happen in this browser tab and are written only to the folder you choose. Before each save, the files

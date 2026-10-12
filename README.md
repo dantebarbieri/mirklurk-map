@@ -363,9 +363,9 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
 - **Health**: heals lost and burned hit points and clears poison, bleeding and stun; armor stays.
 - **Wellbeing, satiation, focus, stamina and temperature**: each value and the target it eases towards. The game recomputes wellbeing from
   its 25×25 wellbeing grid every second (`obj_player` Step_0), so every cell of that grid is set as well.
-- **Time and weather**: day, time, Clear, Cloudy or Rain with its strength, and air temperature. Cloud and rain are written as
-  `player_endturn` leaves them, and days alive move with the day. The game eases the air temperature back toward the hour's usual value, and
-  going back in time stops regrowth in zones visited later until the clock catches up.
+- **Time and weather**: day, time, Clear, Cloudy or Rain with its strength, and air temperature; only the ones you change are written. Cloud
+  and rain are written as `player_endturn` leaves them, and days alive move with the day. The game eases the air temperature back toward the
+  hour's usual value, and going back in time stops regrowth in zones visited later until the clock catches up.
 - **Items and coins**: added to the bags you carry exactly as picking them up would (`item_pickup`, `item_stack`, `item_add`). Stacks are
   topped up first, then each new stack goes in the first free spot, column by column, written in every cell it covers. What finds no room
   upright anywhere is then turned sideways (`sideflipped`, covering height × width), as you could turn it in the game; nothing already in
@@ -402,6 +402,15 @@ was undone, is dropped and named. **Discard changes** drops them all. Saving ref
 keeps the files it replaces in this browser (the last 10 saves of each world; **Restore** writes them back), then writes the Cheated mark
 first, `Player.save`, the other changed files and the current area's `Containers.save` last, in the game's own order, so Live saves accepts
 the result.
+
+The page can stay open while you play. Save and quit to the game's menu, then choose **Reload save** (at the top, in edit mode): it reads
+the whole folder again (the character, its world and zone maps, creatures and the Cheated mark) and runs the unsaved changes again on the
+newest save, in order, the same way Undo replays them, so they can be saved. Each change keeps what you asked for (skill points set to 5, 10
+arrows added, the weather made Clear) and its line is written anew from the new save (`Skill points 2 → 5`). A change that now does nothing,
+such as wellbeing set to 100% when the game already has it there, or that no longer applies, such as removing a creature that has since
+moved or an item you dropped in the game, is dropped and named. Wellbeing and stats, and time and weather, change only the values you
+changed, so a reload keeps the game's newer clock and stats. If the folder now holds a different world for that character, loading it drops
+the unsaved changes, after asking.
 
 ### The Cheated mark
 

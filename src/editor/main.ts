@@ -33,6 +33,7 @@ import {
   setSkillPoints,
   setSky,
   setVitals,
+  type SkyEdit,
   type VitalsEdit,
 } from "./edits.ts";
 import {
@@ -155,14 +156,81 @@ async function openCharacter(i: number, keepArea = false) {
     if (!keepArea || !area) area = playerArea(loaded.player);
     else area = sameArea(area);
     selected = undefined;
-    const select = $<HTMLSelectElement>("#character");
-    select.replaceChildren(...chars.map((ch, n) => h("option", { value: n, selected: n === active }, ch.name)));
-    select.hidden = chars.length < 2;
+    forgetMapImages();
+    showCharacters();
     document.body.classList.add("loaded");
     status(`${c.name} loaded${loaded.warnings.length ? ` with ${loaded.warnings.length} warnings` : ""}.`);
   } catch (e) {
     console.error(e);
     status(errorText(e), true);
+    return;
+  }
+  await render();
+}
+
+function showCharacters() {
+  const select = $<HTMLSelectElement>("#character");
+  select.replaceChildren(...chars.map((ch, n) => h("option", { value: n, selected: n === active }, ch.name)));
+  select.hidden = chars.length < 2;
+}
+
+/**
+ * Reads the folder again, after playing in the game, and runs the unsaved changes again on the newest save, so they can still be
+ * saved. Changes that no longer apply, or now change nothing, are dropped and named. If the folder now holds another world, loading
+ * it drops the changes, after asking.
+ */
+async function reloadSave() {
+  const s = session;
+  if (!dir || !s || s.saving) return;
+  status("Reading the save again...");
+  let otherWorld = false;
+  await locked(async () => {
+    try {
+      const { scan, files } = await EditSession.open(dir!);
+      const found = findCharacters(files);
+      const c = found.find((ch) => ch.root === s.character.root);
+      if (!c) throw new Error(`${s.character.name}'s save is no longer in this folder. Open the folder again to choose a character.`);
+      const loaded = await loadWorld(files, c.root, c.name);
+      if (await worldId(c.name, loaded.player.grid) !== s.world) {
+        otherWorld = true;
+        return;
+      }
+      const marked = cheatedInfo(await markerText(files, c.root)) !== undefined || await knownCheated(s.world);
+      const dropped = await s.rebase(scan, files);
+      if (session !== s) return;
+      chars = found;
+      active = found.indexOf(c);
+      world = loaded;
+      cheated = marked;
+      area = area ? sameArea(area) : playerArea(loaded.player);
+      selected = undefined;
+      savedRecords.delete(s);
+      forgetMapImages();
+      showCharacters();
+      notes.clear();
+      const n = s.changes.length;
+      status(
+        `Reloaded ${c.name}'s save${loaded.warnings.length ? ` with ${loaded.warnings.length} warnings` : ""}.` +
+          (n ? ` ${n === 1 ? "Your unsaved change still applies" : `Your ${n} unsaved changes still apply`}.` : "") +
+          (dropped.length
+            ? ` Dropped, as ${dropped.length === 1 ? "it no longer applies" : "they no longer apply"}: ${dropped.join("; ")}.`
+            : ""),
+        dropped.length > 0,
+      );
+    } catch (e) {
+      console.error(e);
+      status(errorText(e), true);
+    }
+  });
+  if (otherWorld) {
+    status(`${s.character.name}'s folder now holds a different world.`);
+    if (!await dropChanges("Loading the new world", "Drop them and load it")) {
+      status(`${s.character.name}'s folder now holds a different world; your unsaved changes cannot be saved to it.`, true);
+      return;
+    }
+    editing = false;
+    notes.clear();
+    await openCharacter(active);
     return;
   }
   await render();
@@ -252,8 +320,8 @@ async function undoChange(i: number) {
   await render();
 }
 
-/** Locks the page while a save or restore writes files, so nothing changes or discards the drafts meanwhile. */
-async function writing<T>(run: () => Promise<T>): Promise<T> {
+/** Locks the page while a save or restore writes files, or a reload reads them, so nothing changes or discards the drafts meanwhile. */
+async function locked<T>(run: () => Promise<T>): Promise<T> {
   document.body.classList.add("busy");
   $<HTMLButtonElement>("#save").disabled = true;
   try {
@@ -267,7 +335,7 @@ async function writing<T>(run: () => Promise<T>): Promise<T> {
 async function save() {
   if (session?.saving) return;
   status("Saving...");
-  await writing(async () => {
+  await locked(async () => {
     try {
       const n = await session!.save();
       cheated = true;
@@ -300,7 +368,7 @@ async function restore(b: Backup) {
       danger: true,
     })
   ) return;
-  await writing(async () => {
+  await locked(async () => {
     try {
       session!.discard();
       await session!.restore(b);
@@ -334,6 +402,7 @@ async function render() {
   updateSavebar();
   updateViewSwitch();
   updateMapBar();
+  $("#reload").hidden = !s || !editing;
   if (!s || !world) return;
   if (view === "map") return renderMap(my);
   let raw: unknown, v: PlayerSave;
@@ -391,12 +460,19 @@ function summary(v: PlayerSave, p: Rec): HTMLElement {
       `Level ${v.level} · ${where ? areaName(where) : "unknown area"}`,
       sky ? ` · Day ${sky.day}, ${formatClock(sky.minute)} · ${WEATHER_LABELS[weatherKind(sky)]}` : "",
     ),
-    editing ? h("p", { class: "muted" }, "Edit mode. Changes stay in this tab until you save them with the bar at the bottom.") : h(
-      "p",
-      {},
-      h("button", { class: "button", type: "button", onclick: openDisclosure }, "Edit this character..."),
-      cheated ? h("span", { class: "muted" }, " This world is already marked Cheated.") : null,
-    ),
+    editing
+      ? h(
+        "p",
+        { class: "muted" },
+        "Edit mode. Changes stay in this tab until you save them with the bar at the bottom. Played since? Save and quit to the " +
+          "game's menu and choose Reload save at the top: your unsaved changes stay.",
+      )
+      : h(
+        "p",
+        {},
+        h("button", { class: "button", type: "button", onclick: openDisclosure }, "Edit this character..."),
+        cheated ? h("span", { class: "muted" }, " This world is already marked Cheated.") : null,
+      ),
   );
 }
 
@@ -511,7 +587,9 @@ function characterCard(v: PlayerSave): HTMLElement {
       class: "button subtle",
       onclick: act("character", () =>
         editPlayer("character", (p) => {
+          const before = JSON.stringify([p.hpgrid, p.statusgrid]);
           const n = healPlayer(p);
+          if (JSON.stringify([p.hpgrid, p.statusgrid]) === before) return undefined;
           return `Healed ${n === 1 ? "1 hit point" : `${n} hit points`} and cleared poison, bleeding and stun`;
         })),
     }, "Heal all wounds"),
@@ -530,13 +608,15 @@ function characterCard(v: PlayerSave): HTMLElement {
           }
           return editPlayer("character", (p, raw) => {
             const before = parsePlayer(raw).vitals;
+            // Only the stats that still differ, so one the game already has where you asked is left exactly as it is.
+            const differ: VitalsEdit = {};
             const changes = sliders.flatMap(([key, label]) => {
               const to = e[key], from = before?.[key] ?? 0;
-              return to === undefined || Math.round(from * 100) === Math.round(to * 100)
-                ? []
-                : [`${label} ${percent(from)} → ${percent(to)}`];
+              if (to === undefined || Math.round(from * 100) === Math.round(to * 100)) return [];
+              differ[key] = to;
+              return [`${label} ${percent(from)} → ${percent(to)}`];
             });
-            setVitals(p, e);
+            setVitals(p, differ);
             return changes.length ? changes.join(", ") : undefined;
           });
         }),
@@ -589,13 +669,17 @@ function skyCard(p: Rec): HTMLElement {
   const apply = act("sky", () => {
     const [hh, mm] = time.value.split(":").map(Number);
     if (!Number.isInteger(hh) || !Number.isInteger(mm)) throw new Error("Choose a time");
-    const e = {
-      day: readWhole(day, "Day"),
-      minute: hh * 60 + mm,
-      weather: Number(weather.value) as WeatherState,
-      rain: Number(rain.value) / 100,
-      temperature: Number(temp.value) / 100,
-    };
+    // Only what was changed here, so the edit keeps the rest of the draft as it is, also when it runs again after an undo or a reload.
+    const e: SkyEdit = {};
+    const dayTo = readWhole(day, "Day");
+    if (dayTo !== sky.day) e.day = dayTo;
+    if (hh * 60 + mm !== Math.floor(minute)) e.minute = hh * 60 + mm;
+    const weatherTo = Number(weather.value) as WeatherState;
+    if (weatherTo !== sky.weather) e.weather = weatherTo;
+    if (e.weather !== undefined || Number(rain.value) !== Math.round(Math.max(MIN_RAIN, sky.rain || 0.5) * 100)) {
+      e.rain = Number(rain.value) / 100;
+    }
+    if (Number(temp.value) !== Math.round(sky.temperature * 100)) e.temperature = Number(temp.value) / 100;
     return editPlayer("sky", (rec) => {
       const before = parseSky(rec)!;
       setSky(rec, e);
@@ -900,6 +984,11 @@ async function removeCarried(c: CarriedItem, howMany: HTMLInputElement | null, f
 // --- Map and creatures ---
 
 const mapImages = new Map<string, Promise<HTMLImageElement | undefined>>();
+/** Drops the zone maps read so far; the game redraws them as you explore. */
+function forgetMapImages() {
+  for (const p of mapImages.values()) void p.then((img) => img && URL.revokeObjectURL(img.src));
+  mapImages.clear();
+}
 function mapImage(path: string | undefined): Promise<HTMLImageElement | undefined> {
   if (!path) return Promise.resolve(undefined);
   let p = mapImages.get(path);
@@ -952,8 +1041,10 @@ function moveRefusal(a: Area, tx: number, ty: number, ground: Uint8Array): strin
 
 const moveYou = (cardId: string, a: Area, tx: number, ty: number) =>
   editPlayer(cardId, (p) => {
+    const where = () => [p.areaX, p.areaY, p.areaType, p.xx, p.yy].join();
+    const before = where();
     movePlayer(p, a.zone.x, a.zone.y, tx, ty);
-    return `Moved you to ${areaName(a)}, tile ${tx},${ty}`;
+    return where() === before ? undefined : `Moved you to ${areaName(a)}, tile ${tx},${ty}`;
   });
 
 async function mapCard(v: PlayerSave): Promise<HTMLElement> {
@@ -1399,6 +1490,7 @@ function wire() {
     void openCharacter(to);
   });
   $("#save").addEventListener("click", () => void save());
+  $("#reload").addEventListener("click", () => void reloadSave());
   $("#show-editor").addEventListener("click", () => showView("edit"));
   $("#show-map").addEventListener("click", () => showView("map"));
   $<HTMLInputElement>("#map-move").addEventListener("change", (e) => {

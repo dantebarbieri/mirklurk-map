@@ -6,8 +6,8 @@
 import { assert, assertEquals, assertRejects } from "./assert.ts";
 import { type Backup, type EditDirectory, type EditFile, EditSession, StaleError } from "../src/editor/session.ts";
 import { addItems } from "../src/editor/items.ts";
-import { movePlayer, playerRecord, setSkillPoints } from "../src/editor/edits.ts";
-import { deleteBeing, spawnBeing } from "../src/editor/beings.ts";
+import { movePlayer, playerRecord, setSkillPoints, setVitals } from "../src/editor/edits.ts";
+import { deleteBeing, newBeing, spawnBeing } from "../src/editor/beings.ts";
 import { findCharacters } from "../src/files.ts";
 import { cheatedInfo } from "../src/cheated.ts";
 import { readMarker } from "../src/marker.ts";
@@ -302,6 +302,79 @@ Deno.test("editor session: undoing one change runs the later ones again; changes
     await assertRejects(() => s.undo(5), /already undone/);
     assertEquals(await s.save(), 1, "only Player.save changed in the end");
     assertEquals(parsePlayer(decodeJson(await Deno.readFile(`${root}/Hero/Player.save`))).skillPoints, 7);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("editor session: reloading after the game saved runs the unsaved changes again; ones that are now no-ops are dropped", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(root);
+    const base = `${root}/Hero`;
+    const write = (path: string, value: unknown) =>
+      Deno.writeFile(`${base}/${path}`, new Uint8Array([...encoder.encode(JSON.stringify(value)), 0]));
+    const wolf = newBeing(3, 10, 10);
+    await write("[ 0,0 ]/Beings.save", [wolf]);
+    await write("[ 0,0 ]/Containers.save", []);
+    const s = await openSession(root, "Hero");
+    const player = `${s.character.root}Player.save`;
+    const here = "Hero/[ 0,0 ]/Beings.save", there = "Hero/[ 1,0 ]/Beings.save";
+    await s.apply(player, (raw) => {
+      const p = playerRecord(raw), from = p.skillPoints;
+      setSkillPoints(p, 5);
+      return from === 5 ? undefined : `Skill points ${from} → 5`;
+    });
+    await s.apply(player, (raw) => {
+      const p = playerRecord(raw), from = p.haelth ?? 0;
+      setVitals(p, { wellbeing: 1 });
+      return from === 1 ? undefined : `Wellbeing ${from} → 1`;
+    });
+    const same = JSON.stringify((await s.json(here) as unknown[])[0]);
+    await s.apply(here, (raw) => (deleteBeing(raw as unknown[], 0, same), "Removed the wolf"));
+    await s.apply(there, (raw) => (spawnBeing(raw as unknown[], 3, 20, 30), "Spawned a troll"));
+    assertEquals(s.changes, ["Skill points 0 → 5", "Wellbeing 0 → 1", "Removed the wolf", "Spawned a troll"]);
+
+    // The game is played: it heals you to full wellbeing, gives you skill points and the wolf walks, then saves in its own order.
+    await new Promise((r) => setTimeout(r, 20));
+    const raw = decodeJson(await Deno.readFile(`${base}/Player.save`));
+    Object.assign(playerRecord(raw), { skillPoints: 2, haelth: 1, nextHaelth: 1 });
+    await write("Player.save", raw);
+    await write("[ 0,0 ]/Beings.save", [{ ...wolf, x: 200 }]);
+    await write("[ 0,0 ]/Containers.save", []);
+    await assertRejects(() => s.save(), /since this folder was read/);
+
+    // A reload that cannot be read leaves the session as it was.
+    const { scan, files } = await EditSession.open(s.dir);
+    const broken = new Map(files).set(player, { read: () => Promise.resolve(encoder.encode("[")) });
+    await assertRejects(() => s.rebase(scan, broken));
+    assertEquals(s.changes.length, 4);
+    assertEquals(playerRecord(await s.json(player)).skillPoints, 5);
+
+    assertEquals(await s.rebase(scan, files), ["Wellbeing 0 → 1", "Removed the wolf"]);
+    assertEquals(s.changes, ["Skill points 2 → 5", "Spawned a troll"], "the changes that still apply, their lines written anew");
+    assertEquals(await s.save(), 2, "no longer stale");
+    const saved = playerRecord(decodeJson(await Deno.readFile(`${base}/Player.save`)));
+    assertEquals([saved.skillPoints, saved.haelth], [5, 1]);
+    assertEquals(decodeJson(await Deno.readFile(`${base}/[ 0,0 ]/Beings.save`)), [{ ...wolf, x: 200 }], "the game's wolf stays");
+    assertEquals((decodeJson(await Deno.readFile(`${base}/[ 1,0 ]/Beings.save`)) as unknown[]).length, 1);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("editor session: a reload drops the changes to a file the game no longer has", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(root);
+    const s = await openSession(root, "Hero");
+    await s.apply("Hero/[ 1,0 ]/Beings.save", (raw) => (spawnBeing(raw as unknown[], 3, 20, 30), "Spawned a troll"));
+    await s.apply(`${s.character.root}Player.save`, (raw) => (setSkillPoints(playerRecord(raw), 4), "Skill points 0 → 4"));
+    await Deno.remove(`${root}/Hero/[ 1,0 ]`, { recursive: true });
+    const { scan, files } = await EditSession.open(s.dir);
+    assertEquals(await s.rebase(scan, files), ["Spawned a troll"]);
+    assertEquals(s.changes, ["Skill points 0 → 4"]);
+    assertEquals(await s.save(), 1);
   } finally {
     await Deno.remove(root, { recursive: true });
   }
