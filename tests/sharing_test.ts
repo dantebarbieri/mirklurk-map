@@ -3,6 +3,7 @@ import {
   formatPairCode,
   frame,
   keyFromLink,
+  libraryId,
   linkKey,
   MAX_FILES,
   MAX_SAVE,
@@ -18,7 +19,9 @@ import {
   pairId,
   RETENTION,
   sealPairing,
+  sha256Hex,
   SHARE_INTERVAL,
+  shareId,
   TOKEN,
   unframe,
   unpackSave,
@@ -62,6 +65,14 @@ Deno.test("sharing: world identity is the character name and zone layout", async
   assertEquals(await idOf(), await idOf());
   assert(await idOf("Hero", 1) !== await idOf("Hero", 2));
   assert(await idOf("Hero", 1) !== await idOf("Other", 1));
+});
+
+Deno.test("sharing: IDs are SHA-256 in lowercase hex, and never change, as the server keeps what it stores by them", async () => {
+  assertEquals(await sha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  const key = "A".repeat(43);
+  assertEquals(await libraryId(key), "c9476da19d88b56117162955e107106cc3eacfc4d1177f8eb10089968178d897");
+  assertEquals(await shareId(key), "3d4e407b811ff4385c05099019349efa6811f574c98b1a1edf554c14623bf868");
+  assertEquals(await pairId("K7M29QXR"), "2850c9147f9b28f0170ea0154e55ec36a06a15f3357d6026e87e5dd0ef8924b1");
 });
 
 Deno.test("sharing: links carry keys as 78 digits that round-trip exactly", () => {

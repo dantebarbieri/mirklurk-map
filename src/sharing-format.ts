@@ -39,13 +39,15 @@ export interface WorldInfo {
 const base64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const hex = (bytes: Uint8Array) => [...bytes].map((n) => n.toString(16).padStart(2, "0")).join("");
 const sha256 = async (text: string) => new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(text)));
+/** The SHA-256 of `text` (as UTF-8), in lowercase hex: the IDs below, and what the upload server keys by. */
+export const sha256Hex = async (text: string) => hex(await sha256(text));
 
 export const newToken = () => base64url(crypto.getRandomValues(new Uint8Array(32)));
 /** The server stores only hashes: a library is found by its sync key's hash, a shared world by its share key's hash. */
-export const libraryId = async (sync: string) => hex(await sha256(`mirklurk/library\n${sync}`));
+export const libraryId = (sync: string) => sha256Hex(`mirklurk/library\n${sync}`);
 /** Read-only keys derive one-way from the sync key and a per-world salt, so a share key can never become a sync key. */
 export const shareKey = async (sync: string, salt: string) => base64url(await sha256(`mirklurk/share\n${sync}\n${salt}`));
-export const shareId = async (share: string) => hex(await sha256(`mirklurk/view\n${share}`));
+export const shareId = (share: string) => sha256Hex(`mirklurk/view\n${share}`);
 /** Same character name and zone layout = same world, so uploading it again updates it instead of adding a copy. */
 export const worldId = async (name: string, grid: number[][]) =>
   base64url(await sha256(`mirklurk/world\n${JSON.stringify([name, grid])}`)).slice(0, 22);
@@ -87,7 +89,7 @@ export function pairCode(text: string): string | undefined {
   const code = text.toUpperCase().replace(/[\s-]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
   return /^[0-9A-HJKMNP-TV-Z]{8}$/.test(code) ? code : undefined;
 }
-export const pairId = async (code: string) => hex(await sha256(`mirklurk/pair\n${code}`));
+export const pairId = (code: string) => sha256Hex(`mirklurk/pair\n${code}`);
 const pairCipher = async (code: string, usage: KeyUsage) =>
   crypto.subtle.importKey("raw", await sha256(`mirklurk/pair-key\n${code}`) as BufferSource, "AES-GCM", false, [usage]);
 
