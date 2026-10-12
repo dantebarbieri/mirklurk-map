@@ -2,15 +2,22 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Job names "test" and "docker-smoke" are required status checks in the main-branch ruleset; rename them there too.
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -18,13 +25,20 @@ jobs:
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: 2.9.7
-      - name: Format, lint, type-check, test and build
+      - name: Format
+        run: deno task fmt:check
+      - name: Lint
+        run: deno task lint
+      - name: Type-check
+        run: deno task check
+      - name: Test with coverage thresholds
+        run: deno task coverage 2>&1 | tee coverage.txt
+      - name: Coverage summary
+        if: always()
         run: |
-          deno fmt --check
-          deno lint
-          deno task check
-          deno task test
-          deno task build
+          { echo '### Coverage'; echo; grep '^|' coverage.txt || echo 'No coverage report.'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Build
+        run: deno task build
   docker-smoke:
     needs: test
     runs-on: ubuntu-24.04
