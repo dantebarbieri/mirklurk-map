@@ -59,9 +59,10 @@ export function newItem(index: number, amount: number, zone: [number, number], b
 }
 
 /** A carried container's inventory: subParts entries of type 0, whose gridSave is [y][x]. */
-interface Bag {
-  /** The equipment slot of the item it belongs to. */
+export interface Bag {
+  /** The equipment slot of the item it belongs to, and which of that item's subParts it is. */
   slot: number;
+  part: number;
   owner: number;
   grid: unknown[][];
   inventory: Rec;
@@ -73,14 +74,14 @@ export function carriedBags(p: Rec): Bag[] {
   const equips = Array.isArray(p.myEquips) ? p.myEquips : [];
   equips.forEach((item, slot) => {
     if (!isRec(item) || !Array.isArray(item.subParts)) return;
-    for (const part of item.subParts) {
-      if (!isRec(part) || part.type !== 0) continue;
+    item.subParts.forEach((part, partIndex) => {
+      if (!isRec(part) || part.type !== 0) return;
       const grid = part.gridSave;
       if (!Array.isArray(grid) || !grid.length || grid.some((row) => !Array.isArray(row) || row.length !== grid[0].length)) {
         throw new Error(`The container in equipment slot ${slot + 1} has an unreadable grid`);
       }
-      out.push({ slot, owner: Number(item.index), grid: grid as unknown[][], inventory: part });
-    }
+      out.push({ slot, part: partIndex, owner: Number(item.index), grid: grid as unknown[][], inventory: part });
+    });
   });
   return out;
 }
@@ -97,24 +98,48 @@ function copies(g: unknown[][], x: number, y: number): Rec[] {
   return out;
 }
 
-/** item_fits for a new, unturned item: the whole rectangle is inside the grid and empty. */
+/** item_fits: the whole w×h rectangle at (x, y) is inside the grid and empty. */
 function fits(g: unknown[][], x: number, y: number, w: number, h: number): boolean {
   if (y + h > g.length || x + w > g[0].length) return false;
   for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (g[j][i] !== EMPTY) return false;
   return true;
 }
 
+/**
+ * The first free spot for item `index` in grid g, column by column as item_add scans: upright first, then turned sideways
+ * (sideflipped, which covers height × width), as you can turn an item while holding it in the game.
+ */
+function spotFor(g: unknown[][], index: number): { x: number; y: number; sideflipped: boolean } | undefined {
+  const d = ITEMS[index];
+  if (!d) return undefined;
+  for (const sideflipped of d.w === d.h ? [false] : [false, true]) {
+    const [w, h] = sideflipped ? [d.h, d.w] : [d.w, d.h];
+    for (let x = 0; x < g[0].length; x++) for (let y = 0; y < g.length; y++) if (fits(g, x, y, w, h)) return { x, y, sideflipped };
+  }
+}
+
+/** Writes `item` into grid g with its origin at (x, y), turned sideways or not: every cell it covers holds its own copy. */
+function put(g: unknown[][], item: Rec, x: number, y: number, sideflipped: boolean) {
+  const d = ITEMS[Number(item.index)];
+  const [w, h] = sideflipped ? [d.h, d.w] : [d.w, d.h];
+  const json = JSON.stringify({ ...item, X: x, Y: y, sideflipped });
+  for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) g[j][i] = JSON.parse(json);
+}
+
 export interface AddResult {
   /** How many were added. */
   added: number;
+  /** Some went in turned sideways, as there was no room for them upright. */
+  turned?: boolean;
   /** How many did not fit anywhere. */
   left: number;
 }
 
 /**
  * Adds `amount` of item `index` to the player's carried containers: first topping up stacks of the same item (item_stack), then
- * placing new stacks of at most stackLimit in the first free spot, scanning each container column by column as item_add does.
- * Whatever does not fit is reported back rather than dropped on the ground.
+ * placing new stacks of at most stackLimit in the first free spot, scanning each container column by column as item_add does. What
+ * finds no room upright is then turned sideways, as you could turn it in the game. Whatever does not fit is reported back rather
+ * than dropped on the ground.
  */
 export function addItems(p: Rec, index: number, amount: number): AddResult {
   if (!addable(index)) throw new Error(`Item ${index} cannot be carried`);
@@ -143,22 +168,23 @@ export function addItems(p: Rec, index: number, amount: number): AddResult {
   }
   const zone: [number, number] = [Number(p.areaX), Number(p.areaY)];
   const template = bags[0]?.inventory;
-  for (const bag of bags) {
-    const g = bag.grid;
-    for (let x = 0; x < g[0].length && left; x++) {
-      for (let y = 0; y < g.length && left; y++) {
-        if (!fits(g, x, y, d.w, d.h)) continue;
-        const n = Math.min(left, d.stack);
-        const item = newItem(index, n, zone, template);
-        item.X = x;
-        item.Y = y;
-        const json = JSON.stringify(item);
-        for (let j = y; j < y + d.h; j++) for (let i = x; i < x + d.w; i++) g[j][i] = JSON.parse(json);
-        left -= n;
+  let turned = false;
+  for (const sideflipped of d.w === d.h ? [false] : [false, true]) {
+    const [w, h] = sideflipped ? [d.h, d.w] : [d.w, d.h];
+    for (const bag of bags) {
+      const g = bag.grid;
+      for (let x = 0; x < g[0].length && left; x++) {
+        for (let y = 0; y < g.length && left; y++) {
+          if (!fits(g, x, y, w, h)) continue;
+          const n = Math.min(left, d.stack);
+          put(g, newItem(index, n, zone, template), x, y, sideflipped);
+          turned ||= sideflipped;
+          left -= n;
+        }
       }
     }
   }
-  return { added: amount - left, left };
+  return { added: amount - left, left, ...(turned ? { turned } : {}) };
 }
 
 /** Free cells across all carried containers, for showing how much room is left. */
@@ -187,6 +213,8 @@ const isOffHandCopy = (equips: unknown[], slot: number) =>
 
 function carried(rec: Rec, place: ItemPlace): CarriedItem {
   const contents: CarriedItem[] = [];
+  // Only worn containers hold anything: the game empties one kept inside another when it loads (NESTED_NOTE in inventory.ts).
+  if (place.path.length) return { place, index: Number(rec.index), amount: Number(rec.amount), contents };
   (Array.isArray(rec.subParts) ? rec.subParts : []).forEach((part, i) => {
     if (!isRec(part) || part.type !== 0 || !Array.isArray(part.gridSave)) return;
     const g = part.gridSave as unknown[][];
@@ -299,47 +327,114 @@ export function wearNew(p: Rec, index: number, amount = 1, slot?: number): { slo
   return { slot: at, amount: n };
 }
 
-/** Takes the item at `place` (in a container) out of it and wears it, with what it holds, in `slot` or the first free slot it fits. */
+/**
+ * Clears what a container's save says it holds: a container kept inside another was empty in the game (NESTED_NOTE in inventory.ts),
+ * and its saved grid is a leftover.
+ */
+function emptyContainers(item: Rec) {
+  const bag = ITEMS[Number(item.index)]?.bag;
+  for (const part of Array.isArray(item.subParts) ? item.subParts : []) {
+    if (!isRec(part) || part.type !== 0 || !Array.isArray(part.gridSave)) continue;
+    const [w, h] = bag ?? [part.gridSave[0]?.length ?? 0, part.gridSave.length];
+    part.gridSave = Array.from({ length: h }, () => Array<number>(w).fill(EMPTY));
+    part.weight = 0;
+  }
+}
+
+/** Takes the item at `place` (in a container) out of it and wears it in `slot` or the first free slot it fits. */
 export function wearCarried(p: Rec, place: ItemPlace, index: number, slot?: number): number {
   const found = locate(p, place);
   const name = ITEM_NAMES[index] ?? `Item ${index}`;
-  if (!found || found.item.index !== index || !place.path.length) throw new Error(`${name} is no longer there`);
+  if (!found || found.item.index !== index || place.path.length !== 1) throw new Error(`${name} is no longer there`);
   const at = slotFor(p, index, slot);
   const item = JSON.parse(JSON.stringify(found.item));
   removeItem(p, place, index, "all");
+  emptyContainers(item);
+  item.sideflipped = false;
   wear(p.myEquips as unknown[], at, item);
   return at;
 }
 
-/**
- * Takes off what is worn in `slot` and puts it, with what it holds, in the first free spot of the other containers worn (column by
- * column, as item_add does); a two-handed melee weapon's off-hand copy goes too. Returns the container it went into. Throws when
- * nothing fits it.
- */
-export function takeOff(p: Rec, slot: number, index: number): number {
-  const equips = equipList(p);
-  const item = equips[slot];
-  const name = ITEM_NAMES[index] ?? `Item ${index}`;
-  if (!isRec(item) || item.index !== index || isOffHandCopy(equips, slot)) throw new Error(`${name} is no longer worn there`);
-  const d = ITEMS[index];
-  if (!d) throw new Error(`Unknown item ${index}`);
-  const twin = (slot === 0 || slot === 2) && isOffHandCopy(equips, slot + 1);
-  for (const bag of carriedBags(p).filter((b) => b.slot !== slot)) {
-    const g = bag.grid;
-    for (let x = 0; x < g[0].length; x++) {
-      for (let y = 0; y < g.length; y++) {
-        if (!fits(g, x, y, d.w, d.h)) continue;
-        const json = JSON.stringify({ ...item, X: x, Y: y });
-        for (let j = y; j < y + d.h; j++) for (let i = x; i < x + d.w; i++) g[j][i] = JSON.parse(json);
-        equips[slot] = EMPTY;
-        if (twin) equips[slot + 1] = EMPTY;
-        return bag.owner;
-      }
-    }
-  }
-  throw new Error(`There is no room for ${name} in your other bags`);
+/** Items in a worn item's own containers. */
+const holds = (item: Rec): number =>
+  (Array.isArray(item.subParts) ? item.subParts : []).reduce(
+    (n: number, part) =>
+      n + (isRec(part) && part.type === 0 && Array.isArray(part.gridSave)
+        ? (part.gridSave as unknown[][]).flat().filter((c) => c !== EMPTY && c !== null).length
+        : 0),
+    0,
+  );
+
+/** A worn container: its item's equipment slot and which of that item's subParts it is. */
+export interface ContainerRef {
+  slot: number;
+  part: number;
 }
 
+const isWhere = (place: ItemPlace, to: ContainerRef) =>
+  place.path.length ? to.slot === place.slot && to.part === place.path[0].part : to.slot === place.slot;
+
+/** The worn containers the item at `place` can move into: those with room for it (upright or sideways), other than where it is. */
+export function roomFor(p: Rec, place: ItemPlace, index: number): Bag[] {
+  const found = locate(p, place);
+  if (!found || found.item.index !== index || place.path.length > 1) return [];
+  if (!place.path.length && holds(found.item)) return [];
+  return carriedBags(p).filter((b) => !isWhere(place, b) && spotFor(b.grid, index));
+}
+
+/**
+ * Moves the item at `place` (worn, or in a worn container) into the worn container `to`, at its first free spot: upright first, then
+ * turned sideways. A worn container moves only when empty and never into itself, as item_fits allows; a two-handed melee weapon's
+ * off-hand copy goes with it. Throws when it has no room there. Returns whether it went in sideways.
+ */
+export function moveItem(p: Rec, place: ItemPlace, index: number, to: ContainerRef): { sideflipped: boolean } {
+  const name = ITEM_NAMES[index] ?? `Item ${index}`;
+  const equips = equipList(p);
+  const worn = place.path.length === 0;
+  const found = locate(p, place);
+  if (!found || found.item.index !== index || place.path.length > 1 || (worn && isOffHandCopy(equips, place.slot))) {
+    throw new Error(`${name} is no longer there`);
+  }
+  const target = carriedBags(p).find((b) => b.slot === to.slot && b.part === to.part);
+  if (!target) throw new Error("That container is no longer worn");
+  const into = ITEM_NAMES[target.owner] ?? `Item ${target.owner}`;
+  if (isWhere(place, to)) throw new Error(worn ? `${name} cannot go inside itself` : `${name} is already in ${into}`);
+  if (worn && holds(found.item)) {
+    throw new Error(`Take everything out of ${name} first: the game empties a container kept inside another one when it loads`);
+  }
+  const at = spotFor(target.grid, index);
+  if (!at) {
+    const d = ITEMS[index];
+    throw new Error(`${name} needs a free ${d.w}×${d.h} space${d.w === d.h ? "" : ", upright or sideways,"} and ${into} has none`);
+  }
+  const item = JSON.parse(JSON.stringify(found.item));
+  if (worn) {
+    const twin = (place.slot === 0 || place.slot === 2) && isOffHandCopy(equips, place.slot + 1);
+    equips[place.slot] = EMPTY;
+    if (twin) equips[place.slot + 1] = EMPTY;
+  } else removeItem(p, place, index, "all");
+  emptyContainers(item);
+  put(target.grid, item, at.x, at.y, at.sideflipped);
+  return { sideflipped: at.sideflipped };
+}
+
+/**
+ * Takes off what is worn in `slot` and moves it into the first worn container with room (moveItem); returns that container's item.
+ * Throws when none has room, or when it is a container with things in it.
+ */
+export function takeOff(p: Rec, slot: number, index: number): number {
+  const name = ITEM_NAMES[index] ?? `Item ${index}`;
+  const equips = equipList(p);
+  const item = equips[slot];
+  if (!isRec(item) || item.index !== index || isOffHandCopy(equips, slot)) throw new Error(`${name} is no longer worn there`);
+  if (holds(item)) {
+    throw new Error(`Take everything out of ${name} first: the game empties a container kept inside another one when it loads`);
+  }
+  const bag = carriedBags(p).find((b) => b.slot !== slot && spotFor(b.grid, index));
+  if (!bag) throw new Error(`There is no room for ${name} in your other bags`);
+  moveItem(p, { slot, path: [] }, index, bag);
+  return bag.owner;
+}
 /** Every cell of a grid holding the item at origin (x, y) becomes a copy of the origin cell again. */
 function syncCopies(g: unknown[][], x: number, y: number) {
   const json = JSON.stringify(g[y][x]);

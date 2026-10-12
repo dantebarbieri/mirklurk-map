@@ -68,7 +68,7 @@ Deno.test("live: reject incomplete save stages, malformed JSON, grids and map im
   await assertRejects(() => captureSnapshot(scan(1, { "Maps/0_0.png": "partial" })), /PNG/);
   await assertRejects(() =>
     captureSnapshot(scan(1, {
-      "[ 0,0 ]/Containers.save": json([{ status: -205, gridSave: [[null]] }]),
+      "[ 0,0 ]/Containers.save": json([{ status: -205, gridSave: [["junk"]] }]),
     })), /inventory cell/);
   const missing = scan();
   missing.entries.delete("Hero/[ 0,0 ]/Containers.save");

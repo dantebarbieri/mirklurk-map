@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects } from "./assert.ts";
-import { containerInventory, parseInventoryGrid, parseItemList } from "../src/inventory.ts";
+import { containerInventory, NESTED_NOTE, parseInventoryGrid, parseItemList } from "../src/inventory.ts";
 import { parseContainers, parsePlayer } from "../src/save.ts";
 import { detailMarks, markKey } from "../src/objects.ts";
 import { loadDetail, loadWorld, type ZoneDetail } from "../src/world.ts";
@@ -23,7 +23,7 @@ Deno.test("inventory: repeated occupied cells are one stack; identical separate 
   assertEquals(parsed.items.map((i) => [i.index, i.amount, i.durability, i.wet]), [[3, 2, 81, 0.25], [3, 3, 81, 0.25]]);
 });
 
-Deno.test("inventory: equipment with nested bags retains independent inventories", () => {
+Deno.test("inventory: a bag kept inside a worn one is empty, as the game loads it; its leftover grid is never read", () => {
   const nested = { ...item(12), subParts: [{ type: 0, gridSave: [[item(72, 0, 0, 20)]] }] };
   const bag = { ...item(148), subParts: [{ type: 0, gridSave: [[nested]] }, [[1, 0], [0, 1]]] };
   const p = parsePlayer(player({ myEquips: [-4, bag, item(3)] }));
@@ -31,9 +31,19 @@ Deno.test("inventory: equipment with nested bags retains independent inventories
   assertEquals(p.inventory.items.length, 2);
   const inner = p.inventory.items[0].contents[0];
   assert(inner.state === "saved");
-  const coins = inner.items[0].contents[0];
-  assert(coins.state === "saved");
-  assertEquals(coins.items[0].amount, 20);
+  assertEquals(inner.items[0].index, 12);
+  assertEquals(inner.items[0].contents, [{ state: "saved", items: [], note: NESTED_NOTE }]);
+
+  // A real save's leftover (a small backpack dropped into a belt after it was emptied): a freed item written as null, and cells
+  // carrying the origins of wherever their items went later. The game never reads it, so neither does MirkMap.
+  const leftover = [[item(25, 2, 0), item(25, 0, 0), item(7, 6, 0)], [null, item(168, 2, 3), item(111, 0, 2)]];
+  const small = { ...item(12, 4, 0), subParts: [{ type: 0, gridSave: leftover }] };
+  const belt = { ...item(168), subParts: [{ type: 0, gridSave: [[-4, -4, -4, -4, small, small], [-4, -4, -4, -4, small, small]] }] };
+  const worn = parsePlayer(player({ myEquips: [-4, -4, -4, -4, -4, -4, -4, -4, -4, belt] }));
+  assert(worn.inventory?.state === "saved");
+  const beltContents = worn.inventory.items[0].contents[0];
+  assert(beltContents.state === "saved" && !beltContents.note);
+  assertEquals(beltContents.items.map((i) => [i.index, i.contents]), [[12, [{ state: "saved", items: [], note: NESTED_NOTE }]]]);
 });
 
 Deno.test("inventory: not rolled, absent, and empty are distinct", () => {
@@ -51,7 +61,7 @@ Deno.test("inventory: game-saved wrong origins recover by occupied cells with a 
   assert(parsed.state === "saved");
   assertEquals(parsed.items.map((i) => i.index), [12, 130]);
   assert(parsed.note?.includes("inconsistent"));
-  assertEquals(parsed.items[0].contents[0].state, "unavailable");
+  assertEquals(parsed.items[0].contents[0], { state: "saved", items: [], note: NESTED_NOTE });
   const outOfBounds = parseInventoryGrid([[item(3, 10)]]);
   assert(outOfBounds.state === "saved");
   assertEquals(outOfBounds.items.length, 1);
@@ -64,7 +74,13 @@ Deno.test("inventory: game-saved wrong origins recover by occupied cells with a 
 
 Deno.test("inventory: corrupt grids and item records are explicit errors", async () => {
   await assertRejects(() => parseInventoryGrid([[-4], []]), /Ragged/);
-  await assertRejects(() => parseInventoryGrid([[null]]), /cell/);
+  // The game passes over undefined cells (null in the file) as it does empty ones (item_recreate_grid).
+  assertEquals(parseInventoryGrid([[null, -4], [item(3, 0, 1), -4]]), {
+    state: "saved",
+    items: [{ index: 3, amount: 1, durability: 81, wet: 0.25, contents: [] }],
+  });
+  await assertRejects(() => parseInventoryGrid([["junk"]]), /cell/);
+  await assertRejects(() => parseInventoryGrid([[{ ...item(3), X: 0.5 }]]), /cell/);
   await assertRejects(() => parseItemList([{ index: 3, amount: "many" }]), /item/);
   await assertRejects(() => parseItemList([{ ...item(), wet: Infinity }]), /wet/);
 });
@@ -133,10 +149,7 @@ Deno.test("manual containers: malformed inventory retains its marker and does no
       y: 40,
       index: 108,
       status: -211,
-      gridSave: [[{
-        ...item(12),
-        subParts: [{ type: 0, gridSave: [[null]] }],
-      }]],
+      gridSave: [["junk"]],
     },
     { x: 72, y: 40, index: 31, status: -216, gridSave: [[item(72)]] },
   ];

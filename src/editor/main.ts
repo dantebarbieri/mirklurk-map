@@ -38,6 +38,7 @@ import {
 import {
   addable,
   addItems,
+  type Bag,
   carriedBags,
   type CarriedItem,
   carriedItems,
@@ -46,8 +47,9 @@ import {
   freeSlots,
   freeSlotsFor,
   itemAt,
+  moveItem,
   removeItem,
-  takeOff,
+  roomFor,
   wearCarried,
   wearNew,
 } from "./items.ts";
@@ -98,6 +100,8 @@ const mapPrefs: State["prefs"] = {
   realistic: false,
   treeMin: 0,
 };
+/** The folder open is the dev server's throwaway copy (devOpen), not a real save. */
+let devCopy = false;
 
 const playerPath = () => `${session!.character.root}Player.save`;
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -122,6 +126,7 @@ async function openFolder() {
   const picker = globalThis as WritablePicker;
   try {
     dir = await picker.showDirectoryPicker!({ mode: "readwrite", id: "mirklurk-saves" });
+    devCopy = false;
   } catch (e) {
     if ((e as DOMException).name !== "AbortError") status(`Could not open the folder: ${errorText(e)}`, true);
     return;
@@ -663,7 +668,7 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
     await editPlayer("items", (rec) => {
       const r = addItems(rec, index, n);
       left = r.left;
-      return r.added ? `Added ${r.added} × ${ITEM_NAMES[index]}` : undefined;
+      return r.added ? `Added ${r.added} × ${ITEM_NAMES[index]}${r.turned ? " (some turned sideways to fit)" : ""}` : undefined;
     });
     if (left) {
       note("items", `${left} × ${ITEM_NAMES[index]} did not fit in your bags. Make room in the game or carry a bigger bag first.`, true);
@@ -770,7 +775,23 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
     const howMany = c.amount > 1 ? numberInput(c.amount, 1, c.amount) : null;
     howMany?.setAttribute("aria-label", `How many ${name} to remove`);
     const from = holder ? ` from ${holder}` : ` (worn: ${slotLabel(c.place.slot)})`;
-    const wearable = holder !== undefined && orNone(() => freeSlotsFor(p, c.index)).length > 0;
+    // Where it can go: worn containers with room for it, and a free slot it fits.
+    const wearIn = holder !== undefined ? orNone(() => freeSlotsFor(p, c.index))[0] : undefined;
+    const choices = [
+      ...orNone(() => roomFor(p, c.place, c.index)).map((b) =>
+        h("option", { value: `in:${b.slot}:${b.part}` }, `${holder === undefined ? "Take off into" : "Into"} ${bagLabel(b)}`)
+      ),
+      wearIn === undefined ? null : h("option", { value: "wear" }, `Wear it (${slotLabel(wearIn)})`),
+    ].filter((o) => o !== null);
+    const moveTo = choices.length
+      ? h(
+        "select",
+        { class: "move-to", "aria-label": `Where to move ${name}` },
+        h("option", { value: "" }, "Move to…"),
+        choices,
+      ) as HTMLSelectElement
+      : null;
+    const sizes = holder === undefined ? orNone(() => carriedBags(p)).filter((b) => b.slot === c.place.slot) : [];
     return h(
       "li",
       {},
@@ -780,25 +801,19 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
         name,
         c.amount > 1 ? ` ×${c.amount}` : "",
         holder ? null : h("span", { class: "muted" }, ` ${slotLabel(c.place.slot)}`),
+        sizes.map((b) => h("span", { class: "muted" }, ` · ${bagRoom(b)}`)),
         changed ? [" ", h("span", { class: "tag" }, "unsaved")] : null,
       ),
       h(
         "span",
         { class: "carried-controls" },
-        holder === undefined
+        moveTo,
+        moveTo
           ? h("button", {
             type: "button",
             class: "button subtle small",
-            title: "Put it in the first free spot of your other bags",
-            onclick: act("items", () => takeOffWorn(c)),
-          }, "Take off")
-          : wearable
-          ? h("button", {
-            type: "button",
-            class: "button subtle small",
-            title: "Put it on, in a free equipment slot it fits",
-            onclick: act("items", () => wearFromBag(c, from)),
-          }, "Wear")
+            onclick: act("items", () => moveCarried(c, moveTo.value, from)),
+          }, "Move")
           : null,
         howMany,
         h("button", {
@@ -819,23 +834,43 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
     h(
       "p",
       { class: "muted small" },
-      "Take off puts a worn item in your other bags; Wear puts a carried one on, in a free slot it fits, as the game allows. Remove " +
-        "deletes an item from the save; a container goes with everything in it. Items tagged unsaved come from unsaved changes, which " +
-        "you can also undo from the list at the bottom.",
+      "Move to lists the containers you wear that have room for an item (upright, or turned sideways), and a free slot it fits. " +
+        "A container moves only when empty: the game empties one kept inside another when it loads. Remove deletes an item from the " +
+        "save; a container goes with everything in it. Items tagged unsaved come from unsaved changes, which you can also undo from " +
+        "the list at the bottom.",
     ),
   );
+}
+
+/** A worn container's name, with its slot when it is not the obvious one. */
+const bagLabel = (b: Bag) => `${itemName(b.owner)} (${slotLabel(b.slot)})`;
+/** A container's size and free cells. */
+const bagRoom = (b: Bag) => {
+  const free = b.grid.flat().filter((cell) => cell === -4).length;
+  return `${b.grid[0].length}×${b.grid.length}, ${free === 1 ? "1 free cell" : `${free} free cells`}`;
+};
+
+/** Moves a carried or worn item where its Move to list says: into a worn container, or on (wearing it). */
+async function moveCarried(c: CarriedItem, choice: string, from: string) {
+  const name = itemName(c.index);
+  if (choice === "wear") return wearFromBag(c, from);
+  const m = /^in:(\d+):(\d+)$/.exec(choice);
+  if (!m) throw new Error(`Choose where to move ${name}`);
+  const to = { slot: Number(m[1]), part: Number(m[2]) };
+  const { place, index } = c;
+  await editPlayer("items", (rec) => {
+    const amount = Number(itemAt(rec, place)?.amount ?? 1);
+    const into = carriedBags(rec).find((b) => b.slot === to.slot && b.part === to.part);
+    const r = moveItem(rec, place, index, to);
+    return `Moved ${amount > 1 ? `${amount} × ` : ""}${name}${from} into ${into ? itemName(into.owner) : "a container"}` +
+      (r.sideflipped ? ", turned sideways" : "");
+  });
 }
 
 /** Puts a carried item on, in the first free slot it fits. */
 async function wearFromBag(c: CarriedItem, from: string) {
   const { place, index } = c;
   await editPlayer("items", (rec) => `Put on ${itemName(index)}${from} (${slotLabel(wearCarried(rec, place, index))})`);
-}
-
-/** Takes a worn item off, into the first free spot of the other bags. */
-async function takeOffWorn(c: CarriedItem) {
-  const { place: { slot }, index } = c;
-  await editPlayer("items", (rec) => `Took off ${itemName(index)} (${slotLabel(slot)}) into ${itemName(takeOff(rec, slot, index))}`);
 }
 
 /** Removes some or all of a carried item; a container with things in it asks first. */
@@ -1412,7 +1447,8 @@ function wire() {
     else expanded.delete(d.dataset.remember);
   }, true);
   addEventListener("beforeunload", (e) => {
-    if (session?.changes.length) e.preventDefault();
+    // A dev copy (devOpen) is a throwaway copy in this browser, so only a real save folder asks before leaving.
+    if (session?.changes.length && !devCopy) e.preventDefault();
   });
 }
 
@@ -1459,6 +1495,7 @@ async function devOpen(name: string, fresh: boolean) {
     for (const path of list.filter((p) => p.endsWith("/Containers.save"))) await touch(path);
   }
   dir = root;
+  devCopy = true;
   await openCharacter(0);
 }
 

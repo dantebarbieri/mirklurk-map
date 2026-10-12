@@ -26,8 +26,10 @@ import {
   freeSlotsFor,
   isTwoHandedMelee,
   itemAt,
+  moveItem,
   newItem,
   removeItem,
+  roomFor,
   SLOT_TAKES,
   takeOff,
   wearCarried,
@@ -223,7 +225,7 @@ Deno.test("adding reports what does not fit and refuses nonsense", () => {
   assertEquals(addItems(none, 72, 3), { added: 0, left: 3 }, "no containers carried");
 });
 
-Deno.test("carried items are listed by slot and container, nested containers included", () => {
+Deno.test("carried items are listed by slot and container; a bag kept in a bag holds nothing", () => {
   const grid = empty(4, 2);
   grid[0][0] = cell(72, 18, 0, 0);
   const inner = empty(4, 2);
@@ -241,9 +243,9 @@ Deno.test("carried items are listed by slot and container, nested containers inc
     [72, 18, [{ part: 0, x: 0, y: 0 }]],
     [13, 1, [{ part: 0, x: 2, y: 0 }]],
   ]);
-  assertEquals(worn.contents[1].contents.map((c) => [c.index, c.amount]), [[72, 5]]);
-  assertEquals(countInside(worn), 3);
-  assertEquals(itemAt(p, worn.contents[1].contents[0].place)?.amount, 5);
+  assertEquals(worn.contents[1].contents, [], "the game empties a bag kept inside another when it loads");
+  assertEquals(countInside(worn), 2);
+  assertEquals(itemAt(p, worn.contents[0].place)?.amount, 18);
 });
 
 Deno.test("removing items empties every cell they cover and keeps every copy of their containers the same", () => {
@@ -257,18 +259,15 @@ Deno.test("removing items empties every cell they cover and keeps every copy of 
   const p = player(grid);
   const g = carriedBags(p)[0].grid as Rec[][];
   const stack = { slot: 1, path: [{ part: 0, x: 0, y: 0 }] };
-  const nested = { slot: 1, path: [{ part: 0, x: 2, y: 0 }, { part: 0, x: 0, y: 0 }] };
 
   assertEquals(removeItem(p, stack, 72, 3), { removed: 3, inside: 0 });
   assertEquals(g[0][0].amount, 15, "part of a stack");
-  assertEquals(removeItem(p, nested, 72, 2), { removed: 2, inside: 0 });
-  const innerOf = (c: Rec) => ((c.subParts as Rec[])[0].gridSave as Rec[][])[0][0].amount;
-  assertEquals([innerOf(g[0][2]), innerOf(g[0][3])], [3, 3], "both cells of the inner pouch hold the same contents");
-  assertThrows(() => removeItem(p, nested, 72, 4), /only 3/);
+  assertThrows(() => removeItem(p, stack, 72, 16), /only 15/);
   assertThrows(() => removeItem(p, stack, 13, 1), /no longer there/);
   assertThrows(() => removeItem(p, stack, 72, 0), /Amount/);
 
-  assertEquals(removeItem(p, { slot: 1, path: [{ part: 0, x: 2, y: 0 }] }, 13, "all"), { removed: 1, inside: 1 });
+  const innerPouch = { slot: 1, path: [{ part: 0, x: 2, y: 0 }] };
+  assertEquals(removeItem(p, innerPouch, 13, "all"), { removed: 1, inside: 0 }, "a bag in a bag holds nothing to take with it");
   assertEquals([g[0][2], g[0][3]], [E, E], "every cell the inner pouch covered is empty");
   assertEquals(removeItem(p, stack, 72, "all"), { removed: 15, inside: 0 });
   assertEquals(freeCells(p), 8);
@@ -353,13 +352,78 @@ Deno.test("equipment: a two-handed weapon fills the off hand, comes off into a b
   assertThrows(() => wearCarried(p, inPack.place, 29), /no longer there/);
 });
 
-Deno.test("equipment: taking off needs room in another bag; a backpack never goes into itself", () => {
+Deno.test("equipment: taking off needs room in another bag, and a container must be empty first", () => {
   const full = empty(4, 2).map((row, y) => row.map((_, x) => cell(72, 20, x, y)));
   const p = dressed({ 8: backpack(), 9: cell(13, 1, E, E, { subParts: [{ type: 0, parentIndex: 13, gridSave: full }] }) });
   assertThrows(() => takeOff(p, 8, 12), /no room/);
-  assertEquals(takeOff(p, 9, 13), 12, "the full pouch goes into the backpack, coins and all");
-  const pouch = carriedItems(p)[0].contents[0];
-  assertEquals([pouch.index, pouch.contents.length], [13, 8]);
+  assertThrows(() => takeOff(p, 9, 13), /Take everything out of/);
+  for (const c of carriedItems(p).find((c) => c.index === 13)!.contents) moveItem(p, c.place, 72, { slot: 8, part: 0 });
+  assertEquals(takeOff(p, 9, 13), 12, "empty, it goes into the backpack");
+  assertEquals(carriedItems(p)[0].contents.map((c) => c.index), [72, 72, 72, 72, 72, 72, 72, 13, 72], "filled column by column");
+});
+
+Deno.test("moving items between worn containers: only where they fit, upright first, then turned sideways", () => {
+  const pack = empty(7, 5);
+  for (let y = 0; y < 4; y++) pack[y][0] = cell(8, 1, 0, 0);
+  pack[0][1] =
+    pack[0][2] =
+    pack[1][1] =
+    pack[1][2] =
+      cell(25, 1, 1, 0);
+  const pouch = cell(13, 1, E, E, { subParts: [{ type: 0, parentIndex: 13, gridSave: empty(4, 2) }] });
+  const p = dressed({ 8: backpack(pack), 9: pouch });
+  const spear = { slot: 8, path: [{ part: 0, x: 0, y: 0 }] }, bread = { slot: 8, path: [{ part: 0, x: 1, y: 0 }] };
+  assertEquals(roomFor(p, spear, 8).map((b) => b.owner), [13], "a 1×4 spear fits the 4×2 pouch only sideways");
+  assertEquals(moveItem(p, spear, 8, { slot: 9, part: 0 }), { sideflipped: true });
+  const g = carriedBags(p).find((b) => b.slot === 9)!.grid as Rec[][];
+  assertEquals(g[0].map((c) => [c.index, c.X, c.Y, c.sideflipped]), Array(4).fill([8, 0, 0, true]));
+  assertEquals(g[1] as unknown[], [E, E, E, E]);
+  const parsed = parseInventoryGrid(g);
+  assert(parsed.state === "saved" && parsed.items.length === 1 && !parsed.note, "the viewer reads it back");
+
+  assertEquals(roomFor(p, bread, 25), [], "a 2×2 loaf has no room left in the pouch");
+  assertThrows(
+    () => moveItem(p, bread, 25, { slot: 9, part: 0 }),
+    /needs a free 2×2 space/,
+  );
+  assertThrows(() => moveItem(p, bread, 25, { slot: 8, part: 0 }), /already in/);
+  const wornPouch = { slot: 9, path: [] };
+  assertEquals(roomFor(p, wornPouch, 13), [], "a container with things in it stays worn");
+  assertThrows(() => moveItem(p, wornPouch, 13, { slot: 8, part: 0 }), /Take everything out of/);
+  assertThrows(() => moveItem(p, { slot: 8, path: [] }, 12, { slot: 8, part: 0 }), /inside itself/);
+
+  assertEquals(moveItem(p, { slot: 9, path: [{ part: 0, x: 0, y: 0 }] }, 8, { slot: 8, part: 0 }), { sideflipped: false });
+  assertEquals(moveItem(p, wornPouch, 13, { slot: 8, part: 0 }), { sideflipped: false }, "emptied, the pouch goes in the pack");
+  assertEquals((p.myEquips as unknown[])[9], E);
+  assertEquals(carriedItems(p)[0].contents.map((c) => c.index), [8, 25, 13]);
+});
+
+Deno.test("adding turns an item sideways only when it does not fit upright anywhere", () => {
+  const p = player(empty(4, 2));
+  assertEquals(addItems(p, 8, 1), { added: 1, left: 0, turned: true }, "a 1×4 spear in a 4×2 pouch");
+  const g = carriedBags(p)[0].grid as Rec[][];
+  assertEquals(g[0].map((c) => [c.X, c.Y, c.sideflipped]), Array(4).fill([0, 0, true]));
+  assertEquals(addItems(p, 72, 3), { added: 3, left: 0 }, "a coin fits upright");
+});
+
+Deno.test("wearing a bag kept inside another gives it an empty inventory, as the game had it", () => {
+  // A leftover grid as a real save had it: a freed item written as null, and cells naming other origins.
+  const leftover = [[cell(25, 1, 2, 0), cell(7, 1, 6, 0)], [null, cell(168, 1, 2, 3)]];
+  const small = cell(12, 1, 2, 0, { subParts: [{ type: 0, parentIndex: 12, gridSave: leftover, weight: 3 }] });
+  const belt = empty(8, 2);
+  belt[0][2] =
+    belt[0][3] =
+    belt[1][2] =
+    belt[1][3] =
+      small;
+  const p = dressed({ 9: cell(168, 1, E, E, { subParts: [{ type: 0, parentIndex: 168, gridSave: belt }] }) });
+  const [worn] = carriedItems(p);
+  assertEquals(worn.contents.map((c) => [c.index, c.contents]), [[12, []]]);
+  assertEquals(wearCarried(p, worn.contents[0].place, 12), 8);
+  const part = ((p.myEquips as Rec[])[8].subParts as Rec[])[0];
+  assertEquals([part.gridSave, part.weight], [empty(7, 5), 0]);
+  assertEquals(freeCells(p), 16 + 35);
+  assertEquals(parsePlayer([p]).inventory?.state, "saved");
 });
 
 Deno.test("spawned creatures have a fresh grid; quest characters are protected", () => {
