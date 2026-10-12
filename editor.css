@@ -340,6 +340,50 @@ body.map-move .map-bar label {
   gap: 6px;
 }
 
+/* Hit points as buttons (health.ts healthGridPicker): bigger cells to aim at, the picked one ringed in gold. */
+.hp-picker {
+  --hp-cell: 26px;
+}
+.hp-picker .hp-grid {
+  gap: 6px;
+}
+.hp-pick {
+  display: block;
+  width: var(--hp-cell);
+  height: var(--hp-cell);
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.hp-pick:hover .hp-cell {
+  filter: brightness(1.2);
+}
+.hp-pick[aria-pressed="true"],
+.hp-pick:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.hp-picked {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid var(--gold2);
+  border-radius: 4px;
+}
+.hp-picked h4 {
+  margin-top: 0;
+}
+.edit-card select {
+  padding: 2px 4px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
 .savebar {
   position: fixed;
   left: 0;

@@ -125,8 +125,17 @@ export interface WellbeingChange {
   parts: WellbeingPart[];
 }
 
-/** Effect indices in aeList (UI.ini [AEs]) that change wellbeing directly. */
-const Ae = { Sickness1: 17, Sickness3: 19, VeryOverburdened: 25, ExtremelyOverburdened: 26 } as const;
+/** Effect indices in aeList (UI.ini [AEs]) that change wellbeing directly or last a number of turns. */
+export const Ae = {
+  Sickness1: 17,
+  Sickness3: 19,
+  WarmToTheCore: 20,
+  WellFed: 21,
+  WellRested: 22,
+  VeryOverburdened: 25,
+  ExtremelyOverburdened: 26,
+  StaminaBoost: 29,
+} as const;
 const ROMAN = ["I", "II", "III"];
 
 /** The worst sickness in aeList: 1–3, or 0. */
@@ -206,16 +215,29 @@ export const CONDITIONS: Readonly<Record<number, ConditionInfo>> = {
 
 export interface Condition extends ConditionInfo {
   index: number;
-  /** Turns left, for effects whose timer is saved (sickTime, warmthTime, restedTime). */
+  /** Turns left, for effects whose timer is saved (TIMERS). */
   turns?: number;
 }
 
+/** The saved timers, in Player.save's keys; each player_endturn counts them down by one and drops the condition at 0. */
+export type TimerKey = "sickTime" | "warmthTime" | "fedTime" | "restedTime" | "staminaBoostTime";
+
+/** Which timer each lasting condition runs on (the numbers on its icon, gml_Object_UI_Draw_64); sickness I–III share one. */
+export const TIMERS: Readonly<Record<number, TimerKey>> = {
+  [Ae.Sickness1]: "sickTime",
+  18: "sickTime",
+  [Ae.Sickness3]: "sickTime",
+  [Ae.WarmToTheCore]: "warmthTime",
+  [Ae.WellFed]: "fedTime",
+  [Ae.WellRested]: "restedTime",
+  [Ae.StaminaBoost]: "staminaBoostTime",
+};
+
 /** The saved aeList as conditions, in the order they were gained. */
-export function conditionsOf(p: Pick<PlayerSave, "effects" | "sickTime" | "warmthTime" | "restedTime">): Condition[] {
-  const timer = (i: number) => i >= Ae.Sickness1 && i <= Ae.Sickness3 ? p.sickTime : i === 20 ? p.warmthTime : i === 22 ? p.restedTime : 0;
+export function conditionsOf(p: Pick<PlayerSave, "effects" | TimerKey>): Condition[] {
   return [...new Set(p.effects)].map((index) => {
     const info: ConditionInfo = CONDITIONS[index] ?? { label: `Condition ${index}`, tone: "info" };
-    const t = timer(index);
+    const t = TIMERS[index] ? p[TIMERS[index]] : 0;
     return { index, ...info, ...(t > 0 ? { turns: Math.ceil(t) } : {}) };
   });
 }

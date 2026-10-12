@@ -11,30 +11,50 @@ import { cheatedInfo, knownCheated } from "../cheated.ts";
 import { isSaveFile, markerText } from "../marker.ts";
 import { type Being, decodeJson, parseBeings, parsePlaced, parsePlayer, type PlayerSave } from "../save.ts";
 import { type Interior, interiorsOf, loadDetail, loadHeights, loadLayer, loadTrees, loadWorld, type World, type Zone } from "../world.ts";
-import { MAX_LEVEL, percent, playerView, STAT_LABELS, temperatureLabel, xpForLevel } from "../player.ts";
+import {
+  CONDITIONS,
+  MAX_LEVEL,
+  percent,
+  playerView,
+  sicknessLevel,
+  STAT_LABELS,
+  temperatureLabel,
+  wetClothes,
+  xpForLevel,
+} from "../player.ts";
 import { creatureView } from "../creature.ts";
 import { Coin, coinsView, countCoins } from "../coins.ts";
 import { coordLabel, INTERIOR_NAMES, isOutside, TILES } from "../rules.ts";
 import { spriteBox } from "../predict.ts";
 import { BEINGS, targetsYou } from "../bestiary.ts";
-import { healthText } from "../health.ts";
+import { BLEED_DIRS, cellKind, cellPlace, cellTitle, healthGridPicker, parseHealth } from "../health.ts";
 import { formatClock, parseSky, Weather, WEATHER_LABELS, weatherKind, type WeatherState } from "../weather.ts";
 import { type Backup, canEdit, type Edit, type EditDirectory, EditSession, listBackups, type WritablePicker } from "./session.ts";
 import {
+  type ConditionsEdit,
   healPlayer,
+  type HitPointStatus,
+  hitPointStatus,
   insideOf,
   isInside,
   MAX_DAY,
   MAX_SKILL_POINTS,
+  MAX_STACKS,
+  MAX_TURNS,
   MIN_RAIN,
   playerRecord,
   type Rec,
+  setConditions,
+  setHitPointStatus,
   setLevel,
   setNewHitPoints,
   setSkillPoints,
   setSky,
+  setStunned,
   setVitals,
   type SkyEdit,
+  TIMED,
+  type Timed,
   type VitalsEdit,
 } from "./edits.ts";
 import {
@@ -125,6 +145,8 @@ let area: Area | undefined;
 let tool: Tool = "inspect";
 let spawnIndex = Number(Object.keys(BEINGS).find((i) => spawnable(Number(i))));
 let selected: number | undefined;
+/** The hit point picked in the Hit points card, [x, y]. */
+let hpPick: [number, number] | undefined;
 /** Open sections of the preview, once the user has opened or closed one. */
 let expanded: Set<string> | undefined;
 const notes = new Map<string, { text: string; error?: boolean }>();
@@ -198,6 +220,7 @@ async function openCharacter(i: number, keepArea = false) {
     if (!keepArea || !area) area = playerArea(loaded.player);
     else area = sameArea(area);
     selected = undefined;
+    hpPick = undefined;
     forgetMapImages();
     showCharacters();
     document.body.classList.add("loaded");
@@ -246,6 +269,7 @@ async function reloadSave() {
       cheated = marked;
       area = area ? sameArea(area) : playerArea(loaded.player);
       selected = undefined;
+      hpPick = undefined;
       savedRecords.delete(s);
       forgetMapImages();
       showCharacters();
@@ -456,6 +480,8 @@ async function render() {
     const saved = await savedPlayer(s).catch(() => undefined);
     cards.push(
       characterCard(v),
+      hitPointsCard(v, p),
+      conditionsCard(v, p),
       skyCard(p),
       itemsCard(v, p, saved),
       await mapCard(v, p),
@@ -574,7 +600,7 @@ function characterCard(v: PlayerSave): HTMLElement {
   });
   return card(
     "character",
-    "Level, points, health and wellbeing",
+    "Level, points and wellbeing",
     field(
       "Level",
       level,
@@ -617,19 +643,6 @@ function characterCard(v: PlayerSave): HTMLElement {
         });
       }),
     ),
-    h("h4", {}, "Health"),
-    h("p", {}, v.health ? healthText(v.health) : "Hit points were not saved."),
-    h("button", {
-      type: "button",
-      class: "button subtle",
-      onclick: act("character", () =>
-        editPlayer("character", (p) => {
-          const before = JSON.stringify([p.hpgrid, p.statusgrid]);
-          const n = healPlayer(p);
-          if (JSON.stringify([p.hpgrid, p.statusgrid]) === before) return undefined;
-          return `Healed ${n === 1 ? "1 hit point" : `${n} hit points`} and cleared poison, bleeding and stun`;
-        })),
-    }, "Heal all wounds"),
     h("h4", {}, "Wellbeing and stats"),
     vitals ? vitalRows : h("p", { class: "muted" }, "This save does not record wellbeing."),
     vitals
@@ -659,11 +672,234 @@ function characterCard(v: PlayerSave): HTMLElement {
         }),
       }, "Apply wellbeing and stats")
       : null,
-    h("p", { class: "muted small" }, "Conditions such as sickness or exhaustion keep affecting wellbeing until they run out."),
+    h(
+      "p",
+      { class: "muted small" },
+      "Sickness, warm to the core, well rested and overburdening keep changing wellbeing each turn (see Conditions).",
+    ),
   );
 }
 
 const describeVital = (key: keyof VitalsEdit, v: number) => key === "warmth" ? `${percent(v)} ${temperatureLabel(v)}` : percent(v);
+
+const bleedText = (s: HitPointStatus) => s.bleed ? `${s.bleed} spreading ${BLEED_DIRS[s.dir]}` : "0";
+
+/** The player's hit points: pick one to set its poison and bleeding; stun, and heal every wound. */
+function hitPointsCard(v: PlayerSave, p: Rec): HTMLElement {
+  const g = v.health;
+  if (!g) return card("health", "Hit points and their statuses", h("p", { class: "muted" }, "Hit points were not saved."));
+  if (hpPick && cellKind(g.cells[hpPick[1]]?.[hpPick[0]] ?? { hp: -4, poison: 0, bleed: [0, 0, 0, 0] }) === "none") hpPick = undefined;
+  const pick = (x: number, y: number) => {
+    hpPick = [x, y];
+    const next = hitPointsCard(v, p);
+    el.replaceWith(next);
+    next.querySelector<HTMLElement>(".hp-pick[aria-pressed='true']")?.focus();
+  };
+  const stunTo = !g.stunned;
+  const el = card(
+    "health",
+    "Hit points and their statuses",
+    healthGridPicker(g, hpPick, pick),
+    hpPick ? pickedView(hpPick[0], hpPick[1]) : h("p", { class: "muted small" }, "Pick a hit point to set its poison and bleeding."),
+    h(
+      "p",
+      { class: "item-actions" },
+      h("button", {
+        type: "button",
+        class: "button subtle",
+        title: stunTo ? "Stunned by a blunt blow: you miss your next turn" : "You no longer miss your next turn",
+        onclick: act("health", () =>
+          editPlayer("health", (rec) => {
+            const from = parseHealth(rec.hpgrid, rec.statusgrid)?.stunned;
+            setStunned(rec, stunTo);
+            return from === stunTo ? undefined : stunTo ? "Stunned: you miss your next turn" : "No longer stunned";
+          })),
+      }, stunTo ? "Stun" : "Remove stun"),
+      h("button", {
+        type: "button",
+        class: "button subtle",
+        onclick: act("health", () =>
+          editPlayer("health", (rec) => {
+            const before = JSON.stringify([rec.hpgrid, rec.statusgrid]);
+            const n = healPlayer(rec);
+            if (JSON.stringify([rec.hpgrid, rec.statusgrid]) === before) return undefined;
+            return `Healed ${n === 1 ? "1 hit point" : `${n} hit points`} and cleared poison, bleeding and stun`;
+          })),
+      }, "Heal all wounds"),
+    ),
+    h(
+      "p",
+      { class: "muted small" },
+      "At the end of each turn a poisoned or bleeding hit point is lost, armor or not, and its other stacks move on: poison to a " +
+        "random living hit point beside it, bleeding to the next one the way it spreads. Only living hit points take them. Heal all " +
+        "wounds restores lost and burned hit points and clears every status; armor stays.",
+    ),
+  );
+  return el;
+
+  function pickedView(x: number, y: number): HTMLElement {
+    const c = g!.cells[y][x];
+    const now = hitPointStatus(p, x, y);
+    const alive = c.hp >= 1;
+    const locked = !alive && !now.poison && !now.bleed;
+    const poison = numberInput(now.poison, 0, MAX_STACKS);
+    const bleed = numberInput(now.bleed, 0, MAX_STACKS);
+    const dir = h(
+      "select",
+      { "aria-label": "The way the bleed spreads" },
+      BLEED_DIRS.map((d, i) => h("option", { value: i, selected: i === now.dir }, `spreading ${d}`)),
+    ) as HTMLSelectElement;
+    for (const input of [poison, bleed, dir]) input.disabled = locked;
+    const apply = act("health", () => {
+      const to: HitPointStatus = {
+        poison: readWhole(poison, "Poison stacks"),
+        bleed: readWhole(bleed, "Bleeding stacks"),
+        dir: Number(dir.value),
+      };
+      return editPlayer("health", (rec) => {
+        const from = hitPointStatus(rec, x, y);
+        setHitPointStatus(rec, x, y, to);
+        const after = hitPointStatus(rec, x, y);
+        const changes = [
+          from.poison !== after.poison ? `poison ${from.poison} → ${after.poison}` : "",
+          bleedText(from) !== bleedText(after) ? `bleeding ${bleedText(from)} → ${bleedText(after)}` : "",
+        ].filter(Boolean);
+        return changes.length ? `Hit point at ${cellPlace(x, y)}: ${changes.join(", ")}` : undefined;
+      });
+    });
+    return h(
+      "div",
+      { class: "hp-picked" },
+      h("h4", {}, `Hit point at ${cellPlace(x, y)}`),
+      h("p", { class: "small" }, cellTitle(c)),
+      field("Poison stacks", poison),
+      field("Bleeding stacks", bleed, dir),
+      locked ? h("p", { class: "muted small" }, "Lost and burned hit points take no poison or bleeding.") : null,
+      h("button", { type: "button", class: "button subtle", disabled: locked, onclick: apply }, "Apply to this hit point"),
+    );
+  }
+}
+
+const ROMAN = ["I", "II", "III"];
+const turnsText = (t: number) => `${Number.isInteger(t) ? t : t.toFixed(1)} ${t === 1 ? "turn" : "turns"}`;
+const timedText = (t: number) => (t > 0 ? turnsText(t) : "off");
+const sickText = (level: number, turns: number) => (level ? `${ROMAN[level - 1]} for ${turnsText(turns)}` : "none");
+/** The game's average sickness from bad food: i_r(20, 32) turns times the level (player_get_sickness). */
+const SICK_TURNS = 26;
+
+/** Lasting conditions: sickness and its level, warm to the core, well fed, well rested and stamina boosts, with their turns. */
+function conditionsCard(v: PlayerSave, p: Rec): HTMLElement {
+  const sickLevel = sicknessLevel(v.effects);
+  const sickShown = Math.ceil(v.sickTime);
+  const sickTurns = numberInput(sickShown, 0, MAX_TURNS);
+  sickTurns.disabled = !sickLevel;
+  const level = h(
+    "select",
+    {
+      "aria-label": "Sickness",
+      onchange: () => {
+        const l = Number(level.value);
+        sickTurns.disabled = !l;
+        if (l && !(Number(sickTurns.value) > 0)) sickTurns.value = String(SICK_TURNS * l);
+      },
+    },
+    h("option", { value: 0, selected: !sickLevel }, "None"),
+    [1, 2, 3].map((l) =>
+      h("option", { value: l, selected: sickLevel === l }, `${CONDITIONS[16 + l].label} (${CONDITIONS[16 + l].effect})`)
+    ),
+  ) as HTMLSelectElement;
+  const rows = (Object.entries(TIMED) as [Timed, typeof TIMED[Timed]][]).map(([k, t]) => {
+    const shown = Math.ceil(v[t.key]);
+    return { k, t, shown, input: numberInput(shown, 0, t.max) };
+  });
+  const apply = act("conditions", () => {
+    // Only what was changed here, so the edit keeps the rest of the draft as it is, also when it runs again after an undo or a reload.
+    const e: ConditionsEdit = {};
+    const l = Number(level.value);
+    const turns = l ? readWhole(sickTurns, "Turns of sickness") : 0;
+    if (l !== sickLevel || (l && turns !== sickShown)) e.sickness = { level: l, turns };
+    for (const { k, t, shown, input } of rows) {
+      const to = readWhole(input, `Turns of ${CONDITIONS[t.ae].label.toLowerCase()}`);
+      if (to !== shown) e[k] = to;
+    }
+    return editPlayer("conditions", (rec, raw) => {
+      const before = parsePlayer(raw);
+      const differ: ConditionsEdit = {};
+      const changes: string[] = [];
+      if (e.sickness) {
+        const from = sicknessLevel(before.effects), { level: lv, turns: n } = e.sickness;
+        if (from !== lv || before.sickTime !== n) {
+          differ.sickness = e.sickness;
+          changes.push(`Sickness ${sickText(from, before.sickTime)} → ${sickText(lv, n)}`);
+        }
+      }
+      for (const { k, t } of rows) {
+        const to = e[k];
+        if (to === undefined || before[t.key] === to) continue;
+        differ[k] = to;
+        changes.push(`${CONDITIONS[t.ae].label} ${timedText(before[t.key])} → ${timedText(to)}`);
+      }
+      setConditions(rec, differ);
+      return changes.length ? changes.join(", ") : undefined;
+    });
+  });
+  return card(
+    "conditions",
+    "Conditions",
+    field("Sickness", level),
+    field("Sickness lasts", sickTurns, "turns"),
+    rows.map(({ t, input }) =>
+      field(CONDITIONS[t.ae].label, input, "turns", h("span", { class: "muted small" }, CONDITIONS[t.ae].effect ?? ""))
+    ),
+    h("button", { type: "button", class: "button subtle", onclick: apply }, "Apply conditions"),
+    h(
+      "p",
+      { class: "muted small" },
+      "Each lasts the turns given; the game counts them down by one at the end of every turn and ends the condition at 0, so 0 " +
+        "removes it. Warm to the core runs down at half speed while you sleep in a Great Bedroll (a tenth in a Furhide Bedroll), and " +
+        "not at all beside a fire hot enough to warm you further. The game caps warm to the core, well fed and well rested at 35 turns.",
+    ),
+    h(
+      "p",
+      { class: "muted small" },
+      "Tiredness, overburdening, wading, shelter and the other conditions follow your stats, load and surroundings: the game sets " +
+        "them again every step, so they are not edited here.",
+    ),
+    wetView(v, p),
+  );
+}
+
+/** Wet clothes as the preview lists them, and Dry all (the same as under Items and coins). */
+function wetView(v: PlayerSave, p: Rec): HTMLElement[] {
+  const body = wetClothes(v.wetness);
+  const items = orNone(() => needing(p, "dry")).length;
+  const wet = body.length || items || bodyWet(p);
+  return [
+    h("h4", {}, "Wet clothes"),
+    h(
+      "p",
+      {},
+      wet
+        ? [
+          body.length ? `On your body: ${body.join(", ")}.` : bodyWet(p) ? "Your body is barely damp." : "Your body is dry.",
+          items ? ` ${items === 1 ? "1 item" : `${items} items`} you wear or carry ${items === 1 ? "is" : "are"} wet.` : "",
+        ]
+        : "You and everything you carry are dry.",
+    ),
+    h("button", {
+      type: "button",
+      class: "button subtle",
+      disabled: !wet,
+      onclick: act("conditions", () => upkeep("dry", "conditions")),
+    }, items ? `Dry all (${items})` : "Dry all"),
+    h(
+      "p",
+      { class: "muted small" },
+      "Wet clothes cool you toward 10% warmth each turn, and wet clothing soaks the body under it. Dry all dries both, as under " +
+        "Items and coins.",
+    ),
+  ];
+}
 
 function skyCard(p: Rec): HTMLElement {
   const sky = parseSky(p);
@@ -1100,8 +1336,8 @@ function upkeepView(p: Rec): HTMLElement {
   );
 }
 
-async function upkeep(what: Upkeep) {
-  await editPlayer("items", (rec) => {
+async function upkeep(what: Upkeep, cardId = "items") {
+  await editPlayer(cardId, (rec) => {
     if (what === "repair") {
       const list = repairAll(rec);
       return list.length ? `Repaired ${nameList(list)}` : undefined;

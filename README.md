@@ -298,13 +298,13 @@ you will distribute on your hit points when the next combat starts (the total ro
 **Armor by item** showing what each worn piece gives at its current durability. **Wellbeing** shows wellbeing and its four stats, Focus,
 Stamina, Satiation and Warmth (the game's word for body temperature; its bar marks the comfortable 40–60% band), each with what it does to
 wellbeing per turn, plus warm-to-the-core, well rested, sickness and overburdened bonuses or penalties and the net change. **Conditions and
-level** lists the active effects (sickness, well rested, overburdened, shelter, tired and so on) with turns left where the save records
-them, wet clothing, level, XP to the next level and unspent skill points. **Inventory** lists equipped items and bag contents like a
-container, each worn or held item marked **E** (with its slot on hover; dashed for the weapon set not in hand, since worn vests, pants and
-belts have pockets too), under a roll-up of every coin carried, bags included: **True coins** shows them as they are, **Minimum coins** the
-same value in the fewest coins (100 copper make a silver, 10 silver a gold). The choice is kept for the session and applies to every
-roll-up, including the one in **Saved equipment & inventory**. **Journal** shows your journal (see below). Everything is the state at save
-time; the game keeps changing it every turn.
+level** lists the active effects (sickness, well fed, well rested, stamina boost, overburdened, shelter, tired and so on) with turns left
+where the save records them, wet clothing, level, XP to the next level and unspent skill points. **Inventory** lists equipped items and bag
+contents like a container, each worn or held item marked **E** (with its slot on hover; dashed for the weapon set not in hand, since worn
+vests, pants and belts have pockets too), under a roll-up of every coin carried, bags included: **True coins** shows them as they are,
+**Minimum coins** the same value in the fewest coins (100 copper make a silver, 10 silver a gold). The choice is kept for the session and
+applies to every roll-up, including the one in **Saved equipment & inventory**. **Journal** shows your journal (see below). Everything is
+the state at save time; the game keeps changing it every turn.
 
 ### Journal
 
@@ -397,7 +397,22 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
 - **Level**: each level-up grants a skill point, and every third level a hit point to place (`obj_player` Step_1), so changing the level
   grants or takes back unspent ones (never below zero), and XP stays under the new level's threshold.
 - **Skill points** to spend, and **new hit points** to place.
-- **Health**: heals lost and burned hit points and clears poison, bleeding and stun; armor stays.
+- **Hit points and their statuses**: your grid, as the preview draws it, where clicking a hit point picks it to set its **poison** and
+  **bleeding** stacks and the way the bleed spreads, as `attack_lands` leaves them: one `statusgrid` entry per stack, a cell's bleeding all
+  spreading one way. Only living hit points take them (healthy, armored or not), as in the game; lost and burned ones are greyed out. At the
+  end of each turn `delayed_effects_check` takes a poisoned or bleeding hit point, armor or not, and moves its other stacks on: poison to a
+  random living neighbour, bleeding to the next hit point its way. **Stun** makes you miss your next turn (`apply_stunned` puts it on the
+  grid's first cell; the turn's end takes it away), and **Remove stun** takes it off. **Heal all wounds** heals lost and burned hit points
+  and clears poison, bleeding and stun; armor stays.
+- **Conditions**: **Sickness** None, I, II or III and its turns, and the turns left of **Warm to the core**, **Well fed**, **Well rested**
+  and **Stamina boost**; 0 turns removes one. Each is written as the game gives it: its `aeList` entry (`UI.ini` [AEs] 17–22 and 29) with
+  its timer (`sickTime`, `warmthTime`, `fedTime`, `restedTime`, `staminaBoostTime`), which `player_endturn` counts down by one a turn,
+  dropping the entry at 0. A new sickness level replaces the old one as `player_get_sickness` does, and curing sickness clears `sickTime`
+  too: the game reads a `sickTime` left without a level as a 16% wellbeing gain each turn. Warm to the core, well fed and well rested go up
+  to 35 turns (`global.COREMAX`, `FEDMAX`, `RESTEDMAX`; 36 for warm to the core, as a hot drink leaves it); sickness and stamina boosts add
+  up without a cap, so the editor stops at 999. Only the ones you change are written. Tiredness, overburdening, wading, shelter and the
+  other conditions are left out: the game sets them again every step from your stats, load and surroundings. **Wet clothes** says what is
+  wet, with the same **Dry all** as under Items.
 - **Wellbeing, satiation, focus, stamina and temperature**: each value and the target it eases towards. The game recomputes wellbeing from
   its 25×25 wellbeing grid every second (`obj_player` Step_0), so every cell of that grid is set as well.
 - **Time and weather**: day, time, Clear, Cloudy or Rain with its strength, and air temperature; only the ones you change are written. Cloud
@@ -611,8 +626,9 @@ end of a turn adds the sum to wellbeing, which stays between 0 and 100% (`gml_Ob
 game flags it as dangerously low (`gml_Object_obj_player_Step_0`). Temperature words are `temperature_get_label`
 (`gml_GlobalScript_scr_map_and_weather`). XP to the next level is `xp_to_lvl`: ⌊28 × 1.2^level ÷ 5⌋ × 5, up to level 60, with a new hit
 point every third level (`gml_Object_obj_player_Step_1`). Conditions are the saved `aeList`, indices into `UI.ini` [AEs], given short names
-here. The coin roll-up counts every coin in your equipment and bags; **Minimum coins** converts by value as `item_draw_cost`
-(`gml_GlobalScript_scr_items`) splits a price: 1 gold = 10 silver = 1,000 copper.
+here; sickness I–III, warm to the core, well fed, well rested and stamina boost show the turns left on their saved timers, as their icons do
+(`gml_Object_UI_Draw_64`). The coin roll-up counts every coin in your equipment and bags; **Minimum coins** converts by value as
+`item_draw_cost` (`gml_GlobalScript_scr_items`) splits a price: 1 gold = 10 silver = 1,000 copper.
 
 **Time and weather** (`src/weather.ts`). `manager_day` holds one clock and one sky for the whole world; `Player.save` stores them as
 `MDminute`, `MDday`, `MDtemperature`, `MDweather`, `MDcloud`, `MDrain` and `MDrainBalance` (`gml_GlobalScript_scr_saveload`), with no zone
