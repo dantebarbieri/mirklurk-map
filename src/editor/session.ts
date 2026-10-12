@@ -1,20 +1,25 @@
-// Save editor: one character folder opened for writing with the File System Access API (desktop Chrome and Edge). Edits change
-// parsed copies of the save files (drafts) until they are saved; reloading reads the folder again and runs them again on it. Saving
-// refuses if the game wrote the folder since it was read, keeps the replaced files in this browser as a backup, writes the Cheated
-// mark into MirkMap.json first and then each changed file the way save_datajson does: JSON and one NUL byte.
+// Save editor: one character's save, from wherever it was opened: a folder of the game's files (written with the File System Access
+// API, desktop Chrome and Edge), a world in My worlds (updated through the library API), or a copy (a .zip, a folder read without
+// write access, or what MirkMap handed over), which is downloaded or saved into the game's folder chosen then. Edits change parsed
+// copies of the save files (drafts) until they are saved; reloading reads the save again and runs them again on it. Saving refuses
+// if the save changed since it was read, keeps the replaced files in this browser as a backup, writes the Cheated mark into
+// MirkMap.json first and then each changed file the way save_datajson does: JSON and one NUL byte.
 
-import type { Character, FileMap } from "../files.ts";
+import { type Character, type FileMap, findCharacters, named } from "../files.ts";
 import { captureSnapshot, currentContainers, type LiveDirectory, type LiveFile, type Scan, scanDirectory } from "../live.ts";
 import { MARKER, markerPath, markerText } from "../marker.ts";
 import { BACKUP_STORE, editorDb, markCheated, rememberCheated, request } from "../cheated.ts";
 import { decodeJson, parsePlayer } from "../save.ts";
+import { MAX_UPLOAD, packSave, unpackSave, type WorldInfo } from "../sharing-format.ts";
+import { ShareError } from "../library.ts";
+import { type SaveDownload, saveZip } from "../download.ts";
 
 export interface EditDirectory extends LiveDirectory {
   values(): AsyncIterable<EditDirectory | EditFile>;
   getDirectoryHandle(name: string): Promise<EditDirectory>;
   getFileHandle(name: string, options?: { create?: boolean }): Promise<EditFile>;
-  queryPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
-  requestPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
+  queryPermission?(options: { mode: "read" | "readwrite" }): Promise<PermissionState>;
+  requestPermission?(options: { mode: "read" | "readwrite" }): Promise<PermissionState>;
 }
 export interface EditFile extends LiveFile {
   createWritable(): Promise<{ write(data: BufferSource | Blob | string): Promise<void>; close(): Promise<void> }>;
@@ -23,13 +28,16 @@ export interface WritablePicker {
   showDirectoryPicker?(options: { mode: "readwrite"; id?: string }): Promise<EditDirectory>;
 }
 
-export const canEdit = () => typeof (globalThis as WritablePicker).showDirectoryPicker === "function" && globalThis.isSecureContext;
+/** Whether this browser can write to a folder the user chooses (desktop Chrome and Edge); every other source works anywhere. */
+export const canWriteFolders = () => typeof (globalThis as WritablePicker).showDirectoryPicker === "function" && globalThis.isSecureContext;
 
 /** One saved edit session's replaced files, kept in this browser. */
 export interface Backup {
   id?: number;
   world: string;
   character: string;
+  /** The character's root that the files' paths start with; restoring puts them under the root the save has then. */
+  root?: string;
   at: number;
   /** What was changed, as listed before saving. */
   changes: string[];
@@ -48,6 +56,175 @@ const encodeSave = (value: unknown) => {
 };
 
 export class StaleError extends Error {}
+
+/** One read of a save: its files, the characters in them, and the source's note of their version for telling when it changed. */
+export interface SaveRead {
+  files: FileMap;
+  characters: Character[];
+  version?: unknown;
+}
+
+/** One file a save writes. */
+export interface Write {
+  path: string;
+  bytes: Uint8Array;
+}
+
+/** Where a session's save comes from, and goes back to. */
+export interface SaveSource {
+  /** A folder of the game's files, a world in My worlds, or a copy that can only be downloaded or saved into a folder. */
+  readonly kind: "folder" | "library" | "copy";
+  read(): Promise<SaveRead>;
+  /** Throws a StaleError if the character's save changed since `read`. */
+  check(read: SaveRead, character: Character): Promise<void>;
+  /** Writes `writes` in their order; `all` is every file of the save once they are written. Returns the save as it is then. */
+  write(writes: Write[], all: FileMap, character: Character): Promise<SaveRead>;
+}
+
+/** A folder opened with the File System Access API: the whole Saves folder or one character's folder. */
+export class FolderSource implements SaveSource {
+  readonly kind = "folder";
+  constructor(readonly dir: EditDirectory) {}
+
+  /** Reads the folder (any depth), with Live saves' checks that no save is half written. */
+  async read(): Promise<SaveRead> {
+    const scan = await scanDirectory(this.dir);
+    const { files } = await captureSnapshot(scan);
+    return { files, characters: findCharacters(files), version: scan };
+  }
+
+  async check(read: SaveRead, character: Character) {
+    const before = read.version as Scan;
+    const now = await scanDirectory(this.dir);
+    const root = character.root;
+    const differs = [...new Set([...before.entries.keys(), ...now.entries.keys()])].filter((path) =>
+      path.startsWith(root) && before.entries.get(path)?.stamp !== now.entries.get(path)?.stamp
+    );
+    if (differs.length) {
+      throw new StaleError(
+        `The game changed ${
+          differs.length === 1 ? differs[0].slice(root.length) : `${differs.length} files`
+        } since this folder was read. ` +
+          "Choose Reload save to read the newest save and run your unsaved changes again on it.",
+      );
+    }
+  }
+
+  /** Whether the folder may be read (`readwrite`: also written). Asking, when it may not be yet, needs a click on the page. */
+  async allowed(mode: "read" | "readwrite", ask: boolean): Promise<boolean> {
+    if (!this.dir.queryPermission) return true;
+    if (await this.dir.queryPermission({ mode }) === "granted") return true;
+    return ask && !!this.dir.requestPermission && await this.dir.requestPermission({ mode }) === "granted";
+  }
+
+  async write(writes: Write[]): Promise<SaveRead> {
+    for (const { path, bytes } of writes) {
+      const out = await (await this.handle(path)).createWritable();
+      await out.write(bytes as BufferSource);
+      await out.close();
+    }
+    return this.read();
+  }
+
+  private async handle(path: string): Promise<EditFile> {
+    const parts = path.split("/");
+    if (parts[0] !== this.dir.name) throw new Error(`${path} is outside the opened folder`);
+    let dir = this.dir;
+    for (const part of parts.slice(1, -1)) dir = await dir.getDirectoryHandle(part);
+    return dir.getFileHandle(parts[parts.length - 1], { create: true });
+  }
+}
+
+/** The library calls a LibrarySource makes: src/library.ts's api with this browser's key, or a stand-in server in tests. */
+export type LibraryCall = (path: string, init?: RequestInit) => Promise<Response>;
+
+/** A world in My worlds: read from the library, and saved by updating it there, which every synced device then sees. */
+export class LibrarySource implements SaveSource {
+  readonly kind = "library";
+  constructor(readonly id: string, private call: LibraryCall) {}
+
+  private async data(init?: RequestInit): Promise<Response> {
+    try {
+      return await this.call(`/library/worlds/${this.id}/data`, init);
+    } catch (e) {
+      if (e instanceof ShareError && e.status === 404) {
+        throw new Error("This world is no longer in My worlds: it was deleted, or it expired");
+      }
+      throw e;
+    }
+  }
+
+  async read(): Promise<SaveRead> {
+    const response = await this.data();
+    const length = response.headers.get("Content-Length");
+    if (length && Number(length) > MAX_UPLOAD) {
+      await response.body?.cancel();
+      throw new Error("This world is too large");
+    }
+    const { name, files } = unpackSave(new Uint8Array(await response.arrayBuffer()));
+    return { files, characters: [{ name, root: "Shared/" }], version: response.headers.get("ETag") ?? undefined };
+  }
+
+  async check(read: SaveRead) {
+    const response = await this.data({ headers: typeof read.version === "string" ? { "If-None-Match": read.version } : {} });
+    if (response.status === 304) return;
+    await response.body?.cancel();
+    throw new StaleError(
+      "This world was updated in My worlds since it was read, from another device or by Live saves keeping it updated. " +
+        "Choose Reload save to read the newest version and run your unsaved changes again on it.",
+    );
+  }
+
+  async write(_writes: Write[], all: FileMap, character: Character): Promise<SaveRead> {
+    const body = await packSave(all, character);
+    let info: WorldInfo;
+    try {
+      // "If-Match: *" only updates: a world deleted on another device is never quietly added back.
+      const response = await this.call(`/library/worlds/${this.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/octet-stream", "If-Match": "*" },
+        body: body as BodyInit,
+      });
+      info = await response.json();
+    } catch (e) {
+      if (e instanceof ShareError && e.status === 412) {
+        throw new Error("This world is no longer in My worlds: it was deleted on another device, or it expired. Download it instead");
+      }
+      throw e;
+    }
+    return { files: all, characters: [character], version: `"${info.version}"` };
+  }
+}
+
+/** A copy held in this tab (a .zip, a folder read without write access, or what MirkMap handed over). It is never written. */
+export class CopySource implements SaveSource {
+  readonly kind = "copy";
+  private characters: Character[];
+  /** `label`: where the copy came from, such as the .zip's name. `known`: a character whose folder does not name it (see `named`). */
+  constructor(private files: FileMap, readonly label: string, known?: Character) {
+    this.characters = named(findCharacters(files), known);
+  }
+
+  /** Copies every file's bytes now, so the game saving meanwhile can neither change nor break what is being edited. */
+  static async of(files: FileMap, label: string): Promise<CopySource> {
+    const fixed: FileMap = new Map();
+    for (const [path, source] of files) {
+      const bytes = await source.read();
+      fixed.set(path, { read: () => Promise.resolve(bytes), lastModified: source.lastModified });
+    }
+    return new CopySource(fixed, label);
+  }
+
+  read(): Promise<SaveRead> {
+    return Promise.resolve({ files: this.files, characters: this.characters });
+  }
+  check(): Promise<void> {
+    return Promise.resolve();
+  }
+  write(): Promise<SaveRead> {
+    return Promise.reject(new Error("A copy is not saved in place: download it, or save it into the game's folder"));
+  }
+}
 
 /**
  * An edit of one save file's draft: it changes the draft in place and returns a line for the list of unsaved changes, or undefined
@@ -89,18 +266,23 @@ export class EditSession {
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
-    readonly dir: EditDirectory,
-    private scan: Scan,
-    public files: FileMap,
-    readonly character: Character,
+    /** Changes when a copy is saved into the game's folder. */
+    public source: SaveSource,
+    private read: SaveRead,
+    /** Changes with the source: the character's folder can sit at another path in the folder chosen. */
+    public character: Character,
     readonly world: string,
     private store: SessionStore = browserStore,
   ) {}
 
-  /** Reads a folder (any depth) for editing, with Live saves' checks that no save is half written. */
-  static async open(dir: EditDirectory): Promise<{ scan: Scan; files: FileMap }> {
-    const scan = await scanDirectory(dir);
-    return { scan, files: (await captureSnapshot(scan)).files };
+  /** The save's files as read. */
+  get files(): FileMap {
+    return this.read.files;
+  }
+
+  /** The save as last read or written. */
+  get current(): SaveRead {
+    return this.read;
   }
 
   /** The draft of a save file, parsed on first use; edits change it in place. */
@@ -170,18 +352,34 @@ export class EditSession {
   }
 
   /**
-   * Takes the folder as it is now (read again with `open`, after playing in the game) and runs every unsaved change again on it, in
-   * order, so saving checks against and writes over the newest save. A change that no longer applies (it throws, or now changes
+   * Takes the save as it is now (read again from its source, after playing in the game) and runs every unsaved change again on it,
+   * in order, so saving checks against and writes over the newest save. A change that no longer applies (it throws, or now changes
    * nothing, such as setting wellbeing to 100% when the game already has it there) is dropped; their lines are returned. The others
    * stay, their lines written anew. If anything else goes wrong, the session is left as it was.
+   *
+   * `to` moves the session to another source, such as the game's folder a copy is saved into, where the character's folder may sit
+   * at another path: the changes then edit the same files under its root.
    */
-  rebase(scan: Scan, files: FileMap): Promise<string[]> {
+  rebase(read: SaveRead, to?: { source: SaveSource; character: Character }): Promise<string[]> {
     return this.serial(async () => {
       if (this.busy) throw new Error("Wait for the save to finish");
-      const before = { scan: this.scan, files: this.files, drafts: new Map(this.drafts), log: this.log };
+      const before = {
+        read: this.read,
+        source: this.source,
+        character: this.character,
+        drafts: new Map(this.drafts),
+        log: this.log,
+      };
       try {
-        this.scan = scan;
-        this.files = files;
+        if (to) {
+          const from = this.character.root, root = to.character.root;
+          const moved = (path: string) => path.startsWith(from) ? root + path.slice(from.length) : path;
+          this.log = this.log.map((c) => ({ ...c, parts: c.parts.map((p) => ({ ...p, path: moved(p.path) })) }));
+          this.source = to.source;
+          this.character = to.character;
+        }
+        this.read = read;
+        const files = read.files;
         this.drafts.clear();
         const gone = new Set(this.log.filter((c) => c.parts.some((p) => !files.has(p.path))).map((c) => c.id));
         const kept = this.log.filter((c) => !gone.has(c.id));
@@ -292,96 +490,109 @@ export class EditSession {
     }
   }
 
-  private async handle(path: string, create = false): Promise<EditFile> {
-    const parts = path.split("/");
-    if (parts[0] !== this.dir.name) throw new Error(`${path} is outside the opened folder`);
-    let dir = this.dir;
-    for (const part of parts.slice(1, -1)) dir = await dir.getDirectoryHandle(part);
-    return dir.getFileHandle(parts[parts.length - 1], { create });
-  }
-
-  private async write(path: string, bytes: Uint8Array | string) {
-    const out = await (await this.handle(path, true)).createWritable();
-    await out.write(typeof bytes === "string" ? bytes : bytes as BufferSource);
-    await out.close();
-  }
-
-  /** Throws a StaleError if any file of this character changed on disk since it was read. */
-  private async checkFresh(): Promise<Scan> {
-    const now = await scanDirectory(this.dir);
-    const root = this.character.root;
-    const differs = [...new Set([...this.scan.entries.keys(), ...now.entries.keys()])].filter((path) =>
-      path.startsWith(root) && this.scan.entries.get(path)?.stamp !== now.entries.get(path)?.stamp
-    );
-    if (differs.length) {
-      throw new StaleError(
-        `The game changed ${
-          differs.length === 1 ? differs[0].slice(root.length) : `${differs.length} files`
-        } since this folder was read. ` +
-          "Choose Reload save to read the newest save and run your unsaved changes again on it.",
-      );
-    }
-    return now;
+  /** The pending drafts, encoded as they would be written; encoded at once, so nothing done meanwhile changes what is written. */
+  private pending(): Map<string, Uint8Array> {
+    return new Map([...this.dirty].map((path) => [path, encodeSave(this.drafts.get(path))] as const));
   }
 
   /**
-   * Writes every changed draft, in the game's own order so readers that wait for a save to finish (Live saves) accept it: Player.save
-   * first, then the other files, and the current area's Containers.save last (rewritten as it is when it did not change). The drafts
-   * are encoded before anything is awaited, so nothing done meanwhile changes what is written. Returns the number of files written.
+   * What saving `pending` writes, in the game's own order so readers that wait for a save to finish (Live saves) accept it: the
+   * Cheated mark first (so an interrupted save is still marked), Player.save, then the other files, and the current area's
+   * Containers.save last (rewritten as it is when it did not change).
+   */
+  private async plan(pending: Map<string, Uint8Array>): Promise<Write[]> {
+    const root = this.character.root;
+    const player = `${root}Player.save`;
+    const playerBytes = pending.get(player) ?? await this.files.get(player)!.read();
+    const last = currentContainers(this.files, root, parsePlayer(decodeJson(playerBytes)));
+    if (!last) throw new Error("The player's area has no Containers.save; the game would not finish loading it");
+    const marker = markerPath(this.files, root) ?? `${root}${MARKER}`;
+    const order = [...pending.keys()].sort((a, b) =>
+      Number(b === player) - Number(a === player) || Number(a === last) - Number(b === last)
+    );
+    return [
+      { path: marker, bytes: encoder.encode(markCheated(await markerText(this.files, root))) },
+      ...order.map((path) => ({ path, bytes: pending.get(path)! })),
+      ...(pending.has(last) ? [] : [{ path: last, bytes: await this.files.get(last)!.read() }]),
+    ];
+  }
+
+  /** Every file once `writes` are written, each written one dated in the order written, as the game's own save would be. */
+  private after(writes: Write[]): FileMap {
+    const all: FileMap = new Map(this.files);
+    const now = Date.now();
+    writes.forEach(({ path, bytes }, i) => all.set(path, { read: () => Promise.resolve(bytes), lastModified: now + i }));
+    return all;
+  }
+
+  /**
+   * Saves every changed draft to the source (see `plan` for the order), once the source confirms the save did not change since it
+   * was read, keeping the replaced files as a backup, and drops the drafts after. Returns the number of changed files.
    */
   save(): Promise<number> {
     if (!this.dirty.size) return Promise.resolve(0);
-    const pending = new Map([...this.dirty].map((path) => [path, encodeSave(this.drafts.get(path))] as const));
+    if (this.source.kind === "copy") return Promise.reject(new Error("Choose where to save this copy first"));
+    const pending = this.pending();
     const changes = [...this.changes];
     return this.exclusive(async () => {
-      await this.checkFresh();
-      const root = this.character.root;
-      const player = `${root}Player.save`;
-      const playerBytes = pending.get(player) ?? await this.files.get(player)!.read();
-      const last = currentContainers(this.files, root, parsePlayer(decodeJson(playerBytes)));
-      if (!last) throw new Error("The player's area has no Containers.save; the game would not finish loading it");
-      const backup: Backup = { world: this.world, character: this.character.name, at: Date.now(), changes, files: [] };
+      const { source, character } = this;
+      await source.check(this.read, character);
+      const writes = await this.plan(pending);
+      const backup: Backup = { world: this.world, character: character.name, root: character.root, at: Date.now(), changes, files: [] };
       for (const path of pending.keys()) backup.files.push({ path, bytes: await this.files.get(path)!.read() });
-      await this.store.backup(backup);
-      // The mark goes first, so an interrupted save is still marked.
-      const marker = markerPath(this.files, root) ?? `${root}${MARKER}`;
-      await this.write(marker, markCheated(await markerText(this.files, root)));
-      await this.store.remember(this.world);
-      const order = [...pending.keys()].sort((a, b) =>
-        Number(b === player) - Number(a === player) || Number(a === last) - Number(b === last)
-      );
-      for (const path of order) await this.write(path, pending.get(path)!);
-      if (!pending.has(last)) await this.write(last, await this.files.get(last)!.read());
-      await this.reload();
+      // A folder is written file by file, so an interrupted save is backed up and marked first. An upload to My worlds goes through
+      // whole or not at all (the library refuses updates closer than 30 seconds apart), so it is backed up once it went through.
+      const whole = source.kind === "library";
+      if (!whole) {
+        await this.store.backup(backup);
+        await this.store.remember(this.world);
+      }
+      this.read = await source.write(writes, this.after(writes), character);
+      this.clear();
+      if (whole) {
+        await this.store.remember(this.world);
+        await this.store.backup(backup);
+      }
       return pending.size;
     });
+  }
+
+  /**
+   * The save as saving would leave it, Cheated mark and all, as a .zip for the game's Saves folder. The unsaved changes stay unsaved
+   * (saving them elsewhere is still possible), but this browser remembers the world as cheated, as it does when they are saved.
+   */
+  async download(): Promise<SaveDownload> {
+    const pending = this.pending();
+    let files = this.files;
+    if (pending.size) {
+      files = this.after(await this.plan(pending));
+      await this.store.remember(this.world);
+    }
+    return saveZip(this.character.name, files, this.character.root);
   }
 
   /** Writes a backup's files back, Player.save first and the current area's Containers.save last. The Cheated mark stays. */
   restore(backup: Backup): Promise<void> {
     return this.exclusive(async () => {
-      await this.checkFresh();
-      const root = this.character.root;
-      if (backup.files.some((f) => !f.path.startsWith(root))) throw new Error("That backup belongs to another folder");
-      const player = backup.files.find((f) => f.path === `${root}Player.save`);
+      const { source, character } = this;
+      await source.check(this.read, character);
+      const root = character.root, from = backup.root ?? root;
+      if (backup.files.some((f) => !f.path.startsWith(from))) throw new Error("That backup belongs to another folder");
+      const files = backup.files.map((f) => ({ path: root + f.path.slice(from.length), bytes: f.bytes }));
+      const player = files.find((f) => f.path === `${root}Player.save`);
       const last = currentContainers(
         this.files,
         root,
         parsePlayer(decodeJson(player?.bytes ?? await this.files.get(`${root}Player.save`)!.read())),
       );
-      if (player) await this.write(player.path, player.bytes);
-      for (const f of backup.files) if (f !== player && f.path !== last) await this.write(f.path, f.bytes);
-      if (last) await this.write(last, backup.files.find((f) => f.path === last)?.bytes ?? await this.files.get(last)!.read());
-      await this.reload();
+      const writes: Write[] = [
+        ...(player ? [player] : []),
+        ...files.filter((f) => f !== player && f.path !== last),
+        ...(last ? [{ path: last, bytes: files.find((f) => f.path === last)?.bytes ?? await this.files.get(last)!.read() }] : []),
+      ];
+      this.read = await source.write(writes, this.after(writes), character);
+      this.clear();
     });
-  }
-
-  /** Rereads the folder after writing, dropping drafts. */
-  private async reload() {
-    const { scan, files } = await EditSession.open(this.dir);
-    this.scan = scan;
-    this.files = files;
-    this.clear();
   }
 }
 export async function storeBackup(backup: Backup): Promise<void> {

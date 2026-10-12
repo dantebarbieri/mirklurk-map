@@ -7,6 +7,7 @@ import { ask } from "./dialog.ts";
 import { folderName, offerDownload, saveZip } from "./download.ts";
 import { knownCheated, withCheatedMarker } from "./cheated.ts";
 import type { Character, FileMap } from "./files.ts";
+import { api, LIBRARY_STORAGE as storageKey, ShareError } from "./library.ts";
 import { qrSvg } from "./qr.ts";
 import {
   formatPairCode,
@@ -71,31 +72,8 @@ interface Pair {
   error?: string;
 }
 
-const storageKey = "mirklurk-library-v1";
 const legacyKey = "mirklurk-shares-v1";
 const MAX_SAVED = 20;
-
-class ShareError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
-
-/** Library calls carry its key in the Authorization header; claiming a sync code is the only call without one. */
-async function api(path: string, key: string | undefined, init: RequestInit = {}): Promise<Response> {
-  const response = await fetch(`/api${path}`, {
-    ...init,
-    headers: { ...init.headers as Record<string, string>, ...(key ? { Authorization: `Bearer ${key}` } : {}) },
-    signal: AbortSignal.timeout(60_000),
-    cache: "no-store",
-  });
-  if (!response.ok && response.status !== 304) {
-    let message = `Sharing service returned HTTP ${response.status}`;
-    if (response.headers.get("Content-Type")?.includes("application/json")) message = (await response.json()).error ?? message;
-    throw new ShareError(response.status, message);
-  }
-  return response;
-}
 
 const label = (library: Library) => library.name || "Unnamed library";
 const tagOf = (source: ShareSource) => `${source.session}:${source.character.root}`;
@@ -134,6 +112,18 @@ export class Sharing {
     return !!this.watching;
   }
 
+  /** The library world on screen, for the save editor to open; a world from a share link is someone else's and is not offered. */
+  get following(): { id: string; name: string } | undefined {
+    const w = this.watching;
+    return w?.kind === "world" ? { id: w.id, name: w.snapshot?.name ?? w.name } : undefined;
+  }
+
+  /** Follows a world of this browser's library, as its Open button does (the save editor hands one back). */
+  follow(id: string, name: string) {
+    if (!WORLD_ID.test(id)) return;
+    if (this.watching?.kind !== "world" || this.watching.id !== id) this.watch({ kind: "world", id, name });
+  }
+
   private report(text: string, error = false) {
     this.pollFailed = this.unreachable = false;
     $("#share-status").textContent = text;
@@ -159,7 +149,8 @@ export class Sharing {
     this.render();
   }
 
-  async init() {
+  /** `reopen`: follow the world followed last when nothing else is on screen; not when the save editor handed a save back. */
+  async init(reopen = true) {
     this.load();
     $("#save-world").addEventListener("click", () => void this.save());
     $("#auto-update").addEventListener("change", () => {
@@ -191,7 +182,7 @@ export class Sharing {
     addEventListener("online", () => void this.refresh().then(() => this.autoOpen()));
     this.render();
     await this.refresh();
-    if (!await this.openHash()) this.autoOpen();
+    if (!await this.openHash() && reopen) this.autoOpen();
   }
 
   private load() {
