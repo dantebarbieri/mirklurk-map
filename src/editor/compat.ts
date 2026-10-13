@@ -8,47 +8,46 @@ import { decodeJson } from "../save.ts";
 import { isRec } from "../save-record.ts";
 import { type GameVersion, hasBeing, hasItem } from "../version.ts";
 
-/** The item records anywhere in a save file (index, amount and durability, as `new item` makes them), and a Beings.save's beings. */
-function contents(path: string, raw: unknown): { items: number[]; beings: number[] } {
-  const items: number[] = [];
+type Counts = Map<number, number>;
+const add = (m: Counts, index: number, n: number) => m.set(index, (m.get(index) ?? 0) + n);
+
+/**
+ * How much of each item a save file holds, summing the amounts of its item records (index, amount and durability, as `new item`
+ * makes them), and of each creature a Beings.save holds. The game saves a copy of an item in each cell it covers, so an item counts
+ * once per cell: what matters is only whether a file holds more than before.
+ */
+function contents(path: string, raw: unknown): { items: Counts; beings: Counts } {
+  const items: Counts = new Map(), beings: Counts = new Map();
   const walk = (v: unknown) => {
     if (Array.isArray(v)) v.forEach(walk);
     else if (isRec(v)) {
-      if (typeof v.index === "number" && "amount" in v && "durability" in v) items.push(v.index);
+      if (typeof v.index === "number" && "durability" in v && typeof v.amount === "number") add(items, v.index, v.amount);
       Object.values(v).forEach(walk);
     }
   };
   walk(raw);
-  const beings = /(^|\/)Beings\.save$/.test(path) && Array.isArray(raw)
-    ? raw.filter((b) => isRec(b) && typeof b.index === "number").map((b) => b.index as number)
-    : [];
+  if (/(^|\/)Beings\.save$/.test(path) && Array.isArray(raw)) {
+    for (const b of raw) if (isRec(b) && typeof b.index === "number") add(beings, b.index, 1);
+  }
   return { items, beings };
 }
 
-/** What `after` holds beyond `before`, counting each index as often as it occurs. */
-function added(after: number[], before: number[]): number[] {
-  const left = new Map<number, number>();
-  for (const i of before) left.set(i, (left.get(i) ?? 0) + 1);
-  return after.filter((i) => {
-    const n = left.get(i) ?? 0;
-    if (n) left.set(i, n - 1);
-    return !n;
-  });
-}
+/** The indices `after` holds more of than `before`. */
+const grown = (after: Counts, before: Counts) => [...after].filter(([i, n]) => n > (before.get(i) ?? 0)).map(([i]) => i);
 
 /**
- * The names of the items and creatures that saving `preview` (EditSession.preview) over `saved` adds and game version `rules`
- * does not have; empty when the changes suit it. Only changed save files are read.
+ * The names of the items and creatures that writing `pending` (each changed save file's bytes) over `saved` adds, or adds more of,
+ * and game version `rules` does not have; empty when the changes suit it.
  */
-export async function versionConflicts(saved: FileMap, preview: FileMap, rules: GameVersion): Promise<string[]> {
+export async function versionConflicts(saved: FileMap, pending: ReadonlyMap<string, Uint8Array>, rules: GameVersion): Promise<string[]> {
   const names = new Set<string>();
-  for (const [path, file] of preview) {
+  for (const [path, bytes] of pending) {
+    if (!path.endsWith(".save")) continue;
     const was = saved.get(path);
-    if (file === was || !path.endsWith(".save")) continue;
-    const after = contents(path, decodeJson(await file.read()));
-    const before = was ? contents(path, decodeJson(await was.read())) : { items: [], beings: [] };
-    for (const i of added(after.items, before.items)) if (!hasItem(rules, i)) names.add(ITEM_NAMES[i] ?? `Item ${i}`);
-    for (const i of added(after.beings, before.beings)) if (!hasBeing(rules, i)) names.add(BEING_NAMES[i] ?? `Being ${i}`);
+    const after = contents(path, decodeJson(bytes));
+    const before = was ? contents(path, decodeJson(await was.read())) : { items: new Map(), beings: new Map() };
+    for (const i of grown(after.items, before.items)) if (!hasItem(rules, i)) names.add(ITEM_NAMES[i] ?? `Item ${i}`);
+    for (const i of grown(after.beings, before.beings)) if (!hasBeing(rules, i)) names.add(BEING_NAMES[i] ?? `Being ${i}`);
   }
   return [...names];
 }

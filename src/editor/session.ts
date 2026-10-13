@@ -244,6 +244,12 @@ export class CopySource implements SaveSource {
  */
 export type Edit = (raw: unknown) => string | undefined;
 
+/**
+ * A check of what saving or downloading writes: each changed file's bytes (`pending`) against the save's files as read (`files`).
+ * It throws to refuse. It sees the very bytes then written, so an edit made while it runs cannot slip past it.
+ */
+export type PendingCheck = (files: FileMap, pending: ReadonlyMap<string, Uint8Array>) => Promise<void>;
+
 /** One file's part of a change: the edit, and the line it gave when it last ran. */
 interface Part {
   path: string;
@@ -552,16 +558,18 @@ export class EditSession {
   }
 
   /**
-   * Saves every changed draft to the source (see `plan` for the order), once the source confirms the save did not change since it
-   * was read, keeping the replaced files as a backup, and drops the drafts after. Returns the number of changed files.
+   * Saves every changed draft to the source (see `plan` for the order), once `check` passes them and the source confirms the save did
+   * not change since it was read, keeping the replaced files as a backup, and drops the drafts after. Returns the number of changed
+   * files.
    */
-  save(): Promise<number> {
+  save(check?: PendingCheck): Promise<number> {
     if (!this.dirty.size) return Promise.resolve(0);
     if (this.source.kind === "copy") return Promise.reject(new Error("Choose where to save this copy first"));
     const pending = this.pending();
     const changes = [...this.changes];
     return this.exclusive(async () => {
       this.warning = undefined;
+      await check?.(this.files, pending);
       const { source, character } = this;
       await source.check(this.read, character);
       const writes = await this.plan(pending);
@@ -592,10 +600,12 @@ export class EditSession {
   /**
    * The save as saving would leave it, Cheated mark and all, as a .zip for the game's Saves folder. The unsaved changes stay unsaved
    * (saving them elsewhere is still possible), but this browser remembers the world as cheated, as it does when they are saved.
+   * `check` sees the changes as the download will hold them.
    */
-  async download(): Promise<SaveDownload> {
+  async download(check?: PendingCheck): Promise<SaveDownload> {
     const pending = this.pending();
     let files = this.files;
+    await check?.(files, pending);
     if (pending.size) {
       files = this.after(await this.plan(pending));
       await this.store.remember(this.world);

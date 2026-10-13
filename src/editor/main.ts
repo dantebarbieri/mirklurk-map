@@ -46,6 +46,7 @@ import {
   FolderSource,
   LibrarySource,
   listBackups,
+  type PendingCheck,
   type SaveRead,
   type SaveSource,
   type WritablePicker,
@@ -679,34 +680,36 @@ async function writable(s: EditSession): Promise<boolean> {
   return false;
 }
 
+/** A refusal from `suitsVersion`, shown as it is. */
+class VersionError extends Error {}
+
 /**
- * Whether the unsaved changes suit the game version in use (the Latest/Beta switch): changes that add an item or creature it does
- * not have, made while the other version was picked, are refused with a note saying which, as that game could not load the save.
+ * Refuses changes that add an item or creature the game version in use (the Latest/Beta switch) does not have, made while the
+ * other version was picked: that game could not load the save. EditSession runs it on exactly what it then writes.
  */
-async function suitsVersion(s: EditSession, doing: string): Promise<boolean> {
+const suitsVersion = (doing: string): PendingCheck => {
   const rules = editorRules();
-  const lacking = await versionConflicts(s.files, s.preview(), rules);
-  if (!lacking.length) return true;
-  status(
-    `Not ${doing}: your changes add ${joinAnd(lacking)}, which Mirklurk ${rules} does not have, so it could not load the save. ` +
-      "Undo those changes, or pick the version you will play it on with the Latest/Beta switch.",
-    true,
-  );
-  return false;
-}
+  return async (files, pending) => {
+    const lacking = await versionConflicts(files, pending, rules);
+    if (!lacking.length) return;
+    throw new VersionError(
+      `Not ${doing}: your changes add ${joinAnd(lacking)}, which Mirklurk ${rules} does not have, so it could not load the save. ` +
+        "Undo those changes, or pick the version you will play it on with the Latest/Beta switch.",
+    );
+  };
+};
 
 /** Saves the unsaved changes where the save came from: the game's folder or My worlds. A copy asks for the game's folder first. */
 async function save() {
   const s = session;
   if (!s || s.saving) return;
-  if (!await suitsVersion(s, "saved")) return;
   if (s.source instanceof CopySource) return saveCopyToFolder(s);
   if (!await writable(s)) return;
   const library = s.source instanceof LibrarySource;
   status(library ? `Saving ${s.character.name} to My worlds...` : "Saving...");
   await locked(async () => {
     try {
-      const n = await s.save();
+      const n = await s.save(suitsVersion("saved"));
       // Another save opened meanwhile (with the keyboard: the page is locked to the pointer) stays on screen.
       if (session !== s) return;
       cheated = true;
@@ -734,9 +737,8 @@ async function save() {
 async function download() {
   const s = session;
   if (!s || s.saving) return;
-  if (!await suitsVersion(s, "downloaded")) return;
   try {
-    const zip = await s.download();
+    const zip = await s.download(suitsVersion("downloaded"));
     offerDownload(zip);
     if (session !== s) return;
     cheated = true;
@@ -747,7 +749,7 @@ async function download() {
     );
   } catch (e) {
     console.error(e);
-    status(`Could not download the save: ${errorText(e)}`, true);
+    status(e instanceof VersionError ? e.message : `Could not download the save: ${errorText(e)}`, true);
   }
   await render();
 }

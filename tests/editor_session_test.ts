@@ -15,6 +15,7 @@ import {
   FolderSource,
   type LibraryCall,
   LibrarySource,
+  type PendingCheck,
   StaleError,
 } from "../src/editor/session.ts";
 import { addItems } from "../src/editor/items.ts";
@@ -22,6 +23,7 @@ import { movePlayer, setSkillPoints, setVitals } from "../src/editor/edits.ts";
 import { addRaft, moveWithRaft } from "../src/editor/raft.ts";
 import { versionConflicts } from "../src/editor/compat.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
+import type { GameVersion } from "../src/version.ts";
 import { deleteBeing, newBeing, spawnBeing } from "../src/editor/beings.ts";
 import { cheatedInfo } from "../src/cheated.ts";
 import { readMarker } from "../src/marker.ts";
@@ -160,33 +162,69 @@ async function fixture(root: string) {
 
 const mtime = async (path: string) => (await Deno.stat(path)).mtime!.getTime();
 
-Deno.test("editor session: what changes add that the version in use lacks is found before saving, not what the save held", async () => {
+Deno.test("editor session: saving and downloading refuse what the version in use lacks, checked on the bytes written", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
   try {
     await fixture(root);
     const s = await openSession(root, "Hero");
     const player = `${s.character.root}Player.save`;
     const beings = "Hero/[ 1,0 ]/Beings.save";
-    const conflicts = async (rules: "0.8.1.5" | "0.8.9.9") => (await versionConflicts(s.files, s.preview(), rules)).sort();
-    assertEquals(await conflicts("0.8.1.5"), []);
-    // Beta picked on this 0.8.1.5 save: a Magus' Shard and a Mirkfang Matriarch, then the switch goes back to Latest.
-    await s.apply(player, (raw) => (addItems(playerRecord(raw), 262, 1).added ? "Magus' Shard" : undefined));
-    await s.apply(beings, (raw) => (spawnBeing(raw as unknown[], 37, 20, 30), "Spawned a Matriarch"));
-    await s.apply(beings, (raw) => (spawnBeing(raw as unknown[], 3, 40, 30), "Spawned a troll"));
-    assertEquals(await conflicts("0.8.1.5"), [BEING_NAMES[37], ITEM_NAMES[262]].sort());
-    assertEquals(await conflicts("0.8.9.9"), []);
-    // Saved for the beta, the save holds them: later changes that add nothing new suit Latest, one more Shard does not.
-    await s.save();
+    const give = (index: number, n: number) => (raw: unknown) =>
+      addItems(playerRecord(raw), index, n).added ? `${n} × ${index}` : undefined;
+    const spawn = (index: number, x: number) => (raw: unknown) => (spawnBeing(raw as unknown[], index, x, 30), `Spawned ${index}`);
+    /** The check the editor passes for game version `rules`; `seen` gets what each run found. */
+    const check = (rules: GameVersion, seen: string[][] = []): PendingCheck => async (files, pending) => {
+      const lacking = (await versionConflicts(files, pending, rules)).sort();
+      seen.push(lacking);
+      if (lacking.length) throw new Error(`lacks ${lacking.join(", ")}`);
+    };
+    // Beta picked on this 0.8.1.5 save: a Magus' Shard, two Bat Hides and a Mirkfang Matriarch; then the switch goes back to Latest.
+    await s.apply(player, give(262, 1));
+    await s.apply(player, give(258, 2));
+    await s.apply(beings, spawn(37, 20));
+    await s.apply(beings, spawn(3, 40));
+    const all = [BEING_NAMES[37], ITEM_NAMES[258], ITEM_NAMES[262]].sort().join(", ");
+    await assertRejects(() => s.save(check("0.8.1.5")), new RegExp(`lacks ${all}`));
+    await assertRejects(() => s.download(check("0.8.1.5")), /lacks/);
+    assertEquals(s.changes.length, 4, "refused: nothing saved or dropped");
+    // Saved for the beta, the save holds them: later changes that add nothing it lacks suit Latest.
+    assertEquals(await s.save(check("0.8.9.9")), 2);
     await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 3), "Skill points 0 → 3"));
-    await s.apply(beings, (raw) => (spawnBeing(raw as unknown[], 3, 60, 30), "Spawned a troll"));
-    assertEquals(await conflicts("0.8.1.5"), []);
-    await s.apply(player, (raw) => (addItems(playerRecord(raw), 262, 1).added ? "Magus' Shard" : undefined));
-    assertEquals(await conflicts("0.8.1.5"), [ITEM_NAMES[262]]);
+    await s.apply(beings, spawn(3, 60));
+    const seen: string[][] = [];
+    await s.download(check("0.8.1.5", seen));
+    assertEquals(seen, [[]]);
+    // A Bat Hide topped up onto its stack changes only the amount, and is still more than the save held.
+    await s.apply(player, give(258, 1));
+    await assertRejects(() => s.download(check("0.8.1.5")), new RegExp(`lacks ${ITEM_NAMES[258]}$`));
+    await s.undo(s.changes.length - 1);
+
+    // The check sees the very bytes written: an edit made while it runs is refused by a save and left out of a download.
+    const shards = (bytes: Uint8Array) => JSON.stringify(decodeJson(bytes)).split('"index":262,').length - 1;
+    const held = shards(await Deno.readFile(`${root}/Hero/Player.save`));
+    assert(held > 0, "the saved Shard");
+    let open = () => {};
+    const slow = (): PendingCheck => async (files, pending) => {
+      await new Promise<void>((r) => open = r);
+      await check("0.8.1.5")(files, pending);
+    };
+    const saving = s.save(slow());
+    await assertRejects(() => s.apply(player, give(262, 1)), /Wait for the save/);
+    open();
+    assertEquals(await saving, 2);
+    assertEquals(shards(await Deno.readFile(`${root}/Hero/Player.save`)), held);
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 4), "Skill points 3 → 4"));
+    const downloading = s.download(slow());
+    await new Promise((r) => setTimeout(r, 0));
+    await s.apply(player, give(262, 1));
+    open();
+    const back = await unzip((await downloading).blob);
+    assertEquals(shards(back.get(player)!), held, "the Shard added meanwhile is not in the download");
+    await assertRejects(() => s.download(check("0.8.1.5")), /lacks/);
   } finally {
     await Deno.remove(root, { recursive: true });
   }
 });
-
 Deno.test("editor session: saves in the game's order, marks the world first, backs up and reopens cleanly", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
   try {
