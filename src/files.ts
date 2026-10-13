@@ -1,7 +1,7 @@
 // Turns picked folders, dropped folders or a ZIP into a flat path -> file map.
 
 import { readZip } from "./zip.ts";
-import type { LiveDirectory } from "./live.ts";
+import type { LiveDirectory, LiveFile } from "./live.ts";
 
 export interface Source {
   read(): Promise<Uint8Array>;
@@ -70,16 +70,18 @@ export async function fromDataTransfer(dt: DataTransfer): Promise<FileMap> {
   return map;
 }
 
-/** Every file of a folder handle (a folder chosen with the directory picker), under the folder's name as a picked folder has them. */
+/** Every file under a folder handle (a folder chosen with the directory picker), with its path under the folder's name. */
+export async function* filesIn(dir: LiveDirectory, prefix = `${dir.name}/`): AsyncGenerator<[string, LiveFile]> {
+  for await (const handle of dir.values()) {
+    if (handle.kind === "directory") yield* filesIn(handle, `${prefix}${handle.name}/`);
+    else yield [prefix + handle.name, handle];
+  }
+}
+
+/** Every file of a folder handle, under the folder's name as a picked folder has them. */
 export async function fromDirectory(dir: LiveDirectory): Promise<FileMap> {
   const map: FileMap = new Map();
-  async function walk(folder: LiveDirectory, prefix: string) {
-    for await (const handle of folder.values()) {
-      if (handle.kind === "directory") await walk(handle, `${prefix}${handle.name}/`);
-      else map.set(prefix + handle.name, fileSource(await handle.getFile()));
-    }
-  }
-  await walk(dir, `${dir.name}/`);
+  for await (const [path, file] of filesIn(dir)) map.set(path, fileSource(await file.getFile()));
   return map;
 }
 

@@ -1,4 +1,5 @@
-import { isRec } from "./save-record.ts";
+import { isRec, type Rec } from "./save-record.ts";
+import { finite } from "./values.ts";
 
 export interface SavedItem {
   index: number;
@@ -13,8 +14,6 @@ export interface SavedItem {
 export type Inventory =
   | { state: "saved"; items: SavedItem[]; note?: string }
   | { state: "unrolled" | "unavailable"; reason: string };
-
-const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
 /** A two-handed melee weapon is saved in its off hand too; the game's loader skips that identical record in slots 1 and 3. */
 export function isOffHandCopy(equips: readonly unknown[], slot: number): boolean {
@@ -101,7 +100,7 @@ export function parseItemList(raw: unknown): Inventory {
   return { state: "saved", items: raw.filter((v) => v !== -4).map((v) => item(v, 0)) };
 }
 
-export function containerInventory(raw: Record<string, unknown>): Inventory {
+export function containerInventory(raw: Rec): Inventory {
   if (raw.status === -214) return { state: "unrolled", reason: "Not rolled when saved. Generated on first opening in the game." };
   return parseInventoryGrid(raw.gridSave);
 }

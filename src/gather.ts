@@ -2,6 +2,7 @@
 
 import { ITEM_NAMES } from "./gamedata.ts";
 import { roundGml } from "./chop.ts";
+import { plural } from "./format.ts";
 import { TILE, tileIndex, TILES } from "./rules.ts";
 import type { Layer, Mark } from "./objects.ts";
 import type { Grid } from "./save.ts";
@@ -86,7 +87,7 @@ const LEFT_OVER = 99;
 export function gatherDetail(g: Gather, loot = 0): string {
   if (loot === LEFT_OVER) return `${g.kind === "nest" ? "searched" : "harvested"}; what was left lies in its ground loot`;
   if (g.kind === "nest") {
-    if (!g.amount) return loot > 0 && loot < 50 ? `searched; refills in about ${loot} day${loot === 1 ? "" : "s"}` : "searched";
+    if (!g.amount) return loot > 0 && loot < 50 ? `searched; refills in about ${plural(loot, "day")}` : "searched";
     return `Feather x${span(g.amount)}, 40% chance of Egg x1–3`;
   }
   const stage = g.stage === undefined ? "" : ` (${STAGES[g.stage]})`;

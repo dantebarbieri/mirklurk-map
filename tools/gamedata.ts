@@ -5,9 +5,11 @@
 // Short factual labels, the journal's text (copied with the developer's permission) and sprite bounding boxes are copied; no game
 // art or code.
 
+import { writeSource } from "./shared.ts";
+
 const [gameDir, metaDir] = Deno.args;
 if (!gameDir || !metaDir) {
-  console.error('usage: deno run -R -W tools/gamedata.ts "<game dir>" "<meta dir>"');
+  console.error('usage: deno run -R -W --allow-run tools/gamedata.ts "<game dir>" "<meta dir>"');
   Deno.exit(2);
 }
 
@@ -86,8 +88,5 @@ export const TO_THE_DIR: Record<number, string> = ${table(numbered(bestiary.get(
 export const SPRITES: Record<string, readonly number[]> = ${table(spriteTable)};
 `;
 
-const target = new URL("../src/gamedata.ts", import.meta.url);
-Deno.writeTextFileSync(target, out);
-const path = decodeURIComponent(target.pathname).replace(/^\/([A-Za-z]:)/, "$1");
-await new Deno.Command(Deno.execPath(), { args: ["fmt", "--quiet", path] }).output();
+await writeSource("src/gamedata.ts", out);
 console.log(`src/gamedata.ts: ${Object.keys(spriteTable).length} sprites`);

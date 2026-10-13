@@ -4,6 +4,7 @@
 // gml_GlobalScript_scr_gui_general, aiming in gml_Object_manager_area_Step_0 and being_get_target in gml_GlobalScript_scr_ai_related.
 
 import { roundGml } from "./chop.ts";
+import { plural } from "./format.ts";
 import { DAMAGE_CLASS_NAMES } from "./gamedata.ts";
 
 /** damageClass values ([DamageClasses] in UI.ini). */
@@ -327,10 +328,7 @@ export function formatPercent(v: number): string {
 }
 
 /** A distance as the examine card prints it: the whole tiles. */
-export function formatTiles(dist: number): string {
-  const n = Math.floor(dist);
-  return `${n} ${n === 1 ? "tile" : "tiles"}`;
-}
+export const formatTiles = (dist: number) => plural(Math.floor(dist), "tile");
 
 /** being_initiate's per-species hit-point shapes, as ds_grid (x, y) cells: -4 holes, and extra layers (armor) on top. */
 const HOLES: Record<number, [number, number][]> = {

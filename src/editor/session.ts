@@ -77,8 +77,11 @@ export interface SaveSource {
   read(): Promise<SaveRead>;
   /** Throws a StaleError if the character's save changed since `read`. */
   check(read: SaveRead, character: Character): Promise<void>;
-  /** Writes `writes` in their order; `all` is every file of the save once they are written. Returns the save as it is then. */
-  write(writes: Write[], all: FileMap, character: Character): Promise<SaveRead>;
+  /**
+   * Writes `writes` in their order; `all` is every file of the save once they are written, and `read` the save they replace. Returns
+   * the save as it is then.
+   */
+  write(writes: Write[], all: FileMap, character: Character, read: SaveRead): Promise<SaveRead>;
 }
 
 /** A folder opened with the File System Access API: the whole Saves folder or one character's folder. */
@@ -138,6 +141,9 @@ export class FolderSource implements SaveSource {
 /** The library calls a LibrarySource makes: src/library.ts's api with this browser's key, or a stand-in server in tests. */
 export type LibraryCall = (path: string, init?: RequestInit) => Promise<Response>;
 
+const STALE_LIBRARY = "This world was updated in My worlds since it was read, from another device or by Live saves keeping it updated. " +
+  "Choose Reload save to read the newest version and run your unsaved changes again on it.";
+
 /** A world in My worlds: read from the library, and saved by updating it there, which every synced device then sees. */
 export class LibrarySource implements SaveSource {
   readonly kind = "library";
@@ -162,7 +168,7 @@ export class LibrarySource implements SaveSource {
       await response.body?.cancel();
       throw new Error("This world is too large");
     }
-    const { name, files } = unpackSave(new Uint8Array(await response.arrayBuffer()));
+    const { name, files } = await unpackSave(new Uint8Array(await response.arrayBuffer()));
     return { files, characters: [{ name, root: "Shared/" }], version: response.headers.get("ETag") ?? undefined };
   }
 
@@ -170,25 +176,29 @@ export class LibrarySource implements SaveSource {
     const response = await this.data({ headers: typeof read.version === "string" ? { "If-None-Match": read.version } : {} });
     if (response.status === 304) return;
     await response.body?.cancel();
-    throw new StaleError(
-      "This world was updated in My worlds since it was read, from another device or by Live saves keeping it updated. " +
-        "Choose Reload save to read the newest version and run your unsaved changes again on it.",
-    );
+    throw new StaleError(STALE_LIBRARY);
   }
 
-  async write(_writes: Write[], all: FileMap, character: Character): Promise<SaveRead> {
+  async write(_writes: Write[], all: FileMap, character: Character, read: SaveRead): Promise<SaveRead> {
     const body = await packSave(all, character);
+    // If-Match only updates, so a world deleted on another device is never quietly added back; the version read (its ETag) also
+    // refuses to overwrite an update another device made since, even one that lands right after `check`.
+    const match = typeof read.version === "string" ? read.version : "*";
     let info: WorldInfo;
     try {
-      // "If-Match: *" only updates: a world deleted on another device is never quietly added back.
       const response = await this.call(`/library/worlds/${this.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/octet-stream", "If-Match": "*" },
+        headers: { "Content-Type": "application/octet-stream", "If-Match": match },
         body: body as BodyInit,
       });
       info = await response.json();
     } catch (e) {
       if (e instanceof ShareError && e.status === 412) {
+        // Deleted or updated meanwhile: reading it again tells which (check throws for both).
+        if (match !== "*") {
+          await this.check(read);
+          throw new StaleError(STALE_LIBRARY);
+        }
         throw new Error("This world is no longer in My worlds: it was deleted on another device, or it expired. Download it instead");
       }
       throw e;
@@ -248,6 +258,8 @@ interface Part {
 interface Change {
   id: number;
   parts: Part[];
+  /** What the change set, such as one slider: a later change with the same key replaces it rather than adding another. */
+  key?: string;
 }
 const noteOf = (c: Change) => c.parts.map((p) => p.note).join("; ");
 
@@ -311,20 +323,29 @@ export class EditSession {
    * Runs `edit` on the draft of `path` and records it as an unsaved change when it returns a note, which is also returned. An edit
    * that changes nothing or throws leaves the draft as the recorded changes made it.
    */
-  apply(path: string, edit: Edit): Promise<string | undefined> {
-    return this.applyAll([{ path, edit }]);
+  apply(path: string, edit: Edit, key?: string): Promise<string | undefined> {
+    return this.applyAll([{ path, edit }], key);
   }
 
   /**
    * Runs several files' edits, in order, as one unsaved change, whose line (joining theirs) is returned. Unless every one of them
    * changes something, nothing is recorded and every draft is left as the recorded changes made it.
+   *
+   * `key` names what the change sets (one slider, one field): when the last change has the same key, this one replaces it, so
+   * dragging a slider is one change, from where it started. Setting it back to where it started leaves no change at all; an edit
+   * that throws leaves the last change in place.
    */
-  applyAll(steps: { path: string; edit: Edit }[]): Promise<string | undefined> {
+  applyAll(steps: { path: string; edit: Edit }[], key?: string): Promise<string | undefined> {
     return this.serial(async () => {
       if (this.busy) throw new Error("Wait for the save to finish");
       if (!steps.length) return undefined;
       for (const { path } of steps) if (!this.files.has(path)) throw new Error(`${path} is missing`);
+      const last = this.log[this.log.length - 1];
+      const replaced = key !== undefined && last?.key === key ? last : undefined;
+      const touched = [...steps.map((s) => s.path), ...(replaced?.parts.map((p) => p.path) ?? [])];
+      if (replaced) await this.replay(touched, this.log.slice(0, -1));
       const parts: Part[] = [];
+      let failed = true;
       try {
         for (const { path, edit } of steps) {
           const raw = await this.json(path);
@@ -332,9 +353,10 @@ export class EditSession {
           if (!note) break;
           parts.push({ path, edit, note });
         }
+        failed = false;
       } finally {
-        if (parts.length === steps.length) this.log.push({ id: this.nextId++, parts });
-        else await this.replay(steps.map((s) => s.path), this.log);
+        if (parts.length === steps.length) this.log.push({ id: this.nextId++, parts, ...(key === undefined ? {} : { key }) });
+        else await this.replay(touched, failed && replaced ? [...this.log, replaced] : this.log);
       }
       return parts.length === steps.length ? noteOf(this.log[this.log.length - 1]) : undefined;
     });
@@ -552,7 +574,7 @@ export class EditSession {
         await this.store.backup(backup);
         await this.store.remember(this.world);
       }
-      this.read = await source.write(writes, this.after(writes), character);
+      this.read = await source.write(writes, this.after(writes), character, this.read);
       this.clear();
       if (whole) {
         // The world is saved by now: if this browser can't record it, say so rather than report the save as failed.
@@ -600,7 +622,7 @@ export class EditSession {
         ...files.filter((f) => f !== player && f.path !== last),
         ...(last ? [{ path: last, bytes: files.find((f) => f.path === last)?.bytes ?? await this.files.get(last)!.read() }] : []),
       ];
-      this.read = await source.write(writes, this.after(writes), character);
+      this.read = await source.write(writes, this.after(writes), character, this.read);
       this.clear();
     });
   }

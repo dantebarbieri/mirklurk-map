@@ -1,4 +1,6 @@
 // Refresh the public title allowlist and the bundled wiki images. No save data or game files are sent to the wiki.
+import { contentHash, removeTree } from "./shared.ts";
+
 const API = "https://mirklurk.wiki/api.php";
 
 async function query(params: Record<string, string>, list: string, cursor: string) {
@@ -54,7 +56,7 @@ for (const i of indices(/^Item-(\d+)/)) wanted.push(["items", String(i), pick(`I
 for (const [name, f] of Object.entries(PLACES)) wanted.push(["places", name, pick(`${f}-cropped.png`, `${f}.png`)]);
 
 const out = new URL("../assets/wiki/", import.meta.url);
-await Deno.remove(out, { recursive: true }).catch(() => {});
+await removeTree(out);
 await Deno.mkdir(out, { recursive: true });
 const art: Record<Group, Record<string, { file: string; w: number; h: number; source: string }>> = { beings: {}, items: {}, places: {} };
 for (const [group, key, name] of wanted) {
@@ -67,9 +69,7 @@ for (const [group, key, name] of wanted) {
   }
   const view = new DataView(bytes.buffer);
   const [w, h] = [view.getUint32(16), view.getUint32(20)];
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  const hash = Array.from(digest.slice(0, 5), (b) => b.toString(16).padStart(2, "0")).join("");
-  const file = `${group.slice(0, -1)}_${key.toLowerCase().replace(/[^a-z0-9]+/g, "_")}.${hash}.png`;
+  const file = `${group.slice(0, -1)}_${key.toLowerCase().replace(/[^a-z0-9]+/g, "_")}.${await contentHash(bytes)}.png`;
   await Deno.writeFile(new URL(file, out), bytes);
   art[group][key] = { file: `assets/wiki/${file}`, w, h, source: name };
 }

@@ -9,6 +9,7 @@ import {
   PAIR_ID,
   PAIR_TTL,
   RETENTION,
+  sha256Hex,
   SHARE_INTERVAL,
   shareId,
   shareKey,
@@ -74,10 +75,6 @@ export const LIMITS = {
   maxBytes: MAX_UPLOAD,
   pollSeconds: SHARE_INTERVAL / 1000,
 };
-
-const digest = async (text: string) =>
-  [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((n) => n.toString(16).padStart(2, "0"))
-    .join("");
 
 /** IPv6 privacy addresses in the same /64 share a quota. IPv4-mapped IPv6 is IPv4. */
 export function ipBucket(ip: string): string {
@@ -318,7 +315,7 @@ export class UploadStore {
   private async route(request: Request, address: string): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/healthz" && request.method === "GET") return new Response("ok\n");
-    const owner = await digest(this.salt + ipBucket(address));
+    const owner = await sha256Hex(this.salt + ipBucket(address));
     const now = this.now();
     let rate = this.rates.get(owner);
     if (!rate || rate.until <= now) {
@@ -366,7 +363,7 @@ export class UploadStore {
     }
     if (!id && request.method === "PATCH") return this.rename(request, library, owner);
     if (!id) throw new HttpError(405, "Method not allowed");
-    const key = await digest(`${library}/${id}`);
+    const key = await sha256Hex(`${library}/${id}`);
     if (action === "/data" && request.method === "GET") {
       const record = this.live(key);
       if (!record) throw new HttpError(404, "This world was deleted or expired");
@@ -518,9 +515,14 @@ export class UploadStore {
     return this.exclusive(async () => {
       const now = this.now();
       const record = this.live(key);
-      // "If-Match: *" marks an update: it must not quietly re-add a world deleted on another device.
-      if (!record && request.headers.get("If-Match") === "*") {
+      // Any If-Match marks an update: it must not quietly re-add a world deleted on another device. An exact ETag (the version the
+      // client read) also refuses to overwrite a newer version another device uploaded meanwhile.
+      const match = request.headers.get("If-Match");
+      if (!record && match !== null) {
         throw new HttpError(412, "This world is no longer in your library (it was deleted or expired). Add it again to keep it");
+      }
+      if (record && match !== null && match !== "*" && match !== `"${record.version}"`) {
+        throw new HttpError(412, "This world was updated in your library since it was read");
       }
       if (record && now - record.updated < SHARE_INTERVAL) throw new HttpError(429, "Wait 30 seconds between updates of a world");
       const active = [...this.worlds.values()].filter((w) => w.expires > now);
@@ -538,9 +540,9 @@ export class UploadStore {
         if (active.length >= MAX_WORLDS) throw new HttpError(503, "Shared-save storage is full");
       }
       const body = await this.readBody(request, MAX_UPLOAD);
-      let unpacked: ReturnType<typeof unpackSave>;
+      let unpacked: Awaited<ReturnType<typeof unpackSave>>;
       try {
-        unpacked = unpackSave(body);
+        unpacked = await unpackSave(body);
       } catch (e) {
         throw new HttpError(400, (e as Error).message);
       }

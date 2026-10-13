@@ -19,6 +19,7 @@ import {
   turnsPattern,
 } from "./bestiary.ts";
 import { h } from "./dom.ts";
+import { plural } from "./format.ts";
 import { type HealthGrid, healthGridView, healthLegend, parseHealth, summarize } from "./health.ts";
 import { section, type SectionContext, wikiLink } from "./inspect.ts";
 import { wikiUrl } from "./wiki.ts";
@@ -29,7 +30,6 @@ let showRanged = false;
 /** global.GAMEDIFF on Hard (myDiff in Player.save). */
 const HARD = 3;
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const amount = (hp: number, armor: number) => `${plural(hp, "hit point")}${armor ? `, ${armor} armor` : ""}`;
 
 /** The saved grid against a fresh one's (being_initiate), or the fresh shape when the save has none. */

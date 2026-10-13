@@ -6,12 +6,14 @@
 import { type Coins, coinsView, coinValue, countCoins, fewestCoins } from "./coins.ts";
 import { ARMOR, armorToPlace, isWeaponSlot, itemArmor, SLOT_NAMES, totalArmor } from "./armor.ts";
 import { h } from "./dom.ts";
+import { plural } from "./format.ts";
 import { ITEM_NAMES } from "./gamedata.ts";
 import { healthGridView, healthLegend, type HealthSummary, summarize } from "./health.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { inventoryView, section, type SectionContext, wikiLink, wikiTitle } from "./inspect.ts";
 import { journalView } from "./journal.ts";
 import type { PlayerSave } from "./save.ts";
+import { clamp01 } from "./values.ts";
 import { wikiUrl } from "./wiki.ts";
 
 export type Stat = "focus" | "stamina" | "satiation" | "warmth";
@@ -39,8 +41,6 @@ const RATES: Readonly<Record<Stat, readonly [number, number]>> = {
   stamina: [0.005, 0.002],
   warmth: [0.03, 0],
 };
-
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 /** GameMaker's round() breaks ties to the even neighbour. */
 function gmRound(v: number): number {
@@ -254,8 +254,6 @@ export const xpForLevel = (level: number) => Math.floor(28 * 1.2 ** level / 5) *
 /** gml_Object_obj_player_Step_1, which also adds a new hit point every third level. */
 export const MAX_LEVEL = 60;
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
 // Coin roll-up.
 
 /** "true" counts the coins carried; "minimum" the same value in the fewest coins. */
@@ -333,6 +331,59 @@ export function coinRollup(inventory: Inventory | undefined): HTMLElement {
 
 // Views.
 
+/**
+ * Lets the save editor change the player in the preview: the vital bars become sliders, and its own controls take the place of the
+ * hit point grid, the list of conditions and the level line. The map passes none.
+ */
+export interface PlayerEditing {
+  /** A vital bar was set to `value` (0–1). */
+  vital(kind: Stat | "wellbeing", value: number): void;
+  /** In place of the hit point grid and its legend. */
+  hitPoints(): HTMLElement[];
+  /** In place of the list of conditions. */
+  conditions(): HTMLElement[];
+  /** In place of the level line. */
+  level(): HTMLElement[];
+}
+
+const VITAL_NAMES: Readonly<Record<Stat | "wellbeing", string>> = { ...STAT_LABELS, wellbeing: "Wellbeing" };
+
+/**
+ * The bar of `li` as a slider: dragging moves its fill (or needle), value and note at once, and letting go sets the vital. `data-key`
+ * lets the editor put the focus back once the page is drawn again.
+ */
+function editableBar(li: HTMLElement, kind: Stat | "wellbeing", v: number, edit: PlayerEditing): void {
+  const input = h("input", {
+    type: "range",
+    class: "vital-slider",
+    min: 0,
+    max: 100,
+    step: 1,
+    value: Math.round(clamp01(v) * 100),
+    "data-key": `vital-${kind}`,
+    "aria-label": `${VITAL_NAMES[kind]} (0–100%)`,
+    oninput: () => {
+      const to = Number(input.value) / 100;
+      const at = `${to * 100}%`;
+      const fill = li.querySelector<HTMLElement>(".vital-fill"), needle = li.querySelector<HTMLElement>(".vital-needle");
+      if (fill) fill.style.width = at;
+      if (needle) needle.style.left = at;
+      li.querySelector(".vital-value")!.textContent = percent(to);
+      if (kind !== "wellbeing") {
+        const s = statStatus(kind, to);
+        const note = li.querySelector(".vital-note")!;
+        note.className = `vital-note ${s.tone}`;
+        note.textContent = s.text;
+      }
+    },
+    onchange: () => edit.vital(kind, Number(input.value) / 100),
+  }) as HTMLInputElement;
+  const track = li.querySelector(".vital-bar")!;
+  const wrap = h("div", { class: "vital-edit" });
+  track.replaceWith(wrap);
+  wrap.append(track, input);
+}
+
 function bar(kind: Stat | "wellbeing", v: number): HTMLElement {
   const at = `${(clamp01(v) * 100).toFixed(1)}%`;
   if (kind === "warmth") {
@@ -353,9 +404,9 @@ function bar(kind: Stat | "wellbeing", v: number): HTMLElement {
   );
 }
 
-function statRow(stat: Stat, v: number): HTMLElement {
+function statRow(stat: Stat, v: number, edit?: PlayerEditing): HTMLElement {
   const s = statStatus(stat, v);
-  return h(
+  const li = h(
     "li",
     { class: `vital ${stat}` },
     h(
@@ -367,37 +418,41 @@ function statRow(stat: Stat, v: number): HTMLElement {
     bar(stat, v),
     h("div", { class: `vital-note ${s.tone}` }, s.text),
   );
+  if (edit) editableBar(li, stat, v, edit);
+  return li;
 }
 
-function wellbeingView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
+function wellbeingView(p: PlayerSave, ctx: SectionContext, edit?: PlayerEditing): HTMLElement[] {
   const change = wellbeingChange(p);
   if (!p.vitals || !change) return [h("p", { class: "muted" }, "Wellbeing and its stats were not saved.")];
   const wb = p.vitals.wellbeing;
   const tone = toneOf(change.total);
   const extras = change.parts.filter((x) => !x.stat);
   const rules = `${ctx.key}/wellbeing/rules`;
+  const row = h(
+    "li",
+    { class: "vital wellbeing" },
+    h(
+      "div",
+      { class: "vital-row" },
+      h("span", { class: "vital-name" }, wikiTitle(wikiUrl("Wellbeing"), "Wellbeing")),
+      h("span", { class: "vital-value" }, percent(wb)),
+      h(
+        "span",
+        { class: `vital-change ${tone}`, title: "Net change per turn at save time" },
+        `${signedPercent(change.total)} per turn`,
+      ),
+    ),
+    bar("wellbeing", wb),
+    h("div", { class: `vital-note ${tone}` }, `${wellbeingTrend(wb, change.total)}. The change per turn sums the lines below.`),
+  );
+  if (edit) editableBar(row, "wellbeing", wb, edit);
   return [
     h(
       "ul",
       { class: "vitals" },
-      h(
-        "li",
-        { class: "vital wellbeing" },
-        h(
-          "div",
-          { class: "vital-row" },
-          h("span", { class: "vital-name" }, wikiTitle(wikiUrl("Wellbeing"), "Wellbeing")),
-          h("span", { class: "vital-value" }, percent(wb)),
-          h(
-            "span",
-            { class: `vital-change ${tone}`, title: "Net change per turn at save time" },
-            `${signedPercent(change.total)} per turn`,
-          ),
-        ),
-        bar("wellbeing", wb),
-        h("div", { class: `vital-note ${tone}` }, `${wellbeingTrend(wb, change.total)}. The change per turn sums the lines below.`),
-      ),
-      STATS.map((stat) => statRow(stat, p.vitals![stat])),
+      row,
+      STATS.map((stat) => statRow(stat, p.vitals![stat], edit)),
       extras.map((x) =>
         h(
           "li",
@@ -501,7 +556,7 @@ export function equippedBadge(p: PlayerSave): (item: SavedItem) => HTMLElement |
   };
 }
 
-function hitPointsView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
+function hitPointsView(p: PlayerSave, ctx: SectionContext, edit?: PlayerEditing): HTMLElement[] {
   if (!p.health) return [h("p", { class: "muted" }, "Hit points were not saved."), ...armorView(p, ctx)];
   const s = summarize(p.health);
   const guides: [string, string][] = [["Health and armor", "Health and armor"], ["Armor points", "Armor points"]];
@@ -509,8 +564,7 @@ function hitPointsView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
   if (s.bleed || s.burned) guides.push(["Damage types", "Damage types"]);
   const heal = healText(s, p.vitals?.wellbeing);
   return [
-    healthGridView(p.health),
-    healthLegend(p.health),
+    ...(edit ? edit.hitPoints() : [healthGridView(p.health), healthLegend(p.health)]),
     ...armorView(p, ctx),
     p.newHitPoints > 0
       ? h(
@@ -524,7 +578,8 @@ function hitPointsView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
   ].filter((e): e is HTMLElement => !!e);
 }
 
-function conditionsView(p: PlayerSave): HTMLElement[] {
+function conditionsView(p: PlayerSave, edit?: PlayerEditing): HTMLElement[] {
+  if (edit) return [...edit.conditions(), ...edit.level()];
   const list = conditionsOf(p);
   const wet = wetClothes(p.wetness);
   const items = [
@@ -563,12 +618,15 @@ function conditionsView(p: PlayerSave): HTMLElement[] {
   ];
 }
 
-/** Inspection sections for the player: hit points, wellbeing and its four stats, conditions, coins, inventory and the journal. */
-export function playerView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
+/**
+ * Inspection sections for the player: hit points, wellbeing and its four stats, conditions, coins, inventory and the journal. `edit`
+ * makes it the save editor's (see PlayerEditing).
+ */
+export function playerView(p: PlayerSave, ctx: SectionContext, edit?: PlayerEditing): HTMLElement[] {
   return [
-    section(ctx, "hp", "Hit points", true, ...hitPointsView(p, ctx)),
-    section(ctx, "wellbeing", "Wellbeing", true, ...wellbeingView(p, ctx)),
-    section(ctx, "conditions", "Conditions and level", true, ...conditionsView(p)),
+    section(ctx, "hp", "Hit points", true, ...hitPointsView(p, ctx, edit)),
+    section(ctx, "wellbeing", "Wellbeing", true, ...wellbeingView(p, ctx, edit)),
+    section(ctx, "conditions", "Conditions and level", true, ...conditionsView(p, edit)),
     section(
       ctx,
       "inventory",

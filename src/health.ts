@@ -3,6 +3,8 @@
 // gml_GlobalScript_scr_gui_general, statusgrid_get in gml_GlobalScript_scr_gen_ingamers, being_initiate's armor.
 
 import { h, s } from "./dom.ts";
+import { plural } from "./format.ts";
+import { finite } from "./values.ts";
 
 /** Lasting statusgrid entries; the others (hit, miss and armor-break flashes) are animations that fade within a second. */
 export const Status = { Poison: 2, BleedUp: 10, BleedRight: 11, BleedDown: 12, BleedLeft: 13, Stunned: 23 } as const;
@@ -35,7 +37,6 @@ export const cellKind = (c: HealthCell): CellKind =>
 export const cellArmor = (c: HealthCell) => Math.max(0, Math.min(3, c.hp - 1));
 export const cellBleed = (c: HealthCell) => c.bleed[0] + c.bleed[1] + c.bleed[2] + c.bleed[3];
 
-const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const rectangular = (v: unknown): v is unknown[][] =>
   Array.isArray(v) && v.length > 0 && v.every((r) => Array.isArray(r) && r.length > 0 && r.length === (v[0] as unknown[]).length);
 
@@ -92,8 +93,6 @@ export function summarize(g: HealthGrid): HealthSummary {
   }
   return s;
 }
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** "9 of 12 hit points left · 2 lost · 1 burned · 3 armor · poison ×2 in 1 cell · bleeding ×1" */
 export function healthText(g: HealthGrid): string {

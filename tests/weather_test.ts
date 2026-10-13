@@ -3,6 +3,7 @@
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
 import { assert, assertAlmost, assertEquals } from "./assert.ts";
+import { HAVE_SAVES, SAVES } from "./saves.ts";
 import { decodeJson, parsePlayer } from "../src/save.ts";
 import {
   balanceAfter,
@@ -166,23 +167,13 @@ Deno.test("weather: who feels it — outdoors, sheltered in buildings, undergrou
   assertEquals([31, 32, 34, 35].map(exposure), Array(4).fill("sheltered"));
 });
 
-const dir = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
-const present = (() => {
-  try {
-    return Deno.statSync(dir).isDirectory;
-  } catch {
-    return false;
-  }
-})();
-
-Deno.test({ name: "weather: real saves have a clock and consistent weather", ignore: !present }, () => {
+Deno.test({ name: "weather: real saves have a clock and consistent weather", ignore: !HAVE_SAVES }, () => {
   let n = 0;
-  for (const e of Deno.readDirSync(dir)) {
+  for (const e of Deno.readDirSync(SAVES)) {
     if (!e.isDirectory) continue;
     let bytes: Uint8Array;
     try {
-      bytes = Deno.readFileSync(`${dir}/${e.name}/Player.save`);
+      bytes = Deno.readFileSync(`${SAVES}/${e.name}/Player.save`);
     } catch {
       continue;
     }

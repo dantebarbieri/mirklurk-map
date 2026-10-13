@@ -1,9 +1,10 @@
 import { assert, assertEquals } from "./assert.ts";
+import { HAVE_SAVES, SAVES } from "./saves.ts";
 import { ARMOR, armorRoom, armorToPlace, type Equipped, itemArmor, SLOT_NAMES, totalArmor } from "../src/armor.ts";
 import { parseHealth } from "../src/health.ts";
 import type { SavedItem } from "../src/inventory.ts";
 import { ITEMS } from "../src/itemdata.ts";
-import { parsePlayer } from "../src/save.ts";
+import { decodeJson, parsePlayer } from "../src/save.ts";
 
 const saved = (index: number, durability?: number): SavedItem => ({ index, amount: 1, durability, contents: [] });
 const worn = (slot: number, item: SavedItem, active = true): Equipped => ({ slot, active, item });
@@ -63,13 +64,11 @@ Deno.test("armor: equipment keeps its slots and weapon sets, and drops a two-han
 
 Deno.test({
   name: "armor: real saves give a total within what their equipment can hold",
-  ignore: !Deno.env.get("MIRKLURK_SAVES"),
+  ignore: !HAVE_SAVES,
   fn() {
-    const root = Deno.env.get("MIRKLURK_SAVES")!;
-    for (const c of Deno.readDirSync(root)) {
+    for (const c of Deno.readDirSync(SAVES)) {
       if (!c.isDirectory) continue;
-      const text = new TextDecoder().decode(Deno.readFileSync(`${root}/${c.name}/Player.save`)).replace(/\0+$/, "");
-      const p = parsePlayer(JSON.parse(text));
+      const p = parsePlayer(decodeJson(Deno.readFileSync(`${SAVES}/${c.name}/Player.save`)));
       const total = totalArmor(p.equipment);
       assert(total >= 0 && total < 40, `${c.name}: ${total}`);
       assert(p.equipment.every((e) => e.slot >= 0 && e.slot < SLOT_NAMES.length), c.name);

@@ -9,14 +9,11 @@ import { BEING_NAMES, JOURNAL, JOURNAL_FIRST, TO_THE_DIR } from "./gamedata.ts";
 import { wikiLink } from "./inspect.ts";
 import { detailMarks, type Mark, solidMarks } from "./objects.ts";
 import { Area, coordLabel, INTERIOR_NAMES, LANDMARK_NAMES, SolidId } from "./rules.ts";
-import type { PlayerSave } from "./save.ts";
-import { type Interior, interiorsOf, loadDetail, type World, type Zone, type ZoneDetail } from "./world.ts";
+import { destination, type PlayerSave } from "./save.ts";
+import { type Interior, interiorsOf, loadDetail, type QuestZone, questZone, type World, type Zone, type ZoneDetail } from "./world.ts";
 import { wikiUrl } from "./wiki.ts";
 
 export type JournalSave = Pick<PlayerSave, "mainQuest" | "grid" | "rangerCamp" | "libraryArea" | "riftQuestArea">;
-
-/** The zones Player.save fixes for the quest: Bhato's (rangerCamp), the Library's (libraryArea) and Scaal's (riftQuestArea). */
-export type QuestZone = "bhato" | "library" | "scaal";
 
 /** A person or place an entry mentions. */
 export type JournalTarget =
@@ -224,13 +221,8 @@ export interface Located {
 
 /** Finds a link's person or place in the world, falling back as each target says; undefined when the save has no trace of it. */
 export async function locateTarget(world: World, t: JournalTarget): Promise<Located | undefined> {
-  const p = world.player;
-  const questZone = (q: QuestZone) => {
-    const c = q === "bhato" ? p.rangerCamp : q === "library" ? p.libraryArea : p.riftQuestArea;
-    return c ? world.zones[c[1]]?.[c[0]] : undefined;
-  };
   const inZone = (q: QuestZone | undefined, [x, y]: [number, number]) => {
-    const z = q && questZone(q);
+    const z = q && questZone(world, q);
     return !q || (!!z && z.x === x && z.y === y);
   };
   const zoneAt = ([x, y]: [number, number]) => world.zones[y]?.[x];
@@ -254,7 +246,7 @@ export async function locateTarget(world: World, t: JournalTarget): Promise<Loca
         const solid = zone.solids.find((s) => s.index === t.solid);
         if (solid) return { zone, mark: solidMark(zone, solid) };
       }
-      const zone = t.zone && questZone(t.zone);
+      const zone = t.zone && questZone(world, t.zone);
       return zone ? { zone } : undefined;
     }
     case "interior": {
@@ -263,15 +255,15 @@ export async function locateTarget(world: World, t: JournalTarget): Promise<Loca
       if (interior && zone) return { zone, interior };
       for (const z of world.zones.flat()) {
         if (!inZone(t.zone, [z.x, z.y])) continue;
-        const door = z.solids.find((s) => s.transPoint && s.transPoint.length >= 3 && s.transPoint[0] === t.type);
+        const door = z.solids.find((s) => destination(s)?.[0] === t.type);
         if (door) return { zone: z, mark: solidMark(z, door) };
       }
       if (t.via) return locateTarget(world, t.via);
-      const qz = t.zone && questZone(t.zone);
+      const qz = t.zone && questZone(world, t.zone);
       return qz ? { zone: qz } : undefined;
     }
     case "zone": {
-      const zone = questZone(t.zone);
+      const zone = questZone(world, t.zone);
       return zone ? { zone } : undefined;
     }
     case "rift": {

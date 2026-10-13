@@ -36,9 +36,11 @@ Run `deno task ci` before pushing. `.editorconfig` matches `deno fmt`, so most e
 - **No dependencies.** Imports are relative; don't add URL, `jsr:` or `npm:` packages (`no-external-import` catches URL imports). Tests use
   `tests/assert.ts`.
 - **Types:** `strict` is on. Prefer precise types to `any` and non-null assertions.
-- **Shared save rules:** raw record guards and the last-player-record rule live in `src/save-record.ts`; equipment-copy detection lives in
-  `src/inventory.ts`. Keep readers and editors on those helpers rather than maintaining parallel versions. Durability maxima come from
-  generated `src/itemdata.ts`, including those used for armor calculations. Editors must preserve fields they do not own.
+- **Shared helpers:** raw save records (`Rec`, `isRec`, `playerRecord`) live in `src/save-record.ts`, numbers read from saves (`finite`,
+  `num`, `clamp01`) in `src/values.ts`, wording shared by cards and panels (`plural`, `pct`) in `src/format.ts`, and what the tools share in
+  `tools/shared.ts`. Use them rather than keeping a local copy.
+- **Equipment rules:** readers and editors share off-hand-copy detection in `src/inventory.ts`. Durability maxima come from generated
+  `src/itemdata.ts`, including those used for armor calculations. Editors must preserve fields they do not own.
 
 ## Tests
 
@@ -49,7 +51,8 @@ Run `deno task ci` before pushing. `.editorconfig` matches `deno fmt`, so most e
   comparisons require finite numbers and a finite, non-negative tolerance.
 - Logic belongs in pure, importable modules so it can be tested without a DOM; UI files stay thin.
 - Every bug fix comes with a test that fails without it; every feature with tests of its rules and edge cases.
-- `real_saves_test.ts` also checks real saves when `MIRKLURK_SAVES` (or `../Saves`) exists and skips itself otherwise; never commit saves.
+- Tests that check real saves find them through `tests/saves.ts` (`MIRKLURK_SAVES`, or `../Saves`) and skip themselves when there are none.
+  They only read saves, or copy one to a temporary folder first; never commit saves.
 - Coverage may not drop below the thresholds in `deno.json` (`coverage.thresholds`). Raise them when coverage improves; never lower them to
   get a change through.
 

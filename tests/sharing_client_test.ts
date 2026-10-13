@@ -395,7 +395,7 @@ Deno.test("sharing client: adding uploads the selected character; the same world
     const add = await b.request("PUT", `/library/worlds/${await worldId("Hero", grid)}`);
     assertEquals(add.headers.get("If-Match"), null);
     assertEquals(add.headers.get("Authorization"), `Bearer ${keyA}`);
-    assertEquals(unpackSave(add.body as Uint8Array).name, "Hero");
+    assertEquals((await unpackSave(add.body as Uint8Array)).name, "Hero");
     b.el("#save-world").click();
     assertEquals(b.pending(), 1);
     await b.reply(add, Response.json(await world(), { status: 201 }));

@@ -1,7 +1,7 @@
-import { type FileMap, findCharacters, type Source } from "./files.ts";
+import { type FileMap, filesIn, findCharacters, type Source } from "./files.ts";
 import { parseItemList } from "./inventory.ts";
 import { isSaveFile } from "./marker.ts";
-import { centerpos, isOutside } from "./rules.ts";
+import { centerpos, isOutside, isRiftDepths } from "./rules.ts";
 import {
   decodeHeights,
   decodeJson,
@@ -45,17 +45,11 @@ export interface Snapshot {
 
 export async function scanDirectory(dir: LiveDirectory): Promise<Scan> {
   const entries = new Map<string, Entry>();
-  async function walk(folder: LiveDirectory, prefix: string) {
-    for await (const handle of folder.values()) {
-      const path = prefix + handle.name;
-      if (handle.kind === "directory") await walk(handle, `${path}/`);
-      else if (isSaveFile(handle.name)) {
-        const file = await handle.getFile();
-        entries.set(path, { file, stamp: `${file.lastModified}:${file.size}` });
-      }
-    }
+  for await (const [path, handle] of filesIn(dir)) {
+    if (!isSaveFile(handle.name)) continue;
+    const file = await handle.getFile();
+    entries.set(path, { file, stamp: `${file.lastModified}:${file.size}` });
   }
-  await walk(dir, `${dir.name}/`);
   const signature = JSON.stringify([...entries].map(([path, e]) => [path, e.stamp]).sort(([a], [b]) => a.localeCompare(b)));
   return { entries, signature };
 }
@@ -85,7 +79,7 @@ export function currentContainers(files: FileMap, root: string, p: PlayerSave): 
     if (!path.startsWith(root) || !path.endsWith("/Containers.save")) return false;
     const folder = path.slice(root.length).split("/");
     if (folder.length !== 2) return false;
-    if (p.area.type >= 24 && p.area.type <= 26) return folder[0] === `RW${p.area.type - 23}`;
+    if (isRiftDepths(p.area.type)) return folder[0] === `RW${p.area.type - 23}`;
     const at = parseAreaDir(folder[0]);
     return at && at[0] === p.area.x && at[1] === p.area.y &&
       (isOutside(p.area.type)

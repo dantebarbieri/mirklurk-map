@@ -1,6 +1,7 @@
 // The saved time of day and weather: a panel under the world summary, and a compact chip that floats on the full-screen map.
 
 import { h } from "./dom.ts";
+import { pct, plural } from "./format.ts";
 import { temperatureLabel } from "./player.ts";
 import type { PlayerSave } from "./save.ts";
 import { skyIcon, type SkyIconName } from "./skyicons.ts";
@@ -25,8 +26,6 @@ import {
 /** The thermometer's liquid in each of the game's seven frames (spr_ui_temperatures, picked by floor(6.99 × temperature)). */
 const THERMOMETER = ["#aeeee2", "#73efe8", "#42bfe8", "#dbcb75", "#f5a430", "#f1641f", "#b9451d"];
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const pct = (p: number) => `${p > 0 && p < 0.01 ? "<1" : Math.round(p * 100)}%`;
 const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toFixed(2)}`;
 const BALANCE_HINT = "The game's rain balance, −1 to +1, rises while it rains and falls while it is dry. After a dry spell (below 0) " +
   "clouds gather and rain starts more often; after a wet spell (above 0) rain starts less often and stops sooner.";

@@ -1,4 +1,4 @@
-import { assert, assertAlmost, assertEquals, assertRejects, assertThrows } from "./assert.ts";
+import { assert, assertAlmost, assertEquals } from "./assert.ts";
 
 function fails(fn: () => unknown): Error {
   try {
@@ -37,6 +37,7 @@ Deno.test("assertEquals compares values without JSON's lossy coercions or key or
   const key = Symbol("key");
   assertEquals({ [key]: 1 }, { [key]: 1 });
   fails(() => assertEquals({ [key]: 1 }, { [key]: 2 }));
+  assert(fails(() => assertEquals(NaN, 1, "value")).message.includes("value: expected 1, got NaN"));
 });
 
 Deno.test("assertEquals compares binary views, dates, maps and sets by their contents", () => {
@@ -89,23 +90,4 @@ Deno.test("assertAlmost rejects NaN, infinities and invalid tolerances", () => {
   }
   for (const tolerance of [NaN, Infinity, -1]) fails(() => assertAlmost(1, 1, tolerance));
   assert(fails(() => assertAlmost(1, 2, 0.1, "distance")).message.startsWith("distance:"));
-});
-
-Deno.test("error assertions share message matching and reject missing or wrong errors", async () => {
-  const throws = () => {
-    throw new Error("expected failure");
-  };
-  const match = /expected failure/g;
-  assertThrows(throws);
-  assertThrows(throws, match);
-  assertThrows(throws, match);
-  assertThrows(() => JSON.parse("{"), /JSON|property/);
-  assert(fails(() => assertThrows(() => undefined)).message === "expected an error");
-  assert(fails(() => assertThrows(throws, /different/)).message === "wrong error: expected failure");
-  await assertRejects(throws, match);
-  await assertRejects(() => Promise.reject(new Error("expected failure")), match);
-  await assertRejects(() => Promise.reject("plain rejection"), /plain rejection/);
-  await assertRejects(() => assertRejects(() => Promise.resolve()), /expected an error/);
-  await assertRejects(() => assertRejects(throws, /different/), /wrong error: expected failure/);
-  assert(fails(() => assertEquals(NaN, 1, "value")).message.includes("value: expected 1, got NaN"));
 });

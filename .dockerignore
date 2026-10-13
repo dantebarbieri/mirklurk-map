@@ -17,6 +17,7 @@
 !assets/wiki/
 !assets/wiki/*.png
 !tools/build.ts
+!tools/shared.ts
 !deploy/nginx.conf
 !server/
 !server/**

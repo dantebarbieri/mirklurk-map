@@ -1,5 +1,6 @@
 import { h, s } from "./dom.ts";
 import art from "./artdata.json" with { type: "json" };
+import { plural } from "./format.ts";
 import { ITEM_NAMES } from "./gamedata.ts";
 import { conditionOf, type ConditionPart, conditionParts } from "./condition.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
@@ -340,7 +341,7 @@ function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>,
         `Felled, it drops ${wood.count} × ${ITEM_NAMES[wood.item] ?? `Item ${wood.item}`} (${
           wet > 0 ? `${Math.round(wet * 100)}% wet` : "dry"
         })`,
-        branches ? `, and its ${branches} branch${branches === 1 ? "" : "es"} fall with it` : "",
+        branches ? `, and its ${plural(branches, "branch", "branches")} ${branches === 1 ? "falls" : "fall"} with it` : "",
         ".",
       )
       : null,

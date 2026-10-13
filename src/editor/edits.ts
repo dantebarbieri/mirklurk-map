@@ -3,27 +3,22 @@
 // it does not own, because load_player reads almost all of them without checking that they exist.
 
 import { cellPlace, Hp, Status } from "../health.ts";
-import { Ae, CONDITIONS, MAX_LEVEL, type TimerKey, xpForLevel } from "../player.ts";
-import { centerpos, INTERIOR_NAMES, isOutside, TILES } from "../rules.ts";
+import { Ae, CONDITIONS, MAX_LEVEL, type Stat, STAT_LABELS, type TimerKey, xpForLevel } from "../player.ts";
+import { centerpos, INTERIOR_NAMES, isOutside, isRiftDepths, TILES } from "../rules.ts";
 import type { PlayerSave } from "../save.ts";
+import { isRec, type Rec } from "../save-record.ts";
+import { clamp01, num } from "../values.ts";
 import { SKY_KEYS, Weather, type WeatherState } from "../weather.ts";
 import type { Interior } from "../world.ts";
 
-export type Rec = Record<string, unknown>;
-
-export const isRec = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
-const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 function wholeIn(v: number, lo: number, hi: number, what: string): number {
   if (!Number.isInteger(v) || v < lo || v > hi) throw new Error(`${what} must be a whole number from ${lo} to ${hi}`);
   return v;
 }
-
-/** The record the game loads: the last element of Player.save's array (load_player array_pops it). */
-export function playerRecord(raw: unknown): Rec {
-  const p = Array.isArray(raw) ? raw[raw.length - 1] : undefined;
-  if (!isRec(p)) throw new Error("Player.save has no player record");
-  return p;
+/** A 0–1 value, clamped into range; never NaN or infinite, which the save's JSON would keep as null. */
+function fraction(v: number, what: string): number {
+  if (!Number.isFinite(v)) throw new Error(`${what} must be a number`);
+  return clamp01(v);
 }
 
 export const MAX_SKILL_POINTS = 99;
@@ -76,10 +71,10 @@ export function setVitals(p: Rec, v: VitalsEdit) {
   for (const [stat, [now, next]] of Object.entries(VITAL_KEYS)) {
     const value = v[stat as keyof typeof VITAL_KEYS];
     if (value === undefined) continue;
-    p[now] = p[next] = clamp01(value);
+    p[now] = p[next] = fraction(value, STAT_LABELS[stat as Stat]);
   }
   if (v.wellbeing !== undefined) {
-    const w = clamp01(v.wellbeing);
+    const w = fraction(v.wellbeing, "Wellbeing");
     p.haelth = p.nextHaelth = w;
     if (Array.isArray(p.wbgrid)) {
       for (const row of p.wbgrid) if (Array.isArray(row)) { for (const cell of row) if (isRec(cell)) cell.haelth = w; }
@@ -169,6 +164,28 @@ export function setHitPointStatus(p: Rec, x: number, y: number, s: HitPointStatu
   st[y][x] = cell;
 }
 
+/** What a hit point can be set to in the grid. */
+export type HitPointKind = "healthy" | "lost" | "burned";
+
+/**
+ * Sets the player's hit point at column x, row y healthy (1; one under armor stays as it is), lost (0) or burned (-1, healed only by
+ * resting or a burn salve). A lost or burned hit point loses its poison and bleeding, as only living ones carry them. Returns whether
+ * it changed.
+ */
+export function setHitPointKind(p: Rec, x: number, y: number, kind: HitPointKind): boolean {
+  const st = statusGrid(p);
+  const row = (p.hpgrid as unknown[][])[y];
+  const hp = row?.[x];
+  if (typeof hp !== "number" || hp === Hp.None) throw new Error(`There is no hit point at ${cellPlace(x, y)}`);
+  const next = kind === "healthy" ? (hp >= Hp.Healthy ? hp : Hp.Healthy) : kind === "lost" ? Hp.Lost : Hp.Burned;
+  if (next === hp) return false;
+  row[x] = next;
+  if (next < Hp.Healthy) {
+    st[y][x] = st[y][x].filter((v) => !statusIs(v, Status.Poison) && !statusIs(v, Status.BleedUp, Status.BleedLeft));
+  }
+  return true;
+}
+
 /**
  * Stunned (by a blunt blow) misses its next turn: apply_stunned adds a 23 to statusgrid's first cell, and the end of the turn takes every
  * 23 away. Stunning keeps a stun already there; recovering takes them all.
@@ -249,7 +266,7 @@ export interface SkyEdit {
 /** player_endturn starts rain at f_r(0.08, 1) and keeps it at least that while it rains. */
 export const MIN_RAIN = 0.08;
 export const MAX_DAY = 9999;
-const rainIn = (v: number) => Math.min(1, Math.max(MIN_RAIN, v));
+const rainIn = (v: number) => Math.max(MIN_RAIN, fraction(v, "Rain"));
 
 /**
  * Time and weather in manager_day's saved keys. Weather is written the way player_endturn leaves it: Clear has no cloud or rain,
@@ -262,7 +279,7 @@ export function setSky(p: Rec, e: SkyEdit) {
     p[SKY_KEYS.day] = day;
   }
   if (e.minute !== undefined) p[SKY_KEYS.minute] = wholeIn(e.minute, 0, 24 * 60 - 1, "Minute");
-  if (e.temperature !== undefined) p[SKY_KEYS.temperature] = clamp01(e.temperature);
+  if (e.temperature !== undefined) p[SKY_KEYS.temperature] = fraction(e.temperature, "Temperature");
   if (e.weather !== undefined) {
     if (!(Object.values(Weather) as number[]).includes(e.weather)) throw new Error(`Unknown weather ${e.weather}`);
     p[SKY_KEYS.weather] = e.weather;
@@ -290,15 +307,13 @@ export interface Inside {
   entrance?: [number, number];
 }
 
-const isDepths = (type: number) => type >= 24 && type <= 26;
-
 /**
  * You are saved in interior `it`: your area type is an interior's and names its folder as savearea does, Scaal's depths by type
  * and the rest by zone and entrance. Outdoors entranceX/entranceY still hold the last door you used, so they mean nothing there.
  */
 export function isInside(p: PlayerSave, it: Interior): boolean {
   if (isOutside(p.area.type)) return false;
-  if (isDepths(p.area.type)) return it.at[0] === -1 && it.at[1] === p.area.type - 23;
+  if (isRiftDepths(p.area.type)) return it.at[0] === -1 && it.at[1] === p.area.type - 23;
   return it.zone[0] === p.area.x && it.zone[1] === p.area.y && it.at[0] === centerpos(p.entrance[0]) &&
     it.at[1] === centerpos(p.entrance[1]);
 }
@@ -323,7 +338,7 @@ export function movePlayer(p: Rec, zoneX: number, zoneY: number, tileX: number, 
   if (inside) {
     if (type === undefined) throw new Error("That interior's zone is not in the world");
     if (isOutside(inside.type) || !(inside.type in INTERIOR_NAMES)) throw new Error(`Area type ${inside.type} is not an interior`);
-    if (!inside.entrance && !isDepths(inside.type)) throw new Error("An interior is named by the entrance it is entered by");
+    if (!inside.entrance && !isRiftDepths(inside.type)) throw new Error("An interior is named by the entrance it is entered by");
   } else if (type === undefined || !isOutside(type)) throw new Error("The player can only be moved to an outdoor zone or an interior");
   wholeIn(tileX, 0, TILES - 1, "Tile column");
   wholeIn(tileY, 0, TILES - 1, "Tile row");

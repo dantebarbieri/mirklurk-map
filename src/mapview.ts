@@ -2,8 +2,7 @@
 
 import { h, s } from "./dom.ts";
 import { backCloses, isFullMap, onFullMap, setFullMap } from "./fullscreen.ts";
-import type { Layer, Mark } from "./objects.ts";
-import { describe } from "./objects.ts";
+import { describe, type Layer, type Mark } from "./objects.ts";
 import { ROOM } from "./rules.ts";
 
 /**
@@ -557,6 +556,42 @@ export function stackAt(marks: Mark[], m: Mark): Mark[] {
   return k ? [m, ...marks.filter((o) => o !== m && o.box?.join() === k)] : [m];
 }
 
+/**
+ * Named timeouts that are cancelled together, so disposing of their owner leaves none to fire; setting a name again replaces
+ * the one waiting under it. Tests pass their own `schedule` and `cancel`.
+ */
+export class Timeouts<Name extends string> {
+  private waiting = new Map<Name, number>();
+
+  constructor(
+    private schedule: (f: () => void, ms: number) => number = (f, ms) => setTimeout(f, ms),
+    private cancel: (id: number) => void = (id) => clearTimeout(id),
+  ) {}
+
+  /** Runs `f` after `ms`, instead of whatever was waiting under `name`. */
+  set(name: Name, f: () => void, ms: number) {
+    this.clear(name);
+    this.waiting.set(
+      name,
+      this.schedule(() => {
+        this.waiting.delete(name);
+        f();
+      }, ms),
+    );
+  }
+
+  clear(name: Name) {
+    const id = this.waiting.get(name);
+    if (id !== undefined) this.cancel(id);
+    this.waiting.delete(name);
+  }
+
+  clearAll() {
+    for (const id of this.waiting.values()) this.cancel(id);
+    this.waiting.clear();
+  }
+}
+
 export class MapView {
   readonly el: HTMLElement;
   readonly svg: SVGSVGElement;
@@ -590,8 +625,8 @@ export class MapView {
   private onSettle?: () => void;
   private pointers = new Map<number, TouchPoint>();
   private moved = false;
-  private settleTimer = 0;
-  private pingTimer = 0;
+  /** Every timeout the map sets, so `dispose` cancels them all. */
+  private timeouts = new Timeouts<"settle" | "ping" | "sheet" | "slide">();
   private waiting: (() => void)[] = [];
   private popup?: { card: HTMLElement; close: () => void };
   /** Gives up Back's hold on the floating card (see `holdBack`). */
@@ -746,8 +781,8 @@ export class MapView {
     cancelAnimationFrame(this.frame);
     cancelAnimationFrame(this.glideFrame);
     cancelAnimationFrame(this.roomFrame);
-    clearTimeout(this.settleTimer);
-    clearTimeout(this.pingTimer);
+    // A sheet still settling, for one, would place this map's card again and take Back's hold from the map drawn next.
+    this.timeouts.clearAll();
     this.onSettle = undefined;
     this.release();
   }
@@ -920,7 +955,7 @@ export class MapView {
    * follows and settles as `sheetSnap` says. A tap (or press) on the grabber toggles between half and full height.
    */
   private wireSheet(card: HTMLElement) {
-    const onGrabber = (e: Event) => !!(e.target as Element | null)?.closest?.(".grabber");
+    const onGrabber = (e: Event) => e.target instanceof Element && !!e.target.closest(".grabber");
     let drag: { y: number; height: number; half: number; full: number; moved: boolean; trail: { y: number; t: number }[] } | undefined;
     let dragged = false;
     const start = (y: number) => {
@@ -1035,7 +1070,7 @@ export class MapView {
     card.style.transition = `height ${SHEET_MS}ms ease-out, transform ${SHEET_MS}ms ease-out`;
     if (to === "closed") card.style.transform = "translateY(100%)";
     else card.style.height = `${to === "full" ? full : half}px`;
-    setTimeout(finish, SHEET_MS + 20);
+    this.timeouts.set("sheet", finish, SHEET_MS + 20);
   }
 
   /**
@@ -1055,7 +1090,7 @@ export class MapView {
 
   private slideIn(card: HTMLElement) {
     card.classList.add("sheet-in");
-    setTimeout(() => card.classList.remove("sheet-in"), 400);
+    this.timeouts.set("slide", () => card.classList.remove("sheet-in"), 400);
   }
 
   /** Glides the map to bring `m` into sight: above the sheet when docked, else anywhere on the map. */
@@ -1107,7 +1142,7 @@ export class MapView {
   }
 
   private settle() {
-    clearTimeout(this.settleTimer);
+    this.timeouts.clear("settle");
     if (this.pointers.size || !this.moved) return;
     this.moved = false;
     this.onSettle?.();
@@ -1242,8 +1277,7 @@ export class MapView {
     // (being built for a redraw) has only a guessed size, so it waits for its first resize to report.
     if (this.svg.clientWidth) this.onView?.([this.vx, this.vy - this.room / 2 * this.vw / Math.min(w, h), this.vw]);
     this.moved = true;
-    clearTimeout(this.settleTimer);
-    this.settleTimer = setTimeout(() => this.settle(), SETTLE_MS);
+    this.timeouts.set("settle", () => this.settle(), SETTLE_MS);
   }
 
   zoomBy(f: number, cx = this.vx + this.vw / 2, cy = this.vy + this.vw / 2) {
@@ -1281,8 +1315,7 @@ export class MapView {
     // Restyled in between, so the animation restarts.
     void g.getBoundingClientRect();
     g.classList.add("ping");
-    clearTimeout(this.pingTimer);
-    this.pingTimer = setTimeout(() => g.classList.remove("ping"), PING_MS);
+    this.timeouts.set("ping", () => g.classList.remove("ping"), PING_MS);
   }
 
   /** Centres the view on a marker, zooming in if the whole zone is showing. */
@@ -1388,7 +1421,8 @@ export class MapView {
       if (suppressClick) return;
       const target = tapTarget ?? e.target;
       // A fingertip is far wider than most symbols, so a touch that misses every one picks the nearest within reach.
-      const near = touch && origin && !(target as Element | null)?.closest?.(".pt") ? this.pointNear(origin.x, origin.y) : undefined;
+      const onSymbol = target instanceof Element && !!target.closest(".pt");
+      const near = touch && origin && !onSymbol ? this.pointNear(origin.x, origin.y) : undefined;
       const m = near ?? this.markAt(target);
       this.picker.hidden = true;
       if (m && onOpen) {
@@ -1475,7 +1509,7 @@ export class MapView {
   }
 
   private markAt(target: EventTarget | null): Mark | undefined {
-    const el = (target as Element | null)?.closest?.("[data-i]");
+    const el = target instanceof Element ? target.closest("[data-i]") : null;
     const i = el ? Number(el.getAttribute("data-i")) : -1;
     return i >= 0 ? this.marks[i] : undefined;
   }

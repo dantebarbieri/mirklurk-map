@@ -4,8 +4,18 @@
 
 import { ITEMS } from "../itemdata.ts";
 import { ITEM_NAMES } from "../gamedata.ts";
-import { canGetWet, DURABILITY_LABELS, durabilityKind, fuelMax, isWet, type ItemState, needsFuel, needsRepair } from "../condition.ts";
-import { isRec, type Rec } from "./edits.ts";
+import {
+  canGetWet,
+  DURABILITY_LABELS,
+  durabilityKind,
+  fuelMax,
+  isWet,
+  type ItemState,
+  itemState,
+  needsFuel,
+  needsRepair,
+} from "../condition.ts";
+import { isRec, type Rec } from "../save-record.ts";
 
 /** Empty grid cell (GameMaker's noone). */
 const EMPTY = -4;
@@ -521,7 +531,7 @@ const NEEDS: Record<Upkeep, (item: ItemState) => boolean> = { repair: needsRepai
 export function needing(p: Rec, what: Upkeep): CarriedItem[] {
   return everything(p).filter((c) => {
     const rec = itemAt(p, c.place);
-    return !!rec && NEEDS[what](rec as unknown as ItemState);
+    return !!rec && NEEDS[what](itemState(rec));
   });
 }
 

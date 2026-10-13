@@ -71,26 +71,21 @@ export function assertAlmost(actual: number, expected: number, eps = 1e-9, msg?:
   }
 }
 
-function checkError(error: unknown, match?: RegExp) {
-  const message = error instanceof Error ? error.message : String(error);
-  if (match && !new RegExp(match.source, match.flags).test(message)) throw new Error(`wrong error: ${message}`);
-}
-
-export function assertThrows(fn: () => unknown, match?: RegExp) {
+export function assertThrows(fn: () => unknown, match: RegExp) {
   try {
     fn();
   } catch (e) {
-    checkError(e, match);
+    if (!match.test((e as Error).message)) throw new Error(`wrong error: ${(e as Error).message}`);
     return;
   }
-  throw new Error("expected an error");
+  throw new Error(`expected an error matching ${match}`);
 }
 
 export async function assertRejects(fn: () => unknown, match?: RegExp) {
   try {
     await fn();
   } catch (e) {
-    checkError(e, match);
+    if (match && !match.test(String((e as Error).message))) throw new Error(`wrong error: ${(e as Error).message}`);
     return;
   }
   throw new Error("expected an error");
