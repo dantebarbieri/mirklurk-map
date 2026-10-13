@@ -141,7 +141,7 @@ import type { JournalTarget } from "../journal.ts";
 import { LAYERS } from "../objects.ts";
 import { setFullMap } from "../fullscreen.ts";
 import { ask, type Choice, choose } from "../dialog.ts";
-import { CHANNELS, detectVersion, type GameVersion, hasBeing, hasItem } from "../version.ts";
+import { CHANNELS, detectVersion, type GameVersion, hasBeing, hasItem, overrideOf } from "../version.ts";
 import { versionSwitch } from "../versionview.ts";
 
 /** An area the map card shows: an outdoor zone or one of its interiors. */
@@ -172,6 +172,10 @@ let tool: Tool = "inspect";
 let rulesPick: GameVersion | undefined;
 /** The rules the editor follows: the pick, else the save's VERSION, else Latest's (version.ts). */
 const editorRules = (): GameVersion => rulesPick ?? detectVersion(world?.player.version) ?? CHANNELS.latest;
+/** A pick equal to the version the save now names is no pick, so the editor follows the save's VERSION again (as setRules does). */
+function followSave() {
+  rulesPick = overrideOf(rulesPick, detectVersion(world?.player.version));
+}
 /** The creatures the Spawn tool offers: those the game version in use has. */
 const spawnChoices = () => Object.keys(BEINGS).map(Number).filter((i) => spawnable(i) && hasBeing(editorRules(), i));
 let spawnIndex = spawnChoices()[0];
@@ -332,6 +336,7 @@ async function install(src: SaveSource, read: SaveRead, want: Character | undefi
     }
     session = new EditSession(src, read, c, id);
     world = loaded;
+    followSave();
     cheated = marked;
     if (!keepArea || !area) area = playerArea(loaded.player);
     else area = sameArea(area);
@@ -387,6 +392,7 @@ function settle(s: EditSession, read: SaveRead, c: Character, loaded: World, mar
   chars = read.characters;
   active = chars.indexOf(c);
   world = loaded;
+  followSave();
   cheated = marked;
   area = area ? sameArea(area) : playerArea(loaded.player);
   selected = undefined;

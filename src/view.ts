@@ -30,7 +30,7 @@ import { coinRollup, equippedBadge } from "./player.ts";
 import { journalHeadline, type JournalTarget, journalView, locateTarget } from "./journal.ts";
 import { skyChip, skyPanel } from "./skyview.ts";
 import { entityWiki } from "./wiki.ts";
-import { CHANNELS, detectVersion, type GameVersion } from "./version.ts";
+import { CHANNELS, detectVersion, type GameVersion, overrideOf } from "./version.ts";
 import { versionSwitch } from "./versionview.ts";
 import type { FileMap } from "./files.ts";
 import {
@@ -123,7 +123,7 @@ export async function worldState(world: World, files: FileMap, prefs: State["pre
  * landmark guesses, which differ by version. Call `renderWorld` after to show it.
  */
 export function setRules(st: State, override?: GameVersion) {
-  st.override = override === st.detected ? undefined : override;
+  st.override = overrideOf(override, st.detected);
   st.rules = st.override ?? st.detected ?? CHANNELS.latest;
   st.marks = landmarks(st.world, st.shipwreck, st.rules);
 }

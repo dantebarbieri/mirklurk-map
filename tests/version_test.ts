@@ -10,6 +10,7 @@ import {
   hasBeing,
   hasItem,
   NEWEST,
+  overrideOf,
   versionLabel,
   VERSIONS,
 } from "../src/version.ts";
@@ -56,6 +57,16 @@ Deno.test("version: a save's VERSION picks the newest rules no newer than it", (
     [undefined, undefined],
   ];
   for (const [saved, rules] of cases) assertEquals(detectVersion(saved), rules, `${saved}`);
+});
+
+Deno.test("version: a pick overrides only another version than the save's, also after a reload changes the save's", () => {
+  assertEquals(overrideOf(NEW, OLD), NEW);
+  assertEquals(overrideOf(OLD, NEW), OLD);
+  assertEquals(overrideOf(NEW, undefined), NEW);
+  assertEquals(overrideOf(undefined, OLD), undefined);
+  // Beta picked on a 0.8.1.5 save, which the game then saves as 0.8.9.9: the pick is dropped, so a later 0.8.1.5 save is followed.
+  const pick = overrideOf(NEW, OLD);
+  assertEquals(overrideOf(pick, detectVersion("0.8.9.9")), undefined);
 });
 
 Deno.test("version: 0.8.1.5's game has no items from 258 or beings from 36; nothing older was removed", () => {

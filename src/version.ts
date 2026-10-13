@@ -45,6 +45,13 @@ export function detectVersion(version: string | undefined): GameVersion | undefi
   return found;
 }
 
+/**
+ * What a pick on the Latest/Beta switch overrides: nothing when it is the version the save names, so the rules follow the save
+ * again, also after a reload finds the save now names the version picked.
+ */
+export const overrideOf = (pick: GameVersion | undefined, detected: GameVersion | undefined): GameVersion | undefined =>
+  pick === detected ? undefined : pick;
+
 /** Whether rules `v` include what version `since` brought. */
 export const atLeast = (v: GameVersion, since: GameVersion) => VERSIONS.indexOf(v) >= VERSIONS.indexOf(since);
 
