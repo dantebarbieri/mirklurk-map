@@ -3,6 +3,7 @@
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
 import { assert, assertAlmost, assertEquals } from "./assert.ts";
+import { SAVES } from "./saves.ts";
 import { parseItemList } from "../src/inventory.ts";
 import { countCoins } from "../src/coins.ts";
 import { decodeJson, parsePlayer, type PlayerSave } from "../src/save.ts";
@@ -176,15 +177,13 @@ Deno.test("player: coin roll-up counts true or fewest coins, remembered across r
   setCoinMode("true");
 });
 
-const dir = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
 const players = (() => {
   const out: [string, PlayerSave][] = [];
   try {
-    for (const e of Deno.readDirSync(dir)) {
+    for (const e of Deno.readDirSync(SAVES)) {
       if (!e.isDirectory) continue;
       try {
-        out.push([e.name, parsePlayer(decodeJson(Deno.readFileSync(`${dir}/${e.name}/Player.save`)))]);
+        out.push([e.name, parsePlayer(decodeJson(Deno.readFileSync(`${SAVES}/${e.name}/Player.save`)))]);
       } catch {
         // Not a character folder.
       }

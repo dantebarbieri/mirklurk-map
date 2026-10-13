@@ -6,12 +6,14 @@
 import { type Coins, coinsView, coinValue, countCoins, fewestCoins } from "./coins.ts";
 import { ARMOR, armorToPlace, isWeaponSlot, itemArmor, SLOT_NAMES, totalArmor } from "./armor.ts";
 import { h } from "./dom.ts";
+import { plural } from "./format.ts";
 import { ITEM_NAMES } from "./gamedata.ts";
 import { healthGridView, healthLegend, type HealthSummary, summarize } from "./health.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { inventoryView, section, type SectionContext, wikiLink, wikiTitle } from "./inspect.ts";
 import { journalView } from "./journal.ts";
 import type { PlayerSave } from "./save.ts";
+import { clamp01 } from "./values.ts";
 import { wikiUrl } from "./wiki.ts";
 
 export type Stat = "focus" | "stamina" | "satiation" | "warmth";
@@ -39,8 +41,6 @@ const RATES: Readonly<Record<Stat, readonly [number, number]>> = {
   stamina: [0.005, 0.002],
   warmth: [0.03, 0],
 };
-
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 /** GameMaker's round() breaks ties to the even neighbour. */
 function gmRound(v: number): number {
@@ -253,8 +253,6 @@ export const wetClothes = (wetness: readonly number[]) =>
 export const xpForLevel = (level: number) => Math.floor(28 * 1.2 ** level / 5) * 5;
 /** gml_Object_obj_player_Step_1, which also adds a new hit point every third level. */
 export const MAX_LEVEL = 60;
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 // Coin roll-up.
 

@@ -6,6 +6,8 @@
 // (gml_Object_UI_Draw_64). Only numbers the save editor needs to add items the way the game does and show their condition are
 // copied: sizes, stack limits, durability, burn time, waterproofing, container grids and which entries are never an item you carry.
 
+import { writeSource } from "./shared.ts";
+
 const [dir] = Deno.args;
 if (!dir) {
   console.error('usage: deno run -R -W --allow-run tools/itemdata.ts "<CodeEntries dir>"');
@@ -129,8 +131,5 @@ ${sorted.map(([i, e]) => `  ${i}: ${JSON.stringify(e).replace(/"(\w+)":/g, "$1: 
 };
 `;
 
-const target = new URL("../src/itemdata.ts", import.meta.url);
-Deno.writeTextFileSync(target, out);
-const path = decodeURIComponent(target.pathname).replace(/^\/([A-Za-z]:)/, "$1");
-await new Deno.Command(Deno.execPath(), { args: ["fmt", "--quiet", path] }).output();
+await writeSource("src/itemdata.ts", out);
 console.log(`src/itemdata.ts: ${table.size} items, ${sorted.filter(([, e]) => e.bag).length} containers, ${lights.size} light sources`);

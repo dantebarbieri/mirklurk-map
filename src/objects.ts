@@ -2,8 +2,8 @@
 
 import { BEING_NAMES, ITEM_NAMES, MAP_LABELS, NATURE_NAMES } from "./gamedata.ts";
 import { spriteBox } from "./predict.ts";
-import { centerpos, INTERIOR_NAMES, isOutside, LANDMARK_NAMES, NPC_MARKERS, SolidId } from "./rules.ts";
-import type { Placed, PlayerSave, Solid, Tree } from "./save.ts";
+import { centerpos, INTERIOR_NAMES, isOutside, isRiftDepths, LANDMARK_NAMES, NPC_MARKERS, SolidId } from "./rules.ts";
+import { destination, type Placed, type PlayerSave, type Solid, type Tree } from "./save.ts";
 import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
 import type { HealthGrid } from "./health.ts";
@@ -111,7 +111,7 @@ export const locationLayer = (kind: number | null | undefined): Layer =>
     ? "caves"
     : kind === 20 || kind === 21
     ? "ruins"
-    : kind >= 24 && kind <= 26
+    : isRiftDepths(kind)
     ? "rifts"
     : "places";
 
@@ -123,7 +123,7 @@ export const markKey = (m: Mark) =>
 
 /** The saved interior a transition leads to (folder "[ zx,zy,ex,ey ]", or RW1–RW3 for the rift depths). */
 function interiorFor(tp: number[], interiors: Interior[]): Interior | undefined {
-  if (tp[0] >= 24 && tp[0] <= 26) return interiors.find((i) => i.at[0] === -1 && i.kind === tp[0]);
+  if (isRiftDepths(tp[0])) return interiors.find((i) => i.at[0] === -1 && i.kind === tp[0]);
   return interiors.find((i) => i.at[0] === centerpos(tp[1]) && i.at[1] === centerpos(tp[2]));
 }
 
@@ -132,7 +132,7 @@ export function solidMarks(solids: Solid[], interiors: Interior[], current?: Int
   const out: Mark[] = [];
   for (const s of solids) {
     const box = spriteBox(s.sprite, s.x, s.y);
-    const tp = s.transPoint && s.transPoint.length >= 3 ? s.transPoint : null;
+    const tp = destination(s);
     const landmark = LANDMARK_NAMES[s.index];
     if (landmark) {
       const name = MAP_LABELS[s.index] ?? landmark;

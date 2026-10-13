@@ -13,6 +13,16 @@ export function assertAlmost(actual: number, expected: number, eps = 1e-9, msg?:
   if (Math.abs(actual - expected) > eps) throw new Error(`${msg ? msg + ": " : ""}expected ≈${expected}, got ${actual}`);
 }
 
+export function assertThrows(fn: () => unknown, match: RegExp) {
+  try {
+    fn();
+  } catch (e) {
+    if (!match.test((e as Error).message)) throw new Error(`wrong error: ${(e as Error).message}`);
+    return;
+  }
+  throw new Error(`expected an error matching ${match}`);
+}
+
 export async function assertRejects(fn: () => unknown, match?: RegExp) {
   try {
     await fn();

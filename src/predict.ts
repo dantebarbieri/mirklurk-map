@@ -1,9 +1,10 @@
 // Where the quest landmarks are, or where the game's own placement rules can still put them.
 
+import { pct } from "./format.ts";
 import { BEING_NAMES, SPRITES } from "./gamedata.ts";
 import { Area, PLACEMENT, type Placement, SHIPWRECK_TRIES, SHIPWRECK_UNEXPLORED_CHANCE, shipwreckSiteOk, SolidId, TILES } from "./rules.ts";
 import type { Being, Solid, Tree } from "./save.ts";
-import type { World, Zone } from "./world.ts";
+import { questZone, type World, type Zone } from "./world.ts";
 
 export type LandmarkId = "fort" | "bhato" | "library" | "scaal" | "gurb" | "ihar";
 
@@ -66,20 +67,7 @@ export function shareOut(cands: Omit<Candidate, "share">[]): Candidate[] {
 
 /** Chance of at least one valid site in SHIPWRECK_TRIES tries, from a zone's saved tiles. */
 export function shipwreckOdds(water1: Uint32Array, lower: Uint32Array): { perTry: number; perEntry: number; heat: Float32Array } {
-  const { axis, door } = PLACEMENT.shipwreck;
-  const heat = new Float32Array(TILES * TILES);
-  let all = 0, ok = 0;
-  for (const [ay, wy] of axis) {
-    for (const [ax, wx] of axis) {
-      const w = wx * wy;
-      all += w;
-      if (shipwreckSiteOk(water1, lower, ax / 16, ay / 16)) {
-        ok += w;
-        heat[((ay + door[1]) >> 4) * TILES + ((ax + door[0]) >> 4)] += w;
-      }
-    }
-  }
-  if (ok > 0) { for (let i = 0; i < heat.length; i++) heat[i] /= ok; }
+  const { heat, ok, all } = latticeHeat(PLACEMENT.shipwreck, (ax, ay) => shipwreckSiteOk(water1, lower, ax / 16, ay / 16));
   const perTry = ok / all;
   return { perTry, perEntry: 1 - Math.pow(1 - perTry, SHIPWRECK_TRIES), heat };
 }
@@ -95,10 +83,7 @@ export function landmarks(world: World, shipwreck: Map<string, number>): Landmar
       continue;
     }
     if (def.id === "fort" || def.id === "bhato" || def.id === "library" || def.id === "scaal") {
-      const cell = def.id === "fort" ? zonesOfType(world, [Area.Fort])[0] : (() => {
-        const c = def.id === "bhato" ? p.rangerCamp : def.id === "library" ? p.libraryArea : p.riftQuestArea;
-        return c ? world.zones[c[1]]?.[c[0]] : undefined;
-      })();
+      const cell = def.id === "fort" ? zonesOfType(world, [Area.Fort])[0] : questZone(world, def.id);
       if (!cell) {
         out.push({ ...def, status: "none", note: "This save does not record it." });
       } else if (cell.explored) {
@@ -170,8 +155,6 @@ export function landmarks(world: World, shipwreck: Map<string, number>): Landmar
   return out;
 }
 
-export const pct = (p: number) => (p >= 0.995 && p < 1 ? ">99%" : p > 0 && p < 0.01 ? "<1%" : `${Math.round(p * 100)}%`);
-
 /** Bounding box of a sprite placed at (x, y) (sprite origin applied), as [left, top, right, bottom]. */
 export function spriteBox(sprite: string, x: number, y: number): [number, number, number, number] {
   const g = SPRITES[sprite];
@@ -180,20 +163,26 @@ export function spriteBox(sprite: string, x: number, y: number): [number, number
   return [x - ox + bl, y - oy + bt, x - ox + br, y - oy + bb];
 }
 
-function latticeHeat(pl: Placement, valid?: (ax: number, ay: number) => boolean): Float32Array {
+/**
+ * Door-tile odds of a landmark that `pl` places, over the anchors `valid` accepts (every one without it), summing to 1. `ok` is the
+ * weight of the accepted anchors and `all` of every anchor, so `ok / all` is the chance that one roll is accepted.
+ */
+function latticeHeat(pl: Placement, valid?: (ax: number, ay: number) => boolean): { heat: Float32Array; ok: number; all: number } {
   const heat = new Float32Array(TILES * TILES);
-  let total = 0;
+  let ok = 0, all = 0;
   for (const [ay, wy] of pl.axis) {
     for (const [ax, wx] of pl.axis) {
+      const w = wx * wy;
+      all += w;
       if (valid && !valid(ax, ay)) continue;
       const tx = (ax + pl.door[0]) >> 4, ty = (ay + pl.door[1]) >> 4;
       if (tx < 0 || ty < 0 || tx >= TILES || ty >= TILES) continue;
-      heat[ty * TILES + tx] += wx * wy;
-      total += wx * wy;
+      heat[ty * TILES + tx] += w;
+      ok += w;
     }
   }
-  if (total > 0) { for (let i = 0; i < heat.length; i++) heat[i] /= total; }
-  return heat;
+  if (ok > 0) { for (let i = 0; i < heat.length; i++) heat[i] /= ok; }
+  return { heat, ok, all };
 }
 
 /**
@@ -254,7 +243,7 @@ export function zoneHeat(
     if (m.status === "zone" && inZone && !zone.explored) {
       const pl = m.id === "bhato" ? PLACEMENT.hideout : m.id === "library" ? PLACEMENT.library : m.id === "scaal" ? PLACEMENT.lair : null;
       if (pl) {
-        const heat = latticeHeat(pl);
+        const heat = latticeHeat(pl).heat;
         const sp = spots(heat);
         out.push({
           id: m.id,
@@ -269,17 +258,17 @@ export function zoneHeat(
       const p = world.player;
       if (zone.dir) {
         const here = p.area.x === zone.x && p.area.y === zone.y ? p.pos : undefined;
-        const heat = latticeHeat(PLACEMENT.hut, hutValidity(zone.solids, tiles?.beings ?? [], tiles?.trees ?? [], here));
+        const heat = latticeHeat(PLACEMENT.hut, hutValidity(zone.solids, tiles?.beings ?? [], tiles?.trees ?? [], here)).heat;
         out.push({ id: m.id, heat, basis: `${spots(heat).n}; it has to touch a rock, ruin, tree or creature` });
       } else {
-        out.push({ id: m.id, heat: latticeHeat(PLACEMENT.hut), basis: `anywhere away from the edges; ${pending}` });
+        out.push({ id: m.id, heat: latticeHeat(PLACEMENT.hut).heat, basis: `anywhere away from the edges; ${pending}` });
       }
     } else if (m.id === "ihar") {
       if (zone.dir && tiles?.water1 && tiles.lower) {
         const heat = shipwreckOdds(tiles.water1, tiles.lower).heat;
         out.push({ id: m.id, heat, basis: `${spots(heat).n} on your saved shores pass the game's test` });
       } else {
-        out.push({ id: m.id, heat: latticeHeat(PLACEMENT.shipwreck), basis: `on a shore with open water to its west; ${pending}` });
+        out.push({ id: m.id, heat: latticeHeat(PLACEMENT.shipwreck).heat, basis: `on a shore with open water to its west; ${pending}` });
       }
     }
   }

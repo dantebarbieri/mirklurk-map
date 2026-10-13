@@ -2,7 +2,8 @@
 // mark. Real saves are edited in memory (never written) when available (skipped otherwise):
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
-import { assert, assertEquals } from "./assert.ts";
+import { assert, assertEquals, assertThrows } from "./assert.ts";
+import { SAVES } from "./saves.ts";
 import {
   healPlayer,
   hitPointStatus,
@@ -10,8 +11,6 @@ import {
   isInside,
   MAX_STACKS,
   movePlayer,
-  playerRecord,
-  type Rec,
   setConditions,
   setHitPointKind,
   setHitPointStatus,
@@ -53,6 +52,7 @@ import { Ground, groundMap, reachable, tileBox } from "../src/editor/ground.ts";
 import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
 import { readMarker, writeMarker } from "../src/marker.ts";
 import { decodeJson, parseBeings, parsePlayer } from "../src/save.ts";
+import { playerRecord, type Rec } from "../src/save-record.ts";
 import { parseHealth } from "../src/health.ts";
 import { parseInventoryGrid } from "../src/inventory.ts";
 import { conditionsOf, xpForLevel } from "../src/player.ts";
@@ -66,15 +66,6 @@ import type { FileMap } from "../src/files.ts";
 import type { Interior } from "../src/world.ts";
 
 const E = -4;
-function assertThrows(fn: () => unknown, match: RegExp) {
-  try {
-    fn();
-  } catch (e) {
-    if (!match.test((e as Error).message)) throw new Error(`wrong error: ${(e as Error).message}`);
-    return;
-  }
-  throw new Error(`expected an error matching ${match}`);
-}
 const cell = (index: number, amount: number, X: number, Y: number, extra: Rec = {}): Rec => ({
   index,
   amount,
@@ -147,6 +138,16 @@ Deno.test("vitals set both the value and its target; wellbeing sets every wellbe
   assertEquals([p.haelth, p.nextHaelth], [0.75, 0.75]);
   assertEquals(p.wbgrid, [[E, { haelth: 0.75, myP: 1 }], [{ haelth: 0.75, myP: 2 }, E]]);
   assert(!("focus" in p), "untouched vitals stay absent");
+});
+
+Deno.test("vitals, temperature and rain must be numbers: the save's JSON would keep NaN or infinity as null", () => {
+  const p: Rec = { hunger: 0.5, hungerNext: 0.5, haelth: 0.5, nextHaelth: 0.5, MDweather: Weather.Rain, MDrain: 0.5, MDtemperature: 0.5 };
+  assertThrows(() => setVitals(p, { satiation: NaN }), /Satiation must be a number/);
+  assertThrows(() => setVitals(p, { wellbeing: Infinity }), /Wellbeing must be a number/);
+  assertThrows(() => setSky(p, { temperature: NaN }), /Temperature must be a number/);
+  assertThrows(() => setSky(p, { rain: -Infinity }), /Rain must be a number/);
+  assertThrows(() => setSky(p, { weather: Weather.Rain, rain: NaN }), /Rain must be a number/);
+  assertEquals([p.hunger, p.hungerNext, p.haelth, p.MDrain, p.MDtemperature], [0.5, 0.5, 0.5, 0.5, 0.5]);
 });
 
 Deno.test("healing restores lost and burned hit points, keeps armor and holes, and clears statuses", () => {
@@ -748,11 +749,9 @@ Deno.test("isCheated reads the character's MirkMap.json in any letter case", asy
 
 // --- Real saves, edited in memory only ---
 
-const dir = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
 const characters: string[] = [];
 try {
-  for (const e of Deno.readDirSync(dir)) if (e.isDirectory) characters.push(e.name);
+  for (const e of Deno.readDirSync(SAVES)) if (e.isDirectory) characters.push(e.name);
 } catch {
   // No saves here.
 }
@@ -762,7 +761,7 @@ Deno.test({ name: "real saves: every edit round-trips through the viewer's parse
   for (const name of characters) {
     let bytes: Uint8Array;
     try {
-      bytes = Deno.readFileSync(`${dir}/${name}/Player.save`);
+      bytes = Deno.readFileSync(`${SAVES}/${name}/Player.save`);
     } catch {
       continue;
     }

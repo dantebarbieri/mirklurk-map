@@ -1,8 +1,18 @@
-import { assert, assertEquals, assertRejects } from "./assert.ts";
-import { decodeJson, decodeTilemap, parseAreaDir, parsePlayer } from "../src/save.ts";
+import { assert, assertEquals, assertRejects, assertThrows } from "./assert.ts";
+import { decodeJson, decodeTilemap, destination, parseAreaDir, parsePlayer, type Solid } from "../src/save.ts";
 import { readZip } from "../src/zip.ts";
 
 const enc = new TextEncoder();
+
+Deno.test("a save without a player record is refused before anything is read from it", () => {
+  for (const raw of [[], [[1]], [{}, 3], "x"]) assertThrows(() => parsePlayer(raw), /no player record/);
+});
+
+Deno.test("a solid leads somewhere only when its transPoint has an area type and a position", () => {
+  const solid = (transPoint: number[] | null): Solid => ({ sprite: "", pic: 0, index: 0, x: 0, y: 0, transPoint });
+  assertEquals(destination(solid([10, 1000, 1000, 1280, 1400])), [10, 1000, 1000, 1280, 1400]);
+  assertEquals([destination(solid(null)), destination(solid([10, 1000]))], [null, null]);
+});
 
 Deno.test("GameMaker JSON: one trailing NUL, optional BOM, empty file", () => {
   assertEquals(decodeJson(enc.encode('[{"a":1}]\0')), [{ a: 1 }]);

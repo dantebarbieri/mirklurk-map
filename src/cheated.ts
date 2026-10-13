@@ -5,7 +5,8 @@
 // MirkMap shows a cheated world with a C badge wherever it shows the world.
 
 import type { FileMap } from "./files.ts";
-import { isNotes, MARKER, markerPath, markerText, readMarker, writeMarker } from "./marker.ts";
+import { MARKER, markerPath, markerText, readMarker, writeMarker } from "./marker.ts";
+import { isRec } from "./save-record.ts";
 
 export const CHEATED_KEY = "cheated";
 
@@ -21,7 +22,7 @@ export function cheatedInfo(text: string | undefined): CheatedInfo | undefined {
   if (text === undefined) return undefined;
   const mark = readMarker(text)[CHEATED_KEY];
   if (mark === true) return { since: undefined, edits: undefined };
-  if (!isNotes(mark)) return undefined;
+  if (!isRec(mark)) return undefined;
   const { since, edits } = mark;
   return {
     since: typeof since === "string" && since ? since : undefined,
@@ -34,7 +35,7 @@ export function markCheated(text: string | undefined, now = new Date()): string 
   const before = cheatedInfo(text);
   const mark = text === undefined ? undefined : readMarker(text)[CHEATED_KEY];
   return writeMarker(text, {
-    [CHEATED_KEY]: { ...(isNotes(mark) ? mark : {}), since: before?.since ?? now.toISOString(), edits: (before?.edits ?? 0) + 1 },
+    [CHEATED_KEY]: { ...(isRec(mark) ? mark : {}), since: before?.since ?? now.toISOString(), edits: (before?.edits ?? 0) + 1 },
   });
 }
 

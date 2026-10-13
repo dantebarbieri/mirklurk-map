@@ -9,6 +9,7 @@ import {
   PAIR_ID,
   PAIR_TTL,
   RETENTION,
+  sha256Hex,
   SHARE_INTERVAL,
   shareId,
   shareKey,
@@ -74,10 +75,6 @@ export const LIMITS = {
   maxBytes: MAX_UPLOAD,
   pollSeconds: SHARE_INTERVAL / 1000,
 };
-
-const digest = async (text: string) =>
-  [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((n) => n.toString(16).padStart(2, "0"))
-    .join("");
 
 /** IPv6 privacy addresses in the same /64 share a quota. IPv4-mapped IPv6 is IPv4. */
 export function ipBucket(ip: string): string {
@@ -318,7 +315,7 @@ export class UploadStore {
   private async route(request: Request, address: string): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/healthz" && request.method === "GET") return new Response("ok\n");
-    const owner = await digest(this.salt + ipBucket(address));
+    const owner = await sha256Hex(this.salt + ipBucket(address));
     const now = this.now();
     let rate = this.rates.get(owner);
     if (!rate || rate.until <= now) {
@@ -366,7 +363,7 @@ export class UploadStore {
     }
     if (!id && request.method === "PATCH") return this.rename(request, library, owner);
     if (!id) throw new HttpError(405, "Method not allowed");
-    const key = await digest(`${library}/${id}`);
+    const key = await sha256Hex(`${library}/${id}`);
     if (action === "/data" && request.method === "GET") {
       const record = this.live(key);
       if (!record) throw new HttpError(404, "This world was deleted or expired");

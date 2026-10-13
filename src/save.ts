@@ -5,6 +5,8 @@ import { containerInventory, type Inventory, parseItemList } from "./inventory.t
 import { type HealthGrid, parseHealth } from "./health.ts";
 import type { Equipped } from "./armor.ts";
 import { parseSky, type Sky } from "./weather.ts";
+import { playerRecord, type Rec } from "./save-record.ts";
+import { finite, num } from "./values.ts";
 
 /** save_datajson: UTF-8 JSON written with buffer_string, so it ends in one NUL byte. */
 export function decodeJson(bytes: Uint8Array): unknown {
@@ -55,7 +57,6 @@ export function parseAreaDir(name: string): number[] | null {
   return m ? m[1].split(",").map((s) => Number(s.trim())) : null;
 }
 
-const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const pair = (v: unknown): [number, number] | null =>
   Array.isArray(v) && v.length >= 2 && typeof v[0] === "number" && typeof v[1] === "number" ? [v[0], v[1]] : null;
 
@@ -147,9 +148,7 @@ function parseEquipment(rawEquips: unknown, rawActives: unknown): { inventory: I
 }
 
 export function parsePlayer(raw: unknown): PlayerSave {
-  const arr = raw as Record<string, unknown>[];
-  const p = Array.isArray(arr) ? arr[arr.length - 1] : undefined;
-  if (!p || typeof p !== "object") throw new Error("Player.save has no player record");
+  const p = playerRecord(raw);
   const grid = p.worldGrid;
   if (!Array.isArray(grid) || grid.length !== 5 || grid.some((r) => !Array.isArray(r) || r.length !== 5)) {
     throw new Error("Player.save has no 5×5 worldGrid");
@@ -176,7 +175,7 @@ export function parsePlayer(raw: unknown): PlayerSave {
     inventory,
     equipment,
     health: parseHealth(p.hpgrid, p.statusgrid),
-    vitals: [p.haelth, p.focus, p.energy, p.hunger, p.warmth].every((v) => typeof v === "number" && Number.isFinite(v))
+    vitals: [p.haelth, p.focus, p.energy, p.hunger, p.warmth].every(finite)
       ? { wellbeing: num(p.haelth), focus: num(p.focus), stamina: num(p.energy), satiation: num(p.hunger), warmth: num(p.warmth) }
       : undefined,
     effects: Array.isArray(p.aeList) ? p.aeList.filter((v): v is number => typeof v === "number" && Number.isInteger(v)) : [],
@@ -204,6 +203,9 @@ export interface Solid {
   y: number;
   transPoint: number[] | null;
 }
+
+/** Where a solid leads, as its transPoint says ([area type, x, y]); null when it leads nowhere. */
+export const destination = (s: Solid): number[] | null => (s.transPoint && s.transPoint.length >= 3 ? s.transPoint : null);
 
 export interface Being {
   index: number;
@@ -233,7 +235,7 @@ export interface Tree {
   parts?: number[][];
 }
 
-const list = (raw: unknown) => (Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []);
+const list = (raw: unknown) => (Array.isArray(raw) ? (raw as Rec[]) : []);
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
 export const parseSolids = (raw: unknown): Solid[] =>
@@ -287,7 +289,7 @@ export const parseTrees = (raw: unknown): Tree[] =>
   list(raw).map((t) => {
     if (
       t.partArray !== undefined && (!Array.isArray(t.partArray) ||
-        t.partArray.some((p) => !Array.isArray(p) || p.length < 25 || p.some((v) => typeof v !== "number" || !Number.isFinite(v))))
+        t.partArray.some((p) => !Array.isArray(p) || p.length < 25 || p.some((v) => !finite(v))))
     ) {
       throw new Error("Invalid saved tree branch geometry");
     }

@@ -6,6 +6,9 @@
  * Regenerate every shipped icon with `deno task icons`; no source images or
  * packages are needed. "." is transparent. Each character is one art pixel.
  */
+import { crc32 } from "../src/zip.ts";
+import { concat, writeSource } from "./shared.ts";
+
 export const PALETTE: Readonly<Record<string, string>> = {
   ".": "#00000000",
   i: "#312751",
@@ -104,27 +107,8 @@ export function toSvg(rows: readonly string[]): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${grid} ${grid}" shape-rendering="crispEdges">${paths.join("")}</svg>\n`;
 }
 
-function concat(parts: readonly Uint8Array[]): Uint8Array {
-  const result = new Uint8Array(parts.reduce((size, part) => size + part.length, 0));
-  let offset = 0;
-  for (const part of parts) {
-    result.set(part, offset);
-    offset += part.length;
-  }
-  return result;
-}
-
-function crc32(bytes: Uint8Array): number {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
 function chunk(type: string, data: Uint8Array): Uint8Array {
-  const payload = concat([new TextEncoder().encode(type), data]);
+  const payload = concat(new TextEncoder().encode(type), data);
   const result = new Uint8Array(12 + data.length);
   const view = new DataView(result.buffer);
   view.setUint32(0, data.length);
@@ -149,18 +133,18 @@ export async function encodePng(width: number, height: number, pixels: Uint8Arra
   const compressed = new Uint8Array(
     await new Response(new Blob([scanlines]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer(),
   );
-  return concat([
+  return concat(
     new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
     chunk("IHDR", header),
     chunk("IDAT", compressed),
     chunk("IEND", new Uint8Array()),
-  ]);
+  );
 }
 
 if (import.meta.main) {
   const directory = new URL("../icons/", import.meta.url);
   await Deno.mkdir(directory, { recursive: true });
-  await Deno.writeTextFile(new URL("favicon.svg", directory), toSvg(ICON_ART));
+  await writeSource("icons/favicon.svg", toSvg(ICON_ART));
   // Maximize integer scaling while keeping an 8% home-screen inset. Fit the
   // maskable art's entire square grid inside the central 40%-radius safe circle.
   const grid = ICON_ART.length;

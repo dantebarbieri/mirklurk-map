@@ -6,6 +6,24 @@ type Content = Parameters<typeof h>[2];
 let dialogs = 0;
 
 /**
+ * Shows `dialog` as a modal until it closes, then removes it and returns focus to where it was. A click on the dialog element
+ * itself, which only its backdrop receives (its content covers the rest), cancels it. Resolves to its return value.
+ */
+function showModal(dialog: HTMLDialogElement): Promise<string> {
+  const previous = document.activeElement as HTMLElement | null;
+  dialog.addEventListener("click", (event) => event.target === dialog && dialog.close("cancel"));
+  document.body.append(dialog);
+  return new Promise((resolve) => {
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      previous?.focus?.();
+      resolve(dialog.returnValue);
+    }, { once: true });
+    dialog.showModal();
+  });
+}
+
+/**
  * Asks before an action: a native modal <dialog> (an alertdialog to assistive technology, described by its body), so the page behind
  * is inert and focus moves into it: to `confirm`, or for a `danger`ous action (one that deletes or drops something) to `cancel`, so
  * Enter alone never does it. Escape, Cancel or a click outside declines. Focus returns to where it was. A string in `body` is a
@@ -34,7 +52,7 @@ export interface Choice<T extends string> {
  * Cancel when all are), and Escape, Cancel or a click outside declines. Resolves to the chosen value, or undefined. No choice may
  * have the value "cancel", which is Cancel's.
  */
-export function choose<T extends string>({ title, body, choices, cancel = "Cancel", danger = false }: {
+export async function choose<T extends string>({ title, body, choices, cancel = "Cancel", danger = false }: {
   title: string;
   body: (string | Content)[];
   choices: Choice<T>[];
@@ -42,7 +60,6 @@ export function choose<T extends string>({ title, body, choices, cancel = "Cance
   /** Styles the whole dialog as a warning. */
   danger?: boolean;
 }): Promise<T | undefined> {
-  const previous = document.activeElement as HTMLElement | null;
   const id = `dialog-${++dialogs}`;
   const close = (value: string) => dialog.close(value);
   const focus = choices.find((c) => !c.danger);
@@ -62,8 +79,6 @@ export function choose<T extends string>({ title, body, choices, cancel = "Cance
       role: "alertdialog",
       "aria-labelledby": `${id}-title`,
       "aria-describedby": `${id}-body`,
-      // The dialog itself is only hit outside its content, on the backdrop.
-      onclick: (event: Event) => event.target === dialog && close("cancel"),
     },
     h(
       "div",
@@ -85,13 +100,6 @@ export function choose<T extends string>({ title, body, choices, cancel = "Cance
       ),
     ),
   ) as HTMLDialogElement;
-  document.body.append(dialog);
-  return new Promise((resolve) => {
-    dialog.addEventListener("close", () => {
-      dialog.remove();
-      previous?.focus?.();
-      resolve(choices.find((c) => c.value === dialog.returnValue)?.value);
-    }, { once: true });
-    dialog.showModal();
-  });
+  const value = await showModal(dialog);
+  return choices.find((c) => c.value === value)?.value;
 }

@@ -5,6 +5,7 @@
 //   MIRKLURK_SAVES="…\Saves" deno task test
 
 import { assert, assertEquals, assertRejects } from "./assert.ts";
+import { SAVES } from "./saves.ts";
 import {
   type Backup,
   CopySource,
@@ -17,12 +18,13 @@ import {
   StaleError,
 } from "../src/editor/session.ts";
 import { addItems } from "../src/editor/items.ts";
-import { movePlayer, playerRecord, setSkillPoints, setVitals } from "../src/editor/edits.ts";
+import { movePlayer, setSkillPoints, setVitals } from "../src/editor/edits.ts";
 import { addRaft, moveWithRaft } from "../src/editor/raft.ts";
 import { deleteBeing, newBeing, spawnBeing } from "../src/editor/beings.ts";
 import { cheatedInfo } from "../src/cheated.ts";
 import { readMarker } from "../src/marker.ts";
 import { decodeJson, parsePlayer } from "../src/save.ts";
+import { playerRecord } from "../src/save-record.ts";
 import { loadWorld } from "../src/world.ts";
 import { identify, newToken, packSave, SHARE_INTERVAL, unpackSave, worldId } from "../src/sharing-format.ts";
 import { countCoins } from "../src/coins.ts";
@@ -450,7 +452,7 @@ Deno.test("editor session: moving to another zone makes that zone's Containers.s
   }
 });
 
-// --- A real save, copied ---
+// --- Changes to several files ---
 
 /** Moving you from A,1 (where the fixture stands you, at 40,40) to B,1 off your raft, leaving it at tile 2,2 of A,1. */
 const leaveRaft = (s: EditSession) => [
@@ -549,8 +551,6 @@ Deno.test("editor session: a reload drops a change to several files whole when o
     await Deno.remove(root, { recursive: true });
   }
 });
-
-// --- A real save, copied ---
 
 // --- My worlds, copies, and handing a save over ---
 
@@ -820,11 +820,11 @@ Deno.test("handing a save over: a copy of files reads back the same, and a folde
   }
 });
 
-const saves = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
+// --- A real save, copied ---
+
 const real = ["Tiberius", "Lorroakan", "Lilly"].find((n) => {
   try {
-    return Deno.statSync(`${saves}/${n}/Player.save`).isFile;
+    return Deno.statSync(`${SAVES}/${n}/Player.save`).isFile;
   } catch {
     return false;
   }
@@ -845,7 +845,7 @@ async function copyTree(from: string, to: string) {
 Deno.test({ name: "editor session: a copy of a real save takes edits and still loads in the map", ignore: !real }, async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
   try {
-    await copyTree(`${saves}/${real}`, `${root}/${real}`);
+    await copyTree(`${SAVES}/${real}`, `${root}/${real}`);
     const s = await openSession(root, real!);
     const player = `${s.character.root}Player.save`;
     const before = parsePlayer(await s.json(player));

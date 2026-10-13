@@ -2,7 +2,8 @@
 //   MIRKLURK_SAVES="…\Saves" deno task test      (defaults to ../Saves next to this folder)
 
 import { assert, assertEquals } from "./assert.ts";
-import { type FileMap, findCharacters } from "../src/files.ts";
+import { HAVE_SAVES, readTree, SAVES } from "./saves.ts";
+import { findCharacters } from "../src/files.ts";
 import { landmarks, shipwreckOdds } from "../src/predict.ts";
 import { Area, PLACEMENT, reflect, tileIndex } from "../src/rules.ts";
 import { loadDetail, loadLayer, loadTrees, loadWorld } from "../src/world.ts";
@@ -12,27 +13,8 @@ import { detailMarks } from "../src/objects.ts";
 import { trunkOf } from "../src/chop.ts";
 import { fernAt, gatherMarks } from "../src/gather.ts";
 
-const dir = Deno.env.get("MIRKLURK_SAVES") ??
-  decodeURIComponent(new URL("../../Saves", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
-const present = (() => {
-  try {
-    return Deno.statSync(dir).isDirectory;
-  } catch {
-    return false;
-  }
-})();
-
-function readTree(root: string, prefix = "Saves/", out: FileMap = new Map()): FileMap {
-  for (const e of Deno.readDirSync(root)) {
-    const p = `${root}/${e.name}`;
-    if (e.isDirectory) readTree(p, `${prefix}${e.name}/`, out);
-    else out.set(`${prefix}${e.name}`, { read: () => Deno.readFile(p) });
-  }
-  return out;
-}
-
-Deno.test({ name: "real saves: grid, quest zones and landmarks", ignore: !present }, async () => {
-  const files = readTree(dir);
+Deno.test({ name: "real saves: grid, quest zones and landmarks", ignore: !HAVE_SAVES }, async () => {
+  const files = readTree();
   const chars = findCharacters(files);
   assert(chars.length > 0, "no characters found");
   for (const c of chars) {
@@ -84,8 +66,8 @@ Deno.test({ name: "real saves: grid, quest zones and landmarks", ignore: !presen
   }
 });
 
-Deno.test({ name: "real saves: placed buildings sit in the zones the save names", ignore: !present }, async () => {
-  const files = readTree(dir);
+Deno.test({ name: "real saves: placed buildings sit in the zones the save names", ignore: !HAVE_SAVES }, async () => {
+  const files = readTree();
   for (const c of findCharacters(files)) {
     const w = await loadWorld(files, c.root, c.name);
     const m = Object.fromEntries(landmarks(w, new Map()).map((x) => [x.id, x]));
@@ -104,8 +86,8 @@ Deno.test({ name: "real saves: placed buildings sit in the zones the save names"
   }
 });
 
-Deno.test({ name: "real saves: all saved terrain and scenery have matching game art", ignore: !present }, async () => {
-  const files = readTree(dir);
+Deno.test({ name: "real saves: all saved terrain and scenery have matching game art", ignore: !HAVE_SAVES }, async () => {
+  const files = readTree();
   for (const c of findCharacters(files)) {
     const world = await loadWorld(files, c.root, c.name);
     const areas = [
@@ -165,10 +147,10 @@ function liveDirectory(path: string, name: string): LiveDirectory {
   };
 }
 
-Deno.test({ name: "real saves: live completion fence and inventories parse for every character", ignore: !present }, async () => {
-  for await (const e of Deno.readDir(dir)) {
+Deno.test({ name: "real saves: live completion fence and inventories parse for every character", ignore: !HAVE_SAVES }, async () => {
+  for await (const e of Deno.readDir(SAVES)) {
     if (!e.isDirectory) continue;
-    const snapshot = await captureSnapshot(await scanDirectory(liveDirectory(`${dir}/${e.name}`, e.name)));
+    const snapshot = await captureSnapshot(await scanDirectory(liveDirectory(`${SAVES}/${e.name}`, e.name)));
     const world = await loadWorld(snapshot.files, `${e.name}/`, e.name);
     assert(world.player.inventory?.state === "saved", `${e.name}: player inventory`);
     for (const area of [...world.zones.flat(), ...world.interiors]) {
@@ -185,8 +167,8 @@ Deno.test({ name: "real saves: live completion fence and inventories parse for e
   }
 });
 
-Deno.test({ name: "real saves: gatherables, where the game grows them, with their leftovers", ignore: !present }, async () => {
-  const files = readTree(dir);
+Deno.test({ name: "real saves: gatherables, where the game grows them, with their leftovers", ignore: !HAVE_SAVES }, async () => {
+  const files = readTree();
   let outdoor = 0, bulbs = 0, ferns = 0;
   for (const c of findCharacters(files)) {
     const world = await loadWorld(files, c.root, c.name);
