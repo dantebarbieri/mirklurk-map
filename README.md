@@ -606,7 +606,8 @@ Steam offers Mirklurk on two branches, and MirkMap has the rules of both. `src/v
   5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
   Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
   The save editor offers no item from 258 on (the Storage Chest, the magic weapons and Grand Mother's wares) and spawns no Mirkfangs:
-  0.8.1.5's item and being databases end at 257 and 35, and a save holding a newer one does not load there. A raft it leaves has no
+  0.8.1.5's item and being databases end at 257 and 35, and a save holding a newer one does not load there. It also refuses to save or
+  download changes that add one, as when they were made with Beta picked; what the save already holds is left alone. A raft it leaves has no
   `xscale`, as 0.8.1.5's `save_stations` wrote none.
 - **What follows the save whatever the switch says.** Where you probably went (`src/estimate.ts`) reads what the build that saved did:
   0.8.1.5 also saved on first entering a quest room.

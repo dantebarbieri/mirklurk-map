@@ -20,6 +20,8 @@ import {
 import { addItems } from "../src/editor/items.ts";
 import { movePlayer, setSkillPoints, setVitals } from "../src/editor/edits.ts";
 import { addRaft, moveWithRaft } from "../src/editor/raft.ts";
+import { versionConflicts } from "../src/editor/compat.ts";
+import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
 import { deleteBeing, newBeing, spawnBeing } from "../src/editor/beings.ts";
 import { cheatedInfo } from "../src/cheated.ts";
 import { readMarker } from "../src/marker.ts";
@@ -157,6 +159,33 @@ async function fixture(root: string) {
 }
 
 const mtime = async (path: string) => (await Deno.stat(path)).mtime!.getTime();
+
+Deno.test("editor session: what changes add that the version in use lacks is found before saving, not what the save held", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(root);
+    const s = await openSession(root, "Hero");
+    const player = `${s.character.root}Player.save`;
+    const beings = "Hero/[ 1,0 ]/Beings.save";
+    const conflicts = async (rules: "0.8.1.5" | "0.8.9.9") => (await versionConflicts(s.files, s.preview(), rules)).sort();
+    assertEquals(await conflicts("0.8.1.5"), []);
+    // Beta picked on this 0.8.1.5 save: a Magus' Shard and a Mirkfang Matriarch, then the switch goes back to Latest.
+    await s.apply(player, (raw) => (addItems(playerRecord(raw), 262, 1).added ? "Magus' Shard" : undefined));
+    await s.apply(beings, (raw) => (spawnBeing(raw as unknown[], 37, 20, 30), "Spawned a Matriarch"));
+    await s.apply(beings, (raw) => (spawnBeing(raw as unknown[], 3, 40, 30), "Spawned a troll"));
+    assertEquals(await conflicts("0.8.1.5"), [BEING_NAMES[37], ITEM_NAMES[262]].sort());
+    assertEquals(await conflicts("0.8.9.9"), []);
+    // Saved for the beta, the save holds them: later changes that add nothing new suit Latest, one more Shard does not.
+    await s.save();
+    await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 3), "Skill points 0 → 3"));
+    await s.apply(beings, (raw) => (spawnBeing(raw as unknown[], 3, 60, 30), "Spawned a troll"));
+    assertEquals(await conflicts("0.8.1.5"), []);
+    await s.apply(player, (raw) => (addItems(playerRecord(raw), 262, 1).added ? "Magus' Shard" : undefined));
+    assertEquals(await conflicts("0.8.1.5"), [ITEM_NAMES[262]]);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
 
 Deno.test("editor session: saves in the game's order, marks the world first, backs up and reopens cleanly", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });

@@ -117,6 +117,7 @@ import { ITEMS } from "../itemdata.ts";
 import { SLOT_NAMES } from "../armor.ts";
 import { deleteBeing, habitat, habitatRefusal, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
 import { areaObjects } from "./area.ts";
+import { versionConflicts } from "./compat.ts";
 import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, reachable, tileBox } from "./ground.ts";
 import {
   addRaft,
@@ -678,10 +679,27 @@ async function writable(s: EditSession): Promise<boolean> {
   return false;
 }
 
+/**
+ * Whether the unsaved changes suit the game version in use (the Latest/Beta switch): changes that add an item or creature it does
+ * not have, made while the other version was picked, are refused with a note saying which, as that game could not load the save.
+ */
+async function suitsVersion(s: EditSession, doing: string): Promise<boolean> {
+  const rules = editorRules();
+  const lacking = await versionConflicts(s.files, s.preview(), rules);
+  if (!lacking.length) return true;
+  status(
+    `Not ${doing}: your changes add ${joinAnd(lacking)}, which Mirklurk ${rules} does not have, so it could not load the save. ` +
+      "Undo those changes, or pick the version you will play it on with the Latest/Beta switch.",
+    true,
+  );
+  return false;
+}
+
 /** Saves the unsaved changes where the save came from: the game's folder or My worlds. A copy asks for the game's folder first. */
 async function save() {
   const s = session;
   if (!s || s.saving) return;
+  if (!await suitsVersion(s, "saved")) return;
   if (s.source instanceof CopySource) return saveCopyToFolder(s);
   if (!await writable(s)) return;
   const library = s.source instanceof LibrarySource;
@@ -716,6 +734,7 @@ async function save() {
 async function download() {
   const s = session;
   if (!s || s.saving) return;
+  if (!await suitsVersion(s, "downloaded")) return;
   try {
     const zip = await s.download();
     offerDownload(zip);
