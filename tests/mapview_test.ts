@@ -343,17 +343,23 @@ Deno.test("locate: centres on the player, zoomed in to at most LOCATE_SIZE, abov
   assertEquals(y - 0.5 / 2 * size + size / 2, 1200);
 });
 
-Deno.test("map timeouts: a name holds one timeout at a time, and none fires after the map clears them all", async () => {
+Deno.test("map timeouts: a name holds one timeout at a time, and none fires after the map clears them all", () => {
+  // A scheduler the test runs by hand: each timeout waits in `pending` until the test fires it.
+  const pending = new Map<number, () => void>();
+  let next = 0;
+  const t = new Timeouts<"sheet" | "settle">((f) => (pending.set(++next, f), next), (id) => void pending.delete(id));
+  const fire = () => [...pending].forEach(([id, f]) => (pending.delete(id), f()));
   const fired: string[] = [];
-  const t = new Timeouts<"sheet" | "settle">();
-  t.set("sheet", () => fired.push("replaced"), 1);
-  t.set("sheet", () => fired.push("sheet"), 1);
-  t.set("settle", () => fired.push("settle"), 1);
-  await new Promise((r) => setTimeout(r, 20));
+  t.set("sheet", () => fired.push("replaced"), 280);
+  t.set("sheet", () => fired.push("sheet"), 280);
+  t.set("settle", () => fired.push("settle"), 120);
+  assertEquals(pending.size, 2, "setting a name again cancels the timeout waiting under it");
+  fire();
   assertEquals(fired.sort(), ["settle", "sheet"]);
   // A sheet still settling when its map is disposed must not place that map's card again.
-  t.set("sheet", () => fired.push("after dispose"), 1);
+  t.set("sheet", () => fired.push("after dispose"), 280);
   t.clearAll();
-  await new Promise((r) => setTimeout(r, 20));
+  assertEquals(pending.size, 0);
+  t.clear("settle");
   assertEquals(fired.sort(), ["settle", "sheet"]);
 });

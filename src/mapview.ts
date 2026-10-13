@@ -558,17 +558,22 @@ export function stackAt(marks: Mark[], m: Mark): Mark[] {
 
 /**
  * Named timeouts that are cancelled together, so disposing of their owner leaves none to fire; setting a name again replaces
- * the one waiting under it.
+ * the one waiting under it. Tests pass their own `schedule` and `cancel`.
  */
 export class Timeouts<Name extends string> {
   private waiting = new Map<Name, number>();
+
+  constructor(
+    private schedule: (f: () => void, ms: number) => number = (f, ms) => setTimeout(f, ms),
+    private cancel: (id: number) => void = (id) => clearTimeout(id),
+  ) {}
 
   /** Runs `f` after `ms`, instead of whatever was waiting under `name`. */
   set(name: Name, f: () => void, ms: number) {
     this.clear(name);
     this.waiting.set(
       name,
-      setTimeout(() => {
+      this.schedule(() => {
         this.waiting.delete(name);
         f();
       }, ms),
@@ -576,12 +581,13 @@ export class Timeouts<Name extends string> {
   }
 
   clear(name: Name) {
-    clearTimeout(this.waiting.get(name));
+    const id = this.waiting.get(name);
+    if (id !== undefined) this.cancel(id);
     this.waiting.delete(name);
   }
 
   clearAll() {
-    for (const id of this.waiting.values()) clearTimeout(id);
+    for (const id of this.waiting.values()) this.cancel(id);
     this.waiting.clear();
   }
 }
