@@ -6,6 +6,7 @@
 import { roundGml } from "./chop.ts";
 import { plural } from "./format.ts";
 import { DAMAGE_CLASS_NAMES } from "./gamedata.ts";
+import { atLeast, type GameVersion } from "./version.ts";
 
 /** damageClass values ([DamageClasses] in UI.ini). */
 export const DamageClass = { Poison: 2, Sharp: 14, Blunt: 15, Force: 16, Piercing: 17, Fire: 18, Weak: 24, Leeching: 27 } as const;
@@ -345,7 +346,7 @@ const EFFECTS: Record<number, [key: string, effect: string]> = {
     "poison",
     "Hurts at the start of the target's turn, stacks and spreads to a random neighbour, even under armor. A blow on armor only breaks armor.",
   ],
-  [DamageClass.Blunt]: ["blunt", "10% base chance to stun, so the target misses a turn."],
+  [DamageClass.Blunt]: ["blunt", "10% base chance to stun, so the target misses a turn."], // 12% before 0.8.9.9 (attack_aftermath)
   [DamageClass.Piercing]: ["piercing", "15% chance per hit to deal 1 extra damage."],
   [DamageClass.Force]: ["force", "15% chance per hit to also deal 1 damage to a neighbouring hit point."],
   [DamageClass.Fire]: ["fire", "Burns: a hit point it destroys cannot regenerate or be healed until treated."],
@@ -356,10 +357,12 @@ const EFFECTS: Record<number, [key: string, effect: string]> = {
   ],
 };
 
-export function damageClassInfo(damageClass: number | undefined): DamageClassInfo | undefined {
+/** What a damage class does under `rules`: Blunt blows stunned 12% of the time before 0.8.9.9 (attack_aftermath, [TTgen] 33). */
+export function damageClassInfo(damageClass: number | undefined, rules: GameVersion): DamageClassInfo | undefined {
   if (damageClass === undefined) return undefined;
   const [key, effect] = EFFECTS[damageClass] ?? ["weak", ""];
-  return { name: DAMAGE_CLASS_NAMES[damageClass] ?? `Class ${damageClass}`, effect, key };
+  const then = damageClass === DamageClass.Blunt && !atLeast(rules, "0.8.9.9") ? effect.replace(/^10%/, "12%") : effect;
+  return { name: DAMAGE_CLASS_NAMES[damageClass] ?? `Class ${damageClass}`, effect: then, key };
 }
 
 /** textf_floatpercent: whole percentages without decimals, others with one. */

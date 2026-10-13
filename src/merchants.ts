@@ -1,10 +1,12 @@
-// What the eight traders sell and how trading works, ported from Mirklurk 0.8.9.9 (decompiled GML). References name the source entry.
+// What the traders sell and how trading works, ported from Mirklurk 0.8.9.9 and 0.8.1.5 (decompiled GML). References name the
+// source entry.
 
 import { type Coins, coinsView, priceCoins } from "./coins.ts";
 import { h } from "./dom.ts";
 import { ITEM_NAMES } from "./gamedata.ts";
 import { picture, section, type SectionContext, wikiLink } from "./inspect.ts";
 import { itemImage, itemWiki, wikiUrl } from "./wiki.ts";
+import { atLeast, type GameVersion } from "./version.ts";
 
 /** The traders, by being index (`BEING_NAMES`). */
 export const Trader = { Clay: 8, Bhato: 12, Viend: 19, Tain: 20, Gurb: 26, Ihar: 33, Wilda: 34, Mother: 36 } as const;
@@ -13,8 +15,8 @@ export const Trader = { Clay: 8, Bhato: 12, Viend: 19, Tain: 20, Gurb: 26, Ihar:
 export const MAGUS_SHARD = 262;
 
 /**
- * Each trader's stock in the order `menu_add` (gml_GlobalScript_scr_menu_related, menu type 8) adds it: one new item of each,
- * rebuilt every time the trade window opens.
+ * Each trader's stock in 0.8.9.9, in the order `menu_add` (gml_GlobalScript_scr_menu_related, menu type 8) adds it: one new item
+ * of each, rebuilt every time the trade window opens. See `stockOf` for 0.8.1.5's.
  */
 export const STOCK: Readonly<Record<number, readonly number[]>> = {
   [Trader.Clay]: [140, 32, 84, 85, 86, 27, 45, 14, 57, 44, 41, 275, 113, 115, 114, 112, 156],
@@ -26,6 +28,22 @@ export const STOCK: Readonly<Record<number, readonly number[]>> = {
   [Trader.Wilda]: [144, 32, 84, 85, 45, 174, 219, 212, 113, 115, 114],
   [Trader.Mother]: [127, 266, 272, 271, 270, 269, 268, 267, 274, 273, MAGUS_SHARD],
 };
+
+/** What 0.8.9.9 added to 0.8.1.5's stock: the Storage Chest, Viend's Steel Hand Axe, and Wilda and Grand Mother, new traders. */
+const ADDED_IN_0899: Readonly<Record<number, readonly number[] | "all">> = {
+  [Trader.Clay]: [275],
+  [Trader.Viend]: [275, 28],
+  [Trader.Wilda]: "all",
+  [Trader.Mother]: "all",
+};
+
+/** A trader's stock under `rules`, in menu_add's order; empty for a being that does not trade then. */
+export function stockOf(being: number, rules: GameVersion): readonly number[] {
+  const stock = STOCK[being] ?? [];
+  if (atLeast(rules, "0.8.9.9")) return stock;
+  const added = ADDED_IN_0899[being];
+  return added === "all" ? [] : added ? stock.filter((i) => !added.includes(i)) : stock;
+}
 
 /**
  * Every ware's itemDB entry (gml_Object_databank_Alarm_1): price in silver, size in inventory cells (its sprite's size ÷ 16)
@@ -112,13 +130,14 @@ export function sortWeight(index: number): number {
  */
 export const tradeOrder = (stock: readonly number[]) => [...stock].sort((a, b) => sortWeight(b) - sortWeight(a));
 
-/** Each trader's wares in display order. Commander Tain's single ware skips the sort, as in menu_add. */
-export const WARES: Readonly<Record<number, readonly number[]>> = Object.fromEntries(
-  Object.entries(STOCK).map(([being, stock]) => [being, Number(being) === Trader.Tain ? stock : tradeOrder(stock)]),
-);
+/** A trader's wares under `rules` in display order. Commander Tain's single ware skips the sort, as in menu_add. */
+export function waresIn(being: number, rules: GameVersion): readonly number[] {
+  const stock = stockOf(being, rules);
+  return being === Trader.Tain ? stock : tradeOrder(stock);
+}
 
-/** Whether a being trades with the player. */
-export const sells = (being: number): boolean => Object.hasOwn(WARES, being);
+/** Whether a being trades with the player under `rules`. */
+export const sells = (being: number, rules: GameVersion): boolean => stockOf(being, rules).length > 0;
 
 export interface Ware {
   index: number;
@@ -133,8 +152,8 @@ export interface Ware {
 /** Wares a trader adds only part of the time (menu_add). */
 const WARE_NOTES: Readonly<Record<number, string>> = { [MAGUS_SHARD]: "from main quest stage 30" };
 
-export const waresOf = (being: number): Ware[] =>
-  (WARES[being] ?? []).map((index) => ({
+export const waresOf = (being: number, rules: GameVersion): Ware[] =>
+  waresIn(being, rules).map((index) => ({
     index,
     name: ITEM_NAMES[index] ?? `Item ${index}`,
     price: PRICES[index],
@@ -178,7 +197,7 @@ const wareRow = (ware: Ware) => {
 
 /** Inspection sections for a merchant: its wares and their prices, then how trading works. */
 export function merchantView(being: number, ctx: SectionContext): HTMLElement[] {
-  const wares = waresOf(being);
+  const wares = waresOf(being, ctx.rules);
   if (!wares.length) return [];
   return [
     section(

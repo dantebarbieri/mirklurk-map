@@ -1237,7 +1237,23 @@ body.map-full .sky-chip {
   image-rendering: auto;
 }
 .mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
   margin-bottom: 10px;
+}
+
+/* The Latest/Beta switch (versionview.ts); its buttons are styled with .coin-mode. */
+.version-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.version-note.chosen {
+  color: var(--gold);
 }
 .blank {
   position: absolute;

@@ -19,10 +19,10 @@ import {
   yourRaftMarks,
 } from "./objects.ts";
 import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts";
-import { fernShade, GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
+import { amountText, fernAt, fernShade, GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
 import { pct, plural } from "./format.ts";
 import { heatBounds, type Landmark, type LandmarkId, landmarks, shipwreckOdds, zoneHeat } from "./predict.ts";
-import { Area, coordLabel, GAME_VERSION, INTERIOR_NAMES, isOutside, NPC_MARKERS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
+import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_MARKERS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts";
@@ -30,6 +30,8 @@ import { coinRollup, equippedBadge } from "./player.ts";
 import { journalHeadline, type JournalTarget, journalView, locateTarget } from "./journal.ts";
 import { skyChip, skyPanel } from "./skyview.ts";
 import { entityWiki } from "./wiki.ts";
+import { CHANNELS, detectVersion, type GameVersion } from "./version.ts";
+import { versionSwitch } from "./versionview.ts";
 import type { FileMap } from "./files.ts";
 import {
   type Interior,
@@ -45,6 +47,16 @@ import {
 
 export interface State {
   world: World;
+  /** The rules the save's VERSION names (version.ts); undefined when it names none. */
+  detected?: GameVersion;
+  /** Rules picked with the Latest/Beta switch over the detected ones; kept across this character's reloads, not across characters. */
+  override?: GameVersion;
+  /** The rules in use: the override, else the detected ones, else Latest's (`setRules`). */
+  rules: GameVersion;
+  /** Told the override when the Latest/Beta switch changes it (the save editor follows the full map's switch). */
+  onRules?: (override: GameVersion | undefined) => void;
+  /** The Broken Fen's shipwreck odds per entry, by zone ("x,y"), for the landmark guesses. */
+  shipwreck: Map<string, number>;
   marks: Landmark[];
   mapUrls: Map<string, string>;
   /** Shared across characters and reloads. */
@@ -100,7 +112,20 @@ export async function worldState(world: World, files: FileMap, prefs: State["pre
     urls.forEach((u) => URL.revokeObjectURL(u));
     throw e;
   }
-  return { state: { world, marks: landmarks(world, shipwreck), mapUrls, prefs, terrain: new TerrainStore(world) }, urls };
+  const detected = detectVersion(world.player.version);
+  const state: State = { world, detected, rules: CHANNELS.latest, shipwreck, marks: [], mapUrls, prefs, terrain: new TerrainStore(world) };
+  setRules(state);
+  return { state, urls };
+}
+
+/**
+ * Follows `override`'s rules, or with none (or the save's own) the save's, or Latest's when it names no version; then redoes the
+ * landmark guesses, which differ by version. Call `renderWorld` after to show it.
+ */
+export function setRules(st: State, override?: GameVersion) {
+  st.override = override === st.detected ? undefined : override;
+  st.rules = st.override ?? st.detected ?? CHANNELS.latest;
+  st.marks = landmarks(st.world, st.shipwreck, st.rules);
 }
 
 const HEAT_COLOR: Record<LandmarkId, string> = {
@@ -240,7 +265,6 @@ export function renderWorld(st: State) {
   root.setProperty("--you-line", light ? "#120e0f" : "#f4efe6");
   root.setProperty("--you-halo", light ? "#f4efe6" : "#120e0f");
   const here = w.zones[you.zone[1]]?.[you.zone[0]];
-  const version = p.version === GAME_VERSION ? "" : ` · made for game ${GAME_VERSION}, this save is ${p.version}`;
   const summary = h(
     "p",
     { class: "summary" },
@@ -253,7 +277,6 @@ export function renderWorld(st: State) {
         you.estimated ? ` (estimated: ${you.estimated})` : ""
       }`
       : "",
-    version,
   );
   const freshness = h(
     "p",
@@ -278,7 +301,17 @@ export function renderWorld(st: State) {
     : null;
   const mode = h("input", { type: "checkbox", checked: st.prefs.realistic, id: "realistic-mode" }) as HTMLInputElement;
   mode.addEventListener("change", () => setRealistic(st, mode.checked));
-  const modeControl = h("label", { class: "chip mode" }, mode, "Realistic");
+  const modeControl = h(
+    "div",
+    { class: "mode" },
+    h("label", { class: "chip" }, mode, "Realistic"),
+    versionSwitch({ detected: st.detected, rules: st.rules, saved: p.version }, (v) => {
+      rememberView(st);
+      setRules(st, v);
+      st.onRules?.(st.override);
+      renderWorld(st);
+    }),
+  );
   const artStatus = h("p", { class: "legend art-status", role: "status" });
   const updateArt = () => {
     if (!st.prefs.realistic) return;
@@ -710,6 +743,7 @@ async function renderZone(st: State, z: Zone, glide = false, locate = false) {
       picker: picker(),
       close,
       difficulty: world.player.difficulty,
+      rules: st.rules,
       find: (t) => void showJournalTarget(st, t),
     });
   };
@@ -885,7 +919,7 @@ function neighbourMarks(st: State, map: MapView, z: Zone, current: () => boolean
       }
       if (gather && n.dir && !gatherLoaded.has(k)) {
         gatherLoaded.add(k);
-        loadGather(world, n.dir).then((marks) => add(n, marks));
+        loadGather(st, n.dir).then((marks) => add(n, marks));
       }
     }
   };
@@ -994,7 +1028,7 @@ function mapLayers(
   const loadGatherOnce = async () => {
     if (gatherLoaded || !dir) return;
     gatherLoaded = true;
-    const marks = await loadGather(st.world, dir);
+    const marks = await loadGather(st, dir);
     if (current()) {
       gathers = marks;
       map.addMarks(gathers);
@@ -1049,7 +1083,7 @@ function layerChips(st: State, layers: Layers) {
     const box = h("input", { type: "checkbox" }) as HTMLInputElement;
     box.addEventListener("change", () => layers.set(id, box.checked));
     boxes.set(id, box);
-    return h("label", { class: id === "water" ? "chip water" : `chip L-${id}`, title: LAYER_TIPS[id] }, box, switchLabel(id));
+    return h("label", { class: id === "water" ? "chip water" : `chip L-${id}`, title: layerTip(id, st.rules) }, box, switchLabel(id));
   };
   const headers: [HTMLInputElement, Switch[]][] = [];
   const header = (label: string, ids: Switch[]) => {
@@ -1134,7 +1168,7 @@ function mapLegend(st: State, layers: Layers): HTMLElement {
   const key = (id: Switch) => {
     const el = h(
       "button",
-      { type: "button", class: "key", title: LAYER_TIPS[id], onclick: () => layers.set(id, !layers.on(id)) },
+      { type: "button", class: "key", title: layerTip(id, st.rules), onclick: () => layers.set(id, !layers.on(id)) },
       markIcon(SWITCH_ICON[id]),
       h("span", {}, switchLabel(id)),
     );
@@ -1237,14 +1271,20 @@ const LAYER_TIPS: Partial<Record<Switch, string>> = {
   lilies: "Flowering lilypads, harvested for Water Lilies",
   bulbs: "Vile Bulbs (Mushrooms), which grow in caves",
   nests: "Bird nests to search for Feathers and Eggs; searched ones refill after some days",
-  ferns:
-    "Ground with ferns, shaded deeper the bigger they are: harvested for Plant Fiber, 1–2 from the smallest up to 5–14 from the biggest",
 };
 
+/** A switch's tooltip; the ferns' yields depend on the rules. */
+const layerTip = (id: Switch, rules: GameVersion) =>
+  id === "ferns"
+    ? `Ground with ferns, shaded deeper the bigger they are: harvested for Plant Fiber, ${
+      amountText(fernAt(80, rules)!.amount)
+    } from the smallest up to ${amountText(fernAt(84, rules)!.amount)} from the biggest`
+    : LAYER_TIPS[id];
+
 /** An area's gatherables, from its saved Hinderance and LootData tiles (fresh marks each time, as neighbours shift theirs). */
-async function loadGather(world: World, dir: string): Promise<Mark[]> {
-  const [hinderance, loot] = await Promise.all([loadLayer(world, dir, "Hinderance"), loadLayer(world, dir, "LootData")]);
-  return hinderance ? gatherMarks(hinderance, loot) : [];
+async function loadGather(st: State, dir: string): Promise<Mark[]> {
+  const [hinderance, loot] = await Promise.all([loadLayer(st.world, dir, "Hinderance"), loadLayer(st.world, dir, "LootData")]);
+  return hinderance ? gatherMarks(hinderance, loot, st.rules) : [];
 }
 
 /** The shown gatherables listed by kind, the most to take first. */
@@ -1460,7 +1500,13 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string, lo
   const close = () => closeInspection(st, map, inspector);
   const inspect = (m: Mark, expanded?: Set<string>) => {
     map.select(m);
-    inspectMark(inspector, m, { expanded, close, difficulty: st.world.player.difficulty, find: (t) => void showJournalTarget(st, t) });
+    inspectMark(inspector, m, {
+      expanded,
+      close,
+      difficulty: st.world.player.difficulty,
+      rules: st.rules,
+      find: (t) => void showJournalTarget(st, t),
+    });
   };
   const open = (m: Mark) => {
     if (m.interior) {

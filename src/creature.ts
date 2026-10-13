@@ -23,6 +23,7 @@ import { plural } from "./format.ts";
 import { type HealthGrid, healthGridView, healthLegend, parseHealth, summarize } from "./health.ts";
 import { section, type SectionContext, wikiLink } from "./inspect.ts";
 import { wikiUrl } from "./wiki.ts";
+import type { GameVersion } from "./version.ts";
 
 /** The Melee/Ranged choice, kept for every being with both and across re-renders. */
 let showRanged = false;
@@ -105,8 +106,8 @@ function patternView(a: Attack, key: string, difficulty: number | undefined): HT
   );
 }
 
-function attackView(s: BeingStats, a: Attack, ranged: boolean, difficulty: number | undefined): HTMLElement[] {
-  const info = damageClassInfo(a.damageClass);
+function attackView(s: BeingStats, a: Attack, ranged: boolean, difficulty: number | undefined, rules: GameVersion): HTMLElement[] {
+  const info = damageClassInfo(a.damageClass, rules);
   if (!info || !canHurt(a)) return [h("p", { class: "muted" }, ranged ? "No ranged attack." : "No melee attack.")];
   const iq = aim(a.iq, difficulty);
   return [
@@ -134,20 +135,20 @@ function attackView(s: BeingStats, a: Attack, ranged: boolean, difficulty: numbe
 }
 
 /** The melee attack, or a Melee/Ranged toggle that swaps the pattern and its details in place. */
-function attackSection(s: BeingStats, difficulty: number | undefined): HTMLElement[] {
+function attackSection(s: BeingStats, difficulty: number | undefined, rules: GameVersion): HTMLElement[] {
   const { melee, ranged } = s;
   if (!canHurt(melee) && !ranged) return [h("p", { class: "muted" }, "It does not attack.")];
   const body = h("div", { class: "attack-body" });
   if (!ranged) {
-    body.append(...attackView(s, melee, false, difficulty));
+    body.append(...attackView(s, melee, false, difficulty, rules));
     return [body];
   }
   const render = () => {
     buttons.forEach((b, i) => b.setAttribute("aria-pressed", String((i === 1) === showRanged)));
-    body.replaceChildren(...attackView(s, showRanged ? ranged : melee, showRanged, difficulty));
+    body.replaceChildren(...attackView(s, showRanged ? ranged : melee, showRanged, difficulty, rules));
   };
   const buttons = [melee, ranged].map((a, i) => {
-    const info = damageClassInfo(a.damageClass);
+    const info = damageClassInfo(a.damageClass, rules);
     return h(
       "button",
       {
@@ -203,7 +204,7 @@ export function creatureView(being: number, health: HealthGrid | undefined, ctx:
   const title = now ? `Hit points (${now.healthy} of ${now.total})` : "Hit points";
   return [
     sectioned(section(ctx, "hit-points", title, true, ...hitPoints(being, health))),
-    sectioned(section(ctx, "attack", s.ranged ? "Attacks" : "Attack", true, ...attackSection(s, ctx.difficulty))),
+    sectioned(section(ctx, "attack", s.ranged ? "Attacks" : "Attack", true, ...attackSection(s, ctx.difficulty, ctx.rules))),
     sectioned(section(ctx, "behaviour", "Behaviour", true, behaviour(s))),
     h(
       "p",

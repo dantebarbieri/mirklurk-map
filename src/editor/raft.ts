@@ -7,16 +7,17 @@
 import { isSlopeTile, Thresh, tileIndex, TILES } from "../rules.ts";
 import { isRec, type Rec } from "../save-record.ts";
 import { type Inside, movePlayer } from "./edits.ts";
+import { atLeast, type GameVersion } from "../version.ts";
 
 /** The finished raft's item and station index (Finish Raft). */
 export const RAFT = 171;
 
 /**
  * A finished raft standing on tile (tx, ty), as Finish Raft leaves the placed Raft Base (spr_placed_16x16_wider, frame 1) and
- * save_stations writes it, unflipped (xscale, saved since 0.8.9.9; load_stations leaves it at 1 when absent).
+ * save_stations of game version `rules` writes it: since 0.8.9.9 with xscale, unflipped (load_stations leaves it at 1 when absent).
  */
-export function raftStation(tx: number, ty: number): Rec {
-  return {
+export function raftStation(tx: number, ty: number, rules: GameVersion): Rec {
+  const station: Rec = {
     sprite: "spr_placed_16x16_wider",
     pic: 1,
     xscale: 1,
@@ -28,6 +29,8 @@ export function raftStation(tx: number, ty: number): Rec {
     localItem: -4,
     status: -200,
   };
+  if (!atLeast(rules, "0.8.9.9")) delete station.xscale;
+  return station;
 }
 
 export const isRaft = (s: unknown): s is Rec => isRec(s) && s.index === RAFT;
@@ -37,9 +40,9 @@ function stationList(raw: unknown): unknown[] {
   return raw;
 }
 
-/** Leaves a finished raft on tile (tx, ty) of a zone's Stations.save. */
-export function addRaft(stations: unknown, tx: number, ty: number) {
-  stationList(stations).push(raftStation(tx, ty));
+/** Leaves a finished raft on tile (tx, ty) of a zone's Stations.save, as game version `rules` saves it. */
+export function addRaft(stations: unknown, tx: number, ty: number, rules: GameVersion) {
+  stationList(stations).push(raftStation(tx, ty, rules));
 }
 
 /** Takes the raft saved as `same` (its JSON when it was picked) out of a zone's Stations.save. */

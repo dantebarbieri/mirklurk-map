@@ -3,6 +3,9 @@ import type { FileMap } from "../src/files.ts";
 import { findCharacters } from "../src/files.ts";
 import { landmarks, shareOut, zoneHeat } from "../src/predict.ts";
 import { loadWorld } from "../src/world.ts";
+import type { GameVersion } from "../src/version.ts";
+
+const NEW: GameVersion = "0.8.9.9";
 
 const enc = new TextEncoder();
 const json = (v: unknown) => ({ read: () => Promise.resolve(enc.encode(JSON.stringify(v) + "\0")) });
@@ -57,21 +60,21 @@ Deno.test("shares: pick candidates at random, each entry succeeding with its own
 
 Deno.test("Gurb-Gurb: every Drowned Fen is equally likely until one is entered", async () => {
   const w = await world({});
-  const gurb = landmarks(w, new Map()).find((m) => m.id === "gurb")!;
+  const gurb = landmarks(w, new Map(), NEW).find((m) => m.id === "gurb")!;
   assertEquals(gurb.status, "candidates");
   assertEquals(gurb.candidates!.map((c) => [c.x, c.y, c.share]), [[2, 0, 0.5], [3, 1, 0.5]]);
 });
 
 Deno.test("Gurb-Gurb: standing in a Drowned Fen means it spawns there on load", async () => {
   const w = await world({ areaX: 3, areaY: 1, areaType: 3 });
-  const gurb = landmarks(w, new Map()).find((m) => m.id === "gurb")!;
+  const gurb = landmarks(w, new Map(), NEW).find((m) => m.id === "gurb")!;
   assertEquals(gurb.candidates!.find((c) => c.now)?.share, 1);
   assertEquals(gurb.candidates!.find((c) => !c.now)?.share, 0);
 });
 
 Deno.test("Ihar: measured shore odds weigh the zones", async () => {
   const w = await world({});
-  const ihar = landmarks(w, new Map([["3,0", 0.5]])).find((m) => m.id === "ihar")!;
+  const ihar = landmarks(w, new Map([["3,0", 0.5]]), NEW).find((m) => m.id === "ihar")!;
   const [a, b] = ihar.candidates!;
   assertEquals([a.x, a.y, a.estimated], [3, 0, false]);
   assertEquals([b.x, b.y, b.estimated], [3, 2, true]);
@@ -91,7 +94,7 @@ Deno.test("created landmarks are found by their building", async () => {
       transPoint: [34, 568, 968, 1192, 1224, -200],
     }],
   });
-  const gurb = landmarks(w, new Map()).find((m) => m.id === "gurb")!;
+  const gurb = landmarks(w, new Map(), NEW).find((m) => m.id === "gurb")!;
   assertEquals(gurb.status, "found");
   assertEquals(gurb.zone, [2, 0]);
 });
@@ -99,13 +102,13 @@ Deno.test("created landmarks are found by their building", async () => {
 Deno.test("created but not found: only explored zones whose folder is missing can hide it", async () => {
   const mem = GRID.map((r, y) => r.map((_, x) => ((x === 2 && y === 0) || (x === 3 && y === 1) ? [3, 12] : -4)));
   const w = await world({ gurbsHut: true, worldGridMem: mem }, { "Saves/Hero/[ 2,0 ]/Solids.save": [] });
-  const gurb = landmarks(w, new Map()).find((m) => m.id === "gurb")!;
+  const gurb = landmarks(w, new Map(), NEW).find((m) => m.id === "gurb")!;
   assertEquals(gurb.candidates!.map((c) => [c.x, c.y, c.share]), [[3, 1, 1]]);
 });
 
 Deno.test("hut heat on a loaded zone needs something to touch; nearby trees count", async () => {
   const w = await world({ areaX: 3, areaY: 1, areaType: 3, xx: 1208, yy: 1208 }, { "Saves/Hero/[ 3,1 ]/Solids.save": [] });
-  const marks = landmarks(w, new Map());
+  const marks = landmarks(w, new Map(), NEW);
   const count = (trees: { index: number; x: number; y: number }[]) => {
     const [h] = zoneHeat(w, marks, w.zones[1][3], { trees });
     return h.heat.filter((v) => v > 0).length;
@@ -119,7 +122,7 @@ Deno.test("hut heat on a loaded zone needs something to touch; nearby trees coun
 
 Deno.test("unexplored quest zones get the exact lattice heat", async () => {
   const w = await world({});
-  const marks = landmarks(w, new Map());
+  const marks = landmarks(w, new Map(), NEW);
   const lib = marks.find((m) => m.id === "library")!;
   assertEquals([lib.status, lib.zone], ["zone", [2, 1]]);
   const [heat] = zoneHeat(w, marks, w.zones[1][2]);
@@ -134,7 +137,7 @@ Deno.test("unexplored quest zones get the exact lattice heat", async () => {
 
 Deno.test("Wilda's camp: in the first Savage Mirk you enter, anywhere at least 32 tiles from the edges", async () => {
   const w = await world({});
-  const marks = landmarks(w, new Map());
+  const marks = landmarks(w, new Map(), NEW);
   const camp = marks.find((m) => m.id === "wilda")!;
   assertEquals([camp.name, camp.status, camp.note], ["Wilda", "candidates", "Appears in the first Savage Mirk you enter."]);
   assertEquals(camp.candidates!.map((c) => [c.x, c.y, c.share]), [[1, 1, 1]]);
@@ -150,7 +153,11 @@ Deno.test("Wilda's camp: in the first Savage Mirk you enter, anywhere at least 3
   assertEquals([cells, x0, y1], [97 * 97, (512 + 24) >> 4, (2048 - 40) >> 4]);
   // An old save (no `camp` key) gets it on the next visit to any Savage Mirk, even one explored before 0.8.9.9.
   const here = await world({ areaX: 1, areaY: 1, areaType: 5 });
-  assertEquals(landmarks(here, new Map()).find((m) => m.id === "wilda")!.candidates![0].now, true);
+  assertEquals(landmarks(here, new Map(), NEW).find((m) => m.id === "wilda")!.candidates![0].now, true);
+  // 0.8.1.5 has no Survivors' camp: no guess for it, and the other landmarks are the same.
+  const old = landmarks(w, new Map(), "0.8.1.5");
+  assertEquals(old.map((m) => m.id), marks.map((m) => m.id).filter((id) => id !== "wilda"));
+  assertEquals(JSON.stringify(old), JSON.stringify(marks.filter((m) => m.id !== "wilda")));
 });
 
 Deno.test("Wilda's camp: found by Grand Mother's hut once created", async () => {
@@ -164,8 +171,10 @@ Deno.test("Wilda's camp: found by Grand Mother's hut once created", async () => 
       transPoint: [36, 1024, 992, 1192, 1208, -212],
     }],
   });
-  const camp = landmarks(w, new Map()).find((m) => m.id === "wilda")!;
+  const camp = landmarks(w, new Map(), NEW).find((m) => m.id === "wilda")!;
   assertEquals([camp.status, camp.zone], ["found", [1, 1]]);
+  // Under 0.8.1.5's rules (say, picked with the Latest/Beta switch) a camp the save already holds still shows.
+  assertEquals(landmarks(w, new Map(), "0.8.1.5").find((m) => m.id === "wilda")?.status, "found");
   const missing = await world({ camp: true });
-  assertEquals(landmarks(missing, new Map()).find((m) => m.id === "wilda")!.status, "none");
+  assertEquals(landmarks(missing, new Map(), NEW).find((m) => m.id === "wilda")!.status, "none");
 });

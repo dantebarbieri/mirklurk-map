@@ -1,7 +1,5 @@
-// Game rules ported from Mirklurk 0.8.9.9 (decompiled GML). References name the source entry.
-
-/** The game version these rules were read from: save_player's VERSION, which Player.save keeps. */
-export const GAME_VERSION = "0.8.9.9";
+// Game rules ported from Mirklurk 0.8.9.9 (decompiled GML). Where 0.8.1.5's differ, the code using them takes a game version
+// (version.ts). References name the source entry.
 
 /** Zone (room) edge in game units; tiles are 16 units, so 160 tiles per side. */
 export const ROOM = 2560;

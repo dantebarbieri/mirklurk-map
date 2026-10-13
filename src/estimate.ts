@@ -7,6 +7,7 @@
 import { centerpos, GRID, isOutside, ROOM } from "./rules.ts";
 import type { PlayerSave } from "./save.ts";
 import type { Interior, World } from "./world.ts";
+import { atLeast, CHANNELS, detectVersion } from "./version.ts";
 
 export interface Estimate {
   zone: [number, number];
@@ -88,6 +89,11 @@ export function inferMove(world: World, p: PlayerSave): Estimate | null {
   const here = currentInterior(world, p);
   const door = here && nearestDoor(here.solids, p.pos);
   if (!here || !door) return null;
+  // Before 0.8.9.9 Alarm_3 saved on first entering a quest room, with its way out made at the player's feet (16 below; the
+  // shipwreck's on the spot). This is the version that wrote the save, whatever rules are shown.
+  const k = here.kind ?? 0;
+  const arrivalSaves = !atLeast(detectVersion(p.version) ?? CHANNELS.latest, "0.8.9.9");
+  if (arrivalSaves && k >= 30 && k <= 35 && p.pos[0] === door[1] && p.pos[1] === door[2] - (k === 35 ? 0 : 16)) return null;
   if (isOutside(door[0])) {
     // The way out sends the player to the entrance's interaction point; Alarm_2 then adds 16 (x is never 8 there).
     return { zone: here.zone, inside: false, pos: [door[3], door[4] + 16], basis: "saved beside the way out" };
@@ -106,7 +112,7 @@ const sameArea = (e: Estimate, world: World, p: PlayerSave) =>
 /**
  * The live estimate for `world.player`. `prev` is the previous live snapshot: when it already predicted this save's area
  * and the player is still where it said they would arrive, this save is the game's own arrival save (new-area generation,
- * manager_area Alarm_2; since 0.8.9.9 Alarm_3 no longer saves on first entering a quest room), not another departure.
+ * manager_area Alarm_2, and before 0.8.9.9 Alarm_3 on first entering a quest room), not another departure.
  */
 export function estimatePlayer(world: World, prev?: PlayerSave): Estimate | null {
   const p = world.player;

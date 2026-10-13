@@ -461,7 +461,7 @@ const leaveRaft = (s: EditSession) => [
     edit: (raw: unknown) =>
       moveWithRaft(playerRecord(raw), 1, 0, 50, 60, { from: true, to: false, at: [0, 0, 40, 40] }) ? "Moved you to B,1" : undefined,
   },
-  { path: "Hero/[ 0,0 ]/Stations.save", edit: (raw: unknown) => (addRaft(raw, 2, 2), "left your raft in A,1") },
+  { path: "Hero/[ 0,0 ]/Stations.save", edit: (raw: unknown) => (addRaft(raw, 2, 2, "0.8.9.9"), "left your raft in A,1") },
 ];
 
 /** The fixture with an empty Stations.save in each zone, standing on a raft when `onRaft`. */
@@ -490,7 +490,7 @@ Deno.test("editor session: a change to several files is one change, made, undone
     assertEquals((await s.json(here) as unknown[]).length, 1);
 
     // If any of its edits changes nothing or throws, nothing is recorded and every draft stays as the changes made it.
-    const dock = { path: there, edit: (raw: unknown) => (addRaft(raw, 5, 5), "docked your raft") };
+    const dock = { path: there, edit: (raw: unknown) => (addRaft(raw, 5, 5, "0.8.9.9"), "docked your raft") };
     assertEquals(await s.applyAll([dock, { path: player, edit: () => undefined }]), undefined);
     await assertRejects(() =>
       s.applyAll([dock, {
