@@ -1,11 +1,19 @@
 import art from "../src/artdata.json" with { type: "json" };
-import { markImage, picture } from "../src/inspect.ts";
+import { entityUrl, markImage, picture } from "../src/inspect.ts";
 import { markIcon } from "../src/mapview.ts";
 import type { Mark } from "../src/objects.ts";
 import { itemImage } from "../src/wiki.ts";
 import { assert, assertEquals } from "./assert.ts";
 
 const raft: Mark = { layer: "rafts", kind: "raft", item: 171, name: "Raft", x: 344, y: 744 };
+
+Deno.test("wiki link: Magus Clay in his realm and his carcass link to his boss page, the NPC to his own", () => {
+  const boss = "https://mirklurk.wiki/w/Magus_Clay_(boss)";
+  const clay: Mark = { layer: "npcs", kind: "magus", name: "Magus Clay", being: 41, x: 10, y: 10 };
+  assertEquals(entityUrl(clay), boss);
+  assertEquals(entityUrl({ ...clay, layer: "loot", kind: "carcass", name: "Carcass: Magus Clay" }), boss);
+  assertEquals(entityUrl({ ...clay, being: 8 }), "https://mirklurk.wiki/w/Magus_Clay");
+});
 
 Deno.test("raft picture: finished and ridden rafts use world frame 1, bases keep their wiki picture", async () => {
   const image = markImage(raft);
@@ -15,7 +23,7 @@ Deno.test("raft picture: finished and ridden rafts use world frame 1, bases keep
   assertEquals(markImage({ ...raft, kind: "raft yours", detail: "you stand on it" }), image);
   assertEquals(markImage({ ...raft, kind: "raft base", item: 170, name: "Raft Base" }), itemImage(170));
   assert(itemImage(170));
-  assertEquals(itemImage(171), undefined, "a finished raft is not an inventory picture");
+  assertEquals(itemImage(171)?.source, "Item-171-cropped.png", "the wiki shows a finished raft as it looks in the world");
   assert(/^assets\/game\/[a-z0-9_]+\.[0-9a-f]{10}\.png$/.test(image.file));
   const bytes = await Deno.readFile(new URL(`../${image.file}`, import.meta.url));
   const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].slice(0, 5)

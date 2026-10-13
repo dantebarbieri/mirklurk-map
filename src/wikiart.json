@@ -1,5 +1,5 @@
 {
-  "verified": "2026-10-09",
+  "verified": "2026-10-13",
   "beings": {
     "0": {
       "file": "assets/wiki/being_0.17df91722d.png",
@@ -216,6 +216,42 @@
       "w": 64,
       "h": 132,
       "source": "Being-35-cropped.png"
+    },
+    "36": {
+      "file": "assets/wiki/being_36.0f9a1346a6.png",
+      "w": 90,
+      "h": 156,
+      "source": "Being-36-cropped.png"
+    },
+    "37": {
+      "file": "assets/wiki/being_37.20ef98fb16.png",
+      "w": 235,
+      "h": 120,
+      "source": "Being-37-cropped.png"
+    },
+    "38": {
+      "file": "assets/wiki/being_38.7a62fa372b.png",
+      "w": 184,
+      "h": 88,
+      "source": "Being-38-cropped.png"
+    },
+    "39": {
+      "file": "assets/wiki/being_39.5c118c92f0.png",
+      "w": 240,
+      "h": 120,
+      "source": "Being-39-cropped.png"
+    },
+    "40": {
+      "file": "assets/wiki/being_40.a366524e1e.png",
+      "w": 235,
+      "h": 120,
+      "source": "Being-40-cropped.png"
+    },
+    "41": {
+      "file": "assets/wiki/being_41.26af089dcc.png",
+      "w": 78,
+      "h": 174,
+      "source": "Being-41-cropped.png"
     }
   },
   "items": {
@@ -1161,6 +1197,12 @@
       "h": 124,
       "source": "Item-170-cropped.png"
     },
+    "171": {
+      "file": "assets/wiki/item_171.43a17bd4b9.png",
+      "w": 184,
+      "h": 184,
+      "source": "Item-171-cropped.png"
+    },
     "172": {
       "file": "assets/wiki/item_172.91614aed2b.png",
       "w": 150,
@@ -1676,6 +1718,108 @@
       "w": 225,
       "h": 70,
       "source": "Item-257-cropped.png"
+    },
+    "258": {
+      "file": "assets/wiki/item_258.63605fb1fa.png",
+      "w": 240,
+      "h": 232,
+      "source": "Item-258-cropped.png"
+    },
+    "259": {
+      "file": "assets/wiki/item_259.bafe41a893.png",
+      "w": 70,
+      "h": 225,
+      "source": "Item-259-cropped.png"
+    },
+    "260": {
+      "file": "assets/wiki/item_260.941b16e768.png",
+      "w": 60,
+      "h": 210,
+      "source": "Item-260-cropped.png"
+    },
+    "261": {
+      "file": "assets/wiki/item_261.6ad908fe51.png",
+      "w": 160,
+      "h": 240,
+      "source": "Item-261.png"
+    },
+    "262": {
+      "file": "assets/wiki/item_262.386df4b7d3.png",
+      "w": 104,
+      "h": 240,
+      "source": "Item-262-cropped.png"
+    },
+    "264": {
+      "file": "assets/wiki/item_264.6b94556511.png",
+      "w": 216,
+      "h": 240,
+      "source": "Item-264-cropped.png"
+    },
+    "265": {
+      "file": "assets/wiki/item_265.b201663ec0.png",
+      "w": 240,
+      "h": 112,
+      "source": "Item-265-cropped.png"
+    },
+    "266": {
+      "file": "assets/wiki/item_266.373700f836.png",
+      "w": 56,
+      "h": 248,
+      "source": "Item-266-cropped.png"
+    },
+    "267": {
+      "file": "assets/wiki/item_267.c6f66fada7.png",
+      "w": 192,
+      "h": 192,
+      "source": "Item-267-cropped.png"
+    },
+    "268": {
+      "file": "assets/wiki/item_268.1d87cd57ca.png",
+      "w": 240,
+      "h": 240,
+      "source": "Item-268-cropped.png"
+    },
+    "269": {
+      "file": "assets/wiki/item_269.a83a64b2bf.png",
+      "w": 160,
+      "h": 192,
+      "source": "Item-269-cropped.png"
+    },
+    "270": {
+      "file": "assets/wiki/item_270.5a9eef67ea.png",
+      "w": 224,
+      "h": 224,
+      "source": "Item-270-cropped.png"
+    },
+    "271": {
+      "file": "assets/wiki/item_271.c31699109f.png",
+      "w": 160,
+      "h": 192,
+      "source": "Item-271-cropped.png"
+    },
+    "272": {
+      "file": "assets/wiki/item_272.29d4fdfacd.png",
+      "w": 160,
+      "h": 192,
+      "source": "Item-272-cropped.png"
+    },
+    "273": {
+      "file": "assets/wiki/item_273.18366944de.png",
+      "w": 192,
+      "h": 208,
+      "source": "Item-273-cropped.png"
+    },
+    "274": {
+      "file": "assets/wiki/item_274.07dac14975.png",
+      "w": 200,
+      "h": 216,
+      "source": "Item-274-cropped.png"
+    },
+    "275": {
+      "file": "assets/wiki/item_275.f488f46064.png",
+      "w": 220,
+      "h": 215,
+      "source": "Item-275-cropped.png"
     }
   },
   "places": {

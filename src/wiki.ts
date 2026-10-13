@@ -45,9 +45,13 @@ const aliases: Record<string, string> = {
   "Bird nest": "Bird nests",
 };
 
-export function entityWiki(name: string, fallback = "World generation"): string | undefined {
+/** Beings that share another's name but have their own page: Magus Clay in his realm is fought as a boss. */
+const BEING_PAGES: Readonly<Record<number, string>> = { 41: "Magus Clay (boss)" };
+
+export function entityWiki(name: string, fallback = "World generation", being?: number): string | undefined {
   const title = name.replace(/^Carcass: /, "");
-  return wikiUrl(aliases[title] ?? title) ?? wikiUrl(fallback);
+  const own = being === undefined ? undefined : BEING_PAGES[being];
+  return (own && wikiUrl(own)) ?? wikiUrl(aliases[title] ?? title) ?? wikiUrl(fallback);
 }
 
 /** A picture from the wiki, bundled at development time (`deno task wiki`); the site never loads the wiki itself. */
@@ -61,10 +65,8 @@ export interface WikiImage {
 }
 
 const image = (group: Record<string, WikiImage>, key: string | number): WikiImage | undefined => group[String(key)];
-/** Magus Clay in his realm (being 41) wears his usual look (spr_clay in global.beingDB), so he shares being 8's picture. */
-const SAME_LOOK: Readonly<Record<number, number>> = { 41: 8 };
 /** A creature or NPC by being index: NPCs as they look in the world rather than their portrait. */
-export const beingImage = (index: number) => image(art.beings, SAME_LOOK[index] ?? index);
+export const beingImage = (index: number) => image(art.beings, index);
 export const itemImage = (index: number) => image(art.items, index);
 /** Quest buildings by map name, such as "Bhato's hideout". */
 export const placeImage = (name: string) => image(art.places, name);

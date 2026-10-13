@@ -255,9 +255,9 @@ public-title catalog is verified at development time, not by sending save data t
 
 Inspecting a creature or NPC (or a carcass) shows the wiki's picture of it, NPCs as they look in the world, which matters because the map
 draws NPCs only as dots. Placed items such as Hidden Hollows and workstations, and Bhato's hideout, Gurb-Gurb's hut and Ihar's shipwreck,
-show theirs too, and inventory rows show each item's icon. Treasure chests, remains and the Camp stash have no wiki picture yet, and nor
-does what 0.8.9.9 added until the wiki has pages for it (Magus Clay in his realm shows Clay's usual picture). The pictures are downloaded
-from the wiki at development time (`deno task wiki`) and bundled with the site; it never contacts the wiki itself.
+show theirs too, and inventory rows show each item's icon. Treasure chests, remains and the Camp stash have no wiki picture yet. Magus Clay
+in his realm links to his boss page rather than his NPC page. The pictures are downloaded from the wiki at development time
+(`deno task wiki`) and bundled with the site; it never contacts the wiki itself.
 
 Rafts use SVG symbols drawn by Astra (GPT-6 Astra) from the game's world sprite: the Raft Base's two lashed crossbars, and the finished
 raft's log deck and paddle. The map, legend and list rows share these symbols. The raft you stand on peeks out below your person marker
