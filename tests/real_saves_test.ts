@@ -11,6 +11,7 @@ import { areaLayers, ART, tileSource } from "../src/tiles.ts";
 import { captureSnapshot, type LiveDirectory, scanDirectory } from "../src/live.ts";
 import { detailMarks } from "../src/objects.ts";
 import { trunkOf } from "../src/chop.ts";
+import { scenery } from "../src/terrain.ts";
 import { fernAt, gatherMarks } from "../src/gather.ts";
 
 Deno.test({ name: "real saves: grid, quest zones and landmarks", ignore: !HAVE_SAVES }, async () => {
@@ -101,17 +102,8 @@ Deno.test({ name: "real saves: all saved terrain and scenery have matching game 
         if (!grid) continue;
         for (const tile of new Set(grid.data)) tileSource(ART.tilesets[layer.tileset], tile);
       }
-      const d = await loadDetail(world, area.dir);
-      for (
-        const item of [
-          ...area.solids,
-          ...d.decorations,
-          ...d.containers.filter((c) => c.status !== -209),
-          ...d.stations,
-          ...d.interactables,
-        ]
-      ) {
-        assert(!item.sprite || item.sprite === "spr_part_circles" || ART.sprites[item.sprite], `${area.dir}: ${item.sprite}`);
+      for (const item of scenery(area.solids, await loadDetail(world, area.dir))) {
+        assert(ART.sprites[item.sprite], `${area.dir}: ${item.sprite}`);
       }
       const trees = await loadTrees(world, area.dir);
       for (const tree of trees) {

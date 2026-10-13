@@ -30,6 +30,10 @@ const aliases: Record<string, string> = {
   "Ihar's shipwreck": "Ihar",
   "Shipwreck": "Ihar",
   "Scaal's lair": "Scaal",
+  "Survivors' camp": "Wilda",
+  "Survivors' hut": "Wilda",
+  "Grand Mother's hut": "Grand Mother",
+  "Magus realm": "Magus Clay",
   "Large boulder": "Searching boulders",
   "Boulder": "Searching boulders",
   "Ruins": "Searching ruins",
@@ -57,8 +61,10 @@ export interface WikiImage {
 }
 
 const image = (group: Record<string, WikiImage>, key: string | number): WikiImage | undefined => group[String(key)];
+/** Magus Clay in his realm (being 41) wears his usual look (spr_clay in global.beingDB), so he shares being 8's picture. */
+const SAME_LOOK: Readonly<Record<number, number>> = { 41: 8 };
 /** A creature or NPC by being index: NPCs as they look in the world rather than their portrait. */
-export const beingImage = (index: number) => image(art.beings, index);
+export const beingImage = (index: number) => image(art.beings, SAME_LOOK[index] ?? index);
 export const itemImage = (index: number) => image(art.items, index);
 /** Quest buildings by map name, such as "Bhato's hideout". */
 export const placeImage = (name: string) => image(art.places, name);

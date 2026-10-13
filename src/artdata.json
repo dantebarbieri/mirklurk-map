@@ -1,5 +1,5 @@
 {
-  "version": "0.8.1.5",
+  "version": "0.8.9.9",
   "tilesets": {
     "ts_ash": {
       "file": "assets/game/ts_ash.b1df1b9111.png",
@@ -488,7 +488,7 @@
       ]
     },
     "ts_hinderance": {
-      "file": "assets/game/ts_hinderance.3eee52b487.png",
+      "file": "assets/game/ts_hinderance.0973cb7d03.png",
       "width": 260,
       "height": 280,
       "columns": 13,
@@ -1218,7 +1218,7 @@
       ]
     },
     "ts_ruin": {
-      "file": "assets/game/ts_ruin.67cec0aceb.png",
+      "file": "assets/game/ts_ruin.9ed869691a.png",
       "width": 240,
       "height": 260,
       "columns": 12,
@@ -1759,6 +1759,14 @@
       "oy": 160,
       "frames": 6
     },
+    "spr_building_48x48_tall": {
+      "file": "assets/game/spr_building_48x48_tall.46a424094c.png",
+      "w": 48,
+      "h": 112,
+      "ox": 0,
+      "oy": 112,
+      "frames": 3
+    },
     "spr_building_80x80": {
       "file": "assets/game/spr_building_80x80.93ff4fa326.png",
       "w": 80,
@@ -1928,12 +1936,12 @@
       "frames": 1
     },
     "spr_placed_16x16_taller": {
-      "file": "assets/game/spr_placed_16x16_taller.b79be56198.png",
+      "file": "assets/game/spr_placed_16x16_taller.157413c78a.png",
       "w": 16,
       "h": 24,
       "ox": 8,
       "oy": 16,
-      "frames": 11
+      "frames": 12
     },
     "spr_placed_16x16_wider": {
       "file": "assets/game/spr_placed_16x16_wider.527632d104.png",
@@ -2646,6 +2654,150 @@
       {
         "name": "OnTop",
         "tileset": "ts_castle",
+        "depth": -2000
+      }
+    ],
+    "rm_hut_mothers": [
+      {
+        "name": "Lower",
+        "tileset": "ts_lower",
+        "depth": 400
+      },
+      {
+        "name": "OnLower",
+        "tileset": "ts_onlower",
+        "depth": 340
+      },
+      {
+        "name": "Water3",
+        "tileset": "ts_water3",
+        "depth": 280
+      },
+      {
+        "name": "Water2",
+        "tileset": "ts_water2",
+        "depth": 220
+      },
+      {
+        "name": "Water1",
+        "tileset": "ts_water1",
+        "depth": 160
+      },
+      {
+        "name": "EffWater",
+        "tileset": "ts_effects_water",
+        "depth": 100
+      },
+      {
+        "name": "Wets",
+        "tileset": "ts_wets",
+        "depth": 30
+      },
+      {
+        "name": "Ashes",
+        "tileset": "ts_ash",
+        "depth": 28
+      },
+      {
+        "name": "Slopes2",
+        "tileset": "ts_slopes2",
+        "depth": 26
+      },
+      {
+        "name": "Grass",
+        "tileset": "ts_grass",
+        "depth": 26
+      },
+      {
+        "name": "Slopes1",
+        "tileset": "ts_slopes1",
+        "depth": 24
+      },
+      {
+        "name": "Dungeon",
+        "tileset": "ts_castle",
+        "depth": 24
+      },
+      {
+        "name": "Hinderance",
+        "tileset": "ts_hinderance",
+        "depth": 22
+      },
+      {
+        "name": "OnTop",
+        "tileset": "ts_castle",
+        "depth": -2000
+      }
+    ],
+    "rm_realm_magus": [
+      {
+        "name": "Lower",
+        "tileset": "ts_lower",
+        "depth": 400
+      },
+      {
+        "name": "OnLower",
+        "tileset": "ts_onlower",
+        "depth": 340
+      },
+      {
+        "name": "Water3",
+        "tileset": "ts_water3",
+        "depth": 280
+      },
+      {
+        "name": "Water2",
+        "tileset": "ts_water2",
+        "depth": 220
+      },
+      {
+        "name": "Water1",
+        "tileset": "ts_water1",
+        "depth": 160
+      },
+      {
+        "name": "EffWater",
+        "tileset": "ts_effects_water",
+        "depth": 100
+      },
+      {
+        "name": "Wets",
+        "tileset": "ts_wets",
+        "depth": 30
+      },
+      {
+        "name": "Ashes",
+        "tileset": "ts_ash",
+        "depth": 28
+      },
+      {
+        "name": "Slopes2",
+        "tileset": "ts_slopes2",
+        "depth": 26
+      },
+      {
+        "name": "Grass",
+        "tileset": "ts_grass",
+        "depth": 26
+      },
+      {
+        "name": "Slopes1",
+        "tileset": "ts_slopes1",
+        "depth": 24
+      },
+      {
+        "name": "Dungeon",
+        "tileset": "ts_ruin",
+        "depth": 24
+      },
+      {
+        "name": "Hinderance",
+        "tileset": "ts_hinderance",
+        "depth": 22
+      },
+      {
+        "name": "OnTop",
+        "tileset": "ts_ruin_top",
         "depth": -2000
       }
     ]

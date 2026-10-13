@@ -1,4 +1,4 @@
-// The character's journal, as Mirklurk 0.8.1.5 rebuilds it from the saved main-quest stage (mainQ, global.MAINQUESTSTAGE) when
+// The character's journal, as Mirklurk 0.8.9.9 rebuilds it from the saved main-quest stage (mainQ, global.MAINQUESTSTAGE) when
 // it loads a save: journal_update in gml_GlobalScript_scr_basic_useful pushes UI.ini [Journal] "First", then the entry of every
 // stage from 0 up to the saved one that has text, filling in the place each "CCC" stands for. Stages without text add nothing.
 // The text is the game's own (src/gamedata.ts). MirkMap adds a short title to each entry and links the people and places it
@@ -8,12 +8,14 @@ import { h } from "./dom.ts";
 import { BEING_NAMES, JOURNAL, JOURNAL_FIRST, TO_THE_DIR } from "./gamedata.ts";
 import { wikiLink } from "./inspect.ts";
 import { detailMarks, type Mark, solidMarks } from "./objects.ts";
-import { Area, coordLabel, INTERIOR_NAMES, LANDMARK_NAMES, SolidId } from "./rules.ts";
+import { Area, coordLabel, INTERIOR_NAMES, LANDMARK_NAMES, MAGUS_REALM, SolidId } from "./rules.ts";
 import { destination, type PlayerSave } from "./save.ts";
 import { type Interior, interiorsOf, loadDetail, type QuestZone, questZone, type World, type Zone, type ZoneDetail } from "./world.ts";
 import { wikiUrl } from "./wiki.ts";
 
-export type JournalSave = Pick<PlayerSave, "mainQuest" | "grid" | "rangerCamp" | "libraryArea" | "riftQuestArea">;
+export type JournalSave =
+  & Pick<PlayerSave, "mainQuest" | "grid" | "rangerCamp" | "libraryArea" | "riftQuestArea">
+  & Partial<Pick<PlayerSave, "campQuest">>;
 
 /** A person or place an entry mentions. */
 export type JournalTarget =
@@ -58,13 +60,21 @@ const CELLAR: JournalTarget = { kind: "interior", type: 21, zone: "bhato" };
 const DEPTHS: JournalTarget = { kind: "interior", type: 24, zone: "scaal", via: LAIR };
 const DEEPEST: JournalTarget = { kind: "interior", type: 26, zone: "scaal", via: DEPTHS };
 const RIFT: JournalTarget = { kind: "rift" };
+const REALM: JournalTarget = { kind: "interior", type: MAGUS_REALM };
+const SURVIVORS_CAMP = building(SolidId.MotherHut);
+const MOTHERS_HUT: JournalTarget = { kind: "interior", type: 36, via: SURVIVORS_CAMP };
 const person = (index: number, home: JournalTarget): JournalTarget => ({ kind: "being", index, home });
 const EIR = person(6, FORT);
 const CLAY = person(8, UNDERCROFT);
+/** Magus Clay in his realm (being 41), where he falls. */
+const CLAY_IN_REALM = person(41, REALM);
 const BHATO = person(12, HIDEOUT);
 const VIEND = person(19, FORT);
 const TAIN = person(20, FORT_INSIDE);
 const SCAAL = person(22, DEEPEST);
+const WILDA = person(34, SURVIVORS_CAMP);
+const TERROR = person(40, SURVIVORS_CAMP);
+const GRAND_MOTHER = person(36, MOTHERS_HUT);
 
 export interface EntryInfo {
   title: string;
@@ -106,6 +116,8 @@ export const ENTRY_INFO: Readonly<Record<number, EntryInfo>> = {
   28: { title: "The depths", links: [["these depths", DEPTHS], ["Scaal", SCAAL]] },
   29: { title: "Scaal defeated", links: [["Scaal", SCAAL], ["Eir", EIR]] },
   30: { title: "Free", links: [] },
+  31: { title: "Clay is dead", links: [["Clay", CLAY_IN_REALM], ["Eir", EIR], ["Fort Solid", FORT]] },
+  32: { title: "At peace", links: [["Eir", EIR]] },
 };
 
 interface Places {
@@ -129,6 +141,29 @@ export function stageNote(stage: number): string | undefined {
     27: "Captain Eir has handed over the Summoning Stone.",
   } as Record<number, string>)[stage];
 }
+
+/**
+ * The Survivors' side quest at Wilda's camp, by its stage (campQ, global.campQUESTstage: Wilda's dialogue in scr_menu_related,
+ * The Terror's death in obj_being Alarm_0). The game keeps it out of the journal, so this is MirkMap's summary, not the game's text.
+ */
+export const CAMP_QUEST: Readonly<Record<number, EntryInfo & { text: string }>> = {
+  0: {
+    title: "The Terror",
+    text:
+      "Wilda will trust you once you bring her the head of The Terror, an extra vicious Mirkfang Matriarch who stalks this Savage Mirk at night but never comes near the Survivors' camp.",
+    links: [["Wilda", WILDA], ["The Terror", TERROR], ["the Survivors' camp", SURVIVORS_CAMP]],
+  },
+  1: {
+    title: "The Terror is slain",
+    text: "The Terror is slain. Bring her head to Wilda.",
+    links: [["The Terror", TERROR], ["Wilda", WILDA]],
+  },
+  2: {
+    title: "Trusted",
+    text: "Wilda trusts you: you may visit Grand Mother for her blessing, and Wilda now answers a Summoning Stone's call.",
+    links: [["Wilda", WILDA], ["Grand Mother", GRAND_MOTHER]],
+  },
+};
 
 /** map_get_fort_xy: the fort's zone, searched column by column; [-4, -4] without one. */
 function fortZone(grid: number[][]): [number, number] {
@@ -285,11 +320,11 @@ export async function locateTarget(world: World, t: JournalTarget): Promise<Loca
 /** Shows a link's person or place on the map. */
 export type FindTarget = (t: JournalTarget) => void;
 
-function textView(e: JournalEntry, find?: FindTarget): HTMLElement {
+function textView(segments: JournalSegment[], find?: FindTarget): HTMLElement {
   return h(
     "p",
     { class: "journal-text" },
-    e.segments.map((s) =>
+    segments.map((s) =>
       s.link && find
         ? h("button", {
           type: "button",
@@ -307,7 +342,20 @@ function entryView(e: JournalEntry, n: number, find?: FindTarget, tag = "li"): H
     tag,
     { class: "journal-entry" },
     h("div", { class: "journal-entry-head" }, h("strong", {}, `Entry ${n}`), ` · ${e.title}`),
-    textView(e, find),
+    textView(e.segments, find),
+  );
+}
+
+/** The Survivors' side quest, when it has begun: its stage's summary (CAMP_QUEST), with its people and places linked. */
+function campQuestView(stage: number | undefined, find?: FindTarget): HTMLElement | null {
+  const info = stage === undefined ? undefined : CAMP_QUEST[stage];
+  if (!info) return null;
+  return h(
+    "div",
+    { class: "journal-entry journal-side" },
+    h("div", { class: "journal-entry-head" }, h("strong", {}, "Survivors' camp"), ` · ${info.title}`),
+    textView(linkSegments(info.text, info.links), find),
+    h("p", { class: "muted" }, "A side quest the game keeps out of the journal; MirkMap sums up where it stands."),
   );
 }
 
@@ -323,6 +371,7 @@ export function journalView(p: JournalSave, key: string, expanded?: Set<string>,
   return [
     h("div", { class: "journal-latest" }, entryView(entries[last], last + 1, find, "div")),
     note ? h("p", { class: "journal-note" }, `${note} The journal adds no entry for this step.`) : null,
+    campQuestView(p.campQuest, find),
     last > 0
       ? h(
         "details",

@@ -2,7 +2,7 @@
 
 import { BEING_NAMES, ITEM_NAMES, MAP_LABELS, NATURE_NAMES } from "./gamedata.ts";
 import { spriteBox } from "./predict.ts";
-import { centerpos, INTERIOR_NAMES, isOutside, isRiftDepths, LANDMARK_NAMES, NPC_MARKERS, SolidId } from "./rules.ts";
+import { centerpos, INTERIOR_NAMES, isOutside, isRiftDepths, LANDMARK_NAMES, MAGUS_REALM, NPC_MARKERS, SolidId } from "./rules.ts";
 import { destination, type Placed, type PlayerSave, type Solid, type Tree } from "./save.ts";
 import type { Interior, ZoneDetail } from "./world.ts";
 import type { Inventory } from "./inventory.ts";
@@ -144,8 +144,8 @@ export function solidMarks(solids: Solid[], interiors: Interior[], current?: Int
         x: tp ? tp[1] : (box[0] + box[2]) / 2,
         y: tp ? tp[2] : box[3],
         box,
-        // The game prints Fort Solid and Camp on its own map already.
-        label: s.index === SolidId.Boat || MAP_LABELS[s.index] ? undefined : name,
+        // The game prints Fort Solid and Camp on its own map already; the Survivors' other huts stand beside Grand Mother's.
+        label: s.index === SolidId.Boat || s.index === SolidId.SurvivorHut || MAP_LABELS[s.index] ? undefined : name,
         name,
         detail: leads && leads !== name ? `Leads to: ${leads}` : undefined,
         interior,
@@ -221,7 +221,15 @@ export const CREATURE_ICON: Record<number, string> = {
   22: "scaal",
   31: "unwanted", // Raving Unwanted
   32: "unwanted", // Mutated Unwanted
+  37: "bat", // Mirkfang Matriarch
+  38: "bat", // Mirkfang
+  39: "bat", // Giant Mirkfang
+  40: "bat", // The Terror
+  41: "magus", // Magus Clay, in his realm
 };
+
+/** Placed items that keep their contents safe, as storage rather than loot: a Hidden Hollow and the Storage Chest. */
+const STORAGE_ITEMS = new Set([108, 275]);
 
 export function detailMarks(d: ZoneDetail): Mark[] {
   const out: Mark[] = [];
@@ -229,7 +237,7 @@ export function detailMarks(d: ZoneDetail): Mark[] {
     if (b.state === 1) continue;
     const name = BEING_NAMES[b.index] ?? `Being ${b.index}`;
     const npc = NPC_MARKERS.has(b.index);
-    // Soldiers and Unwanted Guards come in numbers, so only the named NPCs are labelled.
+    // Soldiers and Survivors come in numbers, so only the named NPCs are labelled.
     const label = npc && b.index !== 5 && b.index !== 35 ? name : undefined;
     const icon = CREATURE_ICON[b.index];
     out.push({
@@ -255,13 +263,14 @@ export function detailMarks(d: ZoneDetail): Mark[] {
     // Treasure chests stay after looting and can hold your items, unlike remains, so they count as storage.
     else if (CHEST[c.index]) out.push({ layer: "storage", kind: "storage chest", ...at, name: CHEST[c.index] });
     else if (c.status === -215) out.push({ layer: "loot", kind: "loot", ...at, name: "Supplies" });
-    // -212: seen on Magus Clay's storage chest in one save, presumably before he lets you use it.
-    else if (c.status === -211 || c.status === -212) {
+    // -212: seen on Magus Clay's storage chest in one save, presumably before he lets you use it. A Storage Chest you place is the
+    // same chest (index 275, -207 like other placed items), its contents as safe from damp and loss (container_get_stats).
+    else if (c.status === -211 || c.status === -212 || STORAGE_ITEMS.has(c.index)) {
       out.push({
         layer: "storage",
         kind: "storage",
         ...at,
-        name: c.index === 108 ? ITEM_NAMES[108] ?? "Hidden Hollow" : "Storage chest",
+        name: STORAGE_ITEMS.has(c.index) ? ITEM_NAMES[c.index] ?? "Storage chest" : "Storage chest",
         detail: c.status === -212 ? "not usable yet when saved" : undefined,
         item,
       });
@@ -320,7 +329,7 @@ export function yourRaftMarks(p: PlayerSave, zx: number, zy: number): Mark[] {
   return [{ layer: "rafts", kind: "raft yours", x, y, name: "Raft", detail: "you stand on it", item: RAFT }];
 }
 
-/** Saved interiors whose entrance no longer exists (so they get a marker of their own). */
+/** Saved interiors whose entrance no longer exists (so they get a marker of their own), and the Magus realm, which has none. */
 export const sealedMarks = (interiors: Interior[]): Mark[] =>
   interiors.filter((i) => i.sealed && !i.parent && i.at[0] >= 0).map((i) => ({
     layer: locationLayer(i.kind),
@@ -328,7 +337,7 @@ export const sealedMarks = (interiors: Interior[]): Mark[] =>
     x: i.at[0],
     y: i.at[1],
     name: i.kind !== null ? INTERIOR_NAMES[i.kind] ?? "Interior" : "Interior",
-    detail: "entrance is gone",
+    detail: i.kind === MAGUS_REALM ? "entered through a Magus' Shard's portal, which closes once you are back" : "entrance is gone",
     interior: i,
     explored: true,
   }));

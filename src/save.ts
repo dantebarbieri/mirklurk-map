@@ -82,6 +82,10 @@ export interface PlayerSave {
   riftQuestArea: [number, number] | null;
   gurbsHut: boolean;
   shipWreck: boolean;
+  /** Wilda's camp exists (camp, global.createdCamp; absent before 0.8.9.9). */
+  camp: boolean;
+  /** The camp's quest (campQ, global.campQUESTstage): −1 not offered, 0 asked to slay The Terror, 1 slain, 2 trusted. */
+  campQuest: number;
   /** Hair colour as CSS, from hairBlend (GameMaker colours are 0xBBGGRR). */
   hair?: string;
   /** Hair colour is perceived as light (outline goes dark). */
@@ -167,6 +171,8 @@ export function parsePlayer(raw: unknown): PlayerSave {
     riftQuestArea: pair(p.riftQuestArea),
     gurbsHut: p.gurbsHut === true,
     shipWreck: p.shipWreck === true,
+    camp: p.camp === true,
+    campQuest: num(p.campQ, -1),
     hair: typeof p.hairBlend === "number" ? bgr(p.hairBlend) : undefined,
     hairLight: typeof p.hairBlend === "number" ? isLight(p.hairBlend) : undefined,
     inventory,
@@ -220,6 +226,8 @@ export interface Placed {
   status: number;
   x: number;
   y: number;
+  /** Mirrored when −1 (image_xscale): decorations, and since 0.8.9.9 the stations and containers you can flip as you place them. */
+  xscale?: number;
   object?: string;
   inventory?: Inventory;
 }
@@ -262,6 +270,7 @@ export const parsePlaced = (raw: unknown): Placed[] =>
     status: num(c.status, -200),
     x: num(c.x),
     y: num(c.y),
+    ...(finite(c.xscale) && c.xscale !== 1 ? { xscale: c.xscale } : {}),
     object: typeof c.object === "string" ? c.object : undefined,
   }));
 

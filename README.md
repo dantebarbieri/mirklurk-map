@@ -1,19 +1,24 @@
 # MirkMap · Mirklurk World Viewer
 
-**MirkMap** is a small browser-based viewer for **Mirklurk 0.8.1.5**, published at **https://map.mirklurk.danteb.com**. Open a character's
+**MirkMap** is a small browser-based viewer for **Mirklurk 0.8.9.9**, published at **https://map.mirklurk.danteb.com**. Open a character's
 save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
   the map the game itself made for it (`Maps/x_y.png`);
-- where **Fort Solid, Ranger Bhato, the Library, Scaal, Gurb-Gurb and Ihar** are — or, where the game has not placed them yet, where its own
-  placement rules can still put them, with probabilities;
+- where **Fort Solid, Ranger Bhato, the Library, Scaal, Gurb-Gurb, Ihar and Wilda** (the Survivors' camp) are — or, where the game has not
+  placed them yet, where its own placement rules can still put them, with probabilities;
 - per zone, from the saved objects: entrances (caves, ruin cellars, quest buildings) and whether you have been inside, NPCs, unsearched
   loot, dropped items (their own layer, as felling trees leaves many), storage (treasure chests, which stay after looting, your Hidden
-  Hollows, the Camp stash and Clay's and Bhato's storage), camp items, rafts (placed ones, Raft Bases, and the one you stand on), rifts,
-  large boulders and ruin rubble. Creatures, small rocks, trees, brambles, rift vines, sharp ground, a water overlay and gatherables
-  (Calmia, Turnips, Cranberries, Watercress, Water Lilies, Vile Bulbs, bird nests and ferns) can be switched on. Click an explored entrance
-  to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your wellbeing, inventory and
-  journal.
+  Hollows and Storage Chests, the Camp stash and Clay's and Bhato's storage), camp items, rafts (placed ones, Raft Bases, and the one you
+  stand on), rifts, large boulders and ruin rubble. Creatures, small rocks, trees, brambles, rift vines, sharp ground, a water overlay and
+  gatherables (Calmia, Turnips, Cranberries, Watercress, Water Lilies, Vile Bulbs, bird nests and ferns) can be switched on. Click an
+  explored entrance to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your
+  wellbeing, inventory and journal.
+
+Its rules follow Mirklurk 0.8.9.9 (the Steam beta `next_version_tester`), which adds the Survivors' camp in a Savage Mirk (Wilda, her
+Survivors and Grand Mother's hut) and its side quest, the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a
+Magus' Shard opens and Magus Clay's end in it, the Storage Chest, and placeables you can flip as you place them. Saves made with 0.8.1.5
+still open; the summary line says when a save was made with another version.
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -210,9 +215,10 @@ Astra).
 
 **Weather is global, not per zone.** The game keeps one clock and one sky for the whole world, saved once per character in `Player.save`;
 where you stand only decides how much of it reaches you. Every zone of the 5×5 world is outdoors and gets the rain and its wetness. In the
-fort, Bhato's hideout, Gurb-Gurb's hut and the shipwreck the light follows the day but no rain falls on you. Underground (caves, ruin
-interiors and cellars, the Undercroft, the Library and Scaal's depths) the dial reads _Unknown Time_, no weather reaches you and the air is
-always Cold. Everything is the state at save time; see _Time and weather_ below for the rules.
+fort, Bhato's hideout, Gurb-Gurb's hut, the shipwreck and Grand Mother's hut the light follows the day but no rain falls on you; a Magus
+realm keeps a light of its own. Underground (caves, ruin interiors and cellars, the Undercroft, the Library and Scaal's depths) the dial
+reads _Unknown Time_, no weather reaches you and the air is always Cold. Everything is the state at save time; see _Time and weather_ below
+for the rules.
 
 ### Inventory, containers and wiki
 
@@ -247,8 +253,9 @@ public-title catalog is verified at development time, not by sending save data t
 
 Inspecting a creature or NPC (or a carcass) shows the wiki's picture of it, NPCs as they look in the world, which matters because the map
 draws NPCs only as dots. Placed items such as Hidden Hollows and workstations, and Bhato's hideout, Gurb-Gurb's hut and Ihar's shipwreck,
-show theirs too, and inventory rows show each item's icon. Treasure chests, remains and the Camp stash have no wiki picture yet. The
-pictures are downloaded from the wiki at development time (`deno task wiki`) and bundled with the site; it never contacts the wiki itself.
+show theirs too, and inventory rows show each item's icon. Treasure chests, remains and the Camp stash have no wiki picture yet, and nor
+does what 0.8.9.9 added until the wiki has pages for it (Magus Clay in his realm shows Clay's usual picture). The pictures are downloaded
+from the wiki at development time (`deno task wiki`) and bundled with the site; it never contacts the wiki itself.
 
 Rafts use SVG symbols drawn by Astra (GPT-6 Astra) from the game's world sprite: the Raft Base's two lashed crossbars, and the finished
 raft's log deck and paddle. The map, legend and list rows share these symbols. The raft you stand on peeks out below your person marker
@@ -277,25 +284,29 @@ folder or ZIP for realistic terrain (`Player.save` or map PNGs alone are insuffi
 Switch on **Creatures** to draw each living creature as a small red silhouette of its kind: flies (Dreadfly, Giant Gnat, Deathfly), the
 Firelouse, the Sceetler, crabs (Boulder and Titanspine Crab), the Nightmare, snakes (Mire Serpent, Viper, Red Fang), the Giant Slug, fish
 (Mudfin, Razorfin), rats (Mirk Runner, Mirk Mauler), trolls (Swamp and Cave Troll), the Toadkin, the Scaalmyr (Grunt, Warrior, Geomancer),
-the Scaal and the Unwanted (Raving and Mutated). Kinds that look alike in the game share a shape, so hover or tap one for its exact name.
-Map markers, the legend and the **Creatures when saved** list share the same hand-drawn shapes; NPCs keep their gold dot, and so do the rest
-of their team, who never target you: the Dead Unwanted (Viend before he is revived) and the Unwanted Guard.
+the Scaal, the Unwanted (Raving and Mutated), bats (Mirkfang, Giant Mirkfang, Mirkfang Matriarch and The Terror) and Magus Clay in his
+realm, a hooded magus with his staff. Kinds that look alike in the game share a shape, so hover or tap one for its exact name. Map markers,
+the legend and the **Creatures when saved** list share the same hand-drawn shapes; NPCs keep their gold dot, and so do Wilda's Survivors and
+Grand Mother, who like the NPCs never target you, and the Dead Unwanted (Viend before he is revived).
 
 Click a living creature or NPC to see what the game's own examine card does, plus its saved hit points. **Hit points** draws the grid saved
 in `Beings.save` square by square (armor as a bronze, silver or gold shield, larger for each of 1–3 layers; lost and burned points, poison
 stacks and bleeding with the way it spreads) and compares it with a freshly spawned one ("Full health: 8 hit points, 4 armor; down 2 hit
 points and 2 armor"); a being saved without one shows that fresh shape instead. **Attack** draws its attack pattern with each cell's damage
-("2", or "1–2" for one to two) under a badge in the colour of its damage class (Sharp, Blunt, Force, Piercing, Poison, Fire or Weak) with
-what that class does, then the total, its reach in tiles, its AP cost and its intelligence for the save's difficulty. The Sceetler, Scaalmyr
-Geomancer, Scaal, Soldier, Magus Clay, Ranger Bhato and Wilda also shoot, with another pattern, class and reach: a **Melee / Ranged** toggle
-switches between the two and stays on your choice for the next being. **Behaviour** lists movement, hostility, dodge and
-attack-of-opportunity chances and the XP for the kill. Commander Tain and the Dead Unwanted never attack, and NPCs and the Unwanted Guard
-never target you.
+("2", or "1–2" for one to two) under a badge in the colour of its damage class (Sharp, Blunt, Force, Piercing, Poison, Fire, Leeching or
+Weak) with what that class does, then the total, its reach in tiles, its AP cost and its intelligence for the save's difficulty. The
+Mirkfangs leech: each hit point they destroy heals one of their own. The Sceetler, Scaalmyr Geomancer, Scaal, Soldier, Magus Clay (at the
+fort and in his realm), Ranger Bhato and Wilda also shoot, with another pattern, class and reach: a **Melee / Ranged** toggle switches
+between the two and stays on your choice for the next being. **Behaviour** lists movement, hostility, dodge and attack-of-opportunity
+chances and the XP for the kill. Commander Tain, Grand Mother and the Dead Unwanted never attack, and NPCs and Wilda's Survivors never
+target you.
 
-A merchant (Magus Clay, Ranger Bhato, Viend, Commander Tain, Gurb-Gurb or Ihar) leads with **Wares**, since you trade with them rather than
-fight them: each ware's icon, its name linked to the wiki and the price of one in gold, silver and copper, in the order the game's trade
-window lists them, with a note on when that merchant offers to trade. **How trading works** sums up the rules (see below), and their hit
-points and attacks stay one click away under **Hit points and attacks**.
+A merchant (Magus Clay, Ranger Bhato, Viend, Commander Tain, Gurb-Gurb, Ihar, Wilda or Grand Mother) leads with **Wares**, since you trade
+with them rather than fight them: each ware's icon, its name linked to the wiki and the price of one in gold, silver and copper, in the
+order the game's trade window lists them, with a note on when that merchant offers to trade. Clay and Viend also sell the Storage Chest, a
+chest you place whose contents never get damp or go missing, like Clay's and Bhato's own; Grand Mother sells the Summoning Stone, the magic
+orbs and the Staff of The Fire Eater, and from main quest stage 30 the Magus' Shard. **How trading works** sums up the rules (see below),
+and their hit points and attacks stay one click away under **Hit points and attacks**.
 
 Click your own marker (**You**) to inspect your character as saved. While you are inside a building, cave or ruin, your marker sits on its
 entrance (labelled below it so the building's name stays readable) and leads inside, where clicking it inspects you. **Hit points** draws
@@ -323,20 +334,27 @@ in the entry that sends you to him, and the map coordinates of the Library's and
 entries you have reached are shown; the wiki's _Quests and journal_ link covers the rest of the story, spoilers included.
 
 The people and places an entry mentions are links that show them on the map, as clicking them in the lists under the map does: Captain Eir,
-Magus Clay, Ranger Bhato, Viend, the commander (Commander Tain) and Scaal; Fort Solid, the Camp, your ship, the Undercroft, Bhato's zone and
-hideout, the ruin cellar, the Library and its zone, Scaal's zone or lair and its depths, and the rift beside the Camp, where Clay's rift
-samples come from. A link opens the zone centred on the marker, or the interior it is in, and inspects it, switching its layer on if needed.
-Someone the save has no trace of (Clay after he disappears, Scaal before you reach him) leads to where they live, a place not entered yet to
-its entrance, and a building not placed yet to its zone. In the save editor, the preview's links open the **Full map** there.
+Magus Clay (in his realm, once he has fled there), Ranger Bhato, Viend, the commander (Commander Tain) and Scaal; Fort Solid, the Camp, your
+ship, the Undercroft, Bhato's zone and hideout, the ruin cellar, the Library and its zone, Scaal's zone or lair and its depths, and the rift
+beside the Camp, where Clay's rift samples come from. A link opens the zone centred on the marker, or the interior it is in, and inspects
+it, switching its layer on if needed. Someone the save has no trace of (Clay after he disappears, Scaal before you reach him) leads to where
+they live, a place not entered yet to its entrance, and a building not placed yet to its zone. In the save editor, the preview's links open
+the **Full map** there.
 
 The game keeps no journal text in the save, only the main quest's stage (`mainQ` in `Player.save`), and rebuilds the journal from it on
 loading (`journal_update` in `gml_GlobalScript_scr_basic_useful`). Entry 1 is the same for everyone (`UI.ini [Journal] First`), and each
 stage from 0 up to the saved one adds the entry `[Journal]` has for it. Stages −10 to −6 are the opening tutorial and −5 means it is over or
 was skipped, so the journal holds only Entry 1 until stage 0. Stages 14 (Viend reaches Captain Eir), 21 and 22 (the talk with Commander Tain
 and the blast that ends it) and 27 (Eir hands over the Summoning Stone) have no text, so they add no entry; MirkMap says what such a stage
-means under the newest entry. The journal's text is copied from `UI.ini` into `src/gamedata.ts` by `tools/gamedata.ts` (see
-[Development](#development)), with the developer's permission. The save editor's preview and its **Full map** show the same journal, which
-edits do not change.
+means under the newest entry. Since 0.8.9.9 the story goes on: at stage 30 Eir tells of magi's hidden realms, Grand Mother sells the Magus'
+Shard that opens one, and Magus Clay's death there (31) and the talk with Eir after it (32) each add an entry. The journal's text is copied
+from `UI.ini` into `src/gamedata.ts` by `tools/gamedata.ts` (see [Development](#development)), with the developer's permission. The save
+editor's preview and its **Full map** show the same journal, which edits do not change.
+
+The Survivors' side quest at Wilda's camp has no journal entries: the game keeps only its stage (`campQ` in `Player.save`, −1 until Wilda
+asks you to slay The Terror, 0 once she has, 1 once The Terror is dead and 2 once Wilda trusts you, which opens Grand Mother's hut and lets
+you summon Wilda). From stage 0 the journal adds MirkMap's own summary of where it stands, with Wilda, The Terror, the camp and Grand Mother
+linked, marked as MirkMap's rather than the game's.
 
 ### Trees: trunk liveliness and chopping cost
 
@@ -376,17 +394,17 @@ The **Gatherables** layers mark what you can pick or search for food and craftin
 what it gives: **Calmia** (pink flowers over an orange root; Calmia Root), **Turnips**, **Cranberries** (red berries on a teal shrub; young
 shrubs without berries are drawn bare), **Watercress** and **Water Lilies** (only flowering lilypads give lilies) in shallow water, **Vile
 Bulbs** (Mushrooms), which grow only in caves, and **Bird nests** (Feathers and Eggs; a searched nest is drawn empty). Each plant is one
-marker on its tile. Hovering one shows what harvesting it gives at its growth stage, such as "Cranberries x3–8 (grown)"; clicking it adds
+marker on its tile. Hovering one shows what harvesting it gives at its growth stage, such as "Cranberries x3–6 (grown)"; clicking it adds
 the item's picture, how the amount grows over the plant's five stages, how the kind comes back, and a link to the wiki's _Plant harvesting_
 guide. Lists under the map give each shown kind, the most to take first. Plants you harvested but did not empty say so: the game keeps what
 you left on the ground (the **Ground loot** marker on the same tile), and harvesting again gives you that instead of a new roll. A searched
 nest shows about how many days are left until it refills.
 
 **Ferns** (Plant Fiber) grow on hundreds of tiles in every zone, so instead of markers that layer shades the ground they cover, green and
-deeper the bigger the fern: one harvest gives 1–2 fibers from the smallest up to 5–14 from the biggest. Like Sharp ground, it shades the
+deeper the bigger the fern: one harvest gives 1–2 fibers from the smallest up to 5–10 from the biggest. Like Sharp ground, it shades the
 selected zone only.
 
-Mirklurk 0.8.1.5 has no tomatoes. Bramble Berries, Riftvine Berries and Elderwort Berries are not picked from the ground: they fall, by
+Mirklurk 0.8.9.9 has no tomatoes. Bramble Berries, Riftvine Berries and Elderwort Berries are not picked from the ground: they fall, by
 chance, from the stems you cut on the **Brambles**, **Rift Vines** and Elderwort Shrubs (**Trees**). The layers show the plants as saved;
 they keep growing, spreading and dying back as turns pass and when you come back to a zone.
 
@@ -464,9 +482,9 @@ the game itself writes it (decompiled entries in brackets):
   upright anywhere is then turned sideways (`sideflipped`, covering height × width), as you could turn it in the game; nothing already in
   your bags is rearranged. New items glow gold in the game until you look at them. Whatever does not fit is reported, never dropped. Sizes,
   stack limits and durability come from the game's item database (`src/itemdata.ts`). Every item you can carry can be added, including ones
-  the game keeps out of random treasure (`NONLOOTABLE`): quest items, seeds, Water Lilies and things you place, such as a Campfire or a Raft
-  Base (place it in deep water, then finish the raft at it). Only Unarmed (your bare hands) and Finish Raft (the recipe that turns a placed
-  Raft Base into the raft, never an item) are left out.
+  the game keeps out of random treasure (`NONLOOTABLE`): quest items, seeds, Water Lilies and things you place, such as a Campfire, a
+  Storage Chest or a Raft Base (place it in deep water, then finish the raft at it). Only Unarmed (your bare hands) and Finish Raft (the
+  recipe that turns a placed Raft Base into the raft, never an item) are left out.
 - **Removing items**: **What you wear and carry** lists every worn item by slot, with what its containers hold, and each container's size
   and free cells (a bag kept inside another holds nothing, as above). **Remove** takes all of an item, or as many of a stack as you say, out
   of the save: every grid cell it covered is emptied, every copy of the containers it was in is kept the same (the game saves a copy of an
@@ -505,30 +523,32 @@ the game itself writes it (decompiled entries in brackets):
 
   The game saves the raft you stand on with you, not with its zone (`ensureRaft` in `Player.save`; `player_raft_ensure` makes it under you
   on load), so bringing it only keeps that flag. A raft you leave or dock is written to that zone's `Stations.save` as Finish Raft leaves it
-  (station 171), and one you bring from a zone is taken out of it. A move that changes several files is one change: the bar lists it as one
-  line, and Undo, or a reload where it no longer applies (you are on a raft now, or no longer where you left it), takes all of it back.
+  (station 171, unflipped), and one you bring from a zone is taken out of it. A move that changes several files is one change: the bar lists
+  it as one line, and Undo, or a reload where it no longer applies (you are on a raft now, or no longer where you left it), takes all of it
+  back.
 
-  Moving inside a cave, ruin cellar, quest room or Scaal's depths, or into one, works the same way, without rafts: a raft never goes inside,
-  so from your raft you leave it where it is (or, where it cannot stay, lose it). The game names the area you are in by `areaX`/`areaY`,
-  `areaType` and the entrance it was entered by (`entranceX`/`entranceY`), and loads the folder `[ x,y,ex,ey ]` they name, or `RW1`–`RW3`
-  for Scaal's depths by type alone (`savearea` in `gml_GlobalScript_scr_saveload`); a move inside writes all of them, taking the type from
-  the entrance or stairs leading there (their `transPoint`), or your saved one when you are already inside. An interior no saved entrance or
-  stairs lead to any more (the Fort interior and Undercroft once Fort Solid is gone) has only a guessed type, so you can move inside it only
-  when you are already there. Inside, only the floor that its way out (and any stairs) can be walked to from, past walls and pits, is
-  offered: quest rooms stand in open ground the game never lets you reach. The game loads an area only when its folder has `Ygrid.save`
-  (`manager_area` Alarm_2) and makes a new one otherwise, so an area without it is refused. Arriving this way is not walking in: what the
-  game does on entering through a door (quest steps on reaching the Library or Scaal's depths, regrowth since your last visit) waits for the
-  next time you do.
+  Moving inside a cave, ruin cellar, quest room, Scaal's depths or a Magus realm, or into one, works the same way, without rafts: a raft
+  never goes inside, so from your raft you leave it where it is (or, where it cannot stay, lose it). The game names the area you are in by
+  `areaX`/`areaY`, `areaType` and the entrance it was entered by (`entranceX`/`entranceY`), and loads the folder `[ x,y,ex,ey ]` they name,
+  or `RW1`–`RW3` for Scaal's depths and `MagusRealm` for a Magus realm by type alone (`savearea` in `gml_GlobalScript_scr_saveload`); a move
+  inside writes all of them, taking the type from the entrance or stairs leading there (their `transPoint`), or your saved one when you are
+  already inside. An interior no saved entrance or stairs lead to any more (the Fort interior and Undercroft once Fort Solid is gone) has
+  only a guessed type, so you can move inside it only when you are already there. Inside, only the floor that its way out (and any stairs)
+  can be walked to from, past walls and pits, is offered: quest rooms stand in open ground the game never lets you reach. The game loads an
+  area only when its folder has `Ygrid.save` (`manager_area` Alarm_2) and makes a new one otherwise, so an area without it is refused.
+  Arriving this way is not walking in: what the game does on entering through a door (quest steps on reaching the Library or Scaal's depths,
+  regrowth since your last visit) waits for the next time you do.
 - **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior where it can live, with the hit points and
-  armor of a fresh one, or remove creatures. Removing a quest character (NPCs, the Dead Unwanted who becomes Viend, and Scaal) asks first.
-  Where a creature can live is the game's own rule (`tile_meets_classneeds`), which it checks wherever a creature spawns or moves. It also
-  checks it whenever you enter an area other than straight from the menu: it then moves each creature to a random tile within 8 that suits
-  it, and removes one that finds none. Flyers (Dreadfly, Giant Gnat, Deathfly) go anywhere. Swimmers need water: a Mire Serpent where the
-  ground (`Ygrid.save`) lies at or below the water threshold (−0.3), a Mudfin or Razorfin below −0.25. Walkers wade, but not where the
-  ground lies at or below −0.4 (−0.3 for small ones such as a Mirk Runner, `size` 0), unless reeds or a raised floor lift them out of the
-  water. A Giant Slug keeps out of the second water layer, and only flyers go on brambles, sharp ground or rift vines. The creature list
-  marks swimmers and flyers. With the Spawn tool, tiles the chosen creature cannot use are darkened, and pointing at one says why. The
-  game's wildlife spawner puts Mudfins on any water, so some saved ones sit in shallows too shallow for them until they move.
+  armor of a fresh one, or remove creatures. Removing a quest character (NPCs, Wilda's Survivors and Grand Mother, the Dead Unwanted who
+  becomes Viend, Scaal, The Terror and Magus Clay in his realm) asks first. Where a creature can live is the game's own rule
+  (`tile_meets_classneeds`), which it checks wherever a creature spawns or moves. It also checks it whenever you enter an area other than
+  straight from the menu: it then moves each creature to a random tile within 8 that suits it, and removes one that finds none. Flyers
+  (Dreadfly, Giant Gnat, Deathfly and the Mirkfangs) go anywhere. Swimmers need water: a Mire Serpent where the ground (`Ygrid.save`) lies
+  at or below the water threshold (−0.3), a Mudfin or Razorfin below −0.25. Walkers wade, but not where the ground lies at or below −0.4
+  (−0.3 for small ones such as a Mirk Runner, `size` 0), unless reeds or a raised floor lift them out of the water. A Giant Slug keeps out
+  of the second water layer, and only flyers go on brambles, sharp ground or rift vines. The creature list marks swimmers and flyers. With
+  the Spawn tool, tiles the chosen creature cannot use are darkened, and pointing at one says why. The game's wildlife spawner puts Mudfins
+  on any water, so some saved ones sit in shallows too shallow for them until they move.
 
 **Full map**, beside **Editor** at the top, shows the character in MirkMap's own map, as saving would leave it: every zone, caves and
 interiors, rifts, landmarks, NPCs and creatures, loot, the layer switches and Realistic mode, before or during edit mode. In edit mode,
@@ -571,8 +591,8 @@ Restoring a backup undoes edits, not the mark. On a computer that never saved ed
 
 ## How the guesses work
 
-All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.8.1.5); the entry names are given so they can be
-re-checked after an update.
+All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.8.9.9, diffed against 0.8.1.5's); the entry names are
+given so they can be re-checked after an update.
 
 **The world layout is fixed at new game** (`gml_Object_obj_menu_Alarm_8`) and saved in `Player.save`: the grid, and the zones of Bhato
 (`rangerCamp`), the Library (`libraryArea`) and Scaal (`riftQuestArea`, the fort mirrored through the centre). The random stream is only
@@ -588,8 +608,8 @@ every spot the rule allows (door tile of the building):
 | Library         | `gridpos(1280 + irandom_range(-16,16) × 32)` | 1,089, equally likely     |
 | Scaal's lair    | `gridpos(1280 + irandom_range(-16,16) × 10)` | 441, some twice as likely |
 
-**Gurb-Gurb and Ihar are created later** (`gml_Object_manager_area_Alarm_6`, run 20 steps after entering any zone, new or revisited,
-including when a save is loaded):
+**Gurb-Gurb, Ihar and Wilda's camp are created later** (`gml_Object_manager_area_Alarm_6`, run 20 steps after entering any zone, new or
+revisited, including when a save is loaded):
 
 - _Gurb-Gurb's hut_ appears the first time you enter a **Drowned Fen** (a Savage Mirk only if the world has no Drowned Fen, which normal
   generation never produces). It re-rolls a spot until the hut's outline touches a rock, ruin or creature (or a tree near the camera —
@@ -598,10 +618,17 @@ including when a save is loaded):
   just west of it, sand above it and land 8 tiles east. For a Broken Fen you have seen, the viewer runs that exact test on the saved tiles,
   giving the valid spots and the per-visit chance `1 − (1 − p)^1280`. For unseen ones it assumes 99% (the one generated Broken Fen sampled
   had 138 valid spots: 99.998%).
+- _The Survivors' camp_ (`camp` in `Player.save`, absent and so false in saves from before 0.8.9.9) appears the first time you enter a
+  **Savage Mirk**, explored before or not: Grand Mother's hut with two campfires, two more huts, Wilda and three Survivors. The hut stands
+  at `centerpos(irandom_range(512, 2048))` less 8 across and 40 down, so at least 32 tiles from every edge; rifts within 20 tiles die. The
+  game re-rolls the spot only while the rift nearest it and the player are both within 320 of `manager_area` rather than of the spot, so the
+  viewer shades every spot the rule allows. Its ladder stays locked until Wilda trusts you, you may not build within 420 of the hut, and
+  nothing spawns within 256 of it (`spot_is_private`); once Wilda has asked for her head, The Terror may spawn elsewhere in that Savage Mirk
+  at night (`manager_area` Alarm_4).
 
 The zone percentages assume you head for a random candidate zone each time (one that failed can be picked again): each zone's share is its
-per-visit chance divided by the sum of all of them (equal shares for Gurb-Gurb). If you are standing in a candidate zone, loading the save
-tries there first.
+per-visit chance divided by the sum of all of them (equal shares for Gurb-Gurb and the camp). If you are standing in a candidate zone,
+loading the save tries there first.
 
 **Tree liveliness and harvest cost** (`src/chop.ts`). Each saved tree part has a life value from 1 to 0 that drops as it grows (`tree_grow`
 in `gml_GlobalScript_scr_nature`); below `global.NATDEAD` = 0.33 (`gml_Room_rm_int_Create`) it loses its leaves and stops growing. The trunk
@@ -618,15 +645,15 @@ Turnip and 170–179 Watercress (two looks of five growth stages each), 160–16
 nests, 146 full and 145 searched; ferns are 80–89. Harvesting rolls `loot_generate` (`gml_GlobalScript_scr_items`): Calmia Root 1–3, Vile
 Bulbs 1–2, one Turnip or two from stage 4, Cranberries `(n, 2n)` with n = 2, 3 or 4 from stage 3 (none before), Watercress
 `(n, round(1.5n))` with n = stage (rounded half to even), Plant Fiber `(n, 2n)` with n = the fern's stage, one or two Water Lilies at stages
-4 and 5, and from a nest 1–7 Feathers with a 40% chance of 1–3 Eggs. Ranges are `loot_amountchances(a, b)`, which picks one of `a…a`,
-`a…a+1`, …, `a…a+b−1`, so `a` to `a+b−1` with low counts likelier; Green Fingers adds one with a chance. Picking everything clears the tile;
-leaving some sets `LootData` 99 and saves the rest to `LOOT-x_y.save` (`gml_GlobalScript_scr_menu_related`). Emptying a nest turns it into
-145 with `LootData` 4–12, days that count down each midnight and by the days you were away, after which it refills
-(`gml_Object_manager_area_Step_0`). New zones other than the Rift Mire get 8–32 Calmia, 5–13 Turnips and 10–26 Cranberry plants spread into
-patches, by area type, and every new zone up to 320 fern patches of 8–64 steps each (64 in the Rift Mire, 196 in the Withered Mire)
-(`gml_Object_manager_area_Alarm_2`); on each return two Calmia sprout outdoors (again not in the Rift Mire), and one Vile Bulb in a cave,
-per day or part of a day you were away (`gml_Object_obj_screenfader_Step_0`), and plants grow and spread with every turn's growth ticks
-(`nature_grow` in `gml_GlobalScript_scr_nature`).
+4 and 5, and from a nest 1–7 Feathers with a 40% chance of 1–3 Eggs. Ranges are `loot_amountchances(a, b)`, which since 0.8.9.9 picks one of
+`a…a`, `a…a+1`, …, `a…b` (`b` raised to `a` when smaller), so `a` to `b` with low counts likelier (before, `a` to `a+b−1`); Green Fingers
+adds one with a chance. Picking everything clears the tile; leaving some sets `LootData` 99 and saves the rest to `LOOT-x_y.save`
+(`gml_GlobalScript_scr_menu_related`). Emptying a nest turns it into 145 with `LootData` 4–12, days that count down each midnight and by the
+days you were away, after which it refills (`gml_Object_manager_area_Step_0`). New zones other than the Rift Mire get 8–32 Calmia, 5–13
+Turnips and 10–26 Cranberry plants spread into patches, by area type, and every new zone up to 320 fern patches of 8–64 steps each (64 in
+the Rift Mire, 196 in the Withered Mire) (`gml_Object_manager_area_Alarm_2`); on each return two Calmia sprout outdoors (again not in the
+Rift Mire), and one Vile Bulb in a cave, per day or part of a day you were away (`gml_Object_obj_screenfader_Step_0`), and plants grow and
+spread with every turn's growth ticks (`nature_grow` in `gml_GlobalScript_scr_nature`).
 
 **Hit-point grids** (`src/health.ts`). `Player.save` and each being in `Beings.save` store `hpgrid` and `statusgrid` row by row. In
 `hpgrid`, −4 is no hit point, −1 burned (fire destroyed it; it cannot heal until treated), 0 lost, 1 healthy and 2–4 healthy under 1–3 armor
@@ -641,11 +668,14 @@ when `rangedDist > 0`. A pattern cell `a.b` deals `a` to `b` damage (`floor` and
 of its melee reach, within range and in its line of sight; on Hard (`myDiff` 3 in `Player.save`) it aims one intelligence level better, up
 to Highest; Sharp blows and High or better intelligence may land the pattern turned by quarter turns (`gml_Object_manager_area_Step_0`,
 `being_get_attack_xy` in `gml_GlobalScript_scr_ai_related`). Each turn a being sees a target within its hostile distance it turns on it with
-its hostility chance; team 0 (the NPCs, the Unwanted Guard and the Dead Unwanted) never picks you (`being_get_target`). A fresh being's grid
-(`being_initiate` in `gml_GlobalScript_scr_basic_useful`) starts as all healthy hit points with the species' holes and extra layers
-(Sceetler, Deathfly, Nightmare, Toadkin, Scaal by distance from its centre, Mirk Mauler, Wilda, Unwanted Guard), then its `armor` is laid
-one layer at a time, row by row, on hit points with fewer than 3 layers; every unhurt being in the sampled saves matches it cell for cell.
-The damage-class effects paraphrase `[TTgen]` in `UI.ini` and `attack_lands`.
+its hostility chance; teams 0 (the NPCs and the Dead Unwanted) and 10 (Wilda, her Survivors and Grand Mother) never pick you
+(`being_get_target`), and from main quest stage 27 Captain Eir and Magus Clay turn on each other. A fresh being's grid (`being_initiate` in
+`gml_GlobalScript_scr_basic_useful`) starts as all healthy hit points with the species' holes and extra layers (Sceetler, Deathfly,
+Nightmare, Toadkin, Scaal by distance from its centre, Mirk Mauler, Wilda, Survivor, the Mirkfangs, and the Matriarch's and The Terror's
+armored bodies), then its `armor` is laid one layer at a time, row by row, on hit points with fewer than 3 layers; every unhurt being in the
+sampled saves matches it cell for cell. The damage-class effects paraphrase `[TTgen]` in `UI.ini`, `attack_lands` and `attack_aftermath`:
+since 0.8.9.9 Blunt blows stun 10% of the time, not 12%, and Leeching (the Mirkfangs') heals the attacker a hit point for each it destroys,
+poison included. A Giant Mirkfang that spawns may turn out a Mirkfang Matriarch (4%), and Mirkfangs come out at night, and by day in caves.
 
 **Merchants' wares** (`src/merchants.ts`). Every time you open a trade window the game stocks it afresh with one new, full-condition item of
 each ware (`menu_add` in `gml_GlobalScript_scr_menu_related`), so wares never run out, then sorts them with `inventory_sort`
@@ -657,7 +687,8 @@ that, with no markup, and pays the same price for your goods scaled by condition
 durability left, at least 10%, or fuel left for light sources, at least 25%); quest items cannot be sold. Coins count at face value, the
 trade goes through once your goods cover the cost, and the difference comes back in coins. When each merchant offers **Trade** comes from
 the NPC dialogue options in `gml_Object_UI_Draw_64`: most in their everyday conversation, Viend only from main-quest stage 27, once Clay has
-fled the fort.
+fled the fort, and Grand Mother only once Wilda trusts you, since her hut is locked until then. Grand Mother adds the Magus' Shard from main
+quest stage 30.
 
 **Wellbeing per turn** (`src/player.ts`). The circle bar (`gml_Object_UI_Draw_64`) shows `haelth` as wellbeing and `focus`, `energy`
 (Stamina), `hunger` (Satiation) and `warmth` as percentages. `player_get_stat_changes` in `gml_GlobalScript_scr_basic_useful` scores each
@@ -719,8 +750,8 @@ in `Player.save`), outlined dark or light by its perceived lightness, on the wor
 border travel at x ≤ 16, x ≥ 2544, y ≤ 48 or y ≥ 2512 (`gml_Object_UI_Draw_64`) and saves when you click it; you arrive at x = 8 / 2552 at
 the same y, or at the same x with y = 56 / 2552 (`sendX`/`sendY` there plus `manager_area` Alarm_2's +16). Using an entrance (targetAction 4
 in `gml_Object_obj_player_Step_0`) saves too, then `obj_screenfader` Step_0 places you at its `transPoint` 3–4 inside; a way out returns you
-to the entrance's interaction point, 16 below. Saves the game makes on arriving (a new zone, or first entering a quest room, `manager_area`
-Alarm_3) are recognised and not read as another departure.
+to the entrance's interaction point, 16 below. The save the game makes on arriving in a newly generated area (`manager_area` Alarm_2) is
+recognised and not read as another departure; since 0.8.9.9 first entering a quest room (Alarm_3) no longer saves.
 
 ## What the zone map shows
 
@@ -731,8 +762,11 @@ sprite bounds), `Beings.save`, `Containers.save`, `Stations.save` (camp items, a
 ground, `Hinderance.tmap` and `LootData.tmap` for gatherables (loaded only when one is switched on, in interiors too; `Hinderance.tmap`
 alone for the fern overlay) and `Water1.tmap` / `Ygrid.save` for the water overlay. The raft you stand on is not in `Stations.save`: saving
 marks it `destroyOnSave` and sets `ensureRaft` in `Player.save`, and loading makes it under you again (`player_raft_ensure`), so the map
-draws it where you were saved. Interiors (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door is
-at `ex,ey` and drawn from their `Data`/`Lower`/`OnLower`/`Water1` layers.
+draws it where you were saved. Since 0.8.9.9 stations and containers save `xscale`, flipped when you flipped them as you placed them, and
+the realistic map draws them so. Interiors (`[ x,y,ex,ey ]` folders, `RW1`–`RW3` for Scaal's depths) are linked to the entrance whose door
+is at `ex,ey` and drawn from their `Data`/`Lower`/`OnLower`/`Water1` layers. A Magus realm (`MagusRealm`) has no zone in its name and no
+door: the portal that leads there closes once you are back, so the map places the realm where its portal opened, in your zone while you are
+inside it, and afterwards only when its way out names a zone type that one zone alone has.
 
 ## Development
 

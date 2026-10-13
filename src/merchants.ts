@@ -1,4 +1,4 @@
-// What the six traders sell and how trading works, ported from Mirklurk 0.8.1.5 (decompiled GML). References name the source entry.
+// What the eight traders sell and how trading works, ported from Mirklurk 0.8.9.9 (decompiled GML). References name the source entry.
 
 import { type Coins, coinsView, priceCoins } from "./coins.ts";
 import { h } from "./dom.ts";
@@ -7,19 +7,24 @@ import { picture, section, type SectionContext, wikiLink } from "./inspect.ts";
 import { itemImage, itemWiki, wikiUrl } from "./wiki.ts";
 
 /** The traders, by being index (`BEING_NAMES`). */
-export const Trader = { Clay: 8, Bhato: 12, Viend: 19, Tain: 20, Gurb: 26, Ihar: 33 } as const;
+export const Trader = { Clay: 8, Bhato: 12, Viend: 19, Tain: 20, Gurb: 26, Ihar: 33, Wilda: 34, Mother: 36 } as const;
+
+/** The Magus' Shard, which Grand Mother adds to her wares from main-quest stage 30. */
+export const MAGUS_SHARD = 262;
 
 /**
  * Each trader's stock in the order `menu_add` (gml_GlobalScript_scr_menu_related, menu type 8) adds it: one new item of each,
  * rebuilt every time the trade window opens.
  */
 export const STOCK: Readonly<Record<number, readonly number[]>> = {
-  [Trader.Clay]: [140, 32, 84, 85, 86, 27, 45, 14, 57, 44, 41, 113, 115, 114, 112, 156],
+  [Trader.Clay]: [140, 32, 84, 85, 86, 27, 45, 14, 57, 44, 41, 275, 113, 115, 114, 112, 156],
   [Trader.Bhato]: [113, 115, 114, 144, 105, 106, 45, 46, 148, 153, 250, 249],
-  [Trader.Viend]: [140, 32, 138, 84, 139, 85, 86, 45, 41, 113, 115, 114, 112, 156, 252],
+  [Trader.Viend]: [140, 32, 138, 84, 139, 85, 86, 45, 41, 275, 113, 115, 114, 112, 28, 156, 252],
   [Trader.Tain]: [252],
   [Trader.Gurb]: [138, 139, 86, 112, 172, 179, 206, 248, 251],
   [Trader.Ihar]: [55, 54, 56, 8, 10, 58, 189, 191, 187, 185],
+  [Trader.Wilda]: [144, 32, 84, 85, 45, 174, 219, 212, 113, 115, 114],
+  [Trader.Mother]: [127, 266, 272, 271, 270, 269, 268, 267, 274, 273, MAGUS_SHARD],
 };
 
 /**
@@ -31,6 +36,7 @@ const WARE_DATA: Readonly<Record<number, readonly [price: number, w: number, h: 
   10: [5, 1, 3, 16], // Steel Shortsword
   14: [3.5, 2, 2, 7], // Medium Backpack
   27: [2.5, 1, 3, 16], // Iron Hand Axe
+  28: [7.5, 1, 3, 16], // Steel Hand Axe
   32: [0.6, 1, 1, 20], // Lesser Wound Salve
   41: [0.2, 1, 3, 23], // Torch
   44: [2.2, 2, 3, 17], // Shortbow (Willow)
@@ -50,6 +56,7 @@ const WARE_DATA: Readonly<Record<number, readonly [price: number, w: number, h: 
   113: [0.75, 2, 1, 27], // Cloth Repair Kit
   114: [0.45, 1, 2, 27], // Wood Repair Kit
   115: [1, 1, 2, 27], // Metal Repair Kit
+  127: [20, 1, 1, 29], // Summoning Stone
   138: [1.5, 1, 2, 20], // Wound Salve
   139: [1, 1, 2, 20], // Antidote
   140: [0.25, 1, 1, 20], // Minor Wound Salve
@@ -58,17 +65,31 @@ const WARE_DATA: Readonly<Record<number, readonly [price: number, w: number, h: 
   153: [2.5, 3, 1, 22], // Decent Bedroll
   156: [5, 2, 1, 13], // Map Drawing Kit
   172: [20, 2, 3, 22], // Survivor's Field Kit
+  174: [0.08, 1, 3, 24], // Poison Arrow
   179: [16.5, 2, 3, 17], // Gurb's Expertimental Bow
   185: [30, 2, 4, 17], // Steel Greatsword
   187: [30, 2, 4, 17], // Steel Warhammer
   189: [30, 2, 4, 17], // Steel Battleaxe
   191: [11.5, 1, 3, 16], // Steel Mace
   206: [20, 2, 4, 17], // Thorns of Wackah
+  212: [0.08, 1, 3, 23], // Improvised Enduring Torch
+  219: [0.12, 1, 3, 24], // Poison Arrow II
   248: [1, 2, 2, 22], // Jar of Fireflies
   249: [5, 1, 5, 22], // Canopy (2x2 tiles)
   250: [15, 2, 5, 22], // Canopy (3x3 tiles)
   251: [3.5, 1, 2, 29], // Gurb's Flask of Vileness
   252: [10, 1, 2, 28], // Map Ledger
+  262: [50, 1, 2, 29], // Magus' Shard
+  266: [22.5, 1, 4, 17], // Staff of The Fire Eater
+  267: [10, 2, 2, 16], // Orb of Poison
+  268: [32.5, 2, 2, 16], // Orb of Greater Poison
+  269: [10, 2, 2, 16], // Orb of Fire
+  270: [30, 2, 2, 16], // Orb of Greater Fire
+  271: [10, 2, 2, 16], // Orb of Iron Essence
+  272: [20, 2, 2, 16], // Orb of Steel Essence
+  273: [8, 2, 2, 16], // Orb of Wind
+  274: [25, 2, 2, 16], // Orb of Storm
+  275: [15, 3, 3, 22], // Storage Chest
 };
 
 /** What each ware costs, in silver (1 gold = 10 silver = 1000 copper). */
@@ -105,7 +126,12 @@ export interface Ware {
   /** In silver. */
   price: number;
   coins: Coins;
+  /** When the trader offers it only some of the time. */
+  note?: string;
 }
+
+/** Wares a trader adds only part of the time (menu_add). */
+const WARE_NOTES: Readonly<Record<number, string>> = { [MAGUS_SHARD]: "from main quest stage 30" };
 
 export const waresOf = (being: number): Ware[] =>
   (WARES[being] ?? []).map((index) => ({
@@ -113,6 +139,7 @@ export const waresOf = (being: number): Ware[] =>
     name: ITEM_NAMES[index] ?? `Item ${index}`,
     price: PRICES[index],
     coins: priceCoins(PRICES[index]),
+    ...(WARE_NOTES[index] ? { note: WARE_NOTES[index] } : {}),
   }));
 
 /**
@@ -126,6 +153,10 @@ export const WHEN: Readonly<Record<number, string>> = {
   [Trader.Tain]: "Sells nothing but Map Ledgers and sends you to Clay for supplies. Not while he has story to tell.",
   [Trader.Gurb]: "Trades from your first meeting. His Survivor's Field Kit needs fuel you bring yourself.",
   [Trader.Ihar]: "Trades once he has introduced himself: arms and armour salvaged from the cargo ship he claimed.",
+  [Trader.Wilda]:
+    "Trades in her everyday conversation once she has introduced herself at the Survivors' camp, though she has little to offer.",
+  [Trader.Mother]:
+    "Trades in her everyday conversation once she has blessed you, which gives you a skill point; you reach her hut only once Wilda trusts you. Her magic weapons drain one of your stats with each use, and the Magus' Shard opens a portal into a hidden Magus realm.",
 };
 
 const wareRow = (ware: Ware) => {
@@ -139,6 +170,7 @@ const wareRow = (ware: Ware) => {
       { class: "ware-name" },
       icon ? picture(icon, "", "item-icon", 24, 20, true) : null,
       url ? wikiLink(url, ware.name) : ware.name,
+      ware.note ? h("span", { class: "muted" }, ` (${ware.note})`) : null,
     ),
     coinsView(ware.coins, { cls: "coins ware-price" }),
   );

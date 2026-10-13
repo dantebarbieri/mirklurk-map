@@ -2,7 +2,7 @@
 
 import type { FileMap } from "./files.ts";
 import { ZONE_NAMES } from "./gamedata.ts";
-import { centerpos, GRID } from "./rules.ts";
+import { centerpos, GRID, isOutside, MAGUS_REALM, REALM_FOLDER } from "./rules.ts";
 import {
   type Being,
   decodeHeights,
@@ -43,7 +43,7 @@ export interface Zone {
 
 export interface Interior {
   zone: [number, number];
-  /** Entrance position in the parent area (the folder name's last two numbers). */
+  /** Entrance position in the parent area (the folder name's last two numbers; for the Magus realm, where its portal opened). */
   at: [number, number];
   dir: string;
   /** Area type of this interior (transPoint[0] of the entrance that leads here). */
@@ -52,7 +52,7 @@ export interface Interior {
   kindGuessed?: boolean;
   /** The interior whose stairs lead here, for deeper levels. */
   parent: Interior | null;
-  /** No saved solid leads here any more (e.g. Fort Solid after the explosion). */
+  /** No saved solid leads here any more (e.g. Fort Solid after the explosion), or never did (the Magus realm's portal). */
   sealed: boolean;
   solids: Solid[];
 }
@@ -67,8 +67,24 @@ function kindFromExit(solids: Solid[], zoneType: number): number | null {
       if (k) return k;
       if (s.pic === 5) return zoneType === 3 || zoneType === 5 ? 34 : 31;
     }
+    if (s.sprite === "spr_placed_16x16_taller" && s.pic === 11) return 36;
   }
   return null;
+}
+
+/**
+ * The zone a Magus realm belongs to, and the spot its portal opened at there. The game names the realm by its type alone
+ * (savearea: "MagusRealm") and keeps no zone for it: inside, areaX/areaY and entranceX/entranceY are the portal's; its way out
+ * (transPoint) records the portal's spot and the zone's type. Outside, the zone is certain only when one zone has that type.
+ */
+function realmPlace(solids: Solid[], player: PlayerSave): { zone: [number, number]; at: [number, number] } | undefined {
+  if (player.area.type === MAGUS_REALM) {
+    return { zone: [player.area.x, player.area.y], at: [centerpos(player.entrance[0]), centerpos(player.entrance[1])] };
+  }
+  const out = solids.map(destination).find((tp) => tp && tp.length >= 5 && isOutside(tp[0]));
+  if (!out) return undefined;
+  const zones = player.grid.flatMap((row, y) => row.flatMap((type, x): [number, number][] => type === out[0] ? [[x, y]] : []));
+  return zones.length === 1 ? { zone: zones[0], at: [centerpos(out[3]), centerpos(out[4])] } : undefined;
 }
 
 export interface World {
@@ -97,6 +113,7 @@ export async function loadWorld(files: FileMap, root: string, character: string)
 
   const exteriorDirs = new Map<string, string>();
   const interiorDirs: { zone: [number, number]; at: [number, number]; dir: string }[] = [];
+  let realmDir: string | undefined;
   const maps = new Map<string, string>();
   const seenDirs = new Set<string>();
   for (const path of files.keys()) {
@@ -119,7 +136,7 @@ export async function loadWorld(files: FileMap, root: string, character: string)
     else if (/^RW[123]$/.test(dirName)) {
       const lair = player.riftQuestArea ?? [-1, -1];
       interiorDirs.push({ zone: lair, at: [-1, Number(dirName[2])], dir });
-    }
+    } else if (dirName === REALM_FOLDER) realmDir = dir;
   }
 
   const solidsOf = async (dir: string): Promise<Solid[]> => {
@@ -158,12 +175,19 @@ export async function loadWorld(files: FileMap, root: string, character: string)
   for (const d of interiorDirs) {
     interiors.push({ ...d, kind: null, parent: null, sealed: false, solids: await solidsOf(d.dir) });
   }
+  if (realmDir) {
+    const solids = await solidsOf(realmDir);
+    const place = realmPlace(solids, player);
+    // A portal is no solid, so nothing in its zone leads there: like an interior whose entrance is gone, it gets its own marker.
+    if (place) interiors.push({ ...place, dir: realmDir, kind: MAGUS_REALM, parent: null, sealed: true, solids });
+  }
   /** A solid whose way in (transPoint: area type, x, y) leads to the interior entered at `at`. */
   const leadsTo = (s: Solid, at: [number, number]): s is Solid & { transPoint: number[] } => {
     const to = destination(s);
     return !!to && centerpos(to[1]) === at[0] && centerpos(to[2]) === at[1];
   };
   for (const it of interiors) {
+    if (it.kind === MAGUS_REALM) continue;
     if (it.at[0] === -1) {
       it.kind = 23 + it.at[1];
       const upper = it.at[1] > 1 ? interiors.find((o) => o.at[0] === -1 && o.at[1] === it.at[1] - 1) : undefined;

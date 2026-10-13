@@ -187,7 +187,10 @@ Deno.test("rafts are left and taken in Stations.save as the game saves a finishe
     status: -200,
     x: 344,
     y: 744,
+    xscale: 1,
   });
+  // save_stations' own order: sprite, pic, then xscale (since 0.8.9.9, when placeables can be flipped).
+  assertEquals(Object.keys(stations[1] as Rec).slice(0, 3), ["sprite", "pic", "xscale"]);
   addRaft(stations, 3, 3);
   const second = JSON.stringify(stations[2]);
   assertEquals((takeRaft(stations, second) as Rec).x, 56);

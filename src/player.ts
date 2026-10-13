@@ -1,5 +1,5 @@
 // The player's saved condition and belongings: hit points, wellbeing and the four stats behind it, conditions, coins and
-// inventory, and the journal (journal.ts). Wellbeing math is ported from Mirklurk 0.8.1.5: player_get_stat_changes and
+// inventory, and the journal (journal.ts). Wellbeing math is ported from Mirklurk 0.8.9.9: player_get_stat_changes and
 // player_get_combined_wellbeing in gml_GlobalScript_scr_basic_useful, with the thresholds set in gml_Room_rm_int_Create, as the
 // circle bar in gml_Object_UI_Draw_64 reports them.
 

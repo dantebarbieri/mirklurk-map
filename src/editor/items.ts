@@ -267,7 +267,10 @@ export const itemAt = (p: Rec, place: ItemPlace): Rec | undefined => locate(p, p
  * type, or 0 and 21 for the main and off hand of the two weapon sets.
  */
 export const SLOT_TAKES: readonly number[] = [0, 21, 0, 21, 1, 2, 3, 4, 7, 5, 9, 10, 8, 6, 11, 12];
-/** weapon_is_ranged: bows and crossbows, which are two-handed (type 17) but leave the off hand to their ammunition. */
+/**
+ * weapon_is_ranged: bows and crossbows, which are two-handed (type 17) but leave the off hand to their ammunition. Since 0.8.9.9
+ * the magic orbs are ranged too, but they are one-handed (type 16), so only the bows matter here.
+ */
 const RANGED = new Set([93, 44, 105, 106, 179]);
 /** A two-handed melee weapon: the loader also puts it in the off hand beside it, and the save holds a copy there. */
 export const isTwoHandedMelee = (index: number) => ITEMS[index]?.type === 17 && !RANGED.has(index);

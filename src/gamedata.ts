@@ -51,7 +51,13 @@ export const BEING_NAMES: Record<number, string> = {
   32: "Mutated Unwanted",
   33: "Ihar",
   34: "Wilda",
-  35: "Unwanted Guard",
+  35: "Survivor",
+  36: "Grand Mother",
+  37: "Mirkfang Matriarch",
+  38: "Mirkfang",
+  39: "Giant Mirkfang",
+  40: "The Terror",
+  41: "Magus Clay",
 };
 
 /** [MapLocation] in Bestiary.ini: labels the game prints on its own area maps. */
@@ -329,6 +335,23 @@ export const ITEM_NAMES: Record<number, string> = {
   255: "Worn Firesteel",
   256: "Furhide Bedroll",
   257: "Improvised Bedroll",
+  258: "Bat Hide",
+  259: "Bat Meat",
+  260: "Grilled Bat Meat",
+  261: "Head of The Terror",
+  262: "Magus' Shard",
+  264: "Clays' Magus Hood",
+  265: "Magi's Ropebelt",
+  266: "Staff of The Fire Eater",
+  267: "Orb of Poison",
+  268: "Orb of Greater Poison",
+  269: "Orb of Fire",
+  270: "Orb of Greater Fire",
+  271: "Orb of Iron Essence",
+  272: "Orb of Steel Essence",
+  273: "Orb of Wind",
+  274: "Orb of Storm",
+  275: "Storage Chest",
 };
 
 /** [DamageClasses] in UI.ini: damage class names keyed by damageClass value. */
@@ -340,6 +363,7 @@ export const DAMAGE_CLASS_NAMES: Record<number, string> = {
   17: "Piercing",
   18: "Fire",
   24: "Weak",
+  27: "Leeching",
 };
 
 /** [Journal] First in UI.ini: the entry every journal starts with. */
@@ -375,12 +399,15 @@ export const JOURNAL: Record<number, string> = {
   24: "I should see if Clay is willing to talk to me.",
   25: "Just before disappearing, it seems that Clay dropped something.",
   26:
-    "Did he leave this strange item on purpose, or drop it by accident? I have a feeling I will need it... If what Clay said was correct, the path to stopping the Scaalmyrs conquest lies at CCC.",
+    "Did he leave this strange item on purpose, or drop it by accident? I have a feeling I will need it... If what Clay said was correct, the path to stopping the Scaalmyrs' conquest lies at CCC.",
   28: "This place must be it... Somewhere in these depths, Scaal must dwell. I must go as deep as possible.",
   29:
     "It is done... Scaal is defeated. New scaalmyr will no longer be spawned. I am sure some of them might still roam the Mirk, but the main threat is dealt with. I should probably tell Eir what has happened.",
   30:
     "So I am free now? I can actually go back home one day? What would that even mean for me now? The Mirk has changed me in so many ways...",
+  31:
+    "Clay is dead... He finally got what he deserved. I should probably talk to Eir back at Fort Solid. Maybe this means closure for her.",
+  32: "Eir really seems at peace. Strange as it seems, I too feel at peace.",
 };
 
 /** [ToTheDir] in Bestiary.ini: directions the journal fills in, keyed 0 north, 1 south, 2 east, 3 west. */
@@ -399,6 +426,7 @@ export const SPRITES: Record<string, readonly number[]> = {
   "spr_boulders_48x32": [48, 32, 0, 32, 0, 47, 0, 31],
   "spr_building_128x64": [128, 96, 0, 96, 0, 127, 32, 95],
   "spr_building_128x96": [128, 160, 0, 160, 0, 127, 64, 159],
+  "spr_building_48x48_tall": [48, 112, 0, 112, 0, 47, 64, 111],
   "spr_building_80x80": [80, 128, 0, 128, 0, 79, 48, 127],
   "spr_building_80x96": [80, 128, 0, 128, 0, 79, 32, 127],
   "spr_built_48x32": [48, 48, 0, 48, 0, 47, 16, 47],

@@ -6,7 +6,7 @@ import { Area, PLACEMENT, type Placement, SHIPWRECK_TRIES, SHIPWRECK_UNEXPLORED_
 import type { Being, Solid, Tree } from "./save.ts";
 import { questZone, type World, type Zone } from "./world.ts";
 
-export type LandmarkId = "fort" | "bhato" | "library" | "scaal" | "gurb" | "ihar";
+export type LandmarkId = "fort" | "bhato" | "library" | "scaal" | "gurb" | "ihar" | "wilda";
 
 export interface Candidate {
   x: number;
@@ -41,6 +41,7 @@ const LANDMARKS: { id: LandmarkId; name: string; building: string; solidId: numb
   { id: "scaal", name: BEING_NAMES[22] ?? "Scaal", building: "Lair", solidId: SolidId.Lair },
   { id: "gurb", name: BEING_NAMES[26] ?? "Gurb-Gurb", building: "Hut", solidId: SolidId.Hut },
   { id: "ihar", name: BEING_NAMES[33] ?? "Ihar", building: "Shipwreck", solidId: SolidId.Shipwreck },
+  { id: "wilda", name: BEING_NAMES[34] ?? "Wilda", building: "Survivors' camp", solidId: SolidId.MotherHut },
 ];
 
 function findSolid(world: World, id: number): { zone: Zone; solid: Solid } | undefined {
@@ -105,24 +106,24 @@ export function landmarks(world: World, shipwreck: Map<string, number>): Landmar
       continue;
     }
 
-    // Gurb-Gurb and Ihar are created by manager_area Alarm_6 on entering a matching zone.
-    const isGurb = def.id === "gurb";
-    const created = isGurb ? p.gurbsHut : p.shipWreck;
+    // Gurb-Gurb, Ihar and Wilda's camp are created by manager_area Alarm_6 on entering a matching zone.
+    const isGurb = def.id === "gurb", isIhar = def.id === "ihar";
+    const created = isGurb ? p.gurbsHut : isIhar ? p.shipWreck : p.camp;
     const drowned = zonesOfType(world, [Area.DrownedFen]);
-    const types = isGurb ? (drowned.length ? [Area.DrownedFen] : [Area.SavageMirk]) : [Area.BrokenFen];
+    const types = isGurb ? (drowned.length ? [Area.DrownedFen] : [Area.SavageMirk]) : isIhar ? [Area.BrokenFen] : [Area.SavageMirk];
     let pool = zonesOfType(world, types);
     // Already created but not found: it must be in an explored zone whose folder we could not check.
     if (created) pool = pool.filter((z) => z.explored && !z.dir);
-    const kind = isGurb ? (types[0] === Area.DrownedFen ? "Drowned Fen" : "Savage Mirk") : "Broken Fen";
+    const kind = types[0] === Area.DrownedFen ? "Drowned Fen" : types[0] === Area.SavageMirk ? "Savage Mirk" : "Broken Fen";
     const raw = pool.map((z) => {
       const key = `${z.x},${z.y}`;
       const measured = shipwreck.get(key);
-      const entry = created || isGurb ? 1 : measured ?? SHIPWRECK_UNEXPLORED_CHANCE;
+      const entry = created || !isIhar ? 1 : measured ?? SHIPWRECK_UNEXPLORED_CHANCE;
       return {
         x: z.x,
         y: z.y,
         entry,
-        estimated: !created && !isGurb && measured === undefined,
+        estimated: !created && isIhar && measured === undefined,
         now: !created && key === here && p.area.type === z.type,
       };
     });
@@ -146,9 +147,9 @@ export function landmarks(world: World, shipwreck: Map<string, number>): Landmar
         candidates,
         note: now
           ? `You are in a ${kind}: it appears here as soon as you load this save${now.entry < 1 ? ` (${pct(now.entry)} chance)` : ""}.`
-          : isGurb
-          ? `Appears in the first ${kind} you enter.`
-          : `Appears in the first ${kind} you enter that has a suitable shore.`,
+          : isIhar
+          ? `Appears in the first ${kind} you enter that has a suitable shore.`
+          : `Appears in the first ${kind} you enter.`,
       });
     }
   }
@@ -270,6 +271,11 @@ export function zoneHeat(
       } else {
         out.push({ id: m.id, heat: latticeHeat(PLACEMENT.shipwreck).heat, basis: `on a shore with open water to its west; ${pending}` });
       }
+    } else if (m.id === "wilda") {
+      // Alarm_6 re-rolls the spot only while the rift nearest it and the player are both within 320 of manager_area, not of the
+      // spot (distance_to_object), so saved terrain does not narrow it down: the lattice's spots are taken as equally likely.
+      const heat = latticeHeat(PLACEMENT.camp).heat;
+      out.push({ id: m.id, heat, basis: `${spots(heat).n}, at least 32 tiles from every edge (the game's placement rule)` });
     }
   }
   return out;

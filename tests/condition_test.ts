@@ -26,7 +26,10 @@ Deno.test("condition: durability shows as the tooltip shows it, named for what i
   assertEquals([fuelMax(41), fuelMax(110), fuelMax(112), fuelMax(4)], [35, 100, undefined, undefined]);
   assert(canGetWet(23) && canGetWet(35) && canGetWet(12), "a shirt, a log and a backpack get wet");
   assert(!canGetWet(4) && !canGetWet(72) && !canGetWet(110), "a dagger, coins and a lantern never do");
-  assertEquals(Object.values(ITEMS).filter((d) => d.waterproof !== undefined).length, 74);
+  // 0.8.9.9 adds two that can get wet: Clay's Magus Hood and Magi's Ropebelt.
+  assertEquals(Object.values(ITEMS).filter((d) => d.waterproof !== undefined).length, 76);
+  assert(canGetWet(264) && canGetWet(265) && !canGetWet(267), "the hood and the ropebelt get wet, an orb never does");
+  assertEquals([durabilityKind(266), durabilityKind(267), durabilityKind(261)], ["durability", undefined, undefined]);
 });
 
 Deno.test("condition: current and maximum values, fuel in turns, wetness in percent, low when a quarter or less is left", () => {

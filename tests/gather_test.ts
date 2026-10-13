@@ -15,18 +15,20 @@ import { LAYERS } from "../src/objects.ts";
 import { TILES } from "../src/rules.ts";
 import { entityWiki, itemImage, wikiUrl } from "../src/wiki.ts";
 
-/** Every count loot_amountchances(a, b) can return: i in 0…b−1, then irandom_range(a, a+i). */
+/** Every count loot_amountchances(a, b) can return in 0.8.9.9: b raised to a when smaller, i in a…b, then irandom_range(a, i). */
 function amountChances(a: number, b: number): number[] {
   const out = new Set<number>();
-  for (let i = 0; i < b; i++) for (let v = a; v <= a + i; v++) out.add(v);
+  for (let i = a; i <= Math.max(a, b); i++) for (let v = a; v <= i; v++) out.add(v);
   return [...out].sort((x, y) => x - y);
 }
 
 Deno.test("gather: amount ranges follow loot_amountchances", () => {
-  for (const [a, b] of [[1, 3], [1, 2], [1, 7], [2, 4], [3, 6], [4, 8], [1, 2], [5, 8]]) {
+  for (const [a, b] of [[1, 3], [1, 2], [1, 7], [2, 4], [3, 6], [4, 8], [1, 2], [5, 8], [5, 3], [2, 2]]) {
     const all = amountChances(a, b);
     assertEquals(amountRange(a, b), [all[0], all[all.length - 1]], `loot_amountchances(${a}, ${b})`);
   }
+  // b is the most it gives now; before 0.8.9.9 it was how many counts (a…a+b−1), so (2, 4) gave up to 5.
+  assertEquals([amountRange(2, 4), amountRange(5, 3)], [[2, 4], [5, 5]]);
 });
 
 Deno.test("gather: Hinderance tiles and what they give", () => {
@@ -37,9 +39,9 @@ Deno.test("gather: Hinderance tiles and what they give", () => {
   assertEquals([155, 156, 157, 158, 159].map((t) => gatherAt(t)!.amount), [[1, 1], [1, 1], [1, 1], [2, 2], [2, 2]]);
   assertEquals(gatherAt(158)?.stage, 3);
   // Cranberries: no berries before 162, then (n, 2n) with n = 2, 3, 4 (case 1068).
-  assertEquals([160, 161, 162, 163, 164].map((t) => gatherAt(t)!.amount), [null, null, [2, 5], [3, 8], [4, 11]]);
+  assertEquals([160, 161, 162, 163, 164].map((t) => gatherAt(t)!.amount), [null, null, [2, 4], [3, 6], [4, 8]]);
   // Watercress: (n, round(1.5n)) with n = stage + 1, GameMaker rounding halves to even (case 1069).
-  const cress: [number, number][] = [[1, 2], [2, 4], [3, 6], [4, 9], [5, 12]];
+  const cress: [number, number][] = [[1, 2], [2, 3], [3, 4], [4, 6], [5, 8]];
   assertEquals([170, 171, 172, 173, 174].map((t) => gatherAt(t)!.amount), cress);
   assertEquals([175, 176, 177, 178, 179].map((t) => gatherAt(t)!.amount), cress);
   // Only flowering lilypads give Water Lilies (case 1065).
@@ -53,7 +55,7 @@ Deno.test("gather: Hinderance tiles and what they give", () => {
 });
 
 Deno.test("gather: details name the yield, unripe and refilling states and leftovers", () => {
-  assertEquals(gatherDetail(gatherAt(163)!), "Cranberries x3–8 (grown)");
+  assertEquals(gatherDetail(gatherAt(163)!), "Cranberries x3–6 (grown)");
   assertEquals(gatherDetail(gatherAt(160)!), "no berries yet (sprouting)");
   assertEquals(gatherDetail(gatherAt(154)!), "Turnip x2 (full grown)");
   assertEquals(gatherDetail(gatherAt(147)!), "Calmia Root x1–3");
@@ -99,7 +101,7 @@ Deno.test("gather: one mark per tile at its centre, with mirrored tiles and Loot
 Deno.test("gather: ferns are shaded by growth stage, not marked", () => {
   // Plant Fiber (n, 2n) with n = stage + 1, in two looks of five stages (loot_generate case 57).
   const fiber: [number, number][] = [[1, 2], [2, 4], [3, 6], [4, 8], [5, 10]].map(([a, b]) => amountRange(a, b));
-  assertEquals(fiber, [[1, 2], [2, 5], [3, 8], [4, 11], [5, 14]]);
+  assertEquals(fiber, [[1, 2], [2, 4], [3, 6], [4, 8], [5, 10]]);
   assertEquals([80, 81, 82, 83, 84].map((t) => fernAt(t)!.amount), fiber);
   assertEquals([85, 86, 87, 88, 89].map((t) => fernAt(t)!.amount), fiber);
   assertEquals([79, 90, 0, 147].map(fernAt), [null, null, null, null]);

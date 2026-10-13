@@ -6,6 +6,10 @@ import { loadDetail, loadWorld, type ZoneDetail } from "../src/world.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
 import { entityWiki, itemWiki, wikiUrl } from "../src/wiki.ts";
 
+/** Beings and items 0.8.9.9 added (or, for being 35, renamed): the wiki catalog bundled before the update has no pages for them. */
+const NEW_BEINGS = new Set([35, 36, 37, 38, 39, 40]);
+const FIRST_NEW_ITEM = 258;
+
 const item = (index = 3, X = 0, Y = 0, amount = 1) => ({ index, X, Y, amount, durability: 81, wet: 0.25, subParts: [] });
 const player = (extra = {}) => [{ worldGrid: Array.from({ length: 5 }, () => [1, 1, 1, 1, 1]), ...extra }];
 const detail = (containers: ZoneDetail["containers"]): ZoneDetail => ({
@@ -208,9 +212,10 @@ Deno.test("wiki: only verified titles produce direct article links; loot uses sp
   assertEquals(entityWiki("Chest (best loot)"), wikiUrl("Treasure chests"));
   assertEquals(entityWiki("Unsearched remains"), wikiUrl("Skeletons and corpses"));
   assertEquals(entityWiki("Carcass: Giant Slug"), wikiUrl("Giant Slug"));
-  for (const name of Object.values(BEING_NAMES)) assert(wikiUrl(name), `No verified being page: ${name}`);
+  // Content new in 0.8.9.9 links to the wiki once `deno task wiki` finds its pages; the rest must already have them.
+  for (const [i, name] of Object.entries(BEING_NAMES)) assert(NEW_BEINGS.has(+i) || wikiUrl(name), `No verified being page: ${name}`);
   assertEquals(itemWiki("Turnip"), wikiUrl("Turnip (item)"));
   assertEquals(entityWiki("Turnip"), wikiUrl("Turnip (nature)"));
   assertEquals(wikiUrl("Tree health and chopping"), "https://mirklurk.wiki/w/Tree_health_and_chopping");
-  for (const name of Object.values(ITEM_NAMES)) assert(itemWiki(name), `No verified item page: ${name}`);
+  for (const [i, name] of Object.entries(ITEM_NAMES)) assert(+i >= FIRST_NEW_ITEM || itemWiki(name), `No verified item page: ${name}`);
 });

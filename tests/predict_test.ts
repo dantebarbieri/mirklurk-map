@@ -131,3 +131,41 @@ Deno.test("unexplored quest zones get the exact lattice heat", async () => {
   const bhato = zoneHeat(w, marks, w.zones[0][1]).find((h) => h.id === "bhato")!;
   assert(bhato, "Bhato's zone B,1 has a heat map");
 });
+
+Deno.test("Wilda's camp: in the first Savage Mirk you enter, anywhere at least 32 tiles from the edges", async () => {
+  const w = await world({});
+  const marks = landmarks(w, new Map());
+  const camp = marks.find((m) => m.id === "wilda")!;
+  assertEquals([camp.name, camp.status, camp.note], ["Wilda", "candidates", "Appears in the first Savage Mirk you enter."]);
+  assertEquals(camp.candidates!.map((c) => [c.x, c.y, c.share]), [[1, 1, 1]]);
+  const heat = zoneHeat(w, marks, w.zones[1][1]).find((h) => h.id === "wilda")!;
+  let sum = 0, cells = 0, x0 = 160, y1 = 0;
+  heat.heat.forEach((v, i) => {
+    if (v <= 0) return;
+    sum += v, cells++;
+    x0 = Math.min(x0, i % 160), y1 = Math.max(y1, Math.floor(i / 160));
+  });
+  assertAlmost(sum, 1, 1e-5);
+  // gridpos(irandom_range(512, 2048)) has 97 values; the ladder is 24 right of and 40 above it.
+  assertEquals([cells, x0, y1], [97 * 97, (512 + 24) >> 4, (2048 - 40) >> 4]);
+  // An old save (no `camp` key) gets it on the next visit to any Savage Mirk, even one explored before 0.8.9.9.
+  const here = await world({ areaX: 1, areaY: 1, areaType: 5 });
+  assertEquals(landmarks(here, new Map()).find((m) => m.id === "wilda")!.candidates![0].now, true);
+});
+
+Deno.test("Wilda's camp: found by Grand Mother's hut once created", async () => {
+  const w = await world({ camp: true, worldGridMem: GRID.map((r, y) => r.map((_, x) => (x === 1 && y === 1 ? [3, 12] : -4))) }, {
+    "Saves/Hero/[ 1,1 ]/Solids.save": [{
+      sprite: "spr_building_48x48_tall",
+      index: -2987,
+      x: 1000,
+      y: 1000,
+      pic: 0,
+      transPoint: [36, 1024, 992, 1192, 1208, -212],
+    }],
+  });
+  const camp = landmarks(w, new Map()).find((m) => m.id === "wilda")!;
+  assertEquals([camp.status, camp.zone], ["found", [1, 1]]);
+  const missing = await world({ camp: true });
+  assertEquals(landmarks(missing, new Map()).find((m) => m.id === "wilda")!.status, "none");
+});

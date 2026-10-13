@@ -1,5 +1,13 @@
 import { assert, assertEquals, assertRejects } from "./assert.ts";
-import { captureSnapshot, type LiveDirectory, LiveReader, type Scan, scanDirectory, type Snapshot } from "../src/live.ts";
+import {
+  captureSnapshot,
+  currentContainers,
+  type LiveDirectory,
+  LiveReader,
+  type Scan,
+  scanDirectory,
+  type Snapshot,
+} from "../src/live.ts";
 import { decodeJson, parsePlayer } from "../src/save.ts";
 import { characterIndex } from "../src/files.ts";
 
@@ -232,4 +240,17 @@ Deno.test("live: permission errors are reported and do not publish empty replace
   assert(messages[0][0].includes("Folder access lost"));
   assertEquals(messages[0][1], true);
   reader.stop();
+});
+
+Deno.test("live: in a Magus realm the current area's Containers.save is MagusRealm's", () => {
+  const files = (dirs: string[]) =>
+    new Map(
+      ["Hero/Player.save", ...dirs.map((d) => `Hero/${d}/Containers.save`)].map((
+        k,
+      ) => [k, { read: () => Promise.resolve(new Uint8Array()) }]),
+    );
+  const inRealm = parsePlayer([{ ...p()[0], areaX: 2, areaY: 3, areaType: 37, entranceX: 600, entranceY: 744 }]);
+  assertEquals(currentContainers(files(["[ 2,3 ]", "MagusRealm"]), "Hero/", inRealm), "Hero/MagusRealm/Containers.save");
+  assertEquals(currentContainers(files(["[ 2,3 ]", "[ 2,3,600,744 ]"]), "Hero/", inRealm), undefined, "not a cave at the portal's spot");
+  assertEquals(currentContainers(files(["[ 0,0 ]", "MagusRealm"]), "Hero/", parsePlayer(p())), "Hero/[ 0,0 ]/Containers.save");
 });

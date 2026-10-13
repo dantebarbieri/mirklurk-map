@@ -1,4 +1,4 @@
-// Combat stats of every creature and NPC, ported from Mirklurk 0.8.1.5 (decompiled GML).
+// Combat stats of every creature and NPC, ported from Mirklurk 0.8.9.9 (decompiled GML).
 // Sources: global.beingDB in gml_Object_databank_Alarm_3 (stats and its damage totals), the examine card (case 11 in
 // gml_Object_UI_Draw_64), being_initiate in gml_GlobalScript_scr_basic_useful (a fresh being's hit points), attack_draw in
 // gml_GlobalScript_scr_gui_general, aiming in gml_Object_manager_area_Step_0 and being_get_target in gml_GlobalScript_scr_ai_related.
@@ -8,7 +8,10 @@ import { plural } from "./format.ts";
 import { DAMAGE_CLASS_NAMES } from "./gamedata.ts";
 
 /** damageClass values ([DamageClasses] in UI.ini). */
-export const DamageClass = { Poison: 2, Sharp: 14, Blunt: 15, Force: 16, Piercing: 17, Fire: 18, Weak: 24 } as const;
+export const DamageClass = { Poison: 2, Sharp: 14, Blunt: 15, Force: 16, Piercing: 17, Fire: 18, Weak: 24, Leeching: 27 } as const;
+
+/** Teams whose beings never pick you as a target (being_get_target): 0, the NPCs, and 10, Wilda's Survivors and Grand Mother. */
+const FRIENDLY_TEAMS = new Set([0, 10]);
 
 export interface Attack {
   /** [row][column]: the whole part is the least damage a cell deals and the first decimal the most (1.2 is 1–2); 0 is no hit. */
@@ -42,7 +45,10 @@ export interface BeingStats {
   dodgeChance: number;
   /** Chance it strikes at a target leaving its reach (being_ao_check); the databank fills in 0.33 when it is left out. */
   aooChance: number;
-  /** Beings pick targets only on other teams (team 8 also its own); team 0 (NPCs, the Unwanted Guard) never targets you. */
+  /**
+   * Beings pick targets only on other teams (team 8 also its own; Captain Eir and Magus Clay each other once Clay has fled);
+   * teams 0 (the NPCs) and 10 (Wilda's Survivors) never target you.
+   */
   team: number;
   melee: Attack;
   /** Only when rangedDist > 0, as the examine card shows it. */
@@ -230,14 +236,45 @@ export const BEINGS: Record<number, BeingStats> = {
   },
   34: { // Wilda
     grid: [4, 4], xp: 200, armor: 0, apMax: 10, tilespeed: 6, hostileDist: 14, hostileChance: 0.85,
-    dodgeChance: 0.25, aooChance: 0.33, team: 0,
+    dodgeChance: 0.25, aooChance: 0.33, team: 10,
     melee: { pattern: [[0, 1.1, 0], [1.1, 2.3, 1.1], [0, 1.1, 0]], damageClass: 17, dist: 2.25, cost: 6, iq: 3 },
     ranged: { pattern: [[0, 1.2, 0], [1.2, 3.3, 1.2], [0, 1.2, 0]], damageClass: 17, dist: 12, cost: 7, iq: 3 },
   },
-  35: { // Unwanted Guard
+  35: { // Survivor
     grid: [4, 3], xp: 150, armor: 0, apMax: 10, tilespeed: 6, hostileDist: 12, hostileChance: 0.85,
-    dodgeChance: 0.25, aooChance: 0.33, team: 0,
+    dodgeChance: 0.25, aooChance: 0.33, team: 10,
     melee: { pattern: [[0, 1.1, 0], [1.1, 2.2, 1.1], [0, 1.1, 0]], damageClass: 17, dist: 2.25, cost: 6, iq: 3 },
+  },
+  36: { // Grand Mother
+    grid: [5, 4], xp: 500, armor: 0, apMax: 10, tilespeed: 6, hostileDist: 7, hostileChance: 0,
+    dodgeChance: 0, aooChance: 0.33, team: 10,
+    melee: { pattern: [[0]], damageClass: 15, dist: 2.25, cost: 6, iq: 3 },
+  },
+  37: { // Mirkfang Matriarch
+    grid: [9, 5], xp: 300, armor: 0, apMax: 10, tilespeed: 10, hostileDist: 10, hostileChance: 0.55,
+    dodgeChance: 0.3, aooChance: 0.33, team: 11,
+    melee: { pattern: [[2.3, 0, 2.3], [1.2, 0, 1.2]], damageClass: 27, dist: 1.5, cost: 5, iq: 3 },
+  },
+  38: { // Mirkfang
+    grid: [3, 3], xp: 25, armor: 0, apMax: 10, tilespeed: 8, hostileDist: 10, hostileChance: 0.5,
+    dodgeChance: 0.4, aooChance: 0.33, team: 11,
+    melee: { pattern: [[0.1, 0, 0.1]], damageClass: 27, dist: 1.5, cost: 6, iq: 2 },
+  },
+  39: { // Giant Mirkfang
+    grid: [5, 4], xp: 50, armor: 0, apMax: 10, tilespeed: 8, hostileDist: 10, hostileChance: 0.5,
+    dodgeChance: 0.35, aooChance: 0.33, team: 11,
+    melee: { pattern: [[1.2, 0, 1.2]], damageClass: 27, dist: 1.5, cost: 6, iq: 3 },
+  },
+  40: { // The Terror
+    grid: [9, 5], xp: 500, armor: 0, apMax: 10, tilespeed: 9, hostileDist: 9, hostileChance: 0.75,
+    dodgeChance: 0.25, aooChance: 0.33, team: 11,
+    melee: { pattern: [[2.3, 0, 2.3], [1.2, 0, 1.2]], damageClass: 27, dist: 1.5, cost: 5, iq: 3 },
+  },
+  41: { // Magus Clay, in his realm
+    grid: [7, 7], xp: 750, armor: 0, apMax: 10, tilespeed: 6, hostileDist: 10, hostileChance: 1,
+    dodgeChance: 0.25, aooChance: 0.33, team: 8,
+    melee: { pattern: [[1.2, 2.2], [2.2, 1.2]], damageClass: 18, dist: 1.5, cost: 5, iq: 3 },
+    ranged: { pattern: [[1.1, 2.2, 1.1], [2.2, 3.3, 2.2], [1.1, 2.2, 1.1]], damageClass: 18, dist: 16, cost: 5, iq: 3 },
   },
 };
 
@@ -270,8 +307,8 @@ export function totalDamage(pattern: number[][]): Damage {
 /** It can hurt: it has a damage class and a pattern that deals something (Commander Tain's [[0]] does not). */
 export const canHurt = (a: Attack) => a.damageClass !== undefined && totalDamage(a.pattern).max > 0;
 
-/** Team 0 (the NPCs, the Unwanted Guard and the Dead Unwanted) never picks you as a target (being_get_target). */
-export const targetsYou = (s: BeingStats) => s.team !== 0;
+/** Teams 0 and 10 (the NPCs, Wilda's Survivors, Grand Mother and the Dead Unwanted) never pick you as a target (being_get_target). */
+export const targetsYou = (s: BeingStats) => !FRIENDLY_TEAMS.has(s.team);
 
 /** [TTgen] 11–15 in UI.ini by attackIQ, paraphrased. */
 export const INTELLIGENCE = [
@@ -293,7 +330,7 @@ export const turnsPattern = (a: Attack, iq = a.iq) => a.damageClass === DamageCl
 
 export interface DamageClassInfo {
   name: string;
-  /** What it does besides the damage ([TTgen] 32–38 in UI.ini, paraphrased; attack_lands). */
+  /** What it does besides the damage ([TTgen] 32–39 in UI.ini, paraphrased; attack_lands, attack_aftermath). */
   effect: string;
   /** Lower-case key for its colour (CSS class `dmg-<key>`). */
   key: string;
@@ -308,11 +345,15 @@ const EFFECTS: Record<number, [key: string, effect: string]> = {
     "poison",
     "Hurts at the start of the target's turn, stacks and spreads to a random neighbour, even under armor. A blow on armor only breaks armor.",
   ],
-  [DamageClass.Blunt]: ["blunt", "12% base chance to stun, so the target misses a turn."],
+  [DamageClass.Blunt]: ["blunt", "10% base chance to stun, so the target misses a turn."],
   [DamageClass.Piercing]: ["piercing", "15% chance per hit to deal 1 extra damage."],
   [DamageClass.Force]: ["force", "15% chance per hit to also deal 1 damage to a neighbouring hit point."],
   [DamageClass.Fire]: ["fire", "Burns: a hit point it destroys cannot regenerate or be healed until treated."],
   [DamageClass.Weak]: ["weak", "No extra effect."],
+  [DamageClass.Leeching]: [
+    "leeching",
+    "Each hit point it destroys heals one of the attacker's own, which also takes over any poison on the hit point destroyed.",
+  ],
 };
 
 export function damageClassInfo(damageClass: number | undefined): DamageClassInfo | undefined {
@@ -336,13 +377,37 @@ const HOLES: Record<number, [number, number][]> = {
   25: [[0, 0], [0, 3], [3, 0], [3, 3]],
   28: [[2, 0], [0, 1], [2, 2], [0, 3], [2, 4], [0, 5], [2, 6]],
   21: [[0, 0], [0, 1], [1, 0], [4, 0], [4, 1], [3, 0], [0, 4], [0, 3], [1, 4], [4, 4], [4, 3], [3, 4]],
+  38: [[1, 0], [0, 2], [2, 2]],
+  39: [[1, 0], [3, 0], [0, 2], [4, 2], [0, 3], [1, 3], [3, 3], [4, 3]],
 };
 const EXTRA: Record<number, [number, number, number][]> = {
   13: [[1, 1, 3]],
   34: [[1, 1, 1], [2, 1, 1], [1, 2, 1], [2, 2, 1]],
   35: [[1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]],
 };
-const SCAAL = 22, MIRK_MAULER = 29;
+const SCAAL = 22, MIRK_MAULER = 29, MATRIARCH = 37, TERROR = 40;
+/** A Mirkfang Matriarch's and The Terror's 9 by 5 grid: wings with holes, and a body down the middle under extra layers. */
+const MATRIARCH_HOLES: [number, number][] = [
+  [0, 2],
+  [0, 3],
+  [1, 3],
+  [1, 0],
+  [2, 0],
+  [3, 0],
+  [5, 0],
+  [6, 0],
+  [7, 0],
+  [7, 3],
+  [8, 3],
+  [8, 2],
+  [0, 4],
+  [1, 4],
+  [2, 4],
+  [8, 4],
+  [7, 4],
+  [6, 4],
+];
+const MATRIARCH_BODY: [number, number][] = [[4, 0], ...[1, 2, 3, 4].flatMap((y): [number, number][] => [[3, y], [4, y], [5, y]])];
 
 /**
  * The hpgrid ([y][x], as saves store it) a newly spawned being has: being_initiate's shape for its species, then its armor
@@ -365,6 +430,11 @@ export function freshHealth(being: number): number[][] | undefined {
     }
   } else if (being === MIRK_MAULER) {
     for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) if ((x + y) % 2 === 0) g[y][x]++;
+  } else if (being === MATRIARCH || being === TERROR) {
+    for (const [x, y] of MATRIARCH_HOLES) g[y][x] = -4;
+    for (const [x, y] of MATRIARCH_BODY) g[y][x] = being === TERROR ? 3 : 2;
+    // The Terror also has a layer on each of the other hit points in her top two rows.
+    if (being === TERROR) { for (let y = 0; y < 2; y++) for (let x = 0; x < w; x++) if (g[y][x] === 1) g[y][x] = 2; }
   }
   let armor = Math.min(s.armor, w * hh * 3);
   for (let tries = 0; armor > 0 && tries < 128; tries++) {
