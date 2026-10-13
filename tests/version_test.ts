@@ -13,7 +13,8 @@ import {
   versionLabel,
   VERSIONS,
 } from "../src/version.ts";
-import { ownRules, switchChannels, versionNote, versionSwitch, versionTitle } from "../src/versionview.ts";
+import { ownRules, switchOptions, versionNote, versionSwitch, versionTitle } from "../src/versionview.ts";
+import { NO_VERSION, parsePlayer } from "../src/save.ts";
 import { ITEMS } from "../src/itemdata.ts";
 import { BEINGS } from "../src/bestiary.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
@@ -78,13 +79,32 @@ Deno.test("version: 0.8.1.5's game has no items from 258 or beings from 36; noth
 });
 
 Deno.test("version switch: notes say whether the rules follow the save", () => {
-  assertEquals(switchChannels(), ["latest", "beta"]);
+  const labels = (detected?: GameVersion, channels?: Record<"latest" | "beta", GameVersion>) =>
+    switchOptions({ detected, rules: detected ?? OLD }, channels).map((o) => [o.label, o.version]);
+  assertEquals(labels(OLD), [["Latest", OLD], ["Beta", NEW]]);
+  assertEquals(labels(undefined), [["Latest", OLD], ["Beta", NEW]]);
+  // Once 0.8.9.9 is the release and no beta is out, one button; an older save keeps one for its own version, oldest first.
+  const promoted = { latest: NEW, beta: NEW };
+  assertEquals(labels(NEW, promoted), [["Latest", NEW]]);
+  assertEquals(labels(OLD, promoted), [["0.8.1.5", OLD], ["Latest", NEW]]);
+  assertEquals(
+    switchOptions({ detected: OLD, rules: OLD }, promoted)[0].title,
+    "Mirklurk 0.8.1.5, on no Steam branch now; this save's version",
+  );
   assertEquals(versionNote({ detected: NEW, rules: NEW, saved: "0.8.9.9" }), "from this save (0.8.9.9)");
   assertEquals(versionNote({ detected: OLD, rules: OLD, saved: "0.8.5.0" }), "from this save (0.8.5.0, so 0.8.1.5's rules)");
   assertEquals(versionNote({ detected: OLD, rules: NEW, saved: "0.8.1.5" }), "chosen; this save is 0.8.1.5");
   assertEquals(versionNote({ rules: OLD }), "this save names no version");
   assertEquals(versionNote({ rules: NEW }), "chosen; this save names no version");
   assertEquals(versionNote({ rules: OLD, saved: "beta" }), "this save's version, beta, is unreadable");
+  // A Player.save without VERSION parses to NO_VERSION, which names none.
+  const grid = [0, 1, 2, 3, 4].map(() => [1, 1, 1, 1, 1]);
+  const bare = parsePlayer([{ worldGrid: grid }]);
+  assertEquals(bare.version, NO_VERSION);
+  assertEquals(detectVersion(bare.version), undefined);
+  assertEquals(versionNote({ rules: OLD, saved: bare.version }), "this save names no version");
+  assertEquals(versionNote({ rules: NEW, saved: bare.version }), "chosen; this save names no version");
+  assertEquals(parsePlayer([{ worldGrid: grid, VERSION: "0.8.9.9" }]).version, NEW);
   assertEquals([ownRules({ rules: NEW }), ownRules({ detected: NEW, rules: OLD })], [CHANNELS.latest, NEW]);
   const title = versionTitle({ detected: NEW, rules: NEW }, "Editor note.");
   assert(title.startsWith(CHANNELS_TOOLTIP) && title.endsWith("\n\nEditor note."), title);
@@ -140,6 +160,19 @@ Deno.test("version switch: Latest and Beta buttons, the one in use pressed; the 
     const none = render(undefined, NEW);
     none.buttons[0].listeners.click();
     assertEquals(picks, [NEW, undefined, undefined]);
+    // After a release that promotes 0.8.9.9 to Latest, a 0.8.1.5 save still gets its own button to go back to.
+    picks.length = 0;
+    const promoted = { latest: NEW, beta: NEW };
+    const after = (rules: GameVersion) => {
+      const root = versionSwitch({ detected: OLD, rules, saved: OLD }, (v) => picks.push(v), undefined, promoted) as unknown as Stub;
+      return { buttons: (root.children[0] as Stub).children as Stub[], note: (root.children[1] as Stub).text() };
+    };
+    const picked = after(NEW);
+    assertEquals(picked.buttons.map((b) => [b.text(), b.attrs["aria-pressed"]]), [["0.8.1.5", "false"], ["Latest", "true"]]);
+    assertEquals(picked.note, "chosen; this save is 0.8.1.5");
+    picked.buttons[0].listeners.click();
+    after(OLD).buttons[1].listeners.click();
+    assertEquals(picks, [undefined, NEW]);
   } finally {
     if (original) Object.defineProperty(globalThis, "document", original);
     else Reflect.deleteProperty(globalThis, "document");
