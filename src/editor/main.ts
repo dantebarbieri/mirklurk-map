@@ -1983,13 +1983,15 @@ async function chooseMove(a: Area, tx: number, ty: number): Promise<Step[] | und
   const choices: MoveChoice[] = [];
   const body: string[] = [];
   let title: string;
+  // The version a raft left or docked here is written for: the one in use now, kept if the edit is replayed after a switch.
+  const rules = editorRules();
   // Where the raft you are on stays if you leave it: its own zone, where you stand.
   const here = outside ? w.zones[at[1]]?.[at[0]] : undefined;
   const herePath = here?.dir && `${here.dir}Stations.save`;
   const leave = herePath && s.files.has(herePath)
     ? {
       path: herePath,
-      edit: (r: unknown) => (addRaft(r, ox, oy, editorRules()), `left your raft in ${zoneName(here!)}, tile ${ox},${oy}`),
+      edit: (r: unknown) => (addRaft(r, ox, oy, rules), `left your raft in ${zoneName(here!)}, tile ${ox},${oy}`),
     }
     : undefined;
   // Only when the raft cannot be left anywhere (you are not in a saved outdoor zone): going without it loses it.
@@ -2070,7 +2072,7 @@ async function chooseMove(a: Area, tx: number, ty: number): Promise<Step[] | und
         detail: `It drifts towards you, past any other island, to the first shore of that land: tile ${dx},${dy}.`,
         steps: [
           move(false, `Moved you to ${where}${inWater}`),
-          { path: `${a.dir}Stations.save`, edit: (r) => (addRaft(r, dx, dy, editorRules()), `docked your raft at tile ${dx},${dy}`) },
+          { path: `${a.dir}Stations.save`, edit: (r) => (addRaft(r, dx, dy, rules), `docked your raft at tile ${dx},${dy}`) },
         ],
       });
     } else if (!a.interior) body.push("No water a raft floats on can be reached from that land in this zone, so it cannot dock there.");
@@ -2285,8 +2287,14 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
         return;
       }
       const kind = spawnKind;
+      // Checked once, as the edit is made: replaying it later (undo, reload) does not depend on the switch.
+      const rules = editorRules();
+      if (!hasBeing(rules, kind)) {
+        note("map", `Mirklurk ${rules} has no ${BEING_NAMES[kind]}: a save holding one would not load there.`, true);
+        void render();
+        return;
+      }
       void edit("map", beingsPath, (raw) => {
-        if (!hasBeing(editorRules(), kind)) throw new Error(`Mirklurk ${editorRules()} has no ${BEING_NAMES[kind]}`);
         spawnBeing(raw as unknown[], kind, tx, ty);
         return `Spawned a ${BEING_NAMES[kind]} in ${areaName(a)}, tile ${tx},${ty}`;
       });
