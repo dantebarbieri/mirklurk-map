@@ -75,7 +75,9 @@ Deno.test("hairBlend is a BGR colour", () => {
   assertEquals(isLight(0x000080), false); // dark red
 });
 
-Deno.test("the save made on first entering a quest room is not read as leaving it", () => {
+Deno.test("a save beside a quest room's way out is read as leaving it, even on the arrival spot", () => {
+  // Before 0.8.9.9 manager_area Alarm_3 saved on first entering a quest room, with the player on its arrival spot; it no longer
+  // saves there, so a save on that spot is one made on the way out.
   const hideout: Interior = {
     ...cave,
     kind: 31,
@@ -83,7 +85,7 @@ Deno.test("the save made on first entering a quest room is not read as leaving i
   };
   const w = (p: PlayerSave) => ({ ...world(p), interiors: [hideout] }) as unknown as World;
   const arrived = player([1, 0, 31], [1192, 1208], [1000, 1000]);
-  assertEquals(inferMove(w(arrived), arrived), null);
+  assertEquals(inferMove(w(arrived), arrived)?.pos, [1000, 1000]);
   const leaving = player([1, 0, 31], [1208, 1224], [1000, 1000]);
   assertEquals(inferMove(w(leaving), leaving)?.pos, [1000, 1000]);
 });

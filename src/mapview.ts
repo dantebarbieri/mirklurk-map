@@ -472,6 +472,18 @@ export const CREATURE_ICONS: Record<string, { body: string; detail?: string; eye
     detail: "M1 -3.5 Q2 -2.5 2 -1.5 M-1 .5 L0 1.5",
     eye: "M-4.5 -4 H-3.5 V-3 H-4.5 Z M-2.5 -3.5 H-1.5 V-2.5 H-2.5 Z",
   },
+  bat: {
+    body:
+      "M0 -2.6 L.9 -4.6 L1.5 -2.4 Q3.6 -3.4 5.2 -5.6 L7.2 -1.6 Q5.9 -1.7 5.2 .2 Q4.2 -.8 3.2 .9 Q2.4 .2 1.5 1.6 L1.2 3.4 L.5 4.6 L-.5 4.6 L-1.2 3.4 L-1.5 1.6 Q-2.4 .2 -3.2 .9 Q-4.2 -.8 -5.2 .2 Q-5.9 -1.7 -7.2 -1.6 L-5.2 -5.6 Q-3.6 -3.4 -1.5 -2.4 L-.9 -4.6 Z",
+    detail: "M1.5 -1.6 L5.1 -4.6 M1.6 -.9 L4.6 -.4 M-1.5 -1.6 L-5.1 -4.6 M-1.6 -.9 L-4.6 -.4",
+    eye: "M-.9 -2 H-.2 V-1.3 H-.9 Z M.2 -2 H.9 V-1.3 H.2 Z",
+  },
+  magus: {
+    body:
+      "M-.6 -7 Q2 -6.8 2.6 -4.2 L2.2 -2.6 Q3.8 -1.6 4.2 1.4 L5.4 7 H-5.4 L-4.2 1.4 Q-3.8 -1.6 -2.2 -2.6 L-2.6 -4.2 Q-2.6 -6.2 -.6 -7 Z M5.5 -4.5 H6.5 V7 H5.5 Z M6 -7.1 A1.3 1.3 0 1 1 5.99 -7.1 Z",
+    detail: "M0 -2.2 V6.5 M-2.2 1.2 Q0 2.4 2.2 1.2",
+    eye: "M-1.4 -4.6 H-.6 V-3.8 H-1.4 Z M.4 -4.6 H1.2 V-3.8 H.4 Z",
+  },
 };
 
 /** A creature's map symbol by its kind ("creature fly"); a plain dot for a being without an icon. */

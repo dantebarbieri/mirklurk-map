@@ -1,4 +1,4 @@
-import { type Scene, TerrainStore } from "../src/terrain.ts";
+import { type Scene, scenery, TerrainStore } from "../src/terrain.ts";
 import { loadWorld } from "../src/world.ts";
 import { assert, assertEquals } from "./assert.ts";
 
@@ -67,4 +67,20 @@ Deno.test("terrain: cancellation does not report stale render failures", async (
   render.reject(new DOMException("Cancelled", "AbortError"));
   await render.promise.catch(() => {});
   assertEquals(store.errors.size, 0);
+});
+
+Deno.test("terrain: the realistic map draws scenery, never carcasses or magic effects", () => {
+  const at = { pic: 0, index: -4, status: -200, x: 8, y: 8 };
+  const drawn = scenery([{ sprite: "spr_spell_twirl", pic: 0, index: -4, x: 1192, y: 1144, transPoint: [1, 1192, 1144, 600, 744] }], {
+    beings: [],
+    containers: [{ ...at, sprite: "spr_survivor", status: -216 }, { ...at, sprite: "spr_rat", status: -209 }, {
+      ...at,
+      sprite: "spr_placed_16x16",
+    }],
+    stations: [{ ...at, sprite: "spr_placed_16x16", xscale: -1 }],
+    interactables: [{ ...at, sprite: "spr_eff_portal_large", object: "obj_eff_light", index: 262 }, { ...at, sprite: "spr_rift_32x32" }],
+    decorations: [{ ...at, sprite: "spr_spell_flamey", index: 263 }, { ...at, sprite: "" }],
+  });
+  assertEquals(drawn.map((d) => d.sprite), ["spr_placed_16x16", "spr_placed_16x16", "spr_rift_32x32"]);
+  assertEquals(drawn.map((d) => ("xscale" in d ? d.xscale : undefined)), [undefined, -1, undefined]);
 });

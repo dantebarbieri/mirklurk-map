@@ -47,7 +47,7 @@ import {
   wearCarried,
   wearNew,
 } from "../src/editor/items.ts";
-import { deleteBeing, isQuestBeing, newBeing, spawnable, spawnBeing } from "../src/editor/beings.ts";
+import { deleteBeing, habitat, isQuestBeing, newBeing, spawnable, spawnBeing } from "../src/editor/beings.ts";
 import { Ground, groundMap, reachable, tileBox } from "../src/editor/ground.ts";
 import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
 import { readMarker, writeMarker } from "../src/marker.ts";
@@ -299,6 +299,13 @@ Deno.test("an interior is named by the type you are saved with there, else by wh
   const depths = it({ zone: [4, 4], at: [-1, 2], dir: "Saves/A/RW2/", kind: 25 });
   assertEquals(insideOf(depths, at(1)), { type: 25 });
   assert(isInside(at(25, [8, 8], [0, 0]), depths), "the depths are named by type alone");
+  // A Magus realm's folder too (MagusRealm); Player.save keeps the portal's zone and spot, which its interior was placed by.
+  const realm = it({ zone: [3, 1], at: [600, 744], dir: "Saves/A/MagusRealm/", kind: 37, sealed: true });
+  assert(isInside(at(37, [600, 744], [3, 1]), realm));
+  assert(isInside(at(37, [8, 8], [0, 0]), realm), "named by type alone");
+  assert(!isInside(at(10, [600, 744], [3, 1]), realm), "a cave entered at the same spot is not the realm");
+  assert(!isInside(at(37, [600, 744], [3, 1]), it({ zone: [3, 1], at: [600, 744] })), "nor the realm a cave");
+  assertEquals(insideOf(realm, at(1)), { type: 37, entrance: [600, 744] });
 });
 
 Deno.test("new items are made as the item constructor makes them", () => {
@@ -681,7 +688,11 @@ Deno.test("spawned creatures have a fresh grid; quest characters are protected",
   assertEquals((b.statusgrid as unknown[][]).length, (b.hpgrid as unknown[][]).length);
   assertEquals(parseBeings([b])[0].health?.w, freshHealth(17)![0].length, "the viewer reads it back");
   assert(!spawnable(12) && !spawnable(22) && !spawnable(9) && spawnable(3), "Bhato, Scaal and the Dead Unwanted are not spawnable");
-  assert(isQuestBeing(12) && isQuestBeing(9) && !isQuestBeing(3) && !isQuestBeing(35));
+  assert(isQuestBeing(12) && isQuestBeing(9) && !isQuestBeing(3));
+  // 0.8.9.9: Wilda's Survivors and Grand Mother are essential, and The Terror's and Clay's deaths in his realm advance quests.
+  for (const i of [34, 35, 36, 40, 41]) assert(isQuestBeing(i) && !spawnable(i), `being ${i} is a quest character`);
+  assert(spawnable(37) && spawnable(38) && spawnable(39), "the other Mirkfangs can be spawned");
+  assertEquals([habitat(38), habitat(37), habitat(36)], ["flies", "flies", "walks"]);
   const list: unknown[] = [{ index: 3 }];
   spawnBeing(list, 2, 0, 0);
   assertEquals(list.length, 2);

@@ -24,8 +24,8 @@ import { HAVE_SAVES, SAVES } from "./saves.ts";
 
 const rectangular = (g: number[][]) => g.length > 0 && g.every((r) => r.length > 0 && r.length === g[0].length);
 
-Deno.test("bestiary: every being 0–35 with consistent attacks", () => {
-  assertEquals(Object.keys(BEINGS).map(Number).sort((a, b) => a - b), [...Array(36).keys()]);
+Deno.test("bestiary: every being 0–41 with consistent attacks", () => {
+  assertEquals(Object.keys(BEINGS).map(Number).sort((a, b) => a - b), [...Array(42).keys()]);
   for (const [i, s] of Object.entries(BEINGS)) {
     assert(BEING_NAMES[+i] !== undefined, `${i} has a name`);
     for (const a of [s.melee, ...(s.ranged ? [s.ranged] : [])]) {
@@ -41,10 +41,31 @@ Deno.test("bestiary: every being 0–35 with consistent attacks", () => {
     assert(!s.ranged || canHurt(s.ranged), `${i} ranged attack hurts`);
     assert(s.grid[0] > 0 && s.grid[1] > 0, `${i} grid`);
   }
-  assertEquals(Object.keys(BEINGS).filter((i) => hasRanged(+i)).map(Number), [5, 8, 12, 13, 16, 22, 34]);
-  assertEquals(Object.keys(BEINGS).filter((i) => !canHurt(BEINGS[+i].melee)).map(Number), [9, 20]);
-  for (const npc of NPC_BEINGS) assert(!targetsYou(BEINGS[npc]), `${BEING_NAMES[npc]} is on the fort's team`);
+  assertEquals(Object.keys(BEINGS).filter((i) => hasRanged(+i)).map(Number), [5, 8, 12, 13, 16, 22, 34, 41]);
+  assertEquals(Object.keys(BEINGS).filter((i) => !canHurt(BEINGS[+i].melee)).map(Number), [9, 20, 36]);
+  for (const npc of NPC_BEINGS) assert(!targetsYou(BEINGS[npc]), `${BEING_NAMES[npc]} never targets you`);
   assert(targetsYou(BEINGS[22]));
+});
+
+Deno.test("bestiary: 0.8.9.9's Mirkfangs, Survivors, Grand Mother and Magus Clay in his realm", () => {
+  assertEquals([35, 36, 37, 38, 39, 40, 41].map((i) => BEING_NAMES[i]), [
+    "Survivor",
+    "Grand Mother",
+    "Mirkfang Matriarch",
+    "Mirkfang",
+    "Giant Mirkfang",
+    "The Terror",
+    "Magus Clay",
+  ]);
+  // Team 10 (Wilda, her Survivors and Grand Mother) never targets you, like team 0; the Mirkfangs (11) and Clay (8) do.
+  for (const i of [34, 35, 36]) assertEquals([BEINGS[i].team, targetsYou(BEINGS[i])], [10, false], BEING_NAMES[i]);
+  for (const i of [37, 38, 39, 40, 41]) assert(targetsYou(BEINGS[i]), BEING_NAMES[i]);
+  for (const i of [37, 38, 39, 40]) assertEquals(BEINGS[i].melee.damageClass, DamageClass.Leeching, BEING_NAMES[i]);
+  assertEquals(damageClassInfo(DamageClass.Leeching)?.name, "Leeching");
+  assert(damageClassInfo(DamageClass.Leeching)!.effect.includes("heals"), "Leeching heals the attacker");
+  assert(damageClassInfo(DamageClass.Blunt)!.effect.startsWith("10%"), "Blunt stuns 10% of the time since 0.8.9.9");
+  assertEquals([BEINGS[40].xp, BEINGS[40].hostileDist, BEINGS[41].xp, BEINGS[41].ranged!.dist], [500, 9, 750, 16]);
+  assertEquals(totalDamage(BEINGS[41].ranged!.pattern), { min: 15, max: 15 });
 });
 
 Deno.test("bestiary: damage cells and totals as the game reads them", () => {
@@ -97,6 +118,25 @@ Deno.test("bestiary: fresh hit points match saved full-health beings", () => {
   assertEquals(freshHealth(25), [[-4, 1, 1, -4], [1, 1, 1, 1], [1, 1, 1, 1], [-4, 1, 1, -4]]);
   assertEquals(freshHealth(34), [[1, 1, 1, 1], [1, 2, 2, 1], [1, 2, 2, 1], [1, 1, 1, 1]]);
   assertEquals(freshHealth(35), [[1, 1, 1, 1], [1, 3, 2, 1], [1, 2, 3, 1]]);
+  assertEquals(freshHealth(38), [[1, -4, 1], [1, 1, 1], [-4, 1, -4]]);
+  assertEquals(freshHealth(39), [[1, -4, 1, -4, 1], [1, 1, 1, 1, 1], [-4, 1, 1, 1, -4], [-4, -4, 1, -4, -4]]);
+  // The Matriarch's body down the middle has one layer; The Terror's two, and her top two rows a layer everywhere else too.
+  assertEquals(freshHealth(37), [
+    [1, -4, -4, -4, 2, -4, -4, -4, 1],
+    [1, 1, 1, 2, 2, 2, 1, 1, 1],
+    [-4, 1, 1, 2, 2, 2, 1, 1, -4],
+    [-4, -4, 1, 2, 2, 2, 1, -4, -4],
+    [-4, -4, -4, 2, 2, 2, -4, -4, -4],
+  ]);
+  assertEquals(freshHealth(40), [
+    [2, -4, -4, -4, 3, -4, -4, -4, 2],
+    [2, 2, 2, 3, 3, 3, 2, 2, 2],
+    [-4, 1, 1, 3, 3, 3, 1, 1, -4],
+    [-4, -4, 1, 3, 3, 3, 1, -4, -4],
+    [-4, -4, -4, 3, 3, 3, -4, -4, -4],
+  ]);
+  assertEquals(freshHealth(36), Array(4).fill([1, 1, 1, 1, 1]));
+  assertEquals(freshHealth(41), Array(7).fill([1, 1, 1, 1, 1, 1, 1]));
   // Scaal: 4 at the centre down to 1 at the corners, by distance (halves round to even).
   const scaal = freshHealth(22)!;
   assertEquals(scaal[4], [2, 2, 3, 4, 4, 4, 3, 2, 2]);

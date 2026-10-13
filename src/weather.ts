@@ -1,4 +1,4 @@
-// Time of day and weather as the game keeps them (Mirklurk 0.8.1.5): one `manager_day` for the whole world, saved once per
+// Time of day and weather as the game keeps them (Mirklurk 0.8.9.9): one `manager_day` for the whole world, saved once per
 // character in Player.save (gml_GlobalScript_scr_saveload). Pure functions, shared with anything that reads or writes those keys.
 //
 // Every turn (`player_endturn` in gml_GlobalScript_scr_basic_useful) adds 8 minutes and moves the rain balance; when the hour
@@ -248,7 +248,8 @@ export type Exposure = "outdoors" | "sheltered" | "underground";
 /**
  * `area_is_outside` (swamp-like zones, ruins, the rift mire, vast waters) and `area_is_dungeonlike` (caves, ruin interiors and
  * cellars, the undercroft, the library, the rift depths) in gml_GlobalScript_scr_map_and_weather. The fort interior, Bhato's
- * hideout, Gurb-Gurb's hut and the shipwreck are neither: their light follows the day, but no rain falls inside.
+ * hideout, Gurb-Gurb's hut, the shipwreck and Grand Mother's hut are neither: their light follows the day, but no rain falls inside.
+ * Nor is a Magus realm, which keeps a light of its own (manager_day Step_0) and no weather.
  */
 export function exposure(areaType: number): Exposure {
   if ([0, 1, 2, 3, 4, 5, 22, 23, 100].includes(areaType)) return "outdoors";

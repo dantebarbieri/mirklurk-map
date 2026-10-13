@@ -1,4 +1,7 @@
-// Game rules ported from Mirklurk 0.8.1.5 (decompiled GML). References name the source entry.
+// Game rules ported from Mirklurk 0.8.9.9 (decompiled GML). References name the source entry.
+
+/** The game version these rules were read from: save_player's VERSION, which Player.save keeps. */
+export const GAME_VERSION = "0.8.9.9";
 
 /** Zone (room) edge in game units; tiles are 16 units, so 160 tiles per side. */
 export const ROOM = 2560;
@@ -30,9 +33,12 @@ export const SolidId = {
   Lair: -2992,
   Hut: -2990,
   Shipwreck: -2989,
+  /** The Survivors' huts without a way in, and Grand Mother's hut, whose ladder leads inside (Alarm_6). */
+  SurvivorHut: -2988,
+  MotherHut: -2987,
 } as const;
 
-/** Interior area types reached through a solid's transPoint[0]. */
+/** Interior area types reached through a solid's transPoint[0] (the Magus realm through a portal instead). */
 export const INTERIOR_NAMES: Record<number, string> = {
   10: "Cave",
   11: "Large cave",
@@ -48,6 +54,8 @@ export const INTERIOR_NAMES: Record<number, string> = {
   33: "Library",
   34: "Gurb-Gurb's hut",
   35: "Shipwreck",
+  36: "Grand Mother's hut",
+  37: "Magus realm",
 };
 
 /** Landmark buildings, named after who lives there (Bestiary.ini) or the game's own map label. */
@@ -59,16 +67,15 @@ export const LANDMARK_NAMES: Record<number, string> = {
   [SolidId.Lair]: "Scaal's lair",
   [SolidId.Hut]: "Gurb-Gurb's hut",
   [SolidId.Shipwreck]: "Ihar's shipwreck",
+  [SolidId.MotherHut]: "Survivors' camp",
+  [SolidId.SurvivorHut]: "Survivors' hut",
   [SolidId.Boat]: "Boat",
 };
 
-/** Beings that the game treats as essential (is_essential in scr_ai_related) — the NPCs. */
-export const NPC_BEINGS = new Set([5, 6, 8, 12, 19, 20, 26, 33, 34]);
-/**
- * Beings drawn and counted as NPCs: the essential ones plus the rest of their team, which never targets you: the Dead
- * Unwanted (Viend before he is revived) and the Unwanted Guard.
- */
-export const NPC_MARKERS = new Set([...NPC_BEINGS, 9, 35]);
+/** Beings that the game treats as essential (is_essential in scr_ai_related) — the NPCs, Wilda's Survivors and Grand Mother included. */
+export const NPC_BEINGS = new Set([5, 6, 8, 12, 19, 20, 26, 33, 34, 35, 36]);
+/** Beings drawn and counted as NPCs: the essential ones plus the Dead Unwanted (Viend before he is revived), who never targets you. */
+export const NPC_MARKERS = new Set([...NPC_BEINGS, 9]);
 
 /** Water/elevation thresholds (gml_Object_databank_Create_0). */
 export const Thresh = { deep: -0.4, water: -0.3, shallow: -0.2, dry: 0.195, mountain: 0.2 } as const;
@@ -128,6 +135,9 @@ export const PLACEMENT = {
   lair: { axis: centeredLattice(10), door: [72, -8], sprite: "spr_building_128x96" },
   hut: { axis: axisWeights(120, ROOM - 48), door: [56, -8], sprite: "spr_building_80x80" },
   shipwreck: { axis: axisWeights(256, ROOM - 256), door: [72, -8], sprite: "spr_building_128x64" },
+  // Grand Mother's hut stands at (xx − 8, yy − 40), xx and yy centerpos(irandom_range(512, 2048)); its ladder (transPoint) is 24
+  // right of and 8 above that, so 24 right of and 40 above gridpos(irandom_range(512, 2048)).
+  camp: { axis: axisWeights(512, ROOM - 512), door: [24, -40], sprite: "spr_building_48x48_tall" },
 } satisfies Record<string, Placement>;
 
 /** Attempts made by Alarm_6 per zone entry before giving up on the shipwreck. */
@@ -163,3 +173,7 @@ export const isOutside = (t: number) => [0, 1, 2, 3, 4, 5, 22, 23, 100].includes
 
 /** Scaal's depths (Rift depths I–III, area types 24–26): saved in folders RW1–RW3 rather than by zone and entrance. */
 export const isRiftDepths = (t: number) => t >= 24 && t <= 26;
+
+/** A Magus realm (area type 37), reached through the portal a Magus' Shard opens: saved in the folder MagusRealm (savearea). */
+export const MAGUS_REALM = 37;
+export const REALM_FOLDER = "MagusRealm";

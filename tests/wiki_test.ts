@@ -18,6 +18,9 @@ Deno.test("wiki art: every bundled picture exists, same-origin and content-hashe
 Deno.test("wiki art: creatures and NPCs as they look in the world, placed items and quest buildings", () => {
   assertEquals([BEING_NAMES[21], beingImage(21)?.source], ["Toadkin", "Being-21-cropped.png"]);
   assertEquals([BEING_NAMES[8], beingImage(8)?.source], ["Magus Clay", "Being-8-overworld-cropped.png"]);
+  // Magus Clay in his realm (0.8.9.9's being 41) wears his usual sprite, so he shows his usual picture.
+  assertEquals([BEING_NAMES[41], beingImage(41)], ["Magus Clay", beingImage(8)]);
+  assert(beingImage(41), "Clay in his realm has a picture");
   assertEquals([ITEM_NAMES[108], itemImage(108)?.source], ["Hidden Hollow", "Item-108-cropped.png"]);
   assert(placeImage("Bhato's hideout") && placeImage("Gurb-Gurb's hut") && placeImage("Ihar's shipwreck"));
   assertEquals(beingImage(-1), undefined);

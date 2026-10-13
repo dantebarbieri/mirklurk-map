@@ -13,12 +13,13 @@ export const RAFT = 171;
 
 /**
  * A finished raft standing on tile (tx, ty), as Finish Raft leaves the placed Raft Base (spr_placed_16x16_wider, frame 1) and
- * save_stations writes it.
+ * save_stations writes it, unflipped (xscale, saved since 0.8.9.9; load_stations leaves it at 1 when absent).
  */
 export function raftStation(tx: number, ty: number): Rec {
   return {
     sprite: "spr_placed_16x16_wider",
     pic: 1,
+    xscale: 1,
     blend: 0xffffff,
     x: tx * 16 + 8,
     y: ty * 16 + 8,

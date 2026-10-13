@@ -32,8 +32,11 @@ export interface Gather {
   amount: [number, number] | null;
 }
 
-/** loot_amountchances(a, b) (gml_GlobalScript_scr_items): picks i in 0…b−1, then a…a+i, so a to a+b−1, low counts likelier. */
-export const amountRange = (a: number, b: number): [number, number] => [a, a + Math.ceil(b) - 1];
+/**
+ * loot_amountchances(a, b) (gml_GlobalScript_scr_items): picks an upper bound i from a…b (b raised to a when smaller), then a…i,
+ * so a to b, low counts likelier. Before 0.8.9.9 the bound ran a…a+b−1.
+ */
+export const amountRange = (a: number, b: number): [number, number] => [a, Math.max(a, Math.floor(b))];
 
 /**
  * The gatherable a Hinderance tile index holds, if any: tile_is_harvestable (gml_GlobalScript_scr_tiles_autotiling)

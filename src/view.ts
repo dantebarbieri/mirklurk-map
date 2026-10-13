@@ -22,7 +22,7 @@ import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts"
 import { fernShade, GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
 import { pct, plural } from "./format.ts";
 import { heatBounds, type Landmark, type LandmarkId, landmarks, shipwreckOdds, zoneHeat } from "./predict.ts";
-import { Area, coordLabel, INTERIOR_NAMES, isOutside, NPC_MARKERS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
+import { Area, coordLabel, GAME_VERSION, INTERIOR_NAMES, isOutside, NPC_MARKERS, ROOM, Thresh, tileIndex, TILES } from "./rules.ts";
 import { BEING_NAMES, ITEM_NAMES } from "./gamedata.ts";
 import { paintThumbnail, TerrainRaster, TerrainStore, worldScenes } from "./terrain.ts";
 import { entityLink, inspectMark, inventoryView, wikiTitle } from "./inspect.ts";
@@ -110,6 +110,7 @@ const HEAT_COLOR: Record<LandmarkId, string> = {
   scaal: "#c79bff",
   gurb: "#ff9f5a",
   ihar: "#6fd3ff",
+  wilda: "#f08fb8",
 };
 
 const key = (x: number, y: number) => `${x},${y}`;
@@ -239,7 +240,7 @@ export function renderWorld(st: State) {
   root.setProperty("--you-line", light ? "#120e0f" : "#f4efe6");
   root.setProperty("--you-halo", light ? "#f4efe6" : "#120e0f");
   const here = w.zones[you.zone[1]]?.[you.zone[0]];
-  const version = p.version === "0.8.1.5" ? "" : ` · made for game 0.8.1.5, this save is ${p.version}`;
+  const version = p.version === GAME_VERSION ? "" : ` · made for game ${GAME_VERSION}, this save is ${p.version}`;
   const summary = h(
     "p",
     { class: "summary" },
@@ -691,7 +692,7 @@ async function renderZone(st: State, z: Zone, glide = false, locate = false) {
   ];
   for (const m of marks) {
     const inside = m.interior && insides.find((i) => i.interior === m.interior);
-    if (inside) m.detail = `${m.detail === "entrance is gone" ? "entrance is gone; " : ""}inside: ${insideSummary(inside.detail)}`;
+    if (inside) m.detail = `${m.interior?.sealed && m.detail ? `${m.detail}; ` : ""}inside: ${insideSummary(inside.detail)}`;
   }
   const heats = zoneHeat(world, st.marks, z, { ...tiles, beings: detail?.beings });
   const you = playerSpot(st);

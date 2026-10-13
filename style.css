@@ -14,6 +14,7 @@
   --scaal: #c79bff;
   --gurb: #ff9f5a;
   --ihar: #6fd3ff;
+  --wilda: #f08fb8;
   /* Translucent panels floating on the map. */
   --glass: rgba(20, 15, 16, .72);
   --glass-solid: rgba(24, 18, 19, .92);
@@ -569,6 +570,9 @@ body.loaded main > * {
 }
 .dmg-force {
   --dmg: #b48cff;
+}
+.dmg-leeching {
+  --dmg: #e0569b;
 }
 .dmg-weak,
 .dmg-none {
@@ -1334,6 +1338,9 @@ body.map-full .sky-chip {
 }
 .m-ihar {
   --c: var(--ihar);
+}
+.m-wilda {
+  --c: var(--wilda);
 }
 .pill[class*="m-"] {
   border-color: var(--c);

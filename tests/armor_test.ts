@@ -10,7 +10,7 @@ const saved = (index: number, durability?: number): SavedItem => ({ index, amoun
 const worn = (slot: number, item: SavedItem, active = true): Equipped => ({ slot, active, item });
 
 Deno.test("armor and item condition use the same durability maximum for every armored item", () => {
-  assertEquals(Object.keys(ARMOR).length, 48);
+  assertEquals(Object.keys(ARMOR).length, 49); // 0.8.9.9 adds Clay's Magus Hood
   for (const [key, [armor, max]] of Object.entries(ARMOR)) {
     const index = Number(key);
     assertEquals(max, ITEMS[index].durability, `item ${index}`);

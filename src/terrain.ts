@@ -1,7 +1,7 @@
 import { coordLabel, ROOM } from "./rules.ts";
-import { decodeTilemap, type Solid } from "./save.ts";
+import { decodeTilemap, type Placed, type Solid } from "./save.ts";
 import { areaLayers, ART, mipLevel, type Sprite, tileSource, tileTransform } from "./tiles.ts";
-import { loadDetail, loadTrees, type World } from "./world.ts";
+import { loadDetail, loadTrees, type World, type ZoneDetail } from "./world.ts";
 import type { Raster, Rect } from "./mapview.ts";
 
 export interface Scene {
@@ -15,6 +15,26 @@ export interface Scene {
 
 interface Texture {
   levels: HTMLCanvasElement[];
+}
+
+/** Saved sprites of transient or magic effects, which the export leaves out (tools/dump_art.csx). */
+const EFFECT_SPRITES = new Set(["spr_part_circles", "spr_eff_portal_large", "spr_spell_twirl", "spr_spell_flamey"]);
+/** Carcasses (container status -209, and -216 for those with treasure) wear their being's sprite, which stays a marker. */
+const CARCASS = new Set([-209, -216]);
+
+/**
+ * The saved objects the realistic map draws with their own sprites: solids, decorations, containers, stations and interactables.
+ * Beings, carcasses and transient effects remain the viewer's semantic markers: a Magus' Shard's portal (obj_eff_light), the
+ * realm's way out and its floating flames are magic effects, not environment art.
+ */
+export function scenery(solids: Solid[], detail: ZoneDetail): (Solid | Placed)[] {
+  return [
+    ...solids,
+    ...detail.decorations,
+    ...detail.containers.filter((c) => !CARCASS.has(c.status)),
+    ...detail.stations,
+    ...detail.interactables,
+  ].filter((item) => item.sprite && !EFFECT_SPRITES.has(item.sprite));
 }
 
 function canvas(size: number) {
@@ -144,18 +164,9 @@ async function renderScene(world: World, scene: Scene, signal: AbortSignal): Pro
   }
 
   const objects: { y: number; draw: () => void }[] = [];
-  for (
-    const item of [
-      ...scene.solids,
-      ...detail.decorations,
-      ...detail.containers.filter((c) => c.status !== -209),
-      ...detail.stations,
-      ...detail.interactables,
-    ]
-  ) {
-    // Beings, carcasses and transient effects remain the viewer's semantic markers.
-    if (!item.sprite || item.sprite === "spr_part_circles") continue;
-    objects.push({ y: item.y, draw: () => drawSprite(item.sprite, item.pic, item.x, item.y) });
+  for (const item of scenery(scene.solids, detail)) {
+    const sx = "xscale" in item ? item.xscale ?? 1 : 1;
+    objects.push({ y: item.y, draw: () => drawSprite(item.sprite, item.pic, item.x, item.y, sx) });
   }
   for (const tree of trees) {
     const species = treeSpecies[tree.index];

@@ -38,7 +38,15 @@ Deno.test("tiles: correct room-specific dungeon and roof art", () => {
   assertEquals(sets(32).EffWater, "ts_castle");
   assertEquals(sets(31).Dungeon, "ts_castle");
   assertEquals(sets(33).OnTop, "ts_ruin_top");
-  for (const kind of [0, 1, 10, 20, 24, 30, 31, 32, 33, 34, 35]) {
+  // 0.8.9.9: Grand Mother's hut is built like the fort, a Magus realm like the ruins (manager_area Alarm_2), each its own room.
+  assertEquals([sets(36).Dungeon, sets(36).EffWater, sets(37).Dungeon, sets(37).OnTop], [
+    "ts_castle",
+    "ts_castle",
+    "ts_ruin",
+    "ts_ruin_top",
+  ]);
+  assertEquals([areaLayers(36), areaLayers(37)].map((l) => l.length > 0), [true, true]);
+  for (const kind of [0, 1, 10, 20, 24, 30, 31, 32, 33, 34, 35, 36, 37]) {
     const layers = areaLayers(kind);
     assert(layers.every((l, i) => !i || layers[i - 1].depth >= l.depth));
     assert(layers.every((l) => !["Data", "NatureData", "LootData", "EffRain"].includes(l.name)));

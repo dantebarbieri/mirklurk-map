@@ -1,10 +1,10 @@
-// Save editor: changes to a character's Player.save record, written the way the game itself leaves them (Mirklurk 0.8.1.5,
+// Save editor: changes to a character's Player.save record, written the way the game itself leaves them (Mirklurk 0.8.9.9,
 // gml_GlobalScript_scr_saveload's save_player/load_player). Every function edits the raw parsed record in place and keeps every key
 // it does not own, because load_player reads almost all of them without checking that they exist.
 
 import { cellPlace, Hp, Status } from "../health.ts";
 import { Ae, CONDITIONS, MAX_LEVEL, type Stat, STAT_LABELS, type TimerKey, xpForLevel } from "../player.ts";
-import { centerpos, INTERIOR_NAMES, isOutside, isRiftDepths, TILES } from "../rules.ts";
+import { centerpos, INTERIOR_NAMES, isOutside, isRiftDepths, MAGUS_REALM, TILES } from "../rules.ts";
 import type { PlayerSave } from "../save.ts";
 import { isRec, type Rec } from "../save-record.ts";
 import { clamp01, num } from "../values.ts";
@@ -314,6 +314,8 @@ export interface Inside {
 export function isInside(p: PlayerSave, it: Interior): boolean {
   if (isOutside(p.area.type)) return false;
   if (isRiftDepths(p.area.type)) return it.at[0] === -1 && it.at[1] === p.area.type - 23;
+  // The Magus realm's folder, like the depths', is named by its type alone.
+  if (p.area.type === MAGUS_REALM || it.kind === MAGUS_REALM) return p.area.type === it.kind;
   return it.zone[0] === p.area.x && it.zone[1] === p.area.y && it.at[0] === centerpos(p.entrance[0]) &&
     it.at[1] === centerpos(p.entrance[1]);
 }

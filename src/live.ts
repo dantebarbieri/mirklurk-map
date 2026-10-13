@@ -1,7 +1,7 @@
 import { type FileMap, filesIn, findCharacters, type Source } from "./files.ts";
 import { parseItemList } from "./inventory.ts";
 import { isSaveFile } from "./marker.ts";
-import { centerpos, isOutside, isRiftDepths } from "./rules.ts";
+import { centerpos, isOutside, isRiftDepths, MAGUS_REALM, REALM_FOLDER } from "./rules.ts";
 import {
   decodeHeights,
   decodeJson,
@@ -80,6 +80,7 @@ export function currentContainers(files: FileMap, root: string, p: PlayerSave): 
     const folder = path.slice(root.length).split("/");
     if (folder.length !== 2) return false;
     if (isRiftDepths(p.area.type)) return folder[0] === `RW${p.area.type - 23}`;
+    if (p.area.type === MAGUS_REALM) return folder[0] === REALM_FOLDER;
     const at = parseAreaDir(folder[0]);
     return at && at[0] === p.area.x && at[1] === p.area.y &&
       (isOutside(p.area.type)

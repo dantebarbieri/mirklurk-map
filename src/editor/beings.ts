@@ -12,20 +12,22 @@ import { layerAt, tileHeight, type WaterLayers } from "./raft.ts";
 const SCAAL = 22;
 /** The Dead Unwanted is Viend before he is revived: removing it can strand his quest, and a second one would be a second Viend. */
 const DEAD_UNWANTED = 9;
-const QUEST_BEINGS = new Set([...NPC_BEINGS, SCAAL, DEAD_UNWANTED]);
+/** The Terror's death advances Wilda's quest (campQ, obj_being Alarm_0), and Magus Clay's in his realm the main quest's. */
+const TERROR = 40, CLAY_IN_REALM = 41;
+const QUEST_BEINGS = new Set([...NPC_BEINGS, SCAAL, DEAD_UNWANTED, TERROR, CLAY_IN_REALM]);
 
-/** Quest characters (NPCs, the Dead Unwanted and Scaal) are never spawned. */
+/** Quest characters (NPCs, the Dead Unwanted, Scaal, The Terror and Magus Clay in his realm) are never spawned. */
 export const spawnable = (index: number) => !!BEINGS[index] && !QUEST_BEINGS.has(index) && !!BEING_NAMES[index];
 
 /** Quest characters: deleting one can leave a quest waiting for someone who is gone. */
 export const isQuestBeing = (index: number) => QUEST_BEINGS.has(index);
 
-/** is_flyer (gml_GlobalScript_scr_ai_related): Dreadfly, Giant Gnat, Deathfly and Scaal fly over anything. */
-const FLYERS = new Set([1, 2, 22, 25]);
+/** is_flyer (gml_GlobalScript_scr_ai_related): Dreadfly, Giant Gnat, Deathfly, Scaal and the Mirkfangs (is_bat) fly over anything. */
+const FLYERS = new Set([1, 2, 22, 25, 37, 38, 39, 40]);
 /** is_swimmer: Mire Serpent, Mudfin and Razorfin live in the water. */
 const SWIMMERS = new Set([4, 17, 24]);
 /** size 0 in global.beingDB (gml_Object_databank_Alarm_3): small creatures, which cannot wade as deep. */
-const SMALL = new Set([0, 1, 2, 7, 10, 11, 13, 17, 23, 24, 25, 27, 29, 30]);
+const SMALL = new Set([0, 1, 2, 7, 10, 11, 13, 17, 23, 24, 25, 27, 29, 30, 38, 39]);
 const GIANT_SLUG = 0, MIRE_SERPENT = 4;
 
 /** How a kind of creature gets about: what decides where it can be. */

@@ -98,6 +98,15 @@ Deno.test("player record is read row-major", () => {
   assertEquals(p.rangerCamp, [1, 0]);
   assertEquals(p.gurbsHut, true);
   assertEquals(p.shipWreck, false);
+  // Saves before 0.8.9.9 have no camp or campQ: the game reads them as false and −1 (load_player).
+  assertEquals([p.camp, p.campQuest], [false, -1]);
+  const robin = parsePlayer([{ worldGrid: grid, camp: true, campQ: 2 }]);
+  assertEquals([robin.camp, robin.campQuest], [true, 2]);
+});
+
+Deno.test("placed objects keep a flip (xscale) only when it mirrors them", () => {
+  const at = { sprite: "spr_placed_16x16", pic: 0, index: 38, status: -200, x: 8, y: 8 };
+  assertEquals(parsePlaced([{ ...at, xscale: -1 }, { ...at, xscale: 1 }, at]).map((p) => p.xscale), [-1, undefined, undefined]);
 });
 
 async function makeZip(files: { name: string; data: Uint8Array; deflate: boolean }[]): Promise<Uint8Array> {

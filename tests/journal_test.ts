@@ -6,6 +6,7 @@ import { assert, assertEquals } from "./assert.ts";
 import { JOURNAL, JOURNAL_FIRST } from "../src/gamedata.ts";
 import {
   bhatoDirection,
+  CAMP_QUEST,
   ENTRY_INFO,
   FIRST_INFO,
   journalEntries,
@@ -52,8 +53,27 @@ Deno.test("journal: one entry per stage reached that has text, in the game's ord
   for (const gap of [14, 21, 22, 27]) assert(!all.includes(gap), `no entry for ${gap}`);
   assertEquals(all.at(-1), 30);
   assertEquals(journalHeadline(save(30)), "Entry 28 · Free");
+  // 0.8.9.9 goes on: Clay falls in his realm (31) and Eir finds peace (32).
+  assertEquals(stages(save(32)).slice(-3), [30, 31, 32]);
+  assertEquals(journalHeadline(save(31)), "Entry 29 · Clay is dead");
+  assertEquals(journalHeadline(save(32)), "Entry 30 · At peace");
   // Beyond the last stage the journal stays whole.
-  assertEquals(stages(save(31)).length, 28);
+  assertEquals(stages(save(33)).length, 30);
+});
+
+Deno.test("journal: Clay's end links to him in his realm, and the Survivors' quest sums up where it stands", () => {
+  assertEquals(linked(save(32), 31), ["Clay", "Eir", "Fort Solid"]);
+  assertEquals(linked(save(32), 32), ["Eir"]);
+  const clay = journalEntries(save(31)).at(-1)!.segments.find((s) => s.text === "Clay")!.link!;
+  assertEquals(clay, { kind: "being", index: 41, home: { kind: "interior", type: 37 } });
+  assertEquals([targetName(clay), INTERIOR_NAMES[37]], ["Magus Clay", "Magus realm"]);
+  assertEquals(Object.keys(CAMP_QUEST).map(Number), [0, 1, 2]);
+  for (const [stage, info] of Object.entries(CAMP_QUEST)) {
+    for (const [phrase] of info.links) {
+      assert(linkSegments(info.text, [[phrase, { kind: "rift" }]]).some((x) => x.link), `${stage}: ${phrase}`);
+    }
+  }
+  assertEquals(targetName(CAMP_QUEST[0].links[2][1]), "Survivors' camp");
 });
 
 Deno.test("journal: the game's own text, with only its places filled in", () => {
@@ -66,7 +86,7 @@ Deno.test("journal: the game's own text, with only its places filled in", () => 
 
 Deno.test("journal: stages that add no entry say what is going on", () => {
   for (const q of [14, 21, 22, 27]) assert(stageNote(q), `note for ${q}`);
-  for (const q of [0, 7, 13, 15, 26, 30]) assertEquals(stageNote(q), undefined, `no note for ${q}`);
+  for (const q of [0, 7, 13, 15, 26, 30, 31, 32]) assertEquals(stageNote(q), undefined, `no note for ${q}`);
 });
 
 Deno.test("journal: entry 7 points from the fort to Bhato's zone, east or west before south, else north", () => {
