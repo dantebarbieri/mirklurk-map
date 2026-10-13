@@ -168,7 +168,7 @@ export class LibrarySource implements SaveSource {
       await response.body?.cancel();
       throw new Error("This world is too large");
     }
-    const { name, files } = unpackSave(new Uint8Array(await response.arrayBuffer()));
+    const { name, files } = await unpackSave(new Uint8Array(await response.arrayBuffer()));
     return { files, characters: [{ name, root: "Shared/" }], version: response.headers.get("ETag") ?? undefined };
   }
 

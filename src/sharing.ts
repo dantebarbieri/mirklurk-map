@@ -559,7 +559,7 @@ export class Sharing {
           await response.body?.cancel();
           throw new Error("Shared save is too large");
         }
-        snapshot = unpackSave(new Uint8Array(await response.arrayBuffer()));
+        snapshot = await unpackSave(new Uint8Array(await response.arrayBuffer()));
       }
       const zip = await saveZip(snapshot.name, snapshot.files, "Shared/", share ? new Date() : undefined);
       offerDownload(zip);
@@ -915,7 +915,7 @@ export class Sharing {
         await response.body?.cancel();
         throw new Error("Shared save is too large");
       }
-      const snapshot = unpackSave(new Uint8Array(await response.arrayBuffer()));
+      const snapshot = await unpackSave(new Uint8Array(await response.arrayBuffer()));
       if (watch !== this.watching) return;
       const success = await this.hooks.display(snapshot.files, { name: snapshot.name, root: "Shared/" }, !!watch.version);
       if (!success) throw new Error("Shared snapshot could not be displayed; retaining the previous map");

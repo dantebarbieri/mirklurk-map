@@ -543,9 +543,9 @@ export class UploadStore {
         if (active.length >= MAX_WORLDS) throw new HttpError(503, "Shared-save storage is full");
       }
       const body = await this.readBody(request, MAX_UPLOAD);
-      let unpacked: ReturnType<typeof unpackSave>;
+      let unpacked: Awaited<ReturnType<typeof unpackSave>>;
       try {
-        unpacked = unpackSave(body);
+        unpacked = await unpackSave(body);
       } catch (e) {
         throw new HttpError(400, (e as Error).message);
       }

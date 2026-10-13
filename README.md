@@ -107,7 +107,7 @@ Limits:
 | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Worlds          | Five per library. Updating a world that is already in the library never counts; adding a sixth is refused                 |
 | Retention       | A world is deleted 30 days after its last update                                                                          |
-| Save package    | One character, 64 MiB including manifest, at most 4,096 files; uncompressed to avoid ZIP expansion attacks                |
+| Save package    | One character, at most 4,096 files and 256 MiB including manifest; sent and stored gzip-compressed, at most 64 MiB        |
 | Updates         | At most once per 30 seconds per world; only one upload body processed at a time globally                                  |
 | Per network     | Ten stored worlds, ten new worlds per rolling 24 hours (deleted ones count), ten named libraries; IPv6 /64s share a quota |
 | API requests    | 60/minute per IP, plus nginx request/connection limits                                                                    |
@@ -121,7 +121,9 @@ quietly re-added), or an upload that claims to update a world but is a different
 cleanup after downtime). Salted IP hashes are stored instead of raw IP addresses, and daily quotas survive restarts. The in-memory
 short-term request limiter resets on restart. Shared networks/NATs share the same quota. These are abuse guardrails, not protection against
 a distributed attack; keep reverse-proxy bandwidth and resource limits in place. The package manifest is capped at 1 MiB, and `Player.save`
-at 4 MiB before JSON parsing, to bound validation memory use.
+at 4 MiB before JSON parsing, to bound validation memory use. A compressed package is inflated into a buffer of the size its gzip trailer
+declares, refused above 256 MiB before inflating and rejected if the stream disagrees, so a small upload cannot expand without bound.
+Packages from older clients, sent uncompressed, are still accepted up to 64 MiB.
 
 ### Downloading a world to play it
 
@@ -149,8 +151,8 @@ It is JSON rather than INI because Chrome and Edge on Windows refuse `.ini` file
 editor use (Safe Browsing lists `.ini` as a dangerous file type there). Downloads give it the Windows hidden attribute, which Explorer
 applies when extracting. Downloads are built in the browser from the package MirkMap already fetches to show the world, so they add no
 server storage or new endpoint, and the server records only a `fromShare` flag (from the uploaded `MirkMap.json`, read again on every
-upload) in the world's small metadata record. Uploads stay uncompressed; the ZIP is deflated to 12-18% of the world's size (a new
-character's 2 MB to about 250 KB, a 58 MB world to 8.5 MB, built in about a second).
+upload) in the world's small metadata record. The ZIP is deflated to 12-18% of the world's size (a new character's 2 MB to about 250 KB, a
+58 MB world to 8.5 MB, built in about a second), much as the gzip-compressed package it comes from.
 
 ### As an app, and offline
 
