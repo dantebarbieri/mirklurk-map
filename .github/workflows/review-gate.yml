@@ -1,13 +1,13 @@
 # Required check "copilot-review": a pull request cannot merge while Copilot's review is still running, or before Copilot has reviewed
 # it. Copilot is requested automatically by the main-branch ruleset (on open, on every push and for drafts); this job polls the pull
 # request's timeline until that review is submitted. Unresolved review threads are blocked separately by the ruleset.
+# Deliberately no pull_request_review trigger: Copilot submitting its review would start a run as the Copilot bot, which GitHub holds
+# for manual approval ("action_required"), leaving this required check pending forever. The polling run already sees the review.
 name: Review gate
 
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review, review_requested, review_request_removed]
-  pull_request_review:
-    types: [submitted, dismissed]
 
 permissions:
   pull-requests: read
@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           bot='copilot-pull-request-reviewer[bot]'
-          grace=$((SECONDS + 180))    # time for the ruleset to request Copilot after a push
+          grace=$((SECONDS + 90))     # time for the ruleset to request Copilot after a push (seconds in practice)
           deadline=$((SECONDS + 1800)) # a Copilot review normally takes under ten minutes
           while :; do
             pr=$(gh api "repos/$REPO/pulls/$PR")
