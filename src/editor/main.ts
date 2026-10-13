@@ -4,6 +4,7 @@
 // own world view (view.ts) of the save as it would be saved, where the Move tool picks where you stand.
 
 import { $, h } from "../dom.ts";
+import { plural } from "../format.ts";
 import { type Character, characterIndex, type FileMap, fromDataTransfer, fromFiles } from "../files.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../gamedata.ts";
 import { libraryId, worldId, type WorldInfo } from "../sharing-format.ts";
@@ -108,7 +109,7 @@ import {
   durabilityKind,
   fuelMax,
   isWet,
-  type ItemState,
+  itemState,
   wetText,
 } from "../condition.ts";
 import { conditionView } from "../inspect.ts";
@@ -676,7 +677,7 @@ async function save() {
       notes.clear();
       await install(s.source, s.current, s.character, true);
       editing = true;
-      const files = n === 1 ? "1 file" : `${n} files`;
+      const files = plural(n, "file");
       status(
         (library
           ? `Saved ${files} to ${s.character.name} in My worlds, where your synced devices see it within 30 seconds. ` +
@@ -1051,7 +1052,7 @@ function hitPointsEditor(v: PlayerSave, p: Rec): HTMLElement {
             const before = JSON.stringify([rec.hpgrid, rec.statusgrid]);
             const n = healPlayer(rec);
             if (JSON.stringify([rec.hpgrid, rec.statusgrid]) === before) return undefined;
-            return `Healed ${n === 1 ? "1 hit point" : `${n} hit points`} and cleared poison, bleeding and stun`;
+            return `Healed ${plural(n, "hit point")} and cleared poison, bleeding and stun`;
           })),
       }, "Heal all wounds"),
     ),
@@ -1231,7 +1232,7 @@ function wetView(v: PlayerSave, p: Rec): HTMLElement[] {
       wet
         ? [
           body.length ? `On your body: ${body.join(", ")}.` : bodyWet(p) ? "Your body is barely damp." : "Your body is dry.",
-          items ? ` ${items === 1 ? "1 item" : `${items} items`} you wear or carry ${items === 1 ? "is" : "are"} wet.` : "",
+          items ? ` ${plural(items, "item")} you wear or carry ${items === 1 ? "is" : "are"} wet.` : "",
         ]
         : "You and everything you carry are dry.",
     ),
@@ -1396,7 +1397,7 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
       {},
       "Coins carried: ",
       coinsView(countCoins(v.inventory), { all: true }),
-      ` · ${free === 1 ? "1 free cell" : `${free} free cells`} in your bags`,
+      ` · ${plural(free, "free cell")} in your bags`,
     ),
     h("datalist", { id: "item-choices" }, [...ITEM_CHOICES.keys()].map((n) => h("option", { value: n }))),
     field("Item", name, stack),
@@ -1492,7 +1493,7 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
     const howMany = c.amount > 1 ? numberInput(c.amount, 1, c.amount) : null;
     howMany?.setAttribute("aria-label", `How many ${name} to remove`);
     const from = holder ? ` from ${holder}` : ` (worn: ${slotLabel(c.place.slot)})`;
-    const condition = rec ? conditionParts(conditionOf(asState(rec))) : [];
+    const condition = rec ? conditionParts(conditionOf(itemState(rec))) : [];
     // Where it can go: worn containers with room for it, and a free slot it fits.
     const wearIn = holder !== undefined ? orNone(() => freeSlotsFor(p, c.index))[0] : undefined;
     const choices = [
@@ -1550,7 +1551,7 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
   return h(
     "details",
     { class: "carried", "data-remember": "editor-carried", open: expanded ? expanded.has("editor-carried") : true },
-    h("summary", {}, `What you wear and carry (${total === 1 ? "1 item" : `${total} items`})`),
+    h("summary", {}, `What you wear and carry (${plural(total, "item")})`),
     upkeepView(p),
     list.length ? h("ul", { class: "carried-list" }, list.map((c) => row(c))) : h("p", { class: "muted" }, "Nothing."),
     h("p", { class: "muted small" }, `Free slots: ${orNone(() => freeSlots(p)).map(slotLabel).join(", ") || "none"}.`),
@@ -1570,7 +1571,7 @@ const bagLabel = (b: Bag) => `${itemName(b.owner)} (${slotLabel(b.slot)})`;
 /** A container's size and free cells. */
 const bagRoom = (b: Bag) => {
   const free = b.grid.flat().filter((cell) => cell === -4).length;
-  return `${b.grid[0].length}×${b.grid.length}, ${free === 1 ? "1 free cell" : `${free} free cells`}`;
+  return `${b.grid[0].length}×${b.grid.length}, ${plural(free, "free cell")}`;
 };
 
 /** Moves a carried or worn item where its Move to list says: into a worn container, or on (wearing it). */
@@ -1622,13 +1623,12 @@ async function removeCarried(c: CarriedItem, howMany: HTMLInputElement | null, f
 
 // --- Condition: durability, fuel and wetness ---
 
-const asState = (rec: Rec) => rec as unknown as ItemState;
 /** Fields the game changes as an item wears, burns, gets wet or dries; a change to one marks the item unsaved. */
 const CONDITION_KEYS = ["durability", "burnTimeLeft", "wet", "lit"];
 const sameCondition = (a: Rec, b: Rec) => CONDITION_KEYS.every((k) => a[k] === b[k]);
 /** Something about the item that Condition… can set: durability the game shows, fuel, or wetness. */
 const hasCondition = (index: number, rec: Rec) =>
-  !!durabilityKind(index) || fuelMax(index) !== undefined || canGetWet(index) || isWet(asState(rec));
+  !!durabilityKind(index) || fuelMax(index) !== undefined || canGetWet(index) || isWet(itemState(rec));
 const joinAnd = (words: string[]) => words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}` : words[0];
 /** "durability, fuel and wetness": what Condition… sets on the item. */
 function conditionWords(index: number, rec: Rec): string {
@@ -1636,7 +1636,7 @@ function conditionWords(index: number, rec: Rec): string {
   return joinAnd([
     kind ? DURABILITY_LABELS[kind].toLowerCase() : "",
     fuelMax(index) !== undefined ? "fuel" : "",
-    canGetWet(index) || isWet(asState(rec)) ? "wetness" : "",
+    canGetWet(index) || isWet(itemState(rec)) ? "wetness" : "",
   ].filter(Boolean));
 }
 
@@ -1715,9 +1715,9 @@ function conditionEditor(c: CarriedItem, rec: Rec, holder?: string): HTMLElement
   const name = itemName(index);
   const where = holder ? ` in ${holder}` : ` (worn: ${slotLabel(place.slot)})`;
   const at = JSON.stringify(place);
-  const now = conditionOf(asState(rec));
+  const now = conditionOf(itemState(rec));
   const burn = fuelMax(index);
-  const wetNow = isWet(asState(rec)) ? Number(rec.wet) : 0;
+  const wetNow = isWet(itemState(rec)) ? Number(rec.wet) : 0;
   /** Durability, portions and oil must stay above 0 (at 0 the game breaks or uses up the item); fuel may be 0. */
   const amount = (value: number, max: number, what: string, places = 2, aboveZero = false) =>
     h("input", {
@@ -1742,8 +1742,8 @@ function conditionEditor(c: CarriedItem, rec: Rec, holder?: string): HTMLElement
       const change = e();
       return editPlayer("items", (draft) => {
         const old = itemAt(draft, place);
-        const was = old ? conditionOf(asState(old)) : {};
-        const wasWet = old && isWet(asState(old)) ? Number(old.wet) : 0;
+        const was = old ? conditionOf(itemState(old)) : {};
+        const wasWet = old && isWet(itemState(old)) ? Number(old.wet) : 0;
         setCondition(draft, place, index, change);
         const changes: string[] = [];
         if (change.durability !== undefined && was.durability && change.durability !== was.durability.value) {
@@ -2486,7 +2486,7 @@ function backupsCard(backups: Backup[]): HTMLElement {
             "li",
             {},
             h("strong", {}, new Date(b.at).toLocaleString()),
-            ` · ${b.files.length === 1 ? "1 file" : `${b.files.length} files`} before: `,
+            ` · ${plural(b.files.length, "file")} before: `,
             h("span", { class: "muted" }, b.changes.join("; ")),
             " ",
             h("button", { type: "button", class: "button subtle small", onclick: () => void restore(b) }, "Restore"),
@@ -2540,7 +2540,7 @@ function updateSavebar() {
   save.hidden = kind === "copy" && !canWriteFolders();
   // A folder's own files are saved in place; the editor reads them without the game's .ini files, so it does not zip them.
   $("#download").hidden = kind === "folder";
-  $("#change-count").textContent = `${changes.length === 1 ? "1 unsaved change" : `${changes.length} unsaved changes`}`;
+  $("#change-count").textContent = plural(changes.length, "unsaved change");
   $("#change-list").replaceChildren(
     ...changes.map((c, i) =>
       h(

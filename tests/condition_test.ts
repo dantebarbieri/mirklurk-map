@@ -8,6 +8,7 @@ import {
   durabilityKind,
   fuelMax,
   isWet,
+  itemState,
   needsFuel,
   needsRepair,
   wetText,
@@ -50,4 +51,11 @@ Deno.test("condition: what repairing and refuelling restore", () => {
   assert(!needsRepair({ index: 25, durability: 2 }) && !needsFuel({ index: 25, durability: 2 }), "eaten bread is not worn");
   assert(!needsRepair({ index: 72, durability: 50 }), "coins have no durability to repair");
   assert(isWet({ index: 35, wet: 0.01 }) && !isWet({ index: 35, wet: 0 }) && !isWet({ index: 35 }));
+});
+
+Deno.test("condition: a raw item record from a save reads as its condition fields, whatever else it holds", () => {
+  const rec = { index: 4, amount: 1, X: 0, Y: 0, durability: 50, wet: 0.25, sideflipped: false };
+  assertEquals(itemState(rec), { index: 4, durability: 50, burnTimeLeft: undefined, wet: 0.25 });
+  assertEquals(conditionOf(itemState(rec)), conditionOf({ index: 4, durability: 50, wet: 0.25 }));
+  assert(isWet(itemState(rec)) && !isWet(itemState({ index: 23, wet: 0 })));
 });

@@ -3,6 +3,7 @@
 // and lanterns, and how wet it is. Shared by the map's inventories and the save editor.
 
 import { ITEMS } from "./itemdata.ts";
+import type { Rec } from "./save-record.ts";
 import { finite } from "./values.ts";
 
 /** Lamp Oil: its durability is the oil in the flask, which refills a lantern (items_bonus_apply). */
@@ -40,6 +41,14 @@ export interface ItemState {
   burnTimeLeft?: unknown;
   wet?: unknown;
 }
+
+/** A raw item record from a save as the fields its condition comes from. */
+export const itemState = (rec: Rec): ItemState => ({
+  index: Number(rec.index),
+  durability: rec.durability,
+  burnTimeLeft: rec.burnTimeLeft,
+  wet: rec.wet,
+});
 
 export interface Gauge {
   value: number;
