@@ -16,6 +16,7 @@ import {
   needsRepair,
 } from "../condition.ts";
 import { isRec, type Rec } from "../save-record.ts";
+import { isOffHandCopy } from "../inventory.ts";
 
 /** Empty grid cell (GameMaker's noone). */
 const EMPTY = -4;
@@ -216,11 +217,6 @@ export interface CarriedItem {
   amount: number;
   contents: CarriedItem[];
 }
-
-const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
-/** A two-handed melee weapon is saved in its off hand too (slots 1 and 3); the game's loader skips that copy. */
-const isOffHandCopy = (equips: unknown[], slot: number) =>
-  (slot === 1 || slot === 3) && isRec(equips[slot]) && same(equips[slot], equips[slot - 1]);
 
 function carried(rec: Rec, place: ItemPlace): CarriedItem {
   const contents: CarriedItem[] = [];

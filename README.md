@@ -28,6 +28,10 @@ Save and quit to the menu, then pick `…\steamapps\common\Mirklurk Every Step M
 folder on the page, or open a `.zip` of it. Picking the whole `Saves` folder offers a character list. `Player.save` alone also works; zone
 maps and objects then stay empty.
 
+Malformed saved object lists produce a warning rather than silently disappearing or turning into default objects. Missing optional area
+files still leave their layers empty. In the editor, an unreadable creature or station list disables movement and creature changes in that
+area and identifies the file. Other areas and pending edits remain available.
+
 Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset; **World** to fit the whole 5×5 world. The crosshair
 below them does the opposite and locates your character: it zooms in on them wherever they are, opening the interior they are inside (a
 building, cave or dungeon level) or their zone, and their marker pulses a moment (it also turns the You layer back on). Pinching also pans

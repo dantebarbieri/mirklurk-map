@@ -10,3 +10,10 @@ export function playerRecord(raw: unknown): Rec {
   if (!isRec(player)) throw new Error("Player.save has no player record");
   return player;
 }
+
+/** Missing optional area files are empty; malformed lists or records are not. */
+export function recordList(raw: unknown): Rec[] {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || !raw.every(isRec)) throw new Error("Invalid saved record list");
+  return raw;
+}

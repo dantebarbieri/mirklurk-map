@@ -13,7 +13,7 @@ import { isSaveFile, markerText } from "../marker.ts";
 import { api, libraryKey, libraryKeyFor } from "../library.ts";
 import { offerDownload } from "../download.ts";
 import { fileMapOf, forget, type Handoff, handOff, type OpenSave, remember, storedFiles, takeHandoff } from "../handoff.ts";
-import { type Being, decodeJson, parseBeings, parsePlaced, parsePlayer, type PlayerSave } from "../save.ts";
+import { decodeJson, parsePlayer, type PlayerSave } from "../save.ts";
 import { playerRecord, type Rec } from "../save-record.ts";
 import { type Interior, interiorsOf, loadDetail, loadHeights, loadLayer, loadTrees, loadWorld, type World, type Zone } from "../world.ts";
 import {
@@ -116,6 +116,7 @@ import { conditionView } from "../inspect.ts";
 import { ITEMS } from "../itemdata.ts";
 import { SLOT_NAMES } from "../armor.ts";
 import { deleteBeing, habitat, habitatRefusal, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
+import { areaObjects } from "./area.ts";
 import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, reachable, tileBox } from "./ground.ts";
 import {
   addRaft,
@@ -1828,12 +1829,7 @@ const SCALE = 3;
  */
 async function areaGround(a: Area, v: PlayerSave) {
   const w = world!, s = session!;
-  const beingsPath = `${a.dir}Beings.save`;
-  const hasBeings = s.files.has(beingsPath);
-  const beings: Being[] = parseBeings(hasBeings ? await s.json(beingsPath) as unknown[] : []);
-  // The draft, so rafts left or docked by unsaved changes take their tiles.
-  const stationsPath = `${a.dir}Stations.save`;
-  const stations = s.files.has(stationsPath) ? parsePlaced(await s.json(stationsPath)) : [];
+  const { beingsPath, hasBeings, beings, stations } = await areaObjects(s, a.dir);
   const [data, water1] = await Promise.all(["Data", "Water1"].map((l) => loadLayer(w, a.dir, l)));
   const trees = await loadTrees(w, a.dir);
   const detail = await loadDetail(w, a.dir);
@@ -2061,8 +2057,64 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
   const w = world!;
   if (!area) return card("map", "Where you stand and creatures", h("p", { class: "muted" }, "No explored area was found."));
   const a = area;
-  const { beingsPath, hasBeings, beings, youHere, rafts, ground } = await areaGround(a, v);
   const you = playerArea(v);
+  const zoneButtons = h(
+    "div",
+    { class: "zone-grid", role: "group", "aria-label": "Zone" },
+    w.zones.flat().map((z) =>
+      h("button", {
+        type: "button",
+        class: `zone-button${z === a.zone ? " current" : ""}${you?.zone === z ? " you" : ""}`,
+        disabled: !z.dir,
+        title: `${coordLabel(z.x, z.y)} ${z.name}${z.dir ? "" : " (not explored)"}`,
+        onclick: () => {
+          area = { zone: z, dir: z.dir! };
+          selected = undefined;
+          void render();
+        },
+      }, coordLabel(z.x, z.y))
+    ),
+  );
+  const inside = interiorsOf(w, a.zone.x, a.zone.y);
+  const areaSelect = h(
+    "select",
+    {
+      "aria-label": "Area",
+      onchange: () => {
+        const it = inside.find((i) => i.dir === areaSelect.value);
+        area = it ? { zone: a.zone, interior: it, dir: it.dir } : { zone: a.zone, dir: a.zone.dir! };
+        selected = undefined;
+        void render();
+      },
+    },
+    a.zone.dir ? h("option", { value: a.zone.dir, selected: !a.interior }, "Outdoors") : null,
+    inside.map((it) =>
+      h(
+        "option",
+        { value: it.dir, selected: a.interior === it },
+        `${INTERIOR_NAMES[it.kind ?? -1] ?? "Interior"} at tile ${it.at[0] >> 4},${it.at[1] >> 4}`,
+      )
+    ),
+  ) as HTMLSelectElement;
+  let objects: Awaited<ReturnType<typeof areaGround>>;
+  try {
+    objects = await areaGround(a, v);
+  } catch (e) {
+    return card(
+      "map",
+      "Where you stand and creatures",
+      zoneButtons,
+      areaSelect,
+      h("p", { class: "edit-note error", role: "alert" }, `Cannot edit this area: ${errorText(e)}`),
+      h(
+        "p",
+        { class: "muted" },
+        "Movement and creature changes are unavailable here. Choose another area or reopen the save after the game finishes saving. " +
+          "Your pending edits are unchanged.",
+      ),
+    );
+  }
+  const { beingsPath, hasBeings, beings, youHere, rafts, ground } = objects;
   const img = a.interior ? undefined : await mapImage(a.zone.mapPath);
   const outside = !a.interior;
   const water = await waterOf(a.dir);
@@ -2204,44 +2256,6 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
   });
   draw();
 
-  const zoneButtons = h(
-    "div",
-    { class: "zone-grid", role: "group", "aria-label": "Zone" },
-    w.zones.flat().map((z) =>
-      h("button", {
-        type: "button",
-        class: `zone-button${z === a.zone ? " current" : ""}${you?.zone === z ? " you" : ""}`,
-        disabled: !z.dir,
-        title: `${coordLabel(z.x, z.y)} ${z.name}${z.dir ? "" : " (not explored)"}`,
-        onclick: () => {
-          area = { zone: z, dir: z.dir! };
-          selected = undefined;
-          void render();
-        },
-      }, coordLabel(z.x, z.y))
-    ),
-  );
-  const inside = interiorsOf(w, a.zone.x, a.zone.y);
-  const areaSelect = h(
-    "select",
-    {
-      "aria-label": "Area",
-      onchange: () => {
-        const it = inside.find((i) => i.dir === areaSelect.value);
-        area = it ? { zone: a.zone, interior: it, dir: it.dir } : { zone: a.zone, dir: a.zone.dir! };
-        selected = undefined;
-        void render();
-      },
-    },
-    a.zone.dir ? h("option", { value: a.zone.dir, selected: !a.interior }, "Outdoors") : null,
-    inside.map((it) =>
-      h(
-        "option",
-        { value: it.dir, selected: a.interior === it },
-        `${INTERIOR_NAMES[it.kind ?? -1] ?? "Interior"} at tile ${it.at[0] >> 4},${it.at[1] >> 4}`,
-      )
-    ),
-  ) as HTMLSelectElement;
   const spawnSelect = h(
     "select",
     {

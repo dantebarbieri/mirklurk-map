@@ -15,6 +15,13 @@ export type Inventory =
   | { state: "saved"; items: SavedItem[]; note?: string }
   | { state: "unrolled" | "unavailable"; reason: string };
 
+/** A two-handed melee weapon is saved in its off hand too; the game's loader skips that identical record in slots 1 and 3. */
+export function isOffHandCopy(equips: readonly unknown[], slot: number): boolean {
+  const item = equips[slot];
+  return (slot === 1 || slot === 3) && isRec(item) &&
+    (item === equips[slot - 1] || JSON.stringify(item) === JSON.stringify(equips[slot - 1]));
+}
+
 /**
  * A container kept inside another (a bag in a bag, or in a chest) holds nothing once the game loads the save: load_player and
  * load_containers give each one a new, empty inventory (item_recreate_grid). Its saved grid is a leftover: save_player refreshes only

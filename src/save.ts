@@ -1,11 +1,11 @@
 // Decoders for Mirklurk save files (gml_GlobalScript_scr_saveload).
 
 import { TILES } from "./rules.ts";
-import { containerInventory, type Inventory, parseItemList } from "./inventory.ts";
+import { containerInventory, type Inventory, isOffHandCopy, parseItemList } from "./inventory.ts";
 import { type HealthGrid, parseHealth } from "./health.ts";
 import type { Equipped } from "./armor.ts";
 import { parseSky, type Sky } from "./weather.ts";
-import { playerRecord, type Rec } from "./save-record.ts";
+import { playerRecord, recordList } from "./save-record.ts";
 import { finite, num } from "./values.ts";
 
 /** save_datajson: UTF-8 JSON written with buffer_string, so it ends in one NUL byte. */
@@ -135,10 +135,7 @@ export interface Vitals {
  */
 function parseEquipment(rawEquips: unknown, rawActives: unknown): { inventory: Inventory; equipment: Equipped[] } {
   if (!Array.isArray(rawEquips)) return { inventory: parseItemList(rawEquips), equipment: [] };
-  const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
-  const kept = rawEquips.flatMap((v, slot) =>
-    v === -4 || ((slot === 1 || slot === 3) && same(v, rawEquips[slot - 1])) ? [] : [{ v, slot }]
-  );
+  const kept = rawEquips.flatMap((v, slot) => v === -4 || isOffHandCopy(rawEquips, slot) ? [] : [{ v, slot }]);
   const inventory = parseItemList(kept.map((k) => k.v));
   const actives = Array.isArray(rawActives) ? rawActives : [];
   const equipment = inventory.state === "saved"
@@ -235,11 +232,10 @@ export interface Tree {
   parts?: number[][];
 }
 
-const list = (raw: unknown) => (Array.isArray(raw) ? (raw as Rec[]) : []);
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
 export const parseSolids = (raw: unknown): Solid[] =>
-  list(raw).map((s) => ({
+  recordList(raw).map((s) => ({
     sprite: str(s.sprite),
     pic: Math.floor(num(s.pic)),
     index: num(s.index, -4),
@@ -249,7 +245,7 @@ export const parseSolids = (raw: unknown): Solid[] =>
   }));
 
 export const parseBeings = (raw: unknown): Being[] =>
-  list(raw).map((b) => ({
+  recordList(raw).map((b) => ({
     index: num(b.index, -1),
     state: num(b.state),
     x: num(b.x),
@@ -259,7 +255,7 @@ export const parseBeings = (raw: unknown): Being[] =>
 
 /** Containers, stations, interactables and decorations share this shape. */
 export const parsePlaced = (raw: unknown): Placed[] =>
-  list(raw).map((c) => ({
+  recordList(raw).map((c) => ({
     sprite: str(c.sprite),
     pic: Math.floor(num(c.pic)),
     index: num(c.index, -4),
@@ -286,7 +282,7 @@ export const parseContainers = (raw: unknown, warn?: (message: string) => void):
 };
 
 export const parseTrees = (raw: unknown): Tree[] =>
-  list(raw).map((t) => {
+  recordList(raw).map((t) => {
     if (
       t.partArray !== undefined && (!Array.isArray(t.partArray) ||
         t.partArray.some((p) => !Array.isArray(p) || p.length < 25 || p.some((v) => !finite(v))))

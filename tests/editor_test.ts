@@ -451,6 +451,33 @@ const dressed = (worn: Record<number, Rec>) => {
 };
 const backpack = (grid = empty(7, 5)) => cell(12, 1, E, E, { subParts: [{ type: 0, parentIndex: 12, gridSave: grid }] });
 
+Deno.test("equipment: reader and editor share copy detection and keep both weapon sets synchronized", () => {
+  for (const slot of [0, 2]) {
+    const main = cell(29, 1, E, E, { durability: 50, futureField: { kept: true } });
+    const p = dressed({ [slot]: main, [slot + 1]: structuredClone(main) });
+    const slots = () => carriedItems(p).map((item) => item.place.slot);
+    assertEquals(slots(), [slot]);
+    assertEquals(parsePlayer([p]).equipment.map((item) => item.slot), slots());
+
+    setCondition(p, { slot, path: [] }, 29, { durability: 25 });
+    const equips = p.myEquips as Rec[];
+    assertEquals(equips[slot], equips[slot + 1]);
+    assertEquals(equips[slot].futureField, { kept: true });
+    assert(equips[slot] !== equips[slot + 1], "the save keeps independent copies");
+    assertEquals(parsePlayer([p]).equipment.map((item) => item.item.durability), [25]);
+
+    removeItem(p, { slot, path: [] }, 29, "all");
+    assertEquals(slots(), []);
+    assertEquals(parsePlayer([p]).equipment, []);
+
+    const separate = dressed({ [slot]: main, [slot + 1]: { ...main, futureField: { kept: false } } });
+    assertEquals(carriedItems(separate).map((item) => item.place.slot), [slot, slot + 1]);
+    assertEquals(parsePlayer([separate]).equipment.map((item) => item.slot), [slot, slot + 1]);
+    removeItem(separate, { slot, path: [] }, 29, "all");
+    assertEquals(carriedItems(separate).map((item) => item.place.slot), [slot + 1], "a different record is not removed as a copy");
+  }
+});
+
 Deno.test("equipment: a character with nothing to carry things in puts on a new backpack, then carries items in it", () => {
   const p = dressed({ 6: cell(22, 1, E, E) });
   assertEquals(addItems(p, 72, 5), { added: 0, left: 5 }, "nowhere to put coins");
