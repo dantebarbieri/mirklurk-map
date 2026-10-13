@@ -29,7 +29,8 @@ folder on the page, or open a `.zip` of it. Picking the whole `Saves` folder off
 maps and objects then stay empty.
 
 Malformed saved object lists produce a warning rather than silently disappearing or turning into default objects. Missing optional area
-files still leave their layers empty.
+files still leave their layers empty. In the editor, an unreadable creature or station list disables movement and creature changes in that
+area and identifies the file. Other areas and pending edits remain available.
 
 Map controls: wheel, two-finger pinch, or `+`/`−` to zoom; drag to pan; `⟲` to reset; **World** to fit the whole 5×5 world. The crosshair
 below them does the opposite and locates your character: it zooms in on them wherever they are, opening the interior they are inside (a

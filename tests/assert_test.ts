@@ -74,6 +74,8 @@ Deno.test("assertEquals handles cycles without accepting different cycle shapes"
   assertEquals(a, b);
   b.self = { self: b, value: 1 };
   fails(() => assertEquals(a, b));
+  b.self = a;
+  fails(() => assertEquals(a, b));
   const mapA = new Map<unknown, unknown>(), mapB = new Map<unknown, unknown>();
   mapA.set(mapA, mapA);
   mapB.set(mapB, mapB);

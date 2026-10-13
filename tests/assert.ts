@@ -5,11 +5,13 @@ export function assert(cond: unknown, msg = "assertion failed"): asserts cond {
 }
 
 function equal(actual: unknown, expected: unknown, left = new Map<object, object>(), right = new Map<object, object>()): boolean {
-  if (Object.is(actual, expected)) return true;
-  if (typeof actual !== "object" || actual === null || typeof expected !== "object" || expected === null) return false;
+  if (typeof actual !== "object" || actual === null || typeof expected !== "object" || expected === null) {
+    return Object.is(actual, expected);
+  }
+  if (left.has(actual) || right.has(expected)) return left.get(actual) === expected && right.get(expected) === actual;
+  if (actual === expected) return true;
   const prototype = Object.getPrototypeOf(actual);
   if (prototype !== Object.getPrototypeOf(expected)) return false;
-  if (left.has(actual) || right.has(expected)) return left.get(actual) === expected && right.get(expected) === actual;
   left.set(actual, expected);
   right.set(expected, actual);
   const matches = (a: unknown, b: unknown) => equal(a, b, left, right);
