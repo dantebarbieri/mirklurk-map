@@ -13,6 +13,7 @@ import { detailMarks } from "../src/objects.ts";
 import { trunkOf } from "../src/chop.ts";
 import { scenery } from "../src/terrain.ts";
 import { fernAt, gatherMarks } from "../src/gather.ts";
+import { CHANNELS, detectVersion } from "../src/version.ts";
 
 Deno.test({ name: "real saves: grid, quest zones and landmarks", ignore: !HAVE_SAVES }, async () => {
   const files = readTree();
@@ -36,9 +37,13 @@ Deno.test({ name: "real saves: grid, quest zones and landmarks", ignore: !HAVE_S
       const [a, b] = [await loadLayer(w, z.dir, "Water1"), await loadLayer(w, z.dir, "Lower")];
       ship.set(`${z.x},${z.y}`, shipwreckOdds(a!.data, b!.data).perEntry);
     }
-    const marks = landmarks(w, ship);
+    const rules = detectVersion(w.player.version);
+    assert(rules, `${c.name}: VERSION ${w.player.version} is readable`);
+    const marks = landmarks(w, ship, rules);
     const by = Object.fromEntries(marks.map((m) => [m.id, m]));
     assertEquals(by.fort.status, "found");
+    // Only a world saved by 0.8.9.9 or later can have the Survivors' camp.
+    assertEquals("wilda" in by, rules !== "0.8.1.5", `${c.name} (${rules}): camp guess`);
     for (const id of ["gurb", "ihar"] as const) {
       const flag = id === "gurb" ? w.player.gurbsHut : w.player.shipWreck;
       assertEquals(by[id].status, flag ? "found" : "candidates", `${c.name} ${id}`);
@@ -71,7 +76,7 @@ Deno.test({ name: "real saves: placed buildings sit in the zones the save names"
   const files = readTree();
   for (const c of findCharacters(files)) {
     const w = await loadWorld(files, c.root, c.name);
-    const m = Object.fromEntries(landmarks(w, new Map()).map((x) => [x.id, x]));
+    const m = Object.fromEntries(landmarks(w, new Map(), detectVersion(w.player.version) ?? CHANNELS.latest).map((x) => [x.id, x]));
     const p = w.player;
     const saved = { bhato: p.rangerCamp, library: p.libraryArea, scaal: p.riftQuestArea };
     for (const [id, zone] of Object.entries(saved)) {
@@ -174,7 +179,7 @@ Deno.test({ name: "real saves: gatherables, where the game grows them, with thei
     for (const area of areas) {
       const hinderance = await loadLayer(world, area.dir, "Hinderance");
       if (!hinderance) continue;
-      const marks = gatherMarks(hinderance, await loadLayer(world, area.dir, "LootData"));
+      const marks = gatherMarks(hinderance, await loadLayer(world, area.dir, "LootData"), detectVersion(world.player.version)!);
       const kinds = new Set(marks.map((m) => m.gather!.kind));
       const indoor = world.interiors.some((i) => i.dir === area.dir);
       // Zone generation (manager_area Alarm_2) plants Calmia, Turnips and Cranberries outside the Rift Mire, so most zones have all three.
@@ -185,7 +190,7 @@ Deno.test({ name: "real saves: gatherables, where the game grows them, with thei
         assert(files.has(`${area.dir}LOOT-${m.x}_${m.y}.save`), `${area.dir}: ground loot of ${m.name} at ${m.x},${m.y}`);
       }
       // Ferns come from zone generation only, so their overlay is offered outdoors only.
-      const fernTiles = hinderance.data.filter((t) => fernAt(tileIndex(t))).length;
+      const fernTiles = hinderance.data.filter((t) => fernAt(tileIndex(t), "0.8.9.9")).length;
       if (indoor) assertEquals(fernTiles, 0, `${area.dir}: ferns indoors`);
       else ferns += fernTiles;
     }

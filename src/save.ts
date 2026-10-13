@@ -148,6 +148,9 @@ function parseEquipment(rawEquips: unknown, rawActives: unknown): { inventory: I
   return { inventory, equipment };
 }
 
+/** PlayerSave.version of a save without VERSION. */
+export const NO_VERSION = "?";
+
 export function parsePlayer(raw: unknown): PlayerSave {
   const p = playerRecord(raw);
   const grid = p.worldGrid;
@@ -157,7 +160,7 @@ export function parsePlayer(raw: unknown): PlayerSave {
   const mem = Array.isArray(p.worldGridMem) ? (p.worldGridMem as unknown[][]) : [];
   const { inventory, equipment } = parseEquipment(p.myEquips, p.actives);
   return {
-    version: typeof p.VERSION === "string" ? p.VERSION : "?",
+    version: typeof p.VERSION === "string" ? p.VERSION : NO_VERSION,
     grid: (grid as unknown[][]).map((r) => r.map((v) => num(v, -4))),
     lastVisit: [0, 1, 2, 3, 4].map((y) => [0, 1, 2, 3, 4].map((x) => pair(mem[y]?.[x]))),
     area: { x: num(p.areaX), y: num(p.areaY), type: num(p.areaType) },

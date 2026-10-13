@@ -61,9 +61,16 @@ Deno.test("bestiary: 0.8.9.9's Mirkfangs, Survivors, Grand Mother and Magus Clay
   for (const i of [34, 35, 36]) assertEquals([BEINGS[i].team, targetsYou(BEINGS[i])], [10, false], BEING_NAMES[i]);
   for (const i of [37, 38, 39, 40, 41]) assert(targetsYou(BEINGS[i]), BEING_NAMES[i]);
   for (const i of [37, 38, 39, 40]) assertEquals(BEINGS[i].melee.damageClass, DamageClass.Leeching, BEING_NAMES[i]);
-  assertEquals(damageClassInfo(DamageClass.Leeching)?.name, "Leeching");
-  assert(damageClassInfo(DamageClass.Leeching)!.effect.includes("heals"), "Leeching heals the attacker");
-  assert(damageClassInfo(DamageClass.Blunt)!.effect.startsWith("10%"), "Blunt stuns 10% of the time since 0.8.9.9");
+  assertEquals(damageClassInfo(DamageClass.Leeching, "0.8.9.9")?.name, "Leeching");
+  assert(damageClassInfo(DamageClass.Leeching, "0.8.9.9")!.effect.includes("heals"), "Leeching heals the attacker");
+  assert(damageClassInfo(DamageClass.Blunt, "0.8.9.9")!.effect.startsWith("10%"), "Blunt stuns 10% of the time since 0.8.9.9");
+  // 0.8.1.5's hit_effects stunned 12% of the time; the rest of Blunt's text and every other class read the same.
+  const blunt = [damageClassInfo(DamageClass.Blunt, "0.8.1.5")!, damageClassInfo(DamageClass.Blunt, "0.8.9.9")!];
+  assert(blunt[0].effect.startsWith("12%"), blunt[0].effect);
+  assertEquals(blunt[0].effect.replace("12%", "10%"), blunt[1].effect);
+  for (const dc of Object.keys(DAMAGE_CLASS_NAMES).map(Number).filter((dc) => dc !== DamageClass.Blunt)) {
+    assertEquals(damageClassInfo(dc, "0.8.1.5"), damageClassInfo(dc, "0.8.9.9"), `${dc}`);
+  }
   assertEquals([BEINGS[40].xp, BEINGS[40].hostileDist, BEINGS[41].xp, BEINGS[41].ranged!.dist], [500, 9, 750, 16]);
   assertEquals(totalDamage(BEINGS[41].ranged!.pattern), { min: 15, max: 15 });
 });
@@ -80,10 +87,10 @@ Deno.test("bestiary: damage cells and totals as the game reads them", () => {
   assertEquals(totalDamage(BEINGS[22].ranged!.pattern), { min: 7, max: 15 });
   assertEquals(totalDamage(BEINGS[6].melee.pattern), { min: 6, max: 10 });
   assertEquals(totalDamage(BEINGS[20].melee.pattern), { min: 0, max: 0 });
-  assertEquals(damageClassInfo(DamageClass.Sharp)?.name, "Sharp");
-  assertEquals(damageClassInfo(BEINGS[13].ranged!.damageClass)?.key, "poison");
-  assertEquals(damageClassInfo(BEINGS[9].melee.damageClass), undefined);
-  for (const dc of Object.keys(DAMAGE_CLASS_NAMES).map(Number)) assert(damageClassInfo(dc)!.effect, `${dc} effect`);
+  assertEquals(damageClassInfo(DamageClass.Sharp, "0.8.9.9")?.name, "Sharp");
+  assertEquals(damageClassInfo(BEINGS[13].ranged!.damageClass, "0.8.9.9")?.key, "poison");
+  assertEquals(damageClassInfo(BEINGS[9].melee.damageClass, "0.8.9.9"), undefined);
+  for (const dc of Object.keys(DAMAGE_CLASS_NAMES).map(Number)) assert(damageClassInfo(dc, "0.8.9.9")!.effect, `${dc} effect`);
 });
 
 Deno.test("bestiary: labels like the examine card", () => {

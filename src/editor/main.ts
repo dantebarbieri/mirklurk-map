@@ -46,6 +46,7 @@ import {
   FolderSource,
   LibrarySource,
   listBackups,
+  type PendingCheck,
   type SaveRead,
   type SaveSource,
   type WritablePicker,
@@ -117,6 +118,7 @@ import { ITEMS } from "../itemdata.ts";
 import { SLOT_NAMES } from "../armor.ts";
 import { deleteBeing, habitat, habitatRefusal, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
 import { areaObjects } from "./area.ts";
+import { versionConflicts } from "./compat.ts";
 import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, reachable, tileBox } from "./ground.ts";
 import {
   addRaft,
@@ -136,11 +138,13 @@ import {
   waterText,
   wetMap,
 } from "./raft.ts";
-import { disposeView, rememberView, renderWorld, showJournalTarget, type State, worldState } from "../view.ts";
+import { disposeView, rememberView, renderWorld, setRules, showJournalTarget, type State, worldState } from "../view.ts";
 import type { JournalTarget } from "../journal.ts";
 import { LAYERS } from "../objects.ts";
 import { setFullMap } from "../fullscreen.ts";
 import { ask, type Choice, choose } from "../dialog.ts";
+import { CHANNELS, detectVersion, type GameVersion, hasBeing, hasItem, overrideOf } from "../version.ts";
+import { versionSwitch } from "../versionview.ts";
 
 /** An area the map card shows: an outdoor zone or one of its interiors. */
 interface Area {
@@ -166,7 +170,17 @@ let cheated = false;
 let editing = false;
 let area: Area | undefined;
 let tool: Tool = "inspect";
-let spawnIndex = Number(Object.keys(BEINGS).find((i) => spawnable(Number(i))));
+/** A version picked with the Latest/Beta switch over the one the save names; dropped for another character or save. */
+let rulesPick: GameVersion | undefined;
+/** The rules the editor follows: the pick, else the save's VERSION, else Latest's (version.ts). */
+const editorRules = (): GameVersion => rulesPick ?? detectVersion(world?.player.version) ?? CHANNELS.latest;
+/** A pick equal to the version the save now names is no pick, so the editor follows the save's VERSION again (as setRules does). */
+function followSave() {
+  rulesPick = overrideOf(rulesPick, detectVersion(world?.player.version));
+}
+/** The creatures the Spawn tool offers: those the game version in use has. */
+const spawnChoices = () => Object.keys(BEINGS).map(Number).filter((i) => spawnable(i) && hasBeing(editorRules(), i));
+let spawnIndex = spawnChoices()[0];
 let selected: number | undefined;
 /** The hit point picked in the Hit points card, [x, y]. */
 let hpPick: [number, number] | undefined;
@@ -317,10 +331,14 @@ async function install(src: SaveSource, read: SaveRead, want: Character | undefi
     }
     chars = found;
     active = found.indexOf(c);
-    // Another character or save starts the full map afresh; after a save or restore it stays where it was.
-    if (!keepArea) closeMap();
+    // Another character or save starts the full map afresh, following its own version; after a save or restore it stays as it was.
+    if (!keepArea) {
+      closeMap();
+      rulesPick = undefined;
+    }
     session = new EditSession(src, read, c, id);
     world = loaded;
+    followSave();
     cheated = marked;
     if (!keepArea || !area) area = playerArea(loaded.player);
     else area = sameArea(area);
@@ -376,6 +394,7 @@ function settle(s: EditSession, read: SaveRead, c: Character, loaded: World, mar
   chars = read.characters;
   active = chars.indexOf(c);
   world = loaded;
+  followSave();
   cheated = marked;
   area = area ? sameArea(area) : playerArea(loaded.player);
   selected = undefined;
@@ -661,6 +680,25 @@ async function writable(s: EditSession): Promise<boolean> {
   return false;
 }
 
+/** A refusal from `suitsVersion`, shown as it is. */
+class VersionError extends Error {}
+
+/**
+ * Refuses changes that add an item or creature the game version in use (the Latest/Beta switch) does not have, made while the
+ * other version was picked: that game could not load the save. EditSession runs it on exactly what it then writes.
+ */
+const suitsVersion = (doing: string): PendingCheck => {
+  const rules = editorRules();
+  return async (files, pending) => {
+    const lacking = await versionConflicts(files, pending, rules);
+    if (!lacking.length) return;
+    throw new VersionError(
+      `Not ${doing}: your changes add ${joinAnd(lacking)}, which Mirklurk ${rules} does not have, so it could not load the save. ` +
+        "Undo those changes, or pick the version you will play it on with the Latest/Beta switch.",
+    );
+  };
+};
+
 /** Saves the unsaved changes where the save came from: the game's folder or My worlds. A copy asks for the game's folder first. */
 async function save() {
   const s = session;
@@ -671,7 +709,7 @@ async function save() {
   status(library ? `Saving ${s.character.name} to My worlds...` : "Saving...");
   await locked(async () => {
     try {
-      const n = await s.save();
+      const n = await s.save(suitsVersion("saved"));
       // Another save opened meanwhile (with the keyboard: the page is locked to the pointer) stays on screen.
       if (session !== s) return;
       cheated = true;
@@ -700,7 +738,7 @@ async function download() {
   const s = session;
   if (!s || s.saving) return;
   try {
-    const zip = await s.download();
+    const zip = await s.download(suitsVersion("downloaded"));
     offerDownload(zip);
     if (session !== s) return;
     cheated = true;
@@ -711,7 +749,7 @@ async function download() {
     );
   } catch (e) {
     console.error(e);
-    status(`Could not download the save: ${errorText(e)}`, true);
+    status(e instanceof VersionError ? e.message : `Could not download the save: ${errorText(e)}`, true);
   }
   await render();
 }
@@ -868,6 +906,14 @@ function summary(v: PlayerSave, p: Rec): HTMLElement {
       sky ? ` · Day ${sky.day}, ${formatClock(sky.minute)} · ${WEATHER_LABELS[weatherKind(sky)]}` : "",
     ),
     h("p", { class: "muted" }, from),
+    h(
+      "p",
+      { class: "edit-version" },
+      versionSwitch({ detected: detectVersion(world?.player.version), rules: editorRules(), saved: world?.player.version }, (pick) => {
+        rulesPick = pick;
+        void render();
+      }, VERSION_NOTE),
+    ),
     editing
       ? h(
         "p",
@@ -884,6 +930,10 @@ function summary(v: PlayerSave, p: Rec): HTMLElement {
       ),
   );
 }
+
+/** The editor's word on the Latest/Beta switch. */
+const VERSION_NOTE = "The editor offers only the items and creatures the chosen version's game has: a save holding one it lacks " +
+  "does not load there. The switch also sets the rules the character card and Full map show.";
 
 function card(id: string, title: string, ...body: (HTMLElement | HTMLElement[] | string | null)[]): HTMLElement {
   return h(
@@ -1342,17 +1392,24 @@ function skyCard(p: Rec): HTMLElement {
   );
 }
 
-/** Carryable items by display name; a repeated name gets its item number. */
-const ITEM_CHOICES: Map<string, number> = (() => {
-  const named = Object.keys(ITEM_NAMES).map(Number).filter((i) => addable(i)).map((i) => [ITEM_NAMES[i], i] as const);
+/** Carryable items the game version `rules` has, by display name; a repeated name gets its item number. */
+function itemChoices(rules: GameVersion): Map<string, number> {
+  const named = Object.keys(ITEM_NAMES).map(Number).filter((i) => addable(i) && hasItem(rules, i)).map((i) => [ITEM_NAMES[i], i] as const);
   const count = new Map<string, number>();
   for (const [name] of named) count.set(name, (count.get(name) ?? 0) + 1);
   return new Map(
     named.map(([name, i]) => [count.get(name)! > 1 ? `${name} (${i})` : name, i] as const).sort(([a], [b]) => a.localeCompare(b)),
   );
-})();
+}
+
+/** Throws when the game version in use has no item `index`, so a save holding it would not load there. */
+function checkItem(index: number) {
+  const rules = editorRules();
+  if (!hasItem(rules, index)) throw new Error(`Mirklurk ${rules} has no ${ITEM_NAMES[index]}: a save holding it would not load there`);
+}
 
 function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
+  const ITEM_CHOICES = itemChoices(editorRules());
   const name = h("input", {
     type: "text",
     list: "item-choices",
@@ -1380,6 +1437,7 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
   /** Adds to the bags; what does not fit is reported, not dropped. */
   const add = async (index: number, n: number) => {
     let left = 0;
+    checkItem(index);
     await editPlayer("items", (rec) => {
       const r = addItems(rec, index, n);
       left = r.left;
@@ -1423,6 +1481,7 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
           const index = ITEM_CHOICES.get(name.value.trim());
           if (index === undefined) throw new Error("Pick an item from the list");
           const n = readWhole(amount, "Amount");
+          checkItem(index);
           await editPlayer("items", (rec) => {
             const r = wearNew(rec, index, n);
             return `Put on ${r.amount > 1 ? `${r.amount} × ` : ""}${itemName(index)} (${slotLabel(r.slot)})`;
@@ -1951,11 +2010,16 @@ async function chooseMove(a: Area, tx: number, ty: number): Promise<Step[] | und
   const choices: MoveChoice[] = [];
   const body: string[] = [];
   let title: string;
+  // The version a raft left or docked here is written for: the one in use now, kept if the edit is replayed after a switch.
+  const rules = editorRules();
   // Where the raft you are on stays if you leave it: its own zone, where you stand.
   const here = outside ? w.zones[at[1]]?.[at[0]] : undefined;
   const herePath = here?.dir && `${here.dir}Stations.save`;
   const leave = herePath && s.files.has(herePath)
-    ? { path: herePath, edit: (r: unknown) => (addRaft(r, ox, oy), `left your raft in ${zoneName(here!)}, tile ${ox},${oy}`) }
+    ? {
+      path: herePath,
+      edit: (r: unknown) => (addRaft(r, ox, oy, rules), `left your raft in ${zoneName(here!)}, tile ${ox},${oy}`),
+    }
     : undefined;
   // Only when the raft cannot be left anywhere (you are not in a saved outdoor zone): going without it loses it.
   const dropRaft = (): MoveChoice => ({
@@ -2035,7 +2099,7 @@ async function chooseMove(a: Area, tx: number, ty: number): Promise<Step[] | und
         detail: `It drifts towards you, past any other island, to the first shore of that land: tile ${dx},${dy}.`,
         steps: [
           move(false, `Moved you to ${where}${inWater}`),
-          { path: `${a.dir}Stations.save`, edit: (r) => (addRaft(r, dx, dy), `docked your raft at tile ${dx},${dy}`) },
+          { path: `${a.dir}Stations.save`, edit: (r) => (addRaft(r, dx, dy, rules), `docked your raft at tile ${dx},${dy}`) },
         ],
       });
     } else if (!a.interior) body.push("No water a raft floats on can be reached from that land in this zone, so it cannot dock there.");
@@ -2123,6 +2187,8 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
   const youTile = youHere ? (v.pos[1] >> 4) * TILES + (v.pos[0] >> 4) : -1;
   const raftTiles = new Set(rafts.map((r) => (r.y >> 4) * TILES + (r.x >> 4)));
   // Where the creature to spawn cannot be: walls and what is already there, and where it does not live.
+  const spawns = spawnChoices();
+  if (!spawns.includes(spawnIndex)) spawnIndex = spawns[0];
   const spawnKind = spawnIndex;
   const blocked = (t: number) => ground[t] === Ground.Blocked || ground[t] === Ground.Taken;
   const habitatWhy = (t: number) => blocked(t) ? undefined : habitatRefusal(spawnKind, water, t, outside);
@@ -2248,6 +2314,13 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
         return;
       }
       const kind = spawnKind;
+      // Checked once, as the edit is made: replaying it later (undo, reload) does not depend on the switch.
+      const rules = editorRules();
+      if (!hasBeing(rules, kind)) {
+        note("map", `Mirklurk ${rules} has no ${BEING_NAMES[kind]}: a save holding one would not load there.`, true);
+        void render();
+        return;
+      }
       void edit("map", beingsPath, (raw) => {
         spawnBeing(raw as unknown[], kind, tx, ty);
         return `Spawned a ${BEING_NAMES[kind]} in ${areaName(a)}, tile ${tx},${ty}`;
@@ -2262,7 +2335,7 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
       "aria-label": "Creature to spawn",
       onchange: () => (spawnIndex = Number(spawnSelect.value), tool === "spawn" && void render()),
     },
-    Object.keys(BEINGS).map(Number).filter(spawnable).sort((x, y) => BEING_NAMES[x].localeCompare(BEING_NAMES[y])).map((i) =>
+    spawns.sort((x, y) => BEING_NAMES[x].localeCompare(BEING_NAMES[y])).map((i) =>
       h("option", { value: i, selected: i === spawnIndex }, `${BEING_NAMES[i]}${habitat(i) === "walks" ? "" : ` (${habitat(i)})`}`)
     ),
   ) as HTMLSelectElement;
@@ -2326,7 +2399,7 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
         "div",
         { class: "selected-being" },
         h("h4", {}, `${BEING_NAMES[sel.index] ?? "Creature"} at tile ${sel.x >> 4},${sel.y >> 4}`),
-        ...creatureView(sel.index, sel.health, { key: "editor-being" }),
+        ...creatureView(sel.index, sel.health, { key: "editor-being", rules: editorRules() }),
         h("button", { type: "button", class: "button subtle", onclick: remove(selected!) }, "Remove this creature"),
       )
       : null,
@@ -2385,6 +2458,9 @@ async function renderMap(my: number) {
     const shown = await loadWorld(files, c.root, c.name);
     shown.cheated ||= cheated;
     const next = await worldState(shown, files, mapPrefs);
+    if (rulesPick) setRules(next.state, rulesPick);
+    // The full map's own Latest/Beta switch sets the editor's too.
+    next.state.onRules = (pick) => (rulesPick = pick);
     if (my !== renderToken) {
       next.urls.forEach((u) => URL.revokeObjectURL(u));
       return;
@@ -2532,6 +2608,7 @@ function previewCard(v: PlayerSave, p: Rec): HTMLElement {
       key: "editor",
       expanded,
       difficulty: v.difficulty,
+      rules: editorRules(),
       // The journal's people and places are shown on the full map.
       find: (t) => {
         mapTarget = t;

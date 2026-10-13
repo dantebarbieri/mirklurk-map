@@ -75,17 +75,32 @@ Deno.test("hairBlend is a BGR colour", () => {
   assertEquals(isLight(0x000080), false); // dark red
 });
 
-Deno.test("a save beside a quest room's way out is read as leaving it, even on the arrival spot", () => {
+Deno.test("a save beside a quest room's way out: leaving it, or in 0.8.1.5 maybe just arrived", () => {
   // Before 0.8.9.9 manager_area Alarm_3 saved on first entering a quest room, with the player on its arrival spot; it no longer
-  // saves there, so a save on that spot is one made on the way out.
+  // saves there, so a 0.8.9.9 save on that spot is one made on the way out. The save's own VERSION decides.
   const hideout: Interior = {
     ...cave,
     kind: 31,
     solids: [{ sprite: "spr_placed_16x16", pic: 5, index: 0, x: 1192, y: 1224, transPoint: [1, 1192, 1224, 1000, 984] }],
   };
   const w = (p: PlayerSave) => ({ ...world(p), interiors: [hideout] }) as unknown as World;
-  const arrived = player([1, 0, 31], [1192, 1208], [1000, 1000]);
+  const saved = (pos: [number, number], version?: string) => ({ ...player([1, 0, 31], pos, [1000, 1000]), version }) as PlayerSave;
+  const arrived = saved([1192, 1208], "0.8.9.9");
   assertEquals(inferMove(w(arrived), arrived)?.pos, [1000, 1000]);
-  const leaving = player([1, 0, 31], [1208, 1224], [1000, 1000]);
+  const leaving = saved([1208, 1224], "0.8.9.9");
   assertEquals(inferMove(w(leaving), leaving)?.pos, [1000, 1000]);
+  // 0.8.1.5 (and a save naming no version, read as Latest's): the arrival spot is the arrival save, not a way out.
+  for (const version of ["0.8.1.5", undefined]) {
+    assertEquals(inferMove(w(saved([1192, 1208], version)), saved([1192, 1208], version)), null, `${version}`);
+    assertEquals(inferMove(w(saved([1208, 1224], version)), saved([1208, 1224], version))?.pos, [1000, 1000], `${version} leaving`);
+  }
+  // The shipwreck (35) puts you on the way out itself.
+  const wreck: Interior = { ...hideout, kind: 35 };
+  const aboard = { ...saved([1192, 1224], "0.8.1.5"), area: { x: 1, y: 0, type: 35 } } as PlayerSave;
+  const ww = { ...world(aboard), interiors: [wreck] } as unknown as World;
+  assertEquals(inferMove(ww, aboard), null);
+  assertEquals(inferMove({ ...ww, player: { ...aboard, version: "0.8.9.9" } } as World, { ...aboard, version: "0.8.9.9" })?.pos, [
+    1000,
+    1000,
+  ]);
 });

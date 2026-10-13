@@ -1,8 +1,24 @@
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
-import { MAGUS_SHARD, PRICES, sells, sortWeight, STOCK, Trader, WARES, waresOf, WHEN } from "../src/merchants.ts";
+import {
+  MAGUS_SHARD,
+  PRICES,
+  sells as sellsIn,
+  sortWeight,
+  STOCK,
+  stockOf,
+  Trader,
+  waresIn,
+  waresOf as waresOfIn,
+  WHEN,
+} from "../src/merchants.ts";
+import type { GameVersion } from "../src/version.ts";
 import { itemImage, itemWiki } from "../src/wiki.ts";
 import { assert, assertEquals } from "./assert.ts";
 
+const NEW: GameVersion = "0.8.9.9", OLD: GameVersion = "0.8.1.5";
+const sells = (being: number) => sellsIn(being, NEW);
+const waresOf = (being: number) => waresOfIn(being, NEW);
+const WARES: Record<number, readonly number[]> = Object.fromEntries(Object.keys(STOCK).map((b) => [b, waresIn(Number(b), NEW)]));
 const TRADERS = [8, 12, 19, 20, 26, 33, 34, 36];
 /** Items 0.8.9.9 added: the wiki catalog bundled before the update has no pages or pictures for them yet. */
 const FIRST_NEW_ITEM = 258;
@@ -79,4 +95,19 @@ Deno.test("merchants: the Storage Chest, Grand Mother's magic and her Magus' Sha
   assertEquals(waresOf(Trader.Mother).find((w) => w.index === MAGUS_SHARD)?.note, "from main quest stage 30");
   assertEquals(waresOf(Trader.Mother).filter((w) => w.note).length, 1);
   assert(WHEN[Trader.Mother].includes("Wilda trusts you") && WHEN[Trader.Wilda].includes("Survivors' camp"));
+});
+
+Deno.test("merchants: 0.8.1.5's six traders, without the Storage Chest or Viend's Steel Hand Axe", () => {
+  const old = TRADERS.filter((b) => sellsIn(b, OLD));
+  assertEquals(old.map((b) => BEING_NAMES[b]), ["Magus Clay", "Ranger Bhato", "Viend", "Commander Tain", "Gurb-Gurb", "Ihar"]);
+  for (let being = -1; being < 64; being++) assertEquals(sellsIn(being, OLD), old.includes(being), `being ${being}`);
+  assertEquals([waresOfIn(Trader.Wilda, OLD), waresOfIn(Trader.Mother, OLD)], [[], []]);
+  // menu_add in 0.8.1.5 (gml_GlobalScript_scr_menu_related): the same order, less what 0.8.9.9 added.
+  assertEquals(stockOf(Trader.Clay, OLD), [140, 32, 84, 85, 86, 27, 45, 14, 57, 44, 41, 113, 115, 114, 112, 156]);
+  assertEquals(stockOf(Trader.Viend, OLD), [140, 32, 138, 84, 139, 85, 86, 45, 41, 113, 115, 114, 112, 156, 252]);
+  assertEquals(waresIn(Trader.Clay, OLD), [44, 57, 14, 27, 41, 45, 85, 86, 156, 114, 113, 115, 112, 140, 84, 32]);
+  assertEquals(waresIn(Trader.Viend, OLD), [41, 45, 85, 86, 156, 252, 114, 113, 115, 112, 139, 138, 140, 84, 32]);
+  for (const b of [Trader.Bhato, Trader.Tain, Trader.Gurb, Trader.Ihar]) assertEquals(stockOf(b, OLD), STOCK[b], BEING_NAMES[b]);
+  // Nothing 0.8.1.5 sold is newer than it.
+  for (const b of old) assert(stockOf(b, OLD).every((i) => i < 258), BEING_NAMES[b]);
 });

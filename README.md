@@ -1,7 +1,7 @@
 # MirkMap · Mirklurk World Viewer
 
-**MirkMap** is a small browser-based viewer for **Mirklurk 0.8.9.9**, published at **https://map.mirklurk.danteb.com**. Open a character's
-save folder and it shows:
+**MirkMap** is a small browser-based viewer for **Mirklurk** 0.8.1.5 and the 0.8.9.9 beta, published at **https://map.mirklurk.danteb.com**.
+Open a character's save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
   the map the game itself made for it (`Maps/x_y.png`);
@@ -15,10 +15,12 @@ save folder and it shows:
   explored entrance to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your
   wellbeing, inventory and journal.
 
-Its rules follow Mirklurk 0.8.9.9 (the Steam beta `next_version_tester`), which adds the Survivors' camp in a Savage Mirk (Wilda, her
-Survivors and Grand Mother's hut) and its side quest, the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a
-Magus' Shard opens and Magus Clay's end in it, the Storage Chest, and placeables you can flip as you place them. Saves made with 0.8.1.5
-still open; the summary line says when a save was made with another version.
+It knows the rules of both Steam branches: **Latest**, Mirklurk 0.8.1.5 (the default), and **Beta**, 0.8.9.9 (the opt-in
+`next_version_tester`), which adds the Survivors' camp in a Savage Mirk (Wilda, her Survivors and Grand Mother's hut) and its side quest,
+the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a Magus' Shard opens and Magus Clay's end in it, the
+Storage Chest, and placeables you can flip as you place them. Each save names the version that wrote it, and MirkMap and the save editor
+follow it; the **Latest / Beta** switch beside Realistic (hover it for the exact versions) shows the other branch's rules instead. See
+[Game versions](#game-versions).
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -484,7 +486,8 @@ the game itself writes it (decompiled entries in brackets):
   stack limits and durability come from the game's item database (`src/itemdata.ts`). Every item you can carry can be added, including ones
   the game keeps out of random treasure (`NONLOOTABLE`): quest items, seeds, Water Lilies and things you place, such as a Campfire, a
   Storage Chest or a Raft Base (place it in deep water, then finish the raft at it). Only Unarmed (your bare hands) and Finish Raft (the
-  recipe that turns a placed Raft Base into the raft, never an item) are left out.
+  recipe that turns a placed Raft Base into the raft, never an item) are left out, and items the game version in use does not have (see
+  [Game versions](#game-versions)).
 - **Removing items**: **What you wear and carry** lists every worn item by slot, with what its containers hold, and each container's size
   and free cells (a bag kept inside another holds nothing, as above). **Remove** takes all of an item, or as many of a stack as you say, out
   of the save: every grid cell it covered is emptied, every copy of the containers it was in is kept the same (the game saves a copy of an
@@ -538,17 +541,17 @@ the game itself writes it (decompiled entries in brackets):
   area only when its folder has `Ygrid.save` (`manager_area` Alarm_2) and makes a new one otherwise, so an area without it is refused.
   Arriving this way is not walking in: what the game does on entering through a door (quest steps on reaching the Library or Scaal's depths,
   regrowth since your last visit) waits for the next time you do.
-- **Creatures**: spawn any creature except quest characters on a free tile of a zone or interior where it can live, with the hit points and
-  armor of a fresh one, or remove creatures. Removing a quest character (NPCs, Wilda's Survivors and Grand Mother, the Dead Unwanted who
-  becomes Viend, Scaal, The Terror and Magus Clay in his realm) asks first. Where a creature can live is the game's own rule
-  (`tile_meets_classneeds`), which it checks wherever a creature spawns or moves. It also checks it whenever you enter an area other than
-  straight from the menu: it then moves each creature to a random tile within 8 that suits it, and removes one that finds none. Flyers
-  (Dreadfly, Giant Gnat, Deathfly and the Mirkfangs) go anywhere. Swimmers need water: a Mire Serpent where the ground (`Ygrid.save`) lies
-  at or below the water threshold (−0.3), a Mudfin or Razorfin below −0.25. Walkers wade, but not where the ground lies at or below −0.4
-  (−0.3 for small ones such as a Mirk Runner, `size` 0), unless reeds or a raised floor lift them out of the water. A Giant Slug keeps out
-  of the second water layer, and only flyers go on brambles, sharp ground or rift vines. The creature list marks swimmers and flyers. With
-  the Spawn tool, tiles the chosen creature cannot use are darkened, and pointing at one says why. The game's wildlife spawner puts Mudfins
-  on any water, so some saved ones sit in shallows too shallow for them until they move.
+- **Creatures**: spawn any creature the game version in use has, except quest characters, on a free tile of a zone or interior where it can
+  live, with the hit points and armor of a fresh one, or remove creatures. Removing a quest character (NPCs, Wilda's Survivors and Grand
+  Mother, the Dead Unwanted who becomes Viend, Scaal, The Terror and Magus Clay in his realm) asks first. Where a creature can live is the
+  game's own rule (`tile_meets_classneeds`), which it checks wherever a creature spawns or moves. It also checks it whenever you enter an
+  area other than straight from the menu: it then moves each creature to a random tile within 8 that suits it, and removes one that finds
+  none. Flyers (Dreadfly, Giant Gnat, Deathfly and the Mirkfangs) go anywhere. Swimmers need water: a Mire Serpent where the ground
+  (`Ygrid.save`) lies at or below the water threshold (−0.3), a Mudfin or Razorfin below −0.25. Walkers wade, but not where the ground lies
+  at or below −0.4 (−0.3 for small ones such as a Mirk Runner, `size` 0), unless reeds or a raised floor lift them out of the water. A Giant
+  Slug keeps out of the second water layer, and only flyers go on brambles, sharp ground or rift vines. The creature list marks swimmers and
+  flyers. With the Spawn tool, tiles the chosen creature cannot use are darkened, and pointing at one says why. The game's wildlife spawner
+  puts Mudfins on any water, so some saved ones sit in shallows too shallow for them until they move.
 
 **Full map**, beside **Editor** at the top, shows the character in MirkMap's own map, as saving would leave it: every zone, caves and
 interiors, rifts, landmarks, NPCs and creatures, loot, the layer switches and Realistic mode, before or during edit mode. In edit mode,
@@ -589,10 +592,35 @@ folder now holds a different world for that character, loading it drops the unsa
 Restoring a backup undoes edits, not the mark. On a computer that never saved edits to a world and never uploaded it, deleting
 `MirkMap.json` does remove the mark; everywhere else it stays.
 
+## Game versions
+
+Steam offers Mirklurk on two branches, and MirkMap has the rules of both. `src/version.ts` maps **Latest** and **Beta** to versions
+(`CHANNELS`): when a beta becomes the release, pointing Latest at it is the one line to change.
+
+- **Which rules apply.** A save names the version that wrote it (`VERSION` in `Player.save`, from `save_player`). MirkMap uses the newest
+  rules it has that are no newer than that, so a later build gets Beta's and an older one Latest's; a save that names no version gets
+  Latest's. The Latest / Beta switch, beside Realistic and in the save editor under the character's name, picks the other branch's rules
+  instead, as when you take a save to the other branch. The pick lasts for that character while the page is open, through live reloads;
+  another character follows its own save, and picking the save's own version follows the save again.
+- **What 0.8.1.5's rules change.** Harvests give `a` to `a+b−1` (`loot_amountchances`), so Cranberries 2–5, 3–8 and 4–11, Watercress up to
+  5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
+  Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
+  The save editor offers no item from 258 on (the Storage Chest, the magic weapons and Grand Mother's wares) and spawns no Mirkfangs:
+  0.8.1.5's item and being databases end at 257 and 35, and a save holding a newer one does not load there. It also refuses to save or
+  download changes that add one, as when they were made with Beta picked; what the save already holds is left alone. A raft it leaves has no
+  `xscale`, as 0.8.1.5's `save_stations` wrote none.
+- **What follows the save whatever the switch says.** Where you probably went (`src/estimate.ts`) reads what the build that saved did:
+  0.8.1.5 also saved on first entering a quest room.
+- **What is 0.8.9.9's in both.** Names, pictures and the other databank values. 0.8.9.9 also changed a few that MirkMap does not show (some
+  foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's unused "Unwanted
+  Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The save formats are
+  otherwise the same: 0.8.9.9 only added keys (`camp`, `campQ` and `isTTon` in `Player.save`, `xscale` on stations and containers) that it
+  reads as absent in older saves and that 0.8.1.5 ignores.
+
 ## How the guesses work
 
 All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.8.9.9, diffed against 0.8.1.5's); the entry names are
-given so they can be re-checked after an update.
+given so they can be re-checked after an update. Where 0.8.1.5's differ, [Game versions](#game-versions) says how.
 
 **The world layout is fixed at new game** (`gml_Object_obj_menu_Alarm_8`) and saved in `Player.save`: the grid, and the zones of Bhato
 (`rangerCamp`), the Library (`libraryArea`) and Scaal (`riftQuestArea`, the fort mirrored through the centre). The random stream is only
@@ -751,7 +779,8 @@ border travel at x ≤ 16, x ≥ 2544, y ≤ 48 or y ≥ 2512 (`gml_Object_UI_Dr
 the same y, or at the same x with y = 56 / 2552 (`sendX`/`sendY` there plus `manager_area` Alarm_2's +16). Using an entrance (targetAction 4
 in `gml_Object_obj_player_Step_0`) saves too, then `obj_screenfader` Step_0 places you at its `transPoint` 3–4 inside; a way out returns you
 to the entrance's interaction point, 16 below. The save the game makes on arriving in a newly generated area (`manager_area` Alarm_2) is
-recognised and not read as another departure; since 0.8.9.9 first entering a quest room (Alarm_3) no longer saves.
+recognised and not read as another departure; since 0.8.9.9 first entering a quest room (Alarm_3) no longer saves, so a save on a quest
+room's arrival spot reads as arriving when 0.8.1.5 wrote it and as leaving when 0.8.9.9 did.
 
 ## What the zone map shows
 

@@ -1,11 +1,11 @@
 import { assert, assertEquals } from "./assert.ts";
 import {
   amountRange,
-  fernAt,
+  fernAt as fernAtIn,
   fernShade,
   GATHER_KINDS,
   GATHER_LAYERS,
-  gatherAt,
+  gatherAt as gatherAtIn,
   gatherDetail,
   gatherMarks,
   gatherOrder,
@@ -14,21 +14,43 @@ import { ITEM_NAMES } from "../src/gamedata.ts";
 import { LAYERS } from "../src/objects.ts";
 import { TILES } from "../src/rules.ts";
 import { entityWiki, itemImage, wikiUrl } from "../src/wiki.ts";
+import type { GameVersion } from "../src/version.ts";
 
-/** Every count loot_amountchances(a, b) can return in 0.8.9.9: b raised to a when smaller, i in a…b, then irandom_range(a, i). */
-function amountChances(a: number, b: number): number[] {
+const NEW: GameVersion = "0.8.9.9", OLD: GameVersion = "0.8.1.5";
+const gatherAt = (tile: number, rules: GameVersion = NEW) => gatherAtIn(tile, rules);
+const fernAt = (tile: number, rules: GameVersion = NEW) => fernAtIn(tile, rules);
+
+/**
+ * Every count loot_amountchances(a, b) can return. 0.8.9.9 raises b to a when smaller, then picks i in a…b and irandom_range(a, i);
+ * 0.8.1.5 picks i in 0…b−1 and irandom_range(a, a + i).
+ */
+function amountChances(a: number, b: number, rules: GameVersion): number[] {
   const out = new Set<number>();
-  for (let i = a; i <= Math.max(a, b); i++) for (let v = a; v <= i; v++) out.add(v);
+  if (rules === NEW) { for (let i = a; i <= Math.max(a, b); i++) for (let v = a; v <= i; v++) out.add(v); }
+  else for (let i = 0; i < b; i++) for (let v = a; v <= a + i; v++) out.add(v);
   return [...out].sort((x, y) => x - y);
 }
 
-Deno.test("gather: amount ranges follow loot_amountchances", () => {
-  for (const [a, b] of [[1, 3], [1, 2], [1, 7], [2, 4], [3, 6], [4, 8], [1, 2], [5, 8], [5, 3], [2, 2]]) {
-    const all = amountChances(a, b);
-    assertEquals(amountRange(a, b), [all[0], all[all.length - 1]], `loot_amountchances(${a}, ${b})`);
+Deno.test("gather: amount ranges follow each version's loot_amountchances", () => {
+  for (const rules of [NEW, OLD]) {
+    for (const [a, b] of [[1, 3], [1, 2], [1, 7], [2, 4], [3, 6], [4, 8], [1, 2], [5, 8], [5, 10], [5, 3], [2, 2]]) {
+      const all = amountChances(a, b, rules);
+      assertEquals(amountRange(a, b, rules), [all[0], all[all.length - 1]], `${rules} loot_amountchances(${a}, ${b})`);
+    }
   }
   // b is the most it gives now; before 0.8.9.9 it was how many counts (a…a+b−1), so (2, 4) gave up to 5.
-  assertEquals([amountRange(2, 4), amountRange(5, 3)], [[2, 4], [5, 5]]);
+  assertEquals([amountRange(2, 4, NEW), amountRange(5, 3, NEW)], [[2, 4], [5, 5]]);
+  assertEquals([amountRange(2, 4, OLD), amountRange(5, 3, OLD)], [[2, 5], [5, 7]]);
+});
+
+Deno.test("gather: 0.8.1.5's yields, where loot_amountchances gave more", () => {
+  const amounts = (tiles: number[]) => tiles.map((t) => gatherAt(t, OLD)!.amount);
+  assertEquals(amounts([162, 163, 164]), [[2, 5], [3, 8], [4, 11]]);
+  assertEquals(amounts([170, 171, 172, 173, 174]), [[1, 2], [2, 4], [3, 6], [4, 9], [5, 12]]);
+  // The same in both: fixed counts, and ranges whose b is a + 1 or where a is 1.
+  for (const t of [147, 148, 146, 150, 154, 73, 74]) assertEquals(gatherAt(t, OLD), gatherAt(t, NEW), `tile ${t}`);
+  assertEquals([80, 81, 82, 83, 84].map((t) => fernAt(t, OLD)!.amount), [[1, 2], [2, 5], [3, 8], [4, 11], [5, 14]]);
+  assertEquals(gatherDetail(gatherAt(164, OLD)!), "Cranberries x4–11 (full grown)");
 });
 
 Deno.test("gather: Hinderance tiles and what they give", () => {
@@ -75,7 +97,7 @@ Deno.test("gather: one mark per tile at its centre, with mirrored tiles and Loot
   const mirrored = 0x10000000;
   const hinderance = grid([[0, 0, 147], [10, 3, 162 | mirrored], [11, 3, 160], [5, 159, 145], [6, 159, 146], [100, 100, 80], [20, 20, 74]]);
   const loot = grid([[5, 159, 7], [20, 20, 99]]);
-  const marks = gatherMarks(hinderance, loot);
+  const marks = gatherMarks(hinderance, loot, NEW);
   assertEquals(
     marks.map((m) => [m.layer, m.kind, m.x, m.y]),
     [
@@ -91,7 +113,16 @@ Deno.test("gather: one mark per tile at its centre, with mirrored tiles and Loot
   assertEquals(marks[3].detail, "harvested; what was left lies in its ground loot");
   assertEquals(marks.map((m) => m.item), [142, 225, 225, 175, 77, 77]);
   // Without LootData every gatherable still shows.
-  assertEquals(gatherMarks(hinderance).length, 6);
+  assertEquals(gatherMarks(hinderance, undefined, NEW).length, 6);
+  // 0.8.1.5 marks the same tiles, with its own yields.
+  assertEquals(gatherMarks(hinderance, loot, OLD).map((m) => m.detail), [
+    "Calmia Root x1–3",
+    "Cranberries x2–5 (growing)",
+    "no berries yet (sprouting)",
+    "harvested; what was left lies in its ground loot",
+    "searched; refills in about 7 days",
+    "Feather x1–7, 40% chance of Egg x1–3",
+  ]);
   assertEquals(
     [...marks].sort(gatherOrder).map((m) => m.kind),
     ["gather nest", "gather cranberry", "gather calmia", "gather lily", "gather cranberry unripe", "gather nest empty"],
@@ -100,11 +131,11 @@ Deno.test("gather: one mark per tile at its centre, with mirrored tiles and Loot
 
 Deno.test("gather: ferns are shaded by growth stage, not marked", () => {
   // Plant Fiber (n, 2n) with n = stage + 1, in two looks of five stages (loot_generate case 57).
-  const fiber: [number, number][] = [[1, 2], [2, 4], [3, 6], [4, 8], [5, 10]].map(([a, b]) => amountRange(a, b));
+  const fiber: [number, number][] = [[1, 2], [2, 4], [3, 6], [4, 8], [5, 10]].map(([a, b]) => amountRange(a, b, NEW));
   assertEquals(fiber, [[1, 2], [2, 4], [3, 6], [4, 8], [5, 10]]);
   assertEquals([80, 81, 82, 83, 84].map((t) => fernAt(t)!.amount), fiber);
   assertEquals([85, 86, 87, 88, 89].map((t) => fernAt(t)!.amount), fiber);
-  assertEquals([79, 90, 0, 147].map(fernAt), [null, null, null, null]);
+  assertEquals([79, 90, 0, 147].map((t) => fernAt(t)), [null, null, null, null]);
   assertEquals([80, 84, 85, 89].map((t) => fernShade(t)![3]), [80, 200, 80, 200]);
   assertEquals(fernShade(73), null);
   for (let t = 80; t < 90; t++) assertEquals(gatherAt(t), null, `fern ${t} has no marker`);

@@ -5,6 +5,7 @@ import { BEING_NAMES, SPRITES } from "./gamedata.ts";
 import { Area, PLACEMENT, type Placement, SHIPWRECK_TRIES, SHIPWRECK_UNEXPLORED_CHANCE, shipwreckSiteOk, SolidId, TILES } from "./rules.ts";
 import type { Being, Solid, Tree } from "./save.ts";
 import { questZone, type World, type Zone } from "./world.ts";
+import { atLeast, type GameVersion } from "./version.ts";
 
 export type LandmarkId = "fort" | "bhato" | "library" | "scaal" | "gurb" | "ihar" | "wilda";
 
@@ -73,12 +74,14 @@ export function shipwreckOdds(water1: Uint32Array, lower: Uint32Array): { perTry
   return { perTry, perEntry: 1 - Math.pow(1 - perTry, SHIPWRECK_TRIES), heat };
 }
 
-export function landmarks(world: World, shipwreck: Map<string, number>): Landmark[] {
+export function landmarks(world: World, shipwreck: Map<string, number>, rules: GameVersion): Landmark[] {
   const p = world.player;
   const here = `${p.area.x},${p.area.y}`;
   const out: Landmark[] = [];
   for (const def of LANDMARKS) {
     const hit = findSolid(world, def.solidId);
+    // Wilda's camp came with 0.8.9.9: before it, manager_area Alarm_6 never makes one. A camp already made still shows.
+    if (def.id === "wilda" && !hit && !atLeast(rules, "0.8.9.9")) continue;
     if (hit) {
       out.push({ ...def, status: "found", zone: [hit.zone.x, hit.zone.y], solid: hit.solid, note: hit.zone.name });
       continue;

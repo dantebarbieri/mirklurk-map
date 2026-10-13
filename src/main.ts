@@ -13,7 +13,7 @@ import {
 } from "./files.ts";
 import { LAYERS, PLAYER_KEY } from "./objects.ts";
 import { estimatePlayer } from "./estimate.ts";
-import { disposeView, playerSpot, rememberView, renderWorld, selectZone, type State, worldState } from "./view.ts";
+import { disposeView, playerSpot, rememberView, renderWorld, selectZone, setRules, type State, worldState } from "./view.ts";
 import { loadWorld } from "./world.ts";
 import { type DirectoryPicker, type LiveDirectory, LiveReader, scanDirectory } from "./live.ts";
 import { Sharing } from "./sharing.ts";
@@ -85,6 +85,8 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
     if (reader || sharing.isWatching) st.estimate = estimatePlayer(world, same ? state!.world.player : undefined);
     if (same && state) {
       rememberView(state);
+      // A version picked with the Latest/Beta switch stays for this character; another character follows its own save.
+      if (state.override) setRules(st, state.override);
       st.selected = state.selected;
       st.interiorDir = state.interiorDir;
       st.viewport = state.viewport;

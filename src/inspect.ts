@@ -5,7 +5,7 @@ import { ITEM_NAMES } from "./gamedata.ts";
 import { conditionOf, type ConditionPart, conditionParts } from "./condition.ts";
 import type { Inventory, SavedItem } from "./inventory.ts";
 import { type Mark, markKey } from "./objects.ts";
-import type { Gather, GatherKind } from "./gather.ts";
+import { amountText, type Gather, gatherAt, type GatherKind } from "./gather.ts";
 import type { Tree } from "./save.ts";
 import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, MAX_AP, NATDEAD, Nature, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
 import { beingImage, entityWiki, itemImage, itemWiki, placeImage, type WikiImage, wikiUrl, wikiVerified } from "./wiki.ts";
@@ -13,6 +13,7 @@ import { creatureView } from "./creature.ts";
 import { merchantView, sells } from "./merchants.ts";
 import { playerView } from "./player.ts";
 import type { FindTarget } from "./journal.ts";
+import type { GameVersion } from "./version.ts";
 
 const wikiAnchor = (url: string, cls: string, label: string) =>
   h("a", {
@@ -158,6 +159,8 @@ export interface SectionContext {
   expanded?: Set<string>;
   /** The save's difficulty (PlayerSave.difficulty), when known. */
   difficulty?: number;
+  /** Which game version's rules apply (version.ts). */
+  rules: GameVersion;
   /** Shows a person or place the journal mentions on the map; without it they are plain text. */
   find?: FindTarget;
 }
@@ -178,14 +181,16 @@ export interface InspectOptions {
   close?: () => void;
   /** The save's difficulty, for how well beings aim. */
   difficulty?: number;
+  /** Which game version's rules apply (version.ts). */
+  rules: GameVersion;
   /** Shows a person or place the player's journal mentions on the map. */
   find?: FindTarget;
 }
 
-export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close, difficulty, find }: InspectOptions = {}) {
+export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close, difficulty, rules, find }: InspectOptions) {
   panel.hidden = false;
   const img = markImage(m);
-  const ctx: SectionContext = { key: `inspection:${markKey(m)}`, expanded, difficulty, find };
+  const ctx: SectionContext = { key: `inspection:${markKey(m)}`, expanded, difficulty, rules, find };
   // Carcasses carry their creature's index too, but they are loot, not a living being.
   const being = m.being !== undefined && !m.inventory ? m.being : undefined;
   panel.replaceChildren(
@@ -216,7 +221,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
     ...(m.player ? playerView(m.player, ctx) : []),
     ...(being === undefined
       ? []
-      : sells(being)
+      : sells(being, rules)
       ? [...merchantView(being, ctx), section(ctx, "combat", "Hit points and attacks", false, ...creatureView(being, m.health, ctx))]
       : creatureView(being, m.health, ctx)),
     ...(m.tree
@@ -224,7 +229,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
         ? brambleView(m.tree, tool ?? UNARMED)
         : treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, expanded, picker))
       : []),
-    ...(m.gather ? gatherView(m.gather) : []),
+    ...(m.gather ? gatherView(m.gather, rules) : []),
     ...(m.inventory
       ? [
         inventoryView(m.inventory, `inspection:${markKey(m)}`, expanded),
@@ -237,7 +242,8 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
 const toolName = (tool: number) => ITEM_NAMES[tool] ?? `Item ${tool}`;
 
 /** How a plant grows into its yield, or how a nest refills (loot_generate in scr_items, nature_grow in scr_nature). */
-function gatherView(g: Gather): HTMLElement[] {
+function gatherView(g: Gather, rules: GameVersion): HTMLElement[] {
+  const [berries, more, most, cress, cressMost] = [162, 163, 164, 170, 174].map((t) => amountText(gatherAt(t, rules)!.amount!));
   if (g.kind === "nest") {
     return [
       h(
@@ -250,8 +256,8 @@ function gatherView(g: Gather): HTMLElement[] {
   }
   const growth: Partial<Record<GatherKind, string>> = {
     turnip: "From stage 4 a turnip gives two instead of one.",
-    cranberry: "Berries come at stage 3: 2–5, then 3–8, and 4–11 when full grown.",
-    cress: "The bigger the patch, the more: 1–2 at stage 1, up to 5–12 at stage 5.",
+    cranberry: `Berries come at stage 3: ${berries}, then ${more}, and ${most} when full grown.`,
+    cress: `The bigger the patch, the more: ${cress} at stage 1, up to ${cressMost} at stage 5.`,
     lily: "A lilypad flowers at stage 4 (one Water Lily) and 5 (two); younger pads give none.",
   };
   const regrow: Partial<Record<GatherKind, string>> = {

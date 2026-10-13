@@ -176,7 +176,7 @@ Deno.test("no raft goes inside: you leave it to go in; moving between interiors 
 
 Deno.test("rafts are left and taken in Stations.save as the game saves a finished raft", () => {
   const stations: unknown[] = [{ index: 38, x: 8, y: 8 }];
-  addRaft(stations, 21, 46);
+  addRaft(stations, 21, 46, "0.8.9.9");
   assertEquals(sorted(stations[1] as Rec), {
     activeTurns: 0,
     blend: 16777215,
@@ -191,12 +191,26 @@ Deno.test("rafts are left and taken in Stations.save as the game saves a finishe
   });
   // save_stations' own order: sprite, pic, then xscale (since 0.8.9.9, when placeables can be flipped).
   assertEquals(Object.keys(stations[1] as Rec).slice(0, 3), ["sprite", "pic", "xscale"]);
-  addRaft(stations, 3, 3);
+  // 0.8.1.5's save_stations wrote no xscale: sprite, pic, blend, x, y, index, activeTurns, localItem, status.
+  assertEquals(Object.keys(raftStation(21, 46, "0.8.1.5")), [
+    "sprite",
+    "pic",
+    "blend",
+    "x",
+    "y",
+    "index",
+    "activeTurns",
+    "localItem",
+    "status",
+  ]);
+  const { xscale: _, ...unflipped } = stations[1] as Rec;
+  assertEquals(raftStation(21, 46, "0.8.1.5"), unflipped);
+  addRaft(stations, 3, 3, "0.8.9.9");
   const second = JSON.stringify(stations[2]);
   assertEquals((takeRaft(stations, second) as Rec).x, 56);
   assertThrows(() => takeRaft(stations, second), /no longer there/);
   assertThrows(() => takeRaft(stations, JSON.stringify(stations[0])), /no longer there/);
-  assertThrows(() => addRaft({}, 1, 1), /not a list/);
+  assertThrows(() => addRaft({}, 1, 1, "0.8.9.9"), /not a list/);
   assertEquals(stations.length, 2);
 });
 
@@ -244,7 +258,7 @@ Deno.test({ name: "real saves: the game's own rafts float, are written like ours
         rafts++;
         const [tx, ty] = [s.x >> 4, s.y >> 4];
         assert(raft[ty * TILES + tx], `${c.name} ${z.dir}: the raft at tile ${tx},${ty} floats`);
-        assertEquals([s.sprite, s.pic, s.x, s.y], [raftStation(tx, ty).sprite, 1, tx * 16 + 8, ty * 16 + 8]);
+        assertEquals([s.sprite, s.pic, s.x, s.y], [raftStation(tx, ty, "0.8.9.9").sprite, 1, tx * 16 + 8, ty * 16 + 8]);
         // Landing on the nearest dry tile, the raft docks right beside that land.
         let land = -1, best = Infinity;
         for (let i = 0; i < N; i++) {
