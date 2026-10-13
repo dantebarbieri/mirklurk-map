@@ -149,6 +149,7 @@ export const entityUrl = (m: Mark) =>
       : m.gather
       ? "Plant harvesting"
       : "World generation",
+    m.being,
   );
 
 export const entityLink = (m: Mark) => wikiLink(entityUrl(m));
