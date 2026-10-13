@@ -1,11 +1,19 @@
 import art from "../src/artdata.json" with { type: "json" };
-import { markImage, picture } from "../src/inspect.ts";
+import { entityUrl, markImage, picture } from "../src/inspect.ts";
 import { markIcon } from "../src/mapview.ts";
 import type { Mark } from "../src/objects.ts";
 import { itemImage } from "../src/wiki.ts";
 import { assert, assertEquals } from "./assert.ts";
 
 const raft: Mark = { layer: "rafts", kind: "raft", item: 171, name: "Raft", x: 344, y: 744 };
+
+Deno.test("wiki link: Magus Clay in his realm and his carcass link to his boss page, the NPC to his own", () => {
+  const boss = "https://mirklurk.wiki/w/Magus_Clay_(boss)";
+  const clay: Mark = { layer: "npcs", kind: "magus", name: "Magus Clay", being: 41, x: 10, y: 10 };
+  assertEquals(entityUrl(clay), boss);
+  assertEquals(entityUrl({ ...clay, layer: "loot", kind: "carcass", name: "Carcass: Magus Clay" }), boss);
+  assertEquals(entityUrl({ ...clay, being: 8 }), "https://mirklurk.wiki/w/Magus_Clay");
+});
 
 Deno.test("raft picture: finished and ridden rafts use world frame 1, bases keep their wiki picture", async () => {
   const image = markImage(raft);
