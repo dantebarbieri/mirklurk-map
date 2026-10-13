@@ -41,14 +41,16 @@ Deno.test("creatures: every creature is drawn as its kind's icon, NPCs and unkno
   assertEquals([survivor.layer, survivor.kind, survivor.label], ["npcs", "npc", undefined]);
   const mother = marks.find((m) => m.being === 36)!;
   assertEquals([mother.layer, mother.kind, mother.label], ["npcs", "npc", "Grand Mother"]);
-  // The Mirkfangs share the bat; Clay in his realm attacks you, so he is a creature with a magus's shape.
+  // The Mirkfangs share the bat; The Terror, a boss with its own sprite, has its own shape, as Scaal does beside the Scaalmyr;
+  // Clay in his realm attacks you, so he is a creature with a magus's shape.
   assertEquals([37, 38, 39, 40, 41].map((i) => marks.find((m) => m.being === i)!.kind), [
     "creature bat",
     "creature bat",
     "creature bat",
-    "creature bat",
+    "creature terror",
     "creature magus",
   ]);
+  assert(CREATURE_ICONS.terror.body !== CREATURE_ICONS.bat.body, "The Terror is not drawn as a Mirkfang");
   // So is the Dead Unwanted (Viend before he is revived), labelled like the other named NPCs.
   const viend = marks.find((m) => m.being === 9)!;
   assertEquals([viend.layer, viend.kind, viend.label], ["npcs", "npc", "Dead Unwanted"]);

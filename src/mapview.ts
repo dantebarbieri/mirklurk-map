@@ -478,11 +478,20 @@ export const CREATURE_ICONS: Record<string, { body: string; detail?: string; eye
     detail: "M1.5 -1.6 L5.1 -4.6 M1.6 -.9 L4.6 -.4 M-1.5 -1.6 L-5.1 -4.6 M-1.6 -.9 L-4.6 -.4",
     eye: "M-.9 -2 H-.2 V-1.3 H-.9 Z M.2 -2 H.9 V-1.3 H.2 Z",
   },
+  // The Terror (spr_bat_dreadfang): a heavier bat with tufted ears, ragged swept wings and slanting eyes.
+  terror: {
+    body:
+      "M-2 -2.3 L-2.5 -6.1 L-.7 -4.7 L0 -5.1 L.7 -4.7 L2.5 -6.1 L2 -2.3 Q3.4 -3.8 5.5 -5.4 L7 -3.4 L6.4 -1.8 L7 .7 L5.4 .3 L4.9 2.5 L3.5 1.8 L2.5 3.7 L1.7 5.9 L.5 5.3 L0 6.7 L-.5 5.3 L-1.7 5.9 L-2.5 3.7 L-3.5 1.8 L-4.9 2.5 L-5.4 .3 L-7 .7 L-6.4 -1.8 L-7 -3.4 L-5.5 -5.4 Q-3.4 -3.8 -2 -2.3 Z",
+    detail: "M2.6 -.9 L5.3 -4.1 M2.7 .5 L5.2 -.2 M-2.6 -.9 L-5.3 -4.1 M-2.7 .5 L-5.2 -.2 M-1.1 1.2 L0 2.2 L1.1 1.2",
+    eye: "M-1.6 -3.3 L-.3 -2.9 L-.45 -1.9 L-1.6 -2.2 Z M1.6 -3.3 L.3 -2.9 L.45 -1.9 L1.6 -2.2 Z",
+  },
+  // Magus Clay in his realm (spr_clay): a hooded robe, arms folded in its sleeves, a rope belt, no staff.
   magus: {
     body:
-      "M-.6 -7 Q2 -6.8 2.6 -4.2 L2.2 -2.6 Q3.8 -1.6 4.2 1.4 L5.4 7 H-5.4 L-4.2 1.4 Q-3.8 -1.6 -2.2 -2.6 L-2.6 -4.2 Q-2.6 -6.2 -.6 -7 Z M5.5 -4.5 H6.5 V7 H5.5 Z M6 -7.1 A1.3 1.3 0 1 1 5.99 -7.1 Z",
-    detail: "M0 -2.2 V6.5 M-2.2 1.2 Q0 2.4 2.2 1.2",
-    eye: "M-1.4 -4.6 H-.6 V-3.8 H-1.4 Z M.4 -4.6 H1.2 V-3.8 H.4 Z",
+      "M0 -6.8 Q2.7 -6 2.7 -3.7 L2.2 -2.3 Q4.2 -1.8 4.1 .7 L2.4 2.1 L3 3.5 L4.2 6.7 Q0 7 -4.2 6.7 L-3 3.5 L-2.4 2.1 L-4.1 .7 Q-4.2 -1.8 -2.2 -2.3 L-2.7 -3.7 Q-2.7 -6 0 -6.8 Z",
+    detail:
+      "M-1.7 -2.5 Q-1.8 -4.7 0 -5.4 Q1.8 -4.7 1.7 -2.5 M-3 -.6 Q-.9 .8 2.9 .3 M2.9 -.8 L.7 .1 M-2.2 2.2 Q0 2.7 2.2 2.2 M.2 2.5 L.7 4.5 L.2 5 M-1.4 3.5 L-2.1 5.9",
+    eye: "M-1.2 -3.7 H-.4 V-2.85 H-1.2 Z M.4 -3.7 H1.2 V-2.85 H.4 Z",
   },
 };
 
