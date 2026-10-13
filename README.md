@@ -424,18 +424,22 @@ particular browser: on a phone, edit a world from My worlds and save it back the
 every 30 seconds; a save refused for that keeps its changes, to save again a moment later.
 
 **Edit this character...** first explains that saving any edit marks the world as **Cheated, permanently**, and edit mode starts only once
-you confirm. Each edit is written the way the game itself writes it (decompiled entries in brackets):
+you confirm. Then the character's preview becomes the editor: drag a vital bar, click a hit point, pick a condition. Every change takes
+effect at once, with no Apply button, since the bar at the bottom can undo it; dragging the same slider or retyping the same field again
+replaces that change rather than adding another. Number fields show the smallest and largest value they take. Each edit is written the way
+the game itself writes it (decompiled entries in brackets):
 
 - **Level**: each level-up grants a skill point, and every third level a hit point to place (`obj_player` Step_1), so changing the level
   grants or takes back unspent ones (never below zero), and XP stays under the new level's threshold.
 - **Skill points** to spend, and **new hit points** to place.
-- **Hit points and their statuses**: your grid, as the preview draws it, where clicking a hit point picks it to set its **poison** and
-  **bleeding** stacks and the way the bleed spreads, as `attack_lands` leaves them: one `statusgrid` entry per stack, a cell's bleeding all
-  spreading one way. Only living hit points take them (healthy, armored or not), as in the game; lost and burned ones are greyed out. At the
-  end of each turn `delayed_effects_check` takes a poisoned or bleeding hit point, armor or not, and moves its other stacks on: poison to a
-  random living neighbour, bleeding to the next hit point its way. **Stun** makes you miss your next turn (`apply_stunned` puts it on the
-  grid's first cell; the turn's end takes it away), and **Remove stun** takes it off. **Heal all wounds** heals lost and burned hit points
-  and clears poison, bleeding and stun; armor stays.
+- **Hit points and their statuses**: your grid, as the preview draws it, where clicking a hit point picks it to make it **Healthy**,
+  **Lost** or **Burned** (a lost or burned one healed back to 1 hit point), and set its **poison** and **bleeding** stacks and the way the
+  bleed spreads, as `attack_lands` leaves them: one `statusgrid` entry per stack, a cell's bleeding all spreading one way. Only living hit
+  points take them (healthy, armored or not), as in the game; lost and burned ones are greyed out. At the end of each turn
+  `delayed_effects_check` takes a poisoned or bleeding hit point, armor or not, and moves its other stacks on: poison to a random living
+  neighbour, bleeding to the next hit point its way. **Stun** makes you miss your next turn (`apply_stunned` puts it on the grid's first
+  cell; the turn's end takes it away), a box turned on and off. **Heal all wounds** heals lost and burned hit points and clears poison,
+  bleeding and stun; armor stays.
 - **Conditions**: **Sickness** None, I, II or III and its turns, and the turns left of **Warm to the core**, **Well fed**, **Well rested**
   and **Stamina boost**; 0 turns removes one. Each is written as the game gives it: its `aeList` entry (`UI.ini` [AEs] 17–22 and 29) with
   its timer (`sickTime`, `warmthTime`, `fedTime`, `restedTime`, `staminaBoostTime`), which `player_endturn` counts down by one a turn,
@@ -445,8 +449,9 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   up without a cap, so the editor stops at 999. Only the ones you change are written. Tiredness, overburdening, wading, shelter and the
   other conditions are left out: the game sets them again every step from your stats, load and surroundings. **Wet clothes** says what is
   wet, with the same **Dry all** as under Items.
-- **Wellbeing, satiation, focus, stamina and temperature**: each value and the target it eases towards. The game recomputes wellbeing from
-  its 25×25 wellbeing grid every second (`obj_player` Step_0), so every cell of that grid is set as well.
+- **Wellbeing, satiation, focus, stamina and temperature**: each set by dragging its bar in the preview, 0 to 100%, along with the target it
+  eases towards. The game recomputes wellbeing from its 25×25 wellbeing grid every second (`obj_player` Step_0), so every cell of that grid
+  is set as well.
 - **Time and weather**: day, time, Clear, Cloudy or Rain with its strength, and air temperature; only the ones you change are written. Cloud
   and rain are written as `player_endturn` leaves them, and days alive move with the day. The game eases the air temperature back toward the
   hour's usual value, and going back in time stops regrowth in zones visited later until the clock catches up.
@@ -476,10 +481,11 @@ you confirm. Each edit is written the way the game itself writes it (decompiled 
   below). **Repair all** sets every worn or carried item's durability to its maximum, as repair kits do; food portions and lamp oil are used
   up rather than worn, so they stay. **Refuel all** fills every torch's and lantern's burn time and every Lamp Oil flask. **Dry all** dries
   every item and the clothes on your body (`wetness`, which the preview lists as wet clothes). Each says how many items it would change, and
-  is greyed out when none. **Condition…** beside an item sets its durability, fuel or wetness to any value the game allows, lower too:
+  is greyed out when none. **Condition** under an item opens to set its durability, fuel or wetness to any value the game allows, lower too:
   durability, portions and oil above 0, since the game breaks or uses up an item at 0 (`item_durloss`, `items_bonus_apply`), fuel from 0 (a
   lit torch or lantern at 0 goes out, as one that burns down does), and wetness only on items that can get wet. Every copy the save keeps of
-  the item (each cell it covers, a two-handed weapon's off-hand copy) changes with it.
+  the item (each cell it covers, a two-handed weapon's off-hand copy) changes with it. Each item's row shows its stack against the most a
+  stack holds (`×7 / 20`), and the item picker says how many of the chosen item stack.
 - **Where you stand**: a tile of a zone or interior you have explored that is not a wall, a pit or something already standing there (a
   creature, a placed raft), picked on the area's map or on the full map. Ground moves you at once. Water and rafts ask first, never refuse:
   - The question says how deep the water is (`tile_get_height`): shallow, chest-deep, or deep, where you swim, using stamina every turn, and

@@ -324,6 +324,44 @@ Deno.test("editor session: undoing one change runs the later ones again; changes
   }
 });
 
+Deno.test("editor session: changes with the same key as the last one replace it, from where it started", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(root);
+    const s = await openSession(root, "Hero");
+    const player = `${s.character.root}Player.save`;
+    const setPoints = (to: number) => (raw: unknown) => {
+      const p = playerRecord(raw), from = p.skillPoints;
+      if (from === to) return undefined;
+      setSkillPoints(p, to);
+      return `Skill points ${from} → ${to}`;
+    };
+    assertEquals(await s.apply(player, setPoints(3), "points"), "Skill points 0 → 3");
+    assertEquals(await s.apply(player, setPoints(5), "points"), "Skill points 0 → 5");
+    assertEquals(s.changes, ["Skill points 0 → 5"]);
+    // A throwing edit keeps the change it would have replaced.
+    await assertRejects(() =>
+      s.apply(player, (raw) => {
+        setSkillPoints(playerRecord(raw), 50);
+        throw new Error("too many");
+      }, "points"), /too many/);
+    assertEquals([s.changes, playerRecord(await s.json(player)).skillPoints], [["Skill points 0 → 5"], 5]);
+    // Back where it started: no change at all.
+    assertEquals(await s.apply(player, setPoints(0), "points"), undefined);
+    assertEquals([s.changes, playerRecord(await s.json(player)).skillPoints], [[], 0]);
+    // Another key, or none, in between starts a new change.
+    await s.apply(player, setPoints(2), "points");
+    await s.apply(player, (raw) => (setVitals(playerRecord(raw), { focus: 50 }), "Focus 50%"));
+    assertEquals(await s.apply(player, setPoints(4), "points"), "Skill points 2 → 4");
+    assertEquals(s.changes, ["Skill points 0 → 2", "Focus 50%", "Skill points 2 → 4"]);
+    assertEquals(await s.undo(0), [], "the keyed change still runs again after an undo");
+    assertEquals(await s.apply(player, setPoints(6), "points"), "Skill points 0 → 6");
+    assertEquals(s.changes, ["Focus 50%", "Skill points 0 → 6"]);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("editor session: reloading after the game saved runs the unsaved changes again; ones that are now no-ops are dropped", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
   try {
@@ -638,6 +676,27 @@ Deno.test("editor session: a world from My worlds is saved back to the library, 
     assertEquals(await t.save(), 1);
     assert(/quota exceeded/.test(t.warning ?? ""), String(t.warning));
     assertEquals([t.changes.length, await skillPoints(await stored(), player)], [0, 3]);
+
+    // Another device's update lands between the check and the upload: the upload names the version it read, so it is refused.
+    let raced = false;
+    const racing: LibraryCall = async (path, init) => {
+      const match = new Headers(init?.headers).get("If-Match");
+      if (init?.method === "PUT" && match && match !== "*" && !raced) {
+        raced = true;
+        await put(new Map(await stored()), "Shared/");
+        now += SHARE_INTERVAL;
+      }
+      return call(path, init);
+    };
+    const racedSource = new LibrarySource(id, racing);
+    const before = await racedSource.read();
+    const u = new EditSession(racedSource, before, before.characters[0], id, memoryStore().store);
+    await u.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 8), "Skill points 3 → 8"));
+    now += SHARE_INTERVAL;
+    const lost = await u.save().then(() => undefined, (e) => e);
+    assert(raced && lost instanceof StaleError && /updated in My worlds/.test(lost.message), String(lost));
+    assertEquals([u.changes.length, await skillPoints(await stored(), player)], [1, 3]);
+    now += SHARE_INTERVAL;
 
     // Deleted on another device: nothing can be saved to it.
     await s.apply(player, (raw) => (setSkillPoints(playerRecord(raw), 1), "Skill points 0 → 1"));

@@ -16,8 +16,10 @@ import { type Being, decodeJson, parseBeings, parsePlaced, parsePlayer, type Pla
 import { type Interior, interiorsOf, loadDetail, loadHeights, loadLayer, loadTrees, loadWorld, type World, type Zone } from "../world.ts";
 import {
   CONDITIONS,
+  conditionsOf,
   MAX_LEVEL,
   percent,
+  type PlayerEditing,
   playerView,
   sicknessLevel,
   STAT_LABELS,
@@ -30,7 +32,7 @@ import { Coin, coinsView, countCoins } from "../coins.ts";
 import { coordLabel, INTERIOR_NAMES, isOutside, TILES } from "../rules.ts";
 import { spriteBox } from "../predict.ts";
 import { BEINGS, targetsYou } from "../bestiary.ts";
-import { BLEED_DIRS, cellKind, cellPlace, cellTitle, healthGridPicker, parseHealth } from "../health.ts";
+import { BLEED_DIRS, cellKind, cellPlace, cellTitle, healthGridPicker, healthLegend, parseHealth } from "../health.ts";
 import { formatClock, parseSky, Weather, WEATHER_LABELS, weatherKind, type WeatherState } from "../weather.ts";
 import {
   type Backup,
@@ -47,8 +49,8 @@ import {
   type WritablePicker,
 } from "./session.ts";
 import {
-  type ConditionsEdit,
   healPlayer,
+  type HitPointKind,
   type HitPointStatus,
   hitPointStatus,
   insideOf,
@@ -61,6 +63,7 @@ import {
   playerRecord,
   type Rec,
   setConditions,
+  setHitPointKind,
   setHitPointStatus,
   setLevel,
   setNewHitPoints,
@@ -71,7 +74,6 @@ import {
   type SkyEdit,
   TIMED,
   type Timed,
-  type VitalsEdit,
 } from "./edits.ts";
 import {
   addable,
@@ -111,6 +113,7 @@ import {
   wetText,
 } from "../condition.ts";
 import { conditionView } from "../inspect.ts";
+import { ITEMS } from "../itemdata.ts";
 import { SLOT_NAMES } from "../armor.ts";
 import { deleteBeing, habitat, habitatRefusal, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
 import { type Box, Ground, GROUND_TEXT, type GroundKind, groundMap, reachable, tileBox } from "./ground.ts";
@@ -136,7 +139,7 @@ import { disposeView, rememberView, renderWorld, showJournalTarget, type State, 
 import type { JournalTarget } from "../journal.ts";
 import { LAYERS } from "../objects.ts";
 import { setFullMap } from "../fullscreen.ts";
-import { ask, type Choice, choose, form } from "../dialog.ts";
+import { ask, type Choice, choose } from "../dialog.ts";
 
 /** An area the map card shows: an outdoor zone or one of its interiors. */
 interface Area {
@@ -593,21 +596,25 @@ const areaName = (a: Area) => {
  * Applies an edit and shows its result on `card`. The edit must read only the draft it is given (read form fields and other page
  * state before making it), because undoing an earlier change runs it again.
  */
-const edit = (card: string, path: string, change: Edit) => editAll(card, [{ path, edit: change }]);
+const edit = (card: string, path: string, change: Edit, key?: string) => editAll(card, [{ path, edit: change }], key);
 
-/** Applies several files' edits as one change (undone together), like `edit`. */
-async function editAll(card: string, steps: { path: string; edit: Edit }[]) {
+/**
+ * Applies several files' edits as one change (undone together), like `edit`. `key` names what it sets (one slider, one field): a
+ * change right after with the same key replaces it (see EditSession.applyAll).
+ */
+async function editAll(card: string, steps: { path: string; edit: Edit }[], key?: string) {
   try {
-    const text = await session!.applyAll(steps);
+    const text = await session!.applyAll(steps, key);
     if (text) note(card, `${text}. Not saved yet.`);
+    else if (key !== undefined) notes.delete(card);
   } catch (e) {
     note(card, errorText(e), true);
   }
   await render();
 }
 
-const editPlayer = (card: string, change: (p: Rec, raw: unknown) => string | undefined) =>
-  edit(card, playerPath(), (raw) => change(playerRecord(raw), raw));
+const editPlayer = (card: string, change: (p: Rec, raw: unknown) => string | undefined, key?: string) =>
+  edit(card, playerPath(), (raw) => change(playerRecord(raw), raw), key);
 
 /** Undoes unsaved change `i`; later changes to the same file run again, and any that no longer apply are dropped and named. */
 async function undoChange(i: number) {
@@ -783,9 +790,7 @@ async function render() {
   if (editing) {
     const saved = await savedPlayer(s).catch(() => undefined);
     cards.push(
-      characterCard(v),
-      hitPointsCard(v, p),
-      conditionsCard(v, p),
+      previewCard(v, p),
       skyCard(p),
       itemsCard(v, p, saved),
       await mapCard(v, p),
@@ -794,7 +799,28 @@ async function render() {
     );
   }
   if (my !== renderToken) return;
-  app.replaceChildren(summary(v, p), ...(editing ? [h("div", { class: "edit-grid" }, ...cards, previewCard(v))] : []));
+  const keep = focusKept();
+  app.replaceChildren(summary(v, p), ...(editing ? [h("div", { class: "edit-grid" }, ...cards)] : []));
+  keep();
+}
+
+/**
+ * The control with the focus, by its data-key, to focus again once the page is drawn anew (an edit draws it again at once), with
+ * anything typed into it meanwhile.
+ */
+function focusKept(): () => void {
+  const was = document.activeElement as HTMLElement | null;
+  const key = was?.dataset?.key;
+  if (!was || !key || !$("#app").contains(was)) return () => {};
+  const typed = was instanceof HTMLInputElement && was.type !== "range" && was.type !== "checkbox" && was.value !== was.defaultValue
+    ? was.value
+    : undefined;
+  return () => {
+    const now = $<HTMLElement>(`#app [data-key="${CSS.escape(key)}"]`);
+    if (!now) return;
+    if (typed !== undefined && now instanceof HTMLInputElement) now.value = typed;
+    now.focus();
+  };
 }
 
 /** The player record as the files have it, without unsaved changes; read once per session. */
@@ -868,11 +894,30 @@ function card(id: string, title: string, ...body: (HTMLElement | HTMLElement[] |
   );
 }
 
+/** A labelled control; a number input with limits names them after it. */
 const field = (label: string, input: HTMLElement, ...after: (HTMLElement | string | null)[]) =>
-  h("label", { class: "edit-field" }, h("span", {}, label), input, ...after);
+  h("label", { class: "edit-field" }, h("span", {}, label), input, ...after, rangeHint(input));
 
-function numberInput(value: number, min: number, max: number): HTMLInputElement {
-  return h("input", { type: "number", class: "num", value, min, max, step: 1, required: true }) as HTMLInputElement;
+function rangeHint(input: HTMLElement): HTMLElement | null {
+  if (input.dataset.range) return h("span", { class: "range-hint muted small" }, input.dataset.range);
+  const min = input.getAttribute("min"), max = input.getAttribute("max");
+  if (input.tagName !== "INPUT" || input.getAttribute("type") !== "number" || min === null || max === null) return null;
+  return h("span", { class: "range-hint muted small" }, `${min}–${max}`);
+}
+
+/** A whole-number input from `min` to `max`; `key` keeps its focus when the page is drawn again. */
+function numberInput(value: number, min: number, max: number, key?: string): HTMLInputElement {
+  return h("input", {
+    type: "number",
+    class: "num",
+    value,
+    min,
+    max,
+    step: 1,
+    required: true,
+    title: `${min} to ${max}`,
+    ...(key ? { "data-key": key } : {}),
+  }) as HTMLInputElement;
 }
 function readWhole(input: HTMLInputElement, what: string): number {
   const n = Number(input.value);
@@ -889,156 +934,121 @@ const act = (cardId: string, run: () => Promise<void> | void) => async () => {
   }
 };
 
-function characterCard(v: PlayerSave): HTMLElement {
-  const level = numberInput(v.level, 1, MAX_LEVEL);
-  const skill = numberInput(v.skillPoints, 0, MAX_SKILL_POINTS);
-  const newHp = numberInput(v.newHitPoints, 0, MAX_SKILL_POINTS);
-  const setButton = (onclick: () => void) =>
-    h("button", { type: "button", class: "button subtle", onclick: act("character", onclick) }, "Set");
-  const vitals = v.vitals;
-  const sliders: [keyof VitalsEdit, string, number | undefined][] = [
-    ["wellbeing", "Wellbeing", vitals?.wellbeing],
-    ["satiation", STAT_LABELS.satiation, vitals?.satiation],
-    ["focus", STAT_LABELS.focus, vitals?.focus],
-    ["stamina", STAT_LABELS.stamina, vitals?.stamina],
-    ["warmth", STAT_LABELS.warmth, vitals?.warmth],
-  ];
-  const inputs = new Map<keyof VitalsEdit, HTMLInputElement>();
-  const vitalRows = sliders.map(([key, label, value]) => {
-    const out = h("output", {}, describeVital(key, value ?? 0));
-    const input = h("input", {
-      type: "range",
-      min: 0,
-      max: 100,
-      step: 1,
-      value: Math.round((value ?? 0) * 100),
-      oninput: () => out.textContent = describeVital(key, Number(input.value) / 100),
-    }) as HTMLInputElement;
-    inputs.set(key, input);
-    return field(label, input, out);
-  });
-  return card(
-    "character",
-    "Level, points and wellbeing",
-    field(
-      "Level",
-      level,
-      setButton(() => {
-        const to = readWhole(level, "Level");
-        return editPlayer("character", (p) => {
-          const from = Number(p.level);
-          setLevel(p, to);
-          return to === from ? undefined : `Level ${from} → ${to} (skill points and new hit points follow)`;
-        });
-      }),
-    ),
-    h(
-      "p",
-      { class: "muted small" },
-      `XP ${Math.round(v.xp)} of ${xpForLevel(v.level)} to the next level. Each level grants a skill point, and every third level a hit ` +
-        "point to place; lowering the level takes back unspent ones.",
-    ),
-    field(
-      "Skill points to spend",
-      skill,
-      setButton(() => {
-        const to = readWhole(skill, "Skill points");
-        return editPlayer("character", (p) => {
-          const from = Number(p.skillPoints);
-          setSkillPoints(p, to);
-          return to === from ? undefined : `Skill points ${from} → ${to}`;
-        });
-      }),
-    ),
-    field(
-      "New hit points to place",
-      newHp,
-      setButton(() => {
-        const to = readWhole(newHp, "New hit points");
-        return editPlayer("character", (p) => {
-          const from = Number(p.hpAddPoints);
-          setNewHitPoints(p, to);
-          return to === from ? undefined : `New hit points ${from} → ${to}`;
-        });
-      }),
-    ),
-    h("h4", {}, "Wellbeing and stats"),
-    vitals ? vitalRows : h("p", { class: "muted" }, "This save does not record wellbeing."),
-    vitals
-      ? h("button", {
-        type: "button",
-        class: "button subtle",
-        onclick: act("character", () => {
-          // The sliders that were moved; the others keep whatever the draft has.
-          const e: VitalsEdit = {};
-          for (const [key, , shown] of sliders) {
-            const to = Number(inputs.get(key)!.value) / 100;
-            if (Math.round((shown ?? 0) * 100) !== Math.round(to * 100)) e[key] = to;
-          }
-          return editPlayer("character", (p, raw) => {
-            const before = parsePlayer(raw).vitals;
-            // Only the stats that still differ, so one the game already has where you asked is left exactly as it is.
-            const differ: VitalsEdit = {};
-            const changes = sliders.flatMap(([key, label]) => {
-              const to = e[key], from = before?.[key] ?? 0;
-              if (to === undefined || Math.round(from * 100) === Math.round(to * 100)) return [];
-              differ[key] = to;
-              return [`${label} ${percent(from)} → ${percent(to)}`];
-            });
-            setVitals(p, differ);
-            return changes.length ? changes.join(", ") : undefined;
-          });
-        }),
-      }, "Apply wellbeing and stats")
-      : null,
-    h(
-      "p",
-      { class: "muted small" },
-      "Sickness, warm to the core, well rested and overburdening keep changing wellbeing each turn (see Conditions).",
-    ),
-  );
+/** The preview's own controls (see PlayerEditing): with them it is the character's card. */
+function previewEditing(v: PlayerSave, p: Rec): PlayerEditing {
+  return {
+    vital: (kind, to) =>
+      void editPlayer("preview", (rec, raw) => {
+        const vitals = parsePlayer(raw).vitals;
+        if (!vitals) throw new Error("This save does not record wellbeing");
+        const from = vitals[kind];
+        if (Math.round(from * 100) === Math.round(to * 100)) return undefined;
+        setVitals(rec, { [kind]: to });
+        return `${kind === "wellbeing" ? "Wellbeing" : STAT_LABELS[kind]} ${percent(from)} → ${percent(to)}`;
+      }, `vital-${kind}`),
+    hitPoints: () => [hitPointsEditor(v, p)],
+    conditions: () => conditionsEditor(v, p),
+    level: () => levelEditor(v),
+  };
 }
 
-const describeVital = (key: keyof VitalsEdit, v: number) => key === "warmth" ? `${percent(v)} ${temperatureLabel(v)}` : percent(v);
+/** Level, skill points and new hit points, each set as soon as it is changed. */
+function levelEditor(v: PlayerSave): HTMLElement[] {
+  const whole = (
+    label: string,
+    key: string,
+    value: number,
+    max: number,
+    min: number,
+    set: (rec: Rec, to: number) => string | undefined,
+  ) => {
+    const input = numberInput(value, min, max, key);
+    input.onchange = act("preview", () => {
+      const to = readWhole(input, label);
+      return editPlayer("preview", (rec) => set(rec, to), key);
+    });
+    return field(label, input);
+  };
+  const next = v.level < MAX_LEVEL ? `${Math.round(v.xp)} of ${xpForLevel(v.level)} XP to level ${v.level + 1}` : "The highest level";
+  return [
+    h("h4", {}, "Level"),
+    whole("Level", "level", v.level, MAX_LEVEL, 1, (rec, to) => {
+      const from = Number(rec.level);
+      setLevel(rec, to);
+      return to === from ? undefined : `Level ${from} → ${to} (skill points and new hit points follow)`;
+    }),
+    whole("Skill points to spend", "skill-points", v.skillPoints, MAX_SKILL_POINTS, 0, (rec, to) => {
+      const from = Number(rec.skillPoints);
+      setSkillPoints(rec, to);
+      return to === from ? undefined : `Skill points ${from} → ${to}`;
+    }),
+    whole("New hit points to place", "new-hit-points", v.newHitPoints, MAX_SKILL_POINTS, 0, (rec, to) => {
+      const from = Number(rec.hpAddPoints);
+      setNewHitPoints(rec, to);
+      return to === from ? undefined : `New hit points ${from} → ${to}`;
+    }),
+    h(
+      "p",
+      { class: "muted small" },
+      `${next}. Each level grants a skill point, and every third level a hit point to place; lowering the level takes back unspent ones.`,
+    ),
+  ];
+}
 
 const bleedText = (s: HitPointStatus) => s.bleed ? `${s.bleed} spreading ${BLEED_DIRS[s.dir]}` : "0";
+const HP_KINDS: [HitPointKind, string, string][] = [
+  ["healthy", "Healthy", "A living hit point (one under armor keeps it)"],
+  ["lost", "Lost", "Lost: heals with potions or salves, or while resting"],
+  ["burned", "Burned", "Burned: heals only once treated"],
+];
+const kindOfHp = (hp: number): HitPointKind => (hp >= 1 ? "healthy" : hp === 0 ? "lost" : "burned");
 
-/** The player's hit points: pick one to set its poison and bleeding; stun, and heal every wound. */
-function hitPointsCard(v: PlayerSave, p: Rec): HTMLElement {
-  const g = v.health;
-  if (!g) return card("health", "Hit points and their statuses", h("p", { class: "muted" }, "Hit points were not saved."));
+/** The hit point grid: pick one to set it healthy, lost or burned and its poison and bleeding; stun, and heal every wound. */
+function hitPointsEditor(v: PlayerSave, p: Rec): HTMLElement {
+  const g = v.health!;
   if (hpPick && cellKind(g.cells[hpPick[1]]?.[hpPick[0]] ?? { hp: -4, poison: 0, bleed: [0, 0, 0, 0] }) === "none") hpPick = undefined;
   const pick = (x: number, y: number) => {
     hpPick = [x, y];
-    const next = hitPointsCard(v, p);
+    const next = hitPointsEditor(v, p);
     el.replaceWith(next);
     next.querySelector<HTMLElement>(".hp-pick[aria-pressed='true']")?.focus();
   };
-  const stunTo = !g.stunned;
-  const el = card(
-    "health",
-    "Hit points and their statuses",
+  const el = h(
+    "div",
+    { class: "hp-editor" },
     healthGridPicker(g, hpPick, pick),
-    hpPick ? pickedView(hpPick[0], hpPick[1]) : h("p", { class: "muted small" }, "Pick a hit point to set its poison and bleeding."),
+    hpPick
+      ? pickedView(hpPick[0], hpPick[1])
+      : h("p", { class: "muted small" }, "Pick a hit point to heal, lose or burn it, or set its poison and bleeding."),
     h(
       "p",
       { class: "item-actions" },
+      h(
+        "label",
+        { class: "edit-check", title: "Stunned by a blunt blow: you miss your next turn" },
+        h("input", {
+          type: "checkbox",
+          checked: g.stunned,
+          "data-key": "stunned",
+          onchange: (event: Event) => {
+            // The box's own state, read now: a second click before the page is drawn again must not repeat the first.
+            const to = (event.currentTarget as HTMLInputElement).checked;
+            act("preview", () =>
+              editPlayer("preview", (rec) => {
+                const from = parseHealth(rec.hpgrid, rec.statusgrid)?.stunned;
+                setStunned(rec, to);
+                return from === to ? undefined : to ? "Stunned: you miss your next turn" : "No longer stunned";
+              }, "stunned"))();
+          },
+        }),
+        " Stunned",
+      ),
       h("button", {
         type: "button",
         class: "button subtle",
-        title: stunTo ? "Stunned by a blunt blow: you miss your next turn" : "You no longer miss your next turn",
-        onclick: act("health", () =>
-          editPlayer("health", (rec) => {
-            const from = parseHealth(rec.hpgrid, rec.statusgrid)?.stunned;
-            setStunned(rec, stunTo);
-            return from === stunTo ? undefined : stunTo ? "Stunned: you miss your next turn" : "No longer stunned";
-          })),
-      }, stunTo ? "Stun" : "Remove stun"),
-      h("button", {
-        type: "button",
-        class: "button subtle",
-        onclick: act("health", () =>
-          editPlayer("health", (rec) => {
+        "data-key": "heal-all",
+        onclick: act("preview", () =>
+          editPlayer("preview", (rec) => {
             const before = JSON.stringify([rec.hpgrid, rec.statusgrid]);
             const n = healPlayer(rec);
             if (JSON.stringify([rec.hpgrid, rec.statusgrid]) === before) return undefined;
@@ -1046,6 +1056,7 @@ function hitPointsCard(v: PlayerSave, p: Rec): HTMLElement {
           })),
       }, "Heal all wounds"),
     ),
+    healthLegend(g),
     h(
       "p",
       { class: "muted small" },
@@ -1057,25 +1068,24 @@ function hitPointsCard(v: PlayerSave, p: Rec): HTMLElement {
   return el;
 
   function pickedView(x: number, y: number): HTMLElement {
-    const c = g!.cells[y][x];
+    const c = g.cells[y][x];
     const now = hitPointStatus(p, x, y);
-    const alive = c.hp >= 1;
-    const locked = !alive && !now.poison && !now.bleed;
-    const poison = numberInput(now.poison, 0, MAX_STACKS);
-    const bleed = numberInput(now.bleed, 0, MAX_STACKS);
+    const kind = kindOfHp(c.hp);
+    const locked = kind !== "healthy" && !now.poison && !now.bleed;
+    const poison = numberInput(now.poison, 0, MAX_STACKS, "hp-poison");
+    const bleed = numberInput(now.bleed, 0, MAX_STACKS, "hp-bleed");
     const dir = h(
       "select",
-      { "aria-label": "The way the bleed spreads" },
+      { "aria-label": "The way the bleed spreads", "data-key": "hp-dir" },
       BLEED_DIRS.map((d, i) => h("option", { value: i, selected: i === now.dir }, `spreading ${d}`)),
     ) as HTMLSelectElement;
-    for (const input of [poison, bleed, dir]) input.disabled = locked;
-    const apply = act("health", () => {
+    const setStatus = act("preview", () => {
       const to: HitPointStatus = {
         poison: readWhole(poison, "Poison stacks"),
         bleed: readWhole(bleed, "Bleeding stacks"),
         dir: Number(dir.value),
       };
-      return editPlayer("health", (rec) => {
+      return editPlayer("preview", (rec) => {
         const from = hitPointStatus(rec, x, y);
         setHitPointStatus(rec, x, y, to);
         const after = hitPointStatus(rec, x, y);
@@ -1084,17 +1094,38 @@ function hitPointsCard(v: PlayerSave, p: Rec): HTMLElement {
           bleedText(from) !== bleedText(after) ? `bleeding ${bleedText(from)} → ${bleedText(after)}` : "",
         ].filter(Boolean);
         return changes.length ? `Hit point at ${cellPlace(x, y)}: ${changes.join(", ")}` : undefined;
-      });
+      }, `hp-${x}-${y}-status`);
     });
+    for (const input of [poison, bleed, dir]) {
+      input.disabled = locked;
+      input.onchange = setStatus;
+    }
     return h(
       "div",
       { class: "hp-picked" },
       h("h4", {}, `Hit point at ${cellPlace(x, y)}`),
       h("p", { class: "small" }, cellTitle(c)),
+      h(
+        "div",
+        { class: "segmented", role: "group", "aria-label": `Hit point at ${cellPlace(x, y)}` },
+        HP_KINDS.map(([k, label, title]) =>
+          h("button", {
+            type: "button",
+            class: "button subtle small",
+            title,
+            "aria-pressed": String(k === kind),
+            "data-key": `hp-kind-${k}`,
+            onclick: act("preview", () =>
+              editPlayer("preview", (rec) => {
+                const from = kindOfHp(Number((rec.hpgrid as unknown[][])[y]?.[x]));
+                return setHitPointKind(rec, x, y, k) ? `Hit point at ${cellPlace(x, y)}: ${from} → ${k}` : undefined;
+              }, `hp-${x}-${y}-kind`)),
+          }, label)
+        ),
+      ),
       field("Poison stacks", poison),
       field("Bleeding stacks", bleed, dir),
       locked ? h("p", { class: "muted small" }, "Lost and burned hit points take no poison or bleeding.") : null,
-      h("button", { type: "button", class: "button subtle", disabled: locked, onclick: apply }, "Apply to this hit point"),
     );
   }
 }
@@ -1105,72 +1136,57 @@ const timedText = (t: number) => (t > 0 ? turnsText(t) : "off");
 const sickText = (level: number, turns: number) => (level ? `${ROMAN[level - 1]} for ${turnsText(turns)}` : "none");
 /** The game's average sickness from bad food: i_r(20, 32) turns times the level (player_get_sickness). */
 const SICK_TURNS = 26;
+const SICKNESS = new Set([17, 18, 19]);
 
-/** Lasting conditions: sickness and its level, warm to the core, well fed, well rested and stamina boosts, with their turns. */
-function conditionsCard(v: PlayerSave, p: Rec): HTMLElement {
+/**
+ * Lasting conditions, each set as soon as it is changed: sickness and its level, warm to the core, well fed, well rested and stamina
+ * boosts, with their turns. The conditions the game sets again every step are listed as they are.
+ */
+function conditionsEditor(v: PlayerSave, p: Rec): HTMLElement[] {
   const sickLevel = sicknessLevel(v.effects);
-  const sickShown = Math.ceil(v.sickTime);
-  const sickTurns = numberInput(sickShown, 0, MAX_TURNS);
+  const sickTurns = numberInput(Math.ceil(v.sickTime), 0, MAX_TURNS, "sick-turns");
   sickTurns.disabled = !sickLevel;
   const level = h(
     "select",
-    {
-      "aria-label": "Sickness",
-      onchange: () => {
-        const l = Number(level.value);
-        sickTurns.disabled = !l;
-        if (l && !(Number(sickTurns.value) > 0)) sickTurns.value = String(SICK_TURNS * l);
-      },
-    },
+    { "aria-label": "Sickness", "data-key": "sickness" },
     h("option", { value: 0, selected: !sickLevel }, "None"),
     [1, 2, 3].map((l) =>
       h("option", { value: l, selected: sickLevel === l }, `${CONDITIONS[16 + l].label} (${CONDITIONS[16 + l].effect})`)
     ),
   ) as HTMLSelectElement;
-  const rows = (Object.entries(TIMED) as [Timed, typeof TIMED[Timed]][]).map(([k, t]) => {
-    const shown = Math.ceil(v[t.key]);
-    return { k, t, shown, input: numberInput(shown, 0, t.max) };
-  });
-  const apply = act("conditions", () => {
-    // Only what was changed here, so the edit keeps the rest of the draft as it is, also when it runs again after an undo or a reload.
-    const e: ConditionsEdit = {};
+  const setSickness = act("preview", () => {
     const l = Number(level.value);
-    const turns = l ? readWhole(sickTurns, "Turns of sickness") : 0;
-    if (l !== sickLevel || (l && turns !== sickShown)) e.sickness = { level: l, turns };
-    for (const { k, t, shown, input } of rows) {
-      const to = readWhole(input, `Turns of ${CONDITIONS[t.ae].label.toLowerCase()}`);
-      if (to !== shown) e[k] = to;
-    }
-    return editPlayer("conditions", (rec, raw) => {
+    let turns = l ? readWhole(sickTurns, "Turns of sickness") : 0;
+    if (l && !(turns > 0)) turns = SICK_TURNS * l;
+    return editPlayer("preview", (rec, raw) => {
       const before = parsePlayer(raw);
-      const differ: ConditionsEdit = {};
-      const changes: string[] = [];
-      if (e.sickness) {
-        const from = sicknessLevel(before.effects), { level: lv, turns: n } = e.sickness;
-        if (from !== lv || before.sickTime !== n) {
-          differ.sickness = e.sickness;
-          changes.push(`Sickness ${sickText(from, before.sickTime)} → ${sickText(lv, n)}`);
-        }
-      }
-      for (const { k, t } of rows) {
-        const to = e[k];
-        if (to === undefined || before[t.key] === to) continue;
-        differ[k] = to;
-        changes.push(`${CONDITIONS[t.ae].label} ${timedText(before[t.key])} → ${timedText(to)}`);
-      }
-      setConditions(rec, differ);
-      return changes.length ? changes.join(", ") : undefined;
-    });
+      const from = sicknessLevel(before.effects);
+      if (from === l && (!l || before.sickTime === turns)) return undefined;
+      setConditions(rec, { sickness: { level: l, turns } });
+      return `Sickness ${sickText(from, before.sickTime)} → ${sickText(l, turns)}`;
+    }, "sickness");
   });
-  return card(
-    "conditions",
-    "Conditions",
+  level.onchange = sickTurns.onchange = setSickness;
+  const timed = (Object.entries(TIMED) as [Timed, typeof TIMED[Timed]][]).map(([k, t]) => {
+    const label = CONDITIONS[t.ae].label;
+    const input = numberInput(Math.ceil(v[t.key]), 0, t.max, `timed-${k}`);
+    input.onchange = act("preview", () => {
+      const to = readWhole(input, `Turns of ${label.toLowerCase()}`);
+      return editPlayer("preview", (rec, raw) => {
+        const from = parsePlayer(raw)[t.key];
+        if (from === to) return undefined;
+        setConditions(rec, { [k]: to });
+        return `${label} ${timedText(from)} → ${timedText(to)}`;
+      }, `timed-${k}`);
+    });
+    return field(label, input, "turns", h("span", { class: "muted small" }, CONDITIONS[t.ae].effect ?? ""));
+  });
+  const set = new Set([...Object.values(TIMED).map((t) => t.ae), ...SICKNESS]);
+  const others = conditionsOf(v).filter((c) => !set.has(c.index));
+  return [
     field("Sickness", level),
     field("Sickness lasts", sickTurns, "turns"),
-    rows.map(({ t, input }) =>
-      field(CONDITIONS[t.ae].label, input, "turns", h("span", { class: "muted small" }, CONDITIONS[t.ae].effect ?? ""))
-    ),
-    h("button", { type: "button", class: "button subtle", onclick: apply }, "Apply conditions"),
+    timed,
     h(
       "p",
       { class: "muted small" },
@@ -1178,14 +1194,29 @@ function conditionsCard(v: PlayerSave, p: Rec): HTMLElement {
         "removes it. Warm to the core runs down at half speed while you sleep in a Great Bedroll (a tenth in a Furhide Bedroll), and " +
         "not at all beside a fire hot enough to warm you further. The game caps warm to the core, well fed and well rested at 35 turns.",
     ),
+    others.length
+      ? h(
+        "ul",
+        { class: "conditions" },
+        others.map((c) =>
+          h(
+            "li",
+            { class: `condition ${c.tone}` },
+            h("strong", {}, c.label),
+            c.turns ? h("span", { class: "muted" }, ` (${turnsText(c.turns)} left)`) : null,
+            c.effect ? h("span", { class: "condition-effect" }, `: ${c.effect}`) : null,
+          )
+        ),
+      )
+      : null,
     h(
       "p",
       { class: "muted small" },
       "Tiredness, overburdening, wading, shelter and the other conditions follow your stats, load and surroundings: the game sets " +
         "them again every step, so they are not edited here.",
     ),
-    wetView(v, p),
-  );
+    ...wetView(v, p),
+  ].flat().filter((e): e is HTMLElement => !!e);
 }
 
 /** Wet clothes as the preview lists them, and Dry all (the same as under Items and coins). */
@@ -1209,7 +1240,7 @@ function wetView(v: PlayerSave, p: Rec): HTMLElement[] {
       type: "button",
       class: "button subtle",
       disabled: !wet,
-      onclick: act("conditions", () => upkeep("dry", "conditions")),
+      onclick: act("preview", () => upkeep("dry", "preview")),
     }, items ? `Dry all (${items})` : "Dry all"),
     h(
       "p",
@@ -1220,10 +1251,32 @@ function wetView(v: PlayerSave, p: Rec): HTMLElement[] {
   ];
 }
 
+/** Day, time, weather and air temperature, each set as soon as it is changed. */
 function skyCard(p: Rec): HTMLElement {
   const sky = parseSky(p);
   if (!sky) return card("sky", "Time and weather", h("p", { class: "muted" }, "This save does not record the time."));
-  const day = numberInput(sky.day, 1, MAX_DAY);
+  const set = (key: string, e: () => SkyEdit) =>
+    act("sky", () => {
+      const change = e();
+      return editPlayer("sky", (rec) => {
+        const before = parseSky(rec)!;
+        setSky(rec, change);
+        const after = parseSky(rec)!;
+        const changes: string[] = [];
+        if (after.day !== before.day || after.minute !== before.minute) {
+          changes.push(`Day ${before.day} ${formatClock(before.minute)} → day ${after.day} ${formatClock(after.minute)}`);
+        }
+        if (after.weather !== before.weather || after.rain !== before.rain) {
+          changes.push(`${WEATHER_LABELS[weatherKind(before)]} → ${WEATHER_LABELS[weatherKind(after)]}`);
+        }
+        if (Math.round(after.temperature * 100) !== Math.round(before.temperature * 100)) {
+          changes.push(`Air ${percent(before.temperature)} → ${percent(after.temperature)}`);
+        }
+        return changes.length ? changes.join(", ") : undefined;
+      }, key);
+    });
+  const day = numberInput(sky.day, 1, MAX_DAY, "sky-day");
+  day.onchange = set("sky-day", () => ({ day: readWhole(day, "Day") }));
   const pad = (n: number) => String(n).padStart(2, "0");
   const minute = Math.min(sky.minute, 24 * 60 - 1);
   const time = h("input", {
@@ -1231,24 +1284,34 @@ function skyCard(p: Rec): HTMLElement {
     step: 60,
     value: `${pad(Math.floor(minute / 60))}:${pad(Math.floor(minute % 60))}`,
     required: true,
+    "data-key": "sky-time",
   }) as HTMLInputElement;
+  time.onchange = set("sky-time", () => {
+    const [hh, mm] = time.value.split(":").map(Number);
+    if (!Number.isInteger(hh) || !Number.isInteger(mm)) throw new Error("Choose a time");
+    return { minute: hh * 60 + mm };
+  });
+  const rainAt = Math.max(MIN_RAIN, sky.rain || 0.5);
   const weather = h(
     "select",
-    { onchange: () => rain.disabled = Number(weather.value) !== Weather.Rain },
+    { "data-key": "sky-weather" },
     ([["Clear", Weather.Clear], ["Cloudy", Weather.Cloudy], ["Rain", Weather.Rain]] as const).map(([label, value]) =>
       h("option", { value, selected: sky.weather === value }, label)
     ),
   ) as HTMLSelectElement;
-  const rainOut = h("output", {}, percent(Math.max(MIN_RAIN, sky.rain || 0.5)));
+  weather.onchange = set("sky-weather", () => ({ weather: Number(weather.value) as WeatherState, rain: Number(rain.value) / 100 }));
+  const rainOut = h("output", {}, percent(rainAt));
   const rain = h("input", {
     type: "range",
     min: Math.round(MIN_RAIN * 100),
     max: 100,
     step: 1,
-    value: Math.round(Math.max(MIN_RAIN, sky.rain || 0.5) * 100),
+    value: Math.round(rainAt * 100),
     disabled: sky.weather !== Weather.Rain,
+    "data-key": "sky-rain",
     oninput: () => rainOut.textContent = percent(Number(rain.value) / 100),
   }) as HTMLInputElement;
+  rain.onchange = set("sky-rain", () => ({ rain: Number(rain.value) / 100 }));
   const tempOut = h("output", {}, `${percent(sky.temperature)} ${temperatureLabel(sky.temperature)}`);
   const temp = h("input", {
     type: "range",
@@ -1256,39 +1319,10 @@ function skyCard(p: Rec): HTMLElement {
     max: 100,
     step: 1,
     value: Math.round(sky.temperature * 100),
+    "data-key": "sky-temperature",
     oninput: () => tempOut.textContent = `${percent(Number(temp.value) / 100)} ${temperatureLabel(Number(temp.value) / 100)}`,
   }) as HTMLInputElement;
-  const apply = act("sky", () => {
-    const [hh, mm] = time.value.split(":").map(Number);
-    if (!Number.isInteger(hh) || !Number.isInteger(mm)) throw new Error("Choose a time");
-    // Only what was changed here, so the edit keeps the rest of the draft as it is, also when it runs again after an undo or a reload.
-    const e: SkyEdit = {};
-    const dayTo = readWhole(day, "Day");
-    if (dayTo !== sky.day) e.day = dayTo;
-    if (hh * 60 + mm !== Math.floor(minute)) e.minute = hh * 60 + mm;
-    const weatherTo = Number(weather.value) as WeatherState;
-    if (weatherTo !== sky.weather) e.weather = weatherTo;
-    if (e.weather !== undefined || Number(rain.value) !== Math.round(Math.max(MIN_RAIN, sky.rain || 0.5) * 100)) {
-      e.rain = Number(rain.value) / 100;
-    }
-    if (Number(temp.value) !== Math.round(sky.temperature * 100)) e.temperature = Number(temp.value) / 100;
-    return editPlayer("sky", (rec) => {
-      const before = parseSky(rec)!;
-      setSky(rec, e);
-      const after = parseSky(rec)!;
-      const changes: string[] = [];
-      if (after.day !== before.day || after.minute !== before.minute) {
-        changes.push(`Day ${before.day} ${formatClock(before.minute)} → day ${after.day} ${formatClock(after.minute)}`);
-      }
-      if (after.weather !== before.weather || after.rain !== before.rain) {
-        changes.push(`${WEATHER_LABELS[weatherKind(before)]} → ${WEATHER_LABELS[weatherKind(after)]}`);
-      }
-      if (Math.round(after.temperature * 100) !== Math.round(before.temperature * 100)) {
-        changes.push(`Air ${percent(before.temperature)} → ${percent(after.temperature)}`);
-      }
-      return changes.length ? changes.join(", ") : undefined;
-    });
-  });
+  temp.onchange = set("sky-temperature", () => ({ temperature: Number(temp.value) / 100 }));
   return card(
     "sky",
     "Time and weather",
@@ -1298,12 +1332,11 @@ function skyCard(p: Rec): HTMLElement {
     field("Weather", weather),
     field("Rain strength", rain, rainOut),
     field("Air temperature", temp, tempOut),
-    h("button", { type: "button", class: "button subtle", onclick: apply }, "Apply time and weather"),
     h(
       "p",
       { class: "muted small" },
-      "The game eases the air temperature back toward the hour's usual value each turn, and changes the weather when the hour turns. " +
-        "Going back in time stops regrowth in zones you visited later until the clock catches up.",
+      "Each change takes effect at once. The game eases the air temperature back toward the hour's usual value each turn, and changes the " +
+        "weather when the hour turns. Going back in time stops regrowth in zones you visited later until the clock catches up.",
     ),
   );
 }
@@ -1325,7 +1358,12 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
     placeholder: "Type an item name",
     autocomplete: "off",
     class: "item-name",
+    oninput: () => {
+      const index = ITEM_CHOICES.get(name.value.trim());
+      stack.textContent = index === undefined ? "" : stackText(index);
+    },
   }) as HTMLInputElement;
+  const stack = h("span", { class: "range-hint muted small", "aria-live": "polite" });
   const amount = numberInput(1, 1, 999);
   const coins: [keyof ReturnType<typeof countCoins>, number, HTMLInputElement][] = [
     ["gold", Coin.Gold, numberInput(0, 0, 9999)],
@@ -1362,7 +1400,7 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
       ` · ${free === 1 ? "1 free cell" : `${free} free cells`} in your bags`,
     ),
     h("datalist", { id: "item-choices" }, [...ITEM_CHOICES.keys()].map((n) => h("option", { value: n }))),
-    field("Item", name),
+    field("Item", name, stack),
     field("Amount", amount),
     h(
       "span",
@@ -1418,6 +1456,9 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
 }
 
 const itemName = (index: number) => ITEM_NAMES[index] ?? `Item ${index}`;
+/** The most of an item one stack (one cell) holds. */
+const stackOf = (index: number) => ITEMS[index]?.stack ?? 1;
+const stackText = (index: number) => stackOf(index) > 1 ? `Stacks up to ${stackOf(index)}` : "Does not stack";
 /** An equipment slot's name; the second weapon set's hands say so. */
 const slotLabel = (slot: number) => `${SLOT_NAMES[slot] ?? `slot ${slot + 1}`}${slot === 2 || slot === 3 ? " (second set)" : ""}`;
 const hasBags = (p: Rec) => {
@@ -1477,7 +1518,9 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
         "span",
         { class: "carried-name" },
         name,
-        c.amount > 1 ? ` ×${c.amount}` : "",
+        c.amount > 1 || stackOf(c.index) > 1
+          ? h("span", { title: stackText(c.index) }, ` ×${c.amount}`, h("span", { class: "muted" }, ` / ${stackOf(c.index)}`))
+          : "",
         holder ? null : h("span", { class: "muted" }, ` ${slotLabel(c.place.slot)}`),
         sizes.map((b) => h("span", { class: "muted" }, ` · ${bagRoom(b)}`)),
         condition.length ? conditionView(condition) : null,
@@ -1486,14 +1529,6 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
       h(
         "span",
         { class: "carried-controls" },
-        rec && hasCondition(c.index, rec)
-          ? h("button", {
-            type: "button",
-            class: "button subtle small",
-            title: `Set ${name}'s ${conditionWords(c.index, rec)}`,
-            onclick: act("items", () => editCondition(p, c, rec, holder)),
-          }, "Condition…")
-          : null,
         moveTo,
         moveTo
           ? h("button", {
@@ -1509,6 +1544,7 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
           onclick: act("items", () => removeCarried(c, howMany, from)),
         }, "Remove"),
       ),
+      rec && hasCondition(c.index, rec) ? conditionEditor(c, rec, holder) : null,
       c.contents.length ? h("ul", {}, c.contents.map((inner) => row(inner, name))) : null,
     );
   };
@@ -1524,8 +1560,8 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
       { class: "muted small" },
       "Move to lists the containers you wear that have room for an item (upright, or turned sideways), and a free slot it fits. " +
         "A container moves only when empty: the game empties one kept inside another when it loads. Remove deletes an item from the " +
-        "save; a container goes with everything in it. Condition… sets an item's durability, fuel or wetness to any value the game " +
-        "allows. Items tagged unsaved come from unsaved changes, which you can also undo from the list at the bottom.",
+        "save; a container goes with everything in it. Condition sets an item's durability, fuel or wetness to any value the " +
+        "game allows. Items tagged unsaved come from unsaved changes, which you can also undo from the list at the bottom.",
     ),
   );
 }
@@ -1672,20 +1708,61 @@ async function upkeep(what: Upkeep, cardId = "items") {
 }
 
 /**
- * Sets one item's durability, fuel or wetness in a dialog, to anything the game allows (lower too); only the values changed there
- * are written.
+ * One item's durability, fuel and wetness, under its row: each is set, to anything the game allows (lower too), as soon as it is
+ * changed. It stays open across edits while the item stays where it is.
  */
-async function editCondition(p: Rec, c: CarriedItem, rec: Rec, holder?: string) {
+function conditionEditor(c: CarriedItem, rec: Rec, holder?: string): HTMLElement {
   const { place, index } = c;
   const name = itemName(index);
   const where = holder ? ` in ${holder}` : ` (worn: ${slotLabel(place.slot)})`;
+  const at = JSON.stringify(place);
   const now = conditionOf(asState(rec));
   const burn = fuelMax(index);
   const wetNow = isWet(asState(rec)) ? Number(rec.wet) : 0;
-  const amount = (value: number, max: number, places = 2) =>
-    h("input", { type: "number", class: "num", value: amountText(value, places), min: 0, max, step: "any" }) as HTMLInputElement;
-  const durability = now.durability && amount(now.durability.value, now.durability.max);
-  const fuel = burn !== undefined ? amount(now.fuel?.value ?? burn, burn, 1) : undefined;
+  /** Durability, portions and oil must stay above 0 (at 0 the game breaks or uses up the item); fuel may be 0. */
+  const amount = (value: number, max: number, what: string, places = 2, aboveZero = false) =>
+    h("input", {
+      type: "number",
+      class: "num",
+      value: amountText(value, places),
+      min: aboveZero ? undefined : 0,
+      max,
+      step: "any",
+      title: aboveZero ? `More than 0, up to ${max}` : `0 to ${max}`,
+      "data-range": aboveZero ? `above 0–${max}` : undefined,
+      "data-key": `condition-${at}-${what}`,
+    }) as HTMLInputElement;
+  const value = (input: HTMLInputElement, what: string) => {
+    const n = input.value.trim() === "" ? NaN : Number(input.value);
+    if (!Number.isFinite(n)) throw new Error(`${what} must be a number`);
+    return n;
+  };
+  /** Sets one value; the change says what it was. */
+  const set = (what: string, e: () => ConditionEdit) =>
+    act("items", () => {
+      const change = e();
+      return editPlayer("items", (draft) => {
+        const old = itemAt(draft, place);
+        const was = old ? conditionOf(asState(old)) : {};
+        const wasWet = old && isWet(asState(old)) ? Number(old.wet) : 0;
+        setCondition(draft, place, index, change);
+        const changes: string[] = [];
+        if (change.durability !== undefined && was.durability && change.durability !== was.durability.value) {
+          const { kind, value, max } = was.durability;
+          changes.push(`${DURABILITY_LABELS[kind].toLowerCase()} ${amountText(value)} → ${amountText(change.durability)} of ${max}`);
+        }
+        if (change.fuel !== undefined && change.fuel !== was.fuel?.value) {
+          changes.push(`fuel ${was.fuel ? amountText(was.fuel.value, 1) : "none"} → ${amountText(change.fuel, 1)} of ${burn} turns`);
+        }
+        if (change.wet !== undefined && change.wet !== wasWet) changes.push(`wet ${wetText(wasWet)} → ${wetText(change.wet)}`);
+        return changes.length ? `${name}${where}: ${changes.join(", ")}` : undefined;
+      }, `condition-${at}-${what}`);
+    });
+  const kind = now.durability?.kind;
+  const durability = now.durability && amount(now.durability.value, now.durability.max, "durability", 2, true);
+  if (durability) durability.onchange = set("durability", () => ({ durability: value(durability, DURABILITY_LABELS[kind!]) }));
+  const fuel = burn !== undefined ? amount(now.fuel?.value ?? burn, burn, "fuel", 1) : undefined;
+  if (fuel) fuel.onchange = set("fuel", () => ({ fuel: value(fuel, "Fuel") }));
   const wetOut = h("output", {}, wetText(wetNow));
   const wet = canGetWet(index) || wetNow > 0
     ? h("input", {
@@ -1694,59 +1771,28 @@ async function editCondition(p: Rec, c: CarriedItem, rec: Rec, holder?: string) 
       max: 100,
       step: 1,
       value: Math.round(wetNow * 100),
+      "aria-label": `How wet ${name} is (0–100%)`,
+      "data-key": `condition-${at}-wet`,
       oninput: () => wetOut.textContent = `${wet!.value}%`,
     }) as HTMLInputElement
     : undefined;
-  const value = (input: HTMLInputElement) => (input.value.trim() === "" ? NaN : Number(input.value));
-  // Only what was changed here, so an untouched value (such as a fraction the game left) stays exactly as it is.
-  const read = (): ConditionEdit => ({
-    ...(durability && durability.value !== durability.defaultValue ? { durability: value(durability) } : {}),
-    ...(fuel && fuel.value !== fuel.defaultValue ? { fuel: value(fuel) } : {}),
-    ...(wet && wet.value !== wet.defaultValue ? { wet: Number(wet.value) / 100 } : {}),
-  });
-  const kind = now.durability?.kind;
+  if (wet) wet.onchange = set("wet", () => ({ wet: Number(wet.value) / 100 }));
   const about = [
     kind === "durability" ? "Durability wears down with use; at 0 the game breaks the item." : "",
     kind === "portions" ? "Each portion eaten or used takes one; at 0 it is used up." : "",
     kind === "oil" ? "Oil left refills lanterns; at 0 the flask is used up." : "",
     fuel ? "Fuel is the turns it burns while lit; at 0 it goes out and cannot be lit." : "",
   ].filter(Boolean).join(" ");
-  const ok = await form({
-    title: `Condition of ${name}`,
-    body: [
-      h("p", { class: "muted" }, holder ? `In ${holder}` : `Worn: ${slotLabel(place.slot)}`),
-      durability && kind ? field(DURABILITY_LABELS[kind], durability, `of ${now.durability!.max}`) : null,
-      fuel ? field("Fuel", fuel, `of ${burn} turns`) : null,
-      wet ? field("Wet", wet, wetOut) : null,
-      about ? h("p", { class: "muted small" }, about) : null,
-    ],
-    confirm: "Apply",
-    check: () => {
-      try {
-        setCondition(structuredClone(p), place, index, read());
-      } catch (e) {
-        return errorText(e);
-      }
-    },
-  });
-  const e = read();
-  if (!ok || !Object.keys(e).length) return;
-  await editPlayer("items", (draft) => {
-    const old = itemAt(draft, place);
-    const was = old ? conditionOf(asState(old)) : {};
-    const wasWet = old && isWet(asState(old)) ? Number(old.wet) : 0;
-    setCondition(draft, place, index, e);
-    const changes: string[] = [];
-    if (e.durability !== undefined && was.durability && e.durability !== was.durability.value) {
-      const { kind, value, max } = was.durability;
-      changes.push(`${DURABILITY_LABELS[kind].toLowerCase()} ${amountText(value)} → ${amountText(e.durability)} of ${max}`);
-    }
-    if (e.fuel !== undefined && e.fuel !== was.fuel?.value) {
-      changes.push(`fuel ${was.fuel ? amountText(was.fuel.value, 1) : "none"} → ${amountText(e.fuel, 1)} of ${burn} turns`);
-    }
-    if (e.wet !== undefined && e.wet !== wasWet) changes.push(`wet ${wetText(wasWet)} → ${wetText(e.wet)}`);
-    return changes.length ? `${name}${where}: ${changes.join(", ")}` : undefined;
-  });
+  const remember = `editor-condition-${at}-${index}`;
+  return h(
+    "details",
+    { class: "item-condition", "data-remember": remember, open: expanded?.has(remember) ?? false },
+    h("summary", { title: `Set ${name}'s ${conditionWords(index, rec)}` }, "Condition"),
+    durability && kind ? field(DURABILITY_LABELS[kind], durability, `of ${now.durability!.max}`) : null,
+    fuel ? field("Fuel", fuel, `of ${burn} turns`) : null,
+    wet ? field("Wet", wet, wetOut) : null,
+    about ? h("p", { class: "muted small" }, about) : null,
+  );
 }
 
 // --- Map and creatures ---
@@ -2452,11 +2498,23 @@ function backupsCard(backups: Backup[]): HTMLElement {
   );
 }
 
-function previewCard(v: PlayerSave): HTMLElement {
+/** The map's own view of the player, as saving would leave it, where every part that can be edited is edited in place. */
+function previewCard(v: PlayerSave, p: Rec): HTMLElement {
   return h(
     "section",
     { class: "edit-card edit-preview", "aria-labelledby": "card-preview" },
-    h("h3", { id: "card-preview" }, session!.changes.length ? "Preview with unsaved changes" : "As saved"),
+    h(
+      "h3",
+      { id: "card-preview" },
+      "Character ",
+      h("span", { class: "muted small" }, session!.changes.length ? "with unsaved changes" : "as saved"),
+    ),
+    h(
+      "p",
+      { class: "muted small" },
+      "Drag a bar, pick a hit point or change a field: each edit takes effect at once, and can be undone from the list at the bottom.",
+    ),
+    noteView("preview"),
     ...playerView(v, {
       key: "editor",
       expanded,
@@ -2466,7 +2524,7 @@ function previewCard(v: PlayerSave): HTMLElement {
         mapTarget = t;
         showView("map");
       },
-    }),
+    }, previewEditing(v, p)),
   );
 }
 
