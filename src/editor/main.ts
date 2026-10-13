@@ -620,12 +620,19 @@ const edit = (card: string, path: string, change: Edit, key?: string) => editAll
 
 /**
  * Applies several files' edits as one change (undone together), like `edit`. `key` names what it sets (one slider, one field): a
- * change right after with the same key replaces it (see EditSession.applyAll).
+ * change right after with the same key replaces it (see EditSession.applyAll). Earlier changes it leaves with nothing to do are
+ * dropped and named.
  */
 async function editAll(card: string, steps: { path: string; edit: Edit }[], key?: string) {
   try {
-    const text = await session!.applyAll(steps, key);
-    if (text) note(card, `${text}. Not saved yet.`);
+    const { note: text, dropped } = await session!.applyAll(steps, key);
+    const them = dropped.length === 1 ? "an earlier change" : `${dropped.length} earlier changes`;
+    if (text) {
+      note(
+        card,
+        `${text}. Not saved yet.` + (dropped.length ? ` Also dropped, as it leaves ${them} nothing to do: ${dropped.join("; ")}.` : ""),
+      );
+    } else if (dropped.length) note(card, `That takes back ${them}, now dropped: ${dropped.join("; ")}.`);
     else if (key !== undefined) notes.delete(card);
   } catch (e) {
     note(card, errorText(e), true);
@@ -1436,11 +1443,12 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
   }
   /** Adds to the bags; what does not fit is reported, not dropped. */
   const add = async (index: number, n: number) => {
-    let left = 0;
+    let left: number | undefined;
     checkItem(index);
     await editPlayer("items", (rec) => {
       const r = addItems(rec, index, n);
-      left = r.left;
+      // As it was added: the session may run the edit again without earlier changes, to see whether they still do anything.
+      left ??= r.left;
       return r.added ? `Added ${r.added} × ${ITEM_NAMES[index]}${r.turned ? " (some turned sideways to fit)" : ""}` : undefined;
     });
     if (left) {
