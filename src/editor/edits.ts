@@ -164,6 +164,28 @@ export function setHitPointStatus(p: Rec, x: number, y: number, s: HitPointStatu
   st[y][x] = cell;
 }
 
+/** What a hit point can be set to in the grid. */
+export type HitPointKind = "healthy" | "lost" | "burned";
+
+/**
+ * Sets the player's hit point at column x, row y healthy (1; one under armor stays as it is), lost (0) or burned (-1, healed only by
+ * resting or a burn salve). A lost or burned hit point loses its poison and bleeding, as only living ones carry them. Returns whether
+ * it changed.
+ */
+export function setHitPointKind(p: Rec, x: number, y: number, kind: HitPointKind): boolean {
+  const st = statusGrid(p);
+  const row = (p.hpgrid as unknown[][])[y];
+  const hp = row?.[x];
+  if (typeof hp !== "number" || hp === Hp.None) throw new Error(`There is no hit point at ${cellPlace(x, y)}`);
+  const next = kind === "healthy" ? (hp >= Hp.Healthy ? hp : Hp.Healthy) : kind === "lost" ? Hp.Lost : Hp.Burned;
+  if (next === hp) return false;
+  row[x] = next;
+  if (next < Hp.Healthy) {
+    st[y][x] = st[y][x].filter((v) => !statusIs(v, Status.Poison) && !statusIs(v, Status.BleedUp, Status.BleedLeft));
+  }
+  return true;
+}
+
 /**
  * Stunned (by a blunt blow) misses its next turn: apply_stunned adds a 23 to statusgrid's first cell, and the end of the turn takes every
  * 23 away. Stunning keeps a stun already there; recovering takes them all.

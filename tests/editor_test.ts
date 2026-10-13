@@ -12,6 +12,7 @@ import {
   MAX_STACKS,
   movePlayer,
   setConditions,
+  setHitPointKind,
   setHitPointStatus,
   setLevel,
   setNewHitPoints,
@@ -179,6 +180,22 @@ Deno.test("poison and bleeding go on living hit points as attack_lands leaves th
   setHitPointStatus(bare, 1, 0, { poison: 1, bleed: 0, dir: 0 });
   assertEquals(bare.statusgrid, [[[], [2]]], "a missing statusgrid is made in hpgrid's shape");
   assertThrows(() => setHitPointStatus({ hpgrid: [[1, 1]], statusgrid: [[[]]] }, 0, 0, { poison: 1, bleed: 0, dir: 0 }), /do not match/);
+});
+
+Deno.test("a hit point toggles between healthy, lost and burned; only living ones keep poison and bleeding", () => {
+  const p: Rec = { hpgrid: [[1, 0, -1], [E, 3, 1]], statusgrid: [[[6, 2, 11, 23], [], []], [[], [2], []]] };
+  assert(setHitPointKind(p, 0, 0, "burned"));
+  assertEquals((p.statusgrid as unknown[][])[0][0], [6, 23], "flashes and the stun stay");
+  assert(setHitPointKind(p, 0, 0, "lost"));
+  assert(setHitPointKind(p, 0, 0, "healthy"));
+  assertEquals((p.hpgrid as number[][])[0][0], 1);
+  assert(!setHitPointKind(p, 0, 0, "healthy"));
+  assert(!setHitPointKind(p, 1, 1, "healthy"), "an armored hit point is healthy already");
+  assert(setHitPointKind(p, 2, 0, "healthy"), "a burn heals");
+  assert(setHitPointKind(p, 1, 1, "lost"));
+  assertEquals([(p.hpgrid as number[][])[1][1], (p.statusgrid as unknown[][])[1][1]], [0, []], "armor and poison go with it");
+  assert(!setHitPointKind(p, 1, 0, "lost"));
+  assertThrows(() => setHitPointKind(p, 0, 1, "healthy"), /no hit point at row 2, column 1/);
 });
 
 Deno.test("stun goes on statusgrid's first cell, as apply_stunned puts it, and recovering takes every one", () => {

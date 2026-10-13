@@ -99,15 +99,116 @@ body.map-move .map-bar label {
   font-size: 13px;
   color: var(--gold2);
 }
+.edit-card.edit-preview,
 .edit-card.edit-map,
 .edit-card.edit-items {
   grid-column: span 2;
 }
 @media (max-width: 720px) {
+  .edit-card.edit-preview,
   .edit-card.edit-map,
   .edit-card.edit-items {
     grid-column: auto;
   }
+}
+/* The min and max a number input takes, beside it. */
+.range-hint {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.range-hint:empty {
+  display: none;
+}
+/* An on/off setting, such as Stunned: the box and its words. */
+.edit-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+  cursor: pointer;
+}
+.edit-check input {
+  accent-color: var(--gold2);
+}
+/* One of a few states (a hit point's Healthy, Lost or Burned), the current one lit. */
+.segmented {
+  display: inline-flex;
+  margin: 4px 0 6px;
+}
+.segmented button {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.segmented button + button {
+  border-left: 0;
+}
+.segmented button:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.segmented button:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.segmented button:hover {
+  background: var(--panel);
+}
+.segmented button[aria-pressed="true"] {
+  background: var(--gold2);
+  color: #120e0f;
+}
+.segmented button:focus-visible {
+  position: relative;
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+/* A vital bar to drag: an invisible slider laid over the bar, its thumb a handle on the fill. */
+.vital-edit {
+  position: relative;
+}
+.vital-slider {
+  position: absolute;
+  inset: -7px 0;
+  width: 100%;
+  height: calc(100% + 14px);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.vital-slider::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+.vital-slider::-moz-range-track {
+  height: 100%;
+  background: transparent;
+}
+.vital-slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: 1px;
+  border: 2px solid #120e0f;
+  border-radius: 50%;
+  background: var(--gold);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.vital-slider::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border: 2px solid #120e0f;
+  border-radius: 50%;
+  background: var(--gold);
+}
+.vital-slider:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 .edit-field {
   display: flex;
@@ -318,21 +419,20 @@ body.map-move .map-bar label {
 .carried .item-condition {
   font-size: 12px;
 }
-/* The Condition… dialog's fields (src/dialog.ts form). */
-.dialog .edit-field > span:first-child {
+.carried details.item-condition {
+  margin: 2px 0 4px;
+}
+.carried details.item-condition summary {
+  width: fit-content;
+  color: var(--gold2);
+  cursor: pointer;
+}
+.carried details.item-condition[open] {
+  padding: 4px 8px;
+  border-left: 2px solid var(--line);
+}
+.carried details.item-condition .edit-field > span:first-child {
   flex-basis: 96px;
-}
-.dialog input[type="number"] {
-  width: 7em;
-  padding: 3px 6px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-}
-.dialog output {
-  min-width: 4em;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
 }
 .item-actions {
   display: inline-flex;
