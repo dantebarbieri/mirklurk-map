@@ -48,7 +48,8 @@ Run `deno task ci` before pushing. `.editorconfig` matches `deno fmt`, so most e
   dependence without injecting it, and temporary files only under `Deno.makeTempDir()`.
 - Use the shared assertions in `tests/assert.ts`, including `assertThrows` for synchronous errors and `assertRejects` for asynchronous ones.
   Equality compares values and own keys, not their JSON text: absent properties and explicit `undefined` are distinct. Approximate
-  comparisons require finite numbers and a finite, non-negative tolerance.
+  comparisons require finite numbers and a finite, non-negative tolerance. Structural comparisons support acyclic data; cyclic inputs fail
+  explicitly rather than guessing at reference-graph equivalence. Use `assert` for reference-identity checks.
 - Logic belongs in pure, importable modules so it can be tested without a DOM; UI files stay thin.
 - Every bug fix comes with a test that fails without it; every feature with tests of its rules and edge cases.
 - Tests that check real saves find them through `tests/saves.ts` (`MIRKLURK_SAVES`, or `../Saves`) and skip themselves when there are none.

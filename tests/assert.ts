@@ -4,30 +4,36 @@ export function assert(cond: unknown, msg = "assertion failed"): asserts cond {
   if (!cond) throw new Error(msg);
 }
 
-function equal(actual: unknown, expected: unknown, left = new Map<object, object>(), right = new Map<object, object>()): boolean {
+function equal(actual: unknown, expected: unknown, left = new Set<object>(), right = new Set<object>()): boolean {
   if (typeof actual !== "object" || actual === null || typeof expected !== "object" || expected === null) {
     return Object.is(actual, expected);
   }
-  if (left.has(actual) || right.has(expected)) return left.get(actual) === expected && right.get(expected) === actual;
-  if (actual === expected) return true;
+  if (left.has(actual) || right.has(expected)) {
+    throw new Error("assertEquals cannot compare cyclic values; compare specific fields or assert reference identity");
+  }
   const prototype = Object.getPrototypeOf(actual);
   if (prototype !== Object.getPrototypeOf(expected)) return false;
-  left.set(actual, expected);
-  right.set(expected, actual);
+  left.add(actual);
+  right.add(expected);
   const matches = (a: unknown, b: unknown) => equal(a, b, left, right);
+  const propertiesMatch = () => {
+    const keys = Reflect.ownKeys(actual);
+    return keys.length === Reflect.ownKeys(expected).length &&
+      keys.every((key) => Object.hasOwn(expected, key) && matches(Reflect.get(actual, key), Reflect.get(expected, key)));
+  };
   try {
-    if (actual instanceof Date && expected instanceof Date) return Object.is(actual.getTime(), expected.getTime());
+    if (actual instanceof Date && expected instanceof Date) return Object.is(actual.getTime(), expected.getTime()) && propertiesMatch();
     if (actual instanceof RegExp && expected instanceof RegExp) {
-      return actual.source === expected.source && actual.flags === expected.flags && actual.lastIndex === expected.lastIndex;
+      return actual.source === expected.source && actual.flags === expected.flags && propertiesMatch();
     }
     if (actual instanceof ArrayBuffer && expected instanceof ArrayBuffer) {
-      return matches(new Uint8Array(actual), new Uint8Array(expected));
+      return matches(new Uint8Array(actual), new Uint8Array(expected)) && propertiesMatch();
     }
     if (ArrayBuffer.isView(actual) && ArrayBuffer.isView(expected)) {
       if (actual.byteLength !== expected.byteLength) return false;
       const a = new Uint8Array(actual.buffer, actual.byteOffset, actual.byteLength);
       const b = new Uint8Array(expected.buffer, expected.byteOffset, expected.byteLength);
-      return a.every((value, i) => value === b[i]);
+      return a.every((value, i) => value === b[i]) && propertiesMatch();
     }
     if (actual instanceof Map && expected instanceof Map) {
       if (actual.size !== expected.size) return false;
@@ -37,7 +43,7 @@ function equal(actual: unknown, expected: unknown, left = new Map<object, object
         if (at < 0) return false;
         remaining.splice(at, 1);
       }
-      return true;
+      return propertiesMatch();
     }
     if (actual instanceof Set && expected instanceof Set) {
       if (actual.size !== expected.size) return false;
@@ -47,13 +53,11 @@ function equal(actual: unknown, expected: unknown, left = new Map<object, object
         if (at < 0) return false;
         remaining.splice(at, 1);
       }
-      return true;
+      return propertiesMatch();
     }
     // Other class instances need an explicit assertion of their observable state, not a comparison of often-empty own keys.
-    if (!Array.isArray(actual) && prototype !== Object.prototype && prototype !== null) return false;
-    const keys = Reflect.ownKeys(actual);
-    return keys.length === Reflect.ownKeys(expected).length &&
-      keys.every((key) => Object.hasOwn(expected, key) && matches(Reflect.get(actual, key), Reflect.get(expected, key)));
+    if (!Array.isArray(actual) && prototype !== Object.prototype && prototype !== null) return actual === expected;
+    return propertiesMatch();
   } finally {
     left.delete(actual);
     right.delete(expected);

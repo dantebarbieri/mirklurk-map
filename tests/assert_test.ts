@@ -66,12 +66,40 @@ Deno.test("assertEquals compares binary views, dates, maps and sets by their con
   for (const [actual, expected] of different) fails(() => assertEquals(actual, expected));
 });
 
-Deno.test("assertEquals handles cycles without accepting different cycle shapes", () => {
+Deno.test("assertEquals checks own metadata as well as specialized object contents", () => {
+  const factories = [
+    () => new Date(0),
+    () => /same/g,
+    () => new ArrayBuffer(2),
+    () => new Uint8Array([1, 2]),
+    () => new DataView(new ArrayBuffer(2)),
+    () => new Map([[1, 2]]),
+    () => new Set([1, 2]),
+  ];
+  for (const make of factories) {
+    const a = Object.assign(make(), { label: "a" });
+    const b = Object.assign(make(), { label: "b" });
+    fails(() => assertEquals(a, b));
+    b.label = "a";
+    assertEquals(a, b);
+    const key = Symbol("metadata");
+    Object.defineProperty(a, key, { value: 1 });
+    fails(() => assertEquals(a, b));
+    Object.defineProperty(b, key, { value: 2 });
+    fails(() => assertEquals(a, b));
+  }
+});
+
+Deno.test("assertEquals refuses cyclic data instead of guessing at reference-graph equivalence", () => {
   const a: { self?: unknown; value: number } = { value: 1 };
   const b: { self?: unknown; value: number } = { value: 1 };
+  const c: { self?: unknown; value: number } = { value: 1 };
   a.self = a;
   b.self = b;
-  assertEquals(a, b);
+  c.self = c;
+  assert(fails(() => assertEquals(a, b)).message.includes("cyclic"));
+  assert(fails(() => assertEquals(a, a)).message.includes("cyclic"));
+  assert(fails(() => assertEquals({ x: a, y: a }, { x: b, y: c })).message.includes("cyclic"));
   b.self = { self: b, value: 1 };
   fails(() => assertEquals(a, b));
   b.self = a;
@@ -79,7 +107,8 @@ Deno.test("assertEquals handles cycles without accepting different cycle shapes"
   const mapA = new Map<unknown, unknown>(), mapB = new Map<unknown, unknown>();
   mapA.set(mapA, mapA);
   mapB.set(mapB, mapB);
-  assertEquals(mapA, mapB);
+  assert(fails(() => assertEquals(mapA, mapB)).message.includes("cyclic"));
+  assertEquals([[1], [1]], Array(2).fill([1]), "acyclic copies compare by value, regardless of sibling aliasing");
 });
 
 Deno.test("assertAlmost rejects NaN, infinities and invalid tolerances", () => {
