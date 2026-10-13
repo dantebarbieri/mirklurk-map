@@ -224,7 +224,7 @@ export const CREATURE_ICON: Record<number, string> = {
   37: "bat", // Mirkfang Matriarch
   38: "bat", // Mirkfang
   39: "bat", // Giant Mirkfang
-  40: "bat", // The Terror
+  40: "terror", // The Terror, a boss with its own sprite (spr_bat_dreadfang)
   41: "magus", // Magus Clay, in his realm
 };
 
