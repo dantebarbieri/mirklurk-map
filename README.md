@@ -450,8 +450,10 @@ every 30 seconds; a save refused for that keeps its changes, to save again a mom
 **Edit this character...** first explains that saving any edit marks the world as **Cheated, permanently**, and edit mode starts only once
 you confirm. Then the character's preview becomes the editor: drag a vital bar, click a hit point, pick a condition. Every change takes
 effect at once, with no Apply button, since the bar at the bottom can undo it; dragging the same slider or retyping the same field again
-replaces that change rather than adding another. Number fields show the smallest and largest value they take. Each edit is written the way
-the game itself writes it (decompiled entries in brackets):
+replaces that change rather than adding another. A change that leaves earlier ones nothing to do drops them, named on its card: setting a
+field again later, or **Heal all wounds** after poisoning hit points, keeps one change where there were several, and none at all when it
+only puts back what the save had. Number fields show the smallest and largest value they take. Each edit is written the way the game itself
+writes it (decompiled entries in brackets):
 
 - **Level**: each level-up grants a skill point, and every third level a hit point to place (`obj_player` Step_1), so changing the level
   grants or takes back unspent ones (never below zero), and XP stays under the new level's threshold.

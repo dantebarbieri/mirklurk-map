@@ -240,7 +240,9 @@ export class CopySource implements SaveSource {
 /**
  * An edit of one save file's draft: it changes the draft in place and returns a line for the list of unsaved changes, or undefined
  * when there was nothing to change. It reads only the draft (its inputs are fixed when it is made), so it can run again on a fresh
- * draft when an earlier change to the same file is undone, or when the save is reloaded after playing.
+ * draft when an earlier change to the same file is undone, or when the save is reloaded after playing. It also runs on drafts that
+ * are then thrown away, to see whether an earlier change still does anything (see EditSession.applyAll), so anything it notes
+ * outside the draft must come from its first run.
  */
 export type Edit = (raw: unknown) => string | undefined;
 
@@ -268,6 +270,14 @@ interface Change {
   key?: string;
 }
 const noteOf = (c: Change) => c.parts.map((p) => p.note).join("; ");
+
+/** What applying an edit did. */
+export interface Applied {
+  /** The change's line; undefined when nothing was recorded: it changed nothing, or only took back the earlier changes dropped. */
+  note?: string;
+  /** The lines of the earlier changes it left with nothing to do, which are dropped (see EditSession.applyAll). */
+  dropped: string[];
+}
 
 /** Where a session keeps backups and its record of cheated worlds; this browser's IndexedDB unless a test passes its own. */
 export interface SessionStore {
@@ -329,7 +339,7 @@ export class EditSession {
    * Runs `edit` on the draft of `path` and records it as an unsaved change when it returns a note, which is also returned. An edit
    * that changes nothing or throws leaves the draft as the recorded changes made it.
    */
-  apply(path: string, edit: Edit, key?: string): Promise<string | undefined> {
+  apply(path: string, edit: Edit, key?: string): Promise<Applied> {
     return this.applyAll([{ path, edit }], key);
   }
 
@@ -340,11 +350,14 @@ export class EditSession {
    * `key` names what the change sets (one slider, one field): when the last change has the same key, this one replaces it, so
    * dragging a slider is one change, from where it started. Setting it back to where it started leaves no change at all; an edit
    * that throws leaves the last change in place.
+   *
+   * An earlier change to the same files that the new one leaves with nothing to do, such as poisoning a hit point before healing
+   * every wound, is dropped (see prune), and its line returned; the new change goes too when it only took such changes back.
    */
-  applyAll(steps: { path: string; edit: Edit }[], key?: string): Promise<string | undefined> {
+  applyAll(steps: { path: string; edit: Edit }[], key?: string): Promise<Applied> {
     return this.serial(async () => {
       if (this.busy) throw new Error("Wait for the save to finish");
-      if (!steps.length) return undefined;
+      if (!steps.length) return { dropped: [] };
       for (const { path } of steps) if (!this.files.has(path)) throw new Error(`${path} is missing`);
       const last = this.log[this.log.length - 1];
       const replaced = key !== undefined && last?.key === key ? last : undefined;
@@ -364,8 +377,51 @@ export class EditSession {
         if (parts.length === steps.length) this.log.push({ id: this.nextId++, parts, ...(key === undefined ? {} : { key }) });
         else await this.replay(touched, failed && replaced ? [...this.log, replaced] : this.log);
       }
-      return parts.length === steps.length ? noteOf(this.log[this.log.length - 1]) : undefined;
+      if (parts.length !== steps.length) return { dropped: [] };
+      const before = this.log, made = before[before.length - 1];
+      const dropped = await this.prune(made);
+      const kept = this.log.find((c) => c.id === made.id);
+      return {
+        ...(kept ? { note: noteOf(kept) } : {}),
+        dropped: before.filter((c) => c !== made && dropped.has(c.id)).map(noteOf),
+      };
     });
+  }
+
+  /**
+   * Drops each earlier change to the files `made` changed that it leaves with nothing to do: without it, every file comes out the
+   * same. The changes after it run again, their lines written anew, and any that then no longer apply go with it (`made` too, when
+   * it only took the dropped ones back). Tried oldest first; one that leaves any file different stays as it was. Returns the ids of
+   * the dropped changes.
+   */
+  private async prune(made: Change): Promise<Set<number>> {
+    const paths = new Set(made.parts.map((p) => p.path));
+    const tried = this.log.filter((c) => c !== made && c.parts.some((p) => paths.has(p.path))).map((c) => c.id);
+    // What each file is now, which every drop must keep.
+    const start = new Map(this.drafts), want = new Map<string, string>();
+    const target = (path: string) => {
+      if (!want.has(path)) want.set(path, JSON.stringify(start.get(path)));
+      return want.get(path);
+    };
+    const dropped = new Set<number>();
+    for (const id of tried) {
+      const c = this.log.find((x) => x.id === id);
+      if (!c) continue;
+      const before = { log: this.log, drafts: new Map(this.drafts) };
+      try {
+        const gone = await this.replay(c.parts.map((p) => p.path), this.log.filter((x) => x !== c));
+        const rebuilt = [c, ...before.log.filter((x) => gone.has(x.id))].flatMap((x) => x.parts.map((p) => p.path));
+        if (rebuilt.every((path) => JSON.stringify(this.drafts.get(path)) === target(path))) {
+          for (const g of [id, ...gone]) dropped.add(g);
+          continue;
+        }
+      } catch {
+        // A file that can no longer be read keeps its changes.
+      }
+      this.log = before.log;
+      this.drafts = before.drafts;
+    }
+    return dropped;
   }
 
   /**

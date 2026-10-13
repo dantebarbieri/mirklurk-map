@@ -9,6 +9,7 @@ import { SAVES } from "./saves.ts";
 import {
   type Backup,
   CopySource,
+  type Edit,
   type EditDirectory,
   type EditFile,
   EditSession,
@@ -19,7 +20,15 @@ import {
   StaleError,
 } from "../src/editor/session.ts";
 import { addItems } from "../src/editor/items.ts";
-import { movePlayer, setSkillPoints, setVitals } from "../src/editor/edits.ts";
+import {
+  healPlayer,
+  type HitPointStatus,
+  hitPointStatus,
+  movePlayer,
+  setHitPointStatus,
+  setSkillPoints,
+  setVitals,
+} from "../src/editor/edits.ts";
 import { addRaft, moveWithRaft } from "../src/editor/raft.ts";
 import { versionConflicts } from "../src/editor/compat.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
@@ -364,17 +373,28 @@ Deno.test("editor session: undoing one change runs the later ones again; changes
       setSkillPoints(p, to);
       return `Skill points ${from} → ${to}`;
     };
+    const addPoints = (n: number) => (raw: unknown) => {
+      const p = playerRecord(raw), from = Number(p.skillPoints);
+      setSkillPoints(p, from + n);
+      return `Skill points ${from} → ${from + n}`;
+    };
     await s.apply(player, setPoints(5));
-    await s.apply(player, setPoints(7));
+    await s.apply(player, addPoints(2));
     await s.apply(beings, (raw) => (spawnBeing(raw as unknown[], 3, 20, 30), "Spawned a troll"));
     const troll = JSON.stringify((await s.json(beings) as unknown[])[0]);
-    await s.apply(beings, (raw) => (deleteBeing(raw as unknown[], 0, troll), "Removed the troll"));
+    await s.apply(beings, (raw) => {
+      const found = (raw as Record<string, unknown>[]).find((b) => JSON.stringify(b) === troll);
+      if (!found) throw new Error("That creature is no longer there");
+      found.x = 99;
+      return "Moved the troll";
+    });
+    assertEquals(s.changes, ["Skill points 0 → 5", "Skill points 5 → 7", "Spawned a troll", "Moved the troll"]);
 
     assertEquals(await s.undo(0), [], "the later change to the same file still applies");
-    assertEquals(s.changes, ["Skill points 0 → 7", "Spawned a troll", "Removed the troll"], "its line is written anew");
-    assertEquals(playerRecord(await s.json(player)).skillPoints, 7);
-    assertEquals(await s.undo(1), ["Removed the troll"], "the troll it removed is gone with the spawn");
-    assertEquals(s.changes, ["Skill points 0 → 7"]);
+    assertEquals(s.changes, ["Skill points 0 → 2", "Spawned a troll", "Moved the troll"], "its line is written anew");
+    assertEquals(playerRecord(await s.json(player)).skillPoints, 2);
+    assertEquals(await s.undo(1), ["Moved the troll"], "the troll it moved is gone with the spawn");
+    assertEquals(s.changes, ["Skill points 0 → 2"]);
     assertEquals(await s.json(beings), []);
 
     // An edit that throws, or changes nothing, leaves the draft as the recorded changes made it.
@@ -383,11 +403,11 @@ Deno.test("editor session: undoing one change runs the later ones again; changes
         setSkillPoints(playerRecord(raw), 50);
         throw new Error("half done");
       }), /half done/);
-    assertEquals(await s.apply(player, (raw) => void (playerRecord(raw).skillPoints = 60)), undefined);
-    assertEquals(playerRecord(await s.json(player)).skillPoints, 7);
+    assertEquals(await s.apply(player, (raw) => void (playerRecord(raw).skillPoints = 60)), { dropped: [] });
+    assertEquals(playerRecord(await s.json(player)).skillPoints, 2);
     await assertRejects(() => s.undo(5), /already undone/);
     assertEquals(await s.save(), 1, "only Player.save changed in the end");
-    assertEquals(parsePlayer(decodeJson(await Deno.readFile(`${root}/Hero/Player.save`))).skillPoints, 7);
+    assertEquals(parsePlayer(decodeJson(await Deno.readFile(`${root}/Hero/Player.save`))).skillPoints, 2);
   } finally {
     await Deno.remove(root, { recursive: true });
   }
@@ -405,8 +425,8 @@ Deno.test("editor session: changes with the same key as the last one replace it,
       setSkillPoints(p, to);
       return `Skill points ${from} → ${to}`;
     };
-    assertEquals(await s.apply(player, setPoints(3), "points"), "Skill points 0 → 3");
-    assertEquals(await s.apply(player, setPoints(5), "points"), "Skill points 0 → 5");
+    assertEquals(await s.apply(player, setPoints(3), "points"), { note: "Skill points 0 → 3", dropped: [] });
+    assertEquals(await s.apply(player, setPoints(5), "points"), { note: "Skill points 0 → 5", dropped: [] });
     assertEquals(s.changes, ["Skill points 0 → 5"]);
     // A throwing edit keeps the change it would have replaced.
     await assertRejects(() =>
@@ -416,16 +436,93 @@ Deno.test("editor session: changes with the same key as the last one replace it,
       }, "points"), /too many/);
     assertEquals([s.changes, playerRecord(await s.json(player)).skillPoints], [["Skill points 0 → 5"], 5]);
     // Back where it started: no change at all.
-    assertEquals(await s.apply(player, setPoints(0), "points"), undefined);
+    assertEquals(await s.apply(player, setPoints(0), "points"), { dropped: [] });
     assertEquals([s.changes, playerRecord(await s.json(player)).skillPoints], [[], 0]);
-    // Another key, or none, in between starts a new change.
+    // Another key, or none, in between starts a new change; the earlier one it sets again over is dropped (see the next test).
     await s.apply(player, setPoints(2), "points");
-    await s.apply(player, (raw) => (setVitals(playerRecord(raw), { focus: 50 }), "Focus 50%"));
-    assertEquals(await s.apply(player, setPoints(4), "points"), "Skill points 2 → 4");
-    assertEquals(s.changes, ["Skill points 0 → 2", "Focus 50%", "Skill points 2 → 4"]);
+    await s.apply(player, (raw) => (setVitals(playerRecord(raw), { focus: 0.5 }), "Focus 50%"));
+    assertEquals(await s.apply(player, setPoints(4), "points"), { note: "Skill points 0 → 4", dropped: ["Skill points 0 → 2"] });
+    assertEquals(s.changes, ["Focus 50%", "Skill points 0 → 4"]);
+    assertEquals(await s.apply(player, setPoints(6), "points"), { note: "Skill points 0 → 6", dropped: [] }, "the last change");
     assertEquals(await s.undo(0), [], "the keyed change still runs again after an undo");
-    assertEquals(await s.apply(player, setPoints(6), "points"), "Skill points 0 → 6");
-    assertEquals(s.changes, ["Focus 50%", "Skill points 0 → 6"]);
+    assertEquals(await s.apply(player, setPoints(8), "points"), { note: "Skill points 0 → 8", dropped: [] });
+    assertEquals(s.changes, ["Skill points 0 → 8"]);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("editor session: a change that leaves earlier ones nothing to do drops them, and goes too if it only took them back", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
+  try {
+    await fixture(root);
+    const base = `${root}/Hero`;
+    /** Gives Player.save a 4×2 body, with the hit point at column `lost` of row 1 lost when given. */
+    const body = async (lost?: number) => {
+      const raw = decodeJson(await Deno.readFile(`${base}/Player.save`));
+      const hpgrid = [[1, 1, 1, 1], [1, 1, 1, 1]];
+      if (lost !== undefined) hpgrid[1][lost] = 0;
+      Object.assign(playerRecord(raw), { hpgrid, statusgrid: hpgrid.map((row) => row.map(() => [])) });
+      await Deno.writeFile(`${base}/Player.save`, new Uint8Array([...encoder.encode(JSON.stringify(raw)), 0]));
+      await Deno.writeFile(`${base}/[ 0,0 ]/Containers.save`, await Deno.readFile(`${base}/[ 0,0 ]/Containers.save`));
+    };
+    // The edits as the Hit points card makes them.
+    const text = (s: HitPointStatus) => `poison ${s.poison}, bleeding ${s.bleed}${s.bleed ? ` ${"urdl"[s.dir]}` : ""}`;
+    const status = (x: number, y: number, poison: number, bleed = 0, dir = 0): Edit => (raw) => {
+      const p = playerRecord(raw), from = text(hitPointStatus(p, x, y));
+      setHitPointStatus(p, x, y, { poison, bleed, dir });
+      const to = text(hitPointStatus(p, x, y));
+      return from === to ? undefined : `(${x},${y}) ${from} → ${to}`;
+    };
+    const heal: Edit = (raw) => {
+      const p = playerRecord(raw), before = JSON.stringify([p.hpgrid, p.statusgrid]);
+      const n = healPlayer(p);
+      return JSON.stringify([p.hpgrid, p.statusgrid]) === before ? undefined : `Healed ${n} hit point${n === 1 ? "" : "s"}`;
+    };
+    const points: Edit = (raw) => (setSkillPoints(playerRecord(raw), 3), "Skill points 0 → 3");
+    const bleeding = "(3,1) poison 0, bleeding 0 → poison 20, bleeding 20 u";
+    const spread = "(3,0) poison 0, bleeding 0 → poison 0, bleeding 10 l";
+    const poisoned = "(2,0) poison 0, bleeding 0 → poison 5, bleeding 0";
+
+    // Hit points poisoned and bleeding, one set free of poison again, then every wound healed on a body with none of its own.
+    await body();
+    let s = await openSession(root, "Hero");
+    const player = `${s.character.root}Player.save`;
+    await s.apply(player, points);
+    await s.apply(player, status(3, 1, 20, 20, 0));
+    await s.apply(player, status(3, 0, 0, 10, 3));
+    await s.apply(player, status(2, 0, 5));
+    const stillBleeding = "(3,1) poison 0, bleeding 0 → poison 0, bleeding 20 u";
+    assertEquals(
+      await s.apply(player, status(3, 1, 0, 20, 0)),
+      { note: stillBleeding, dropped: [bleeding] },
+      "the poison set back, what is left of the first change is in this one",
+    );
+    assertEquals(s.changes, ["Skill points 0 → 3", spread, poisoned, stillBleeding]);
+    assertEquals(await s.apply(player, heal), { dropped: [spread, poisoned, stillBleeding] }, "nothing is left to heal");
+    assertEquals(s.changes, ["Skill points 0 → 3"]);
+    assertEquals(playerRecord(await s.json(player)).statusgrid, [[[], [], [], []], [[], [], [], []]]);
+
+    // On a body the game left a hit point lost, healing it stays.
+    await body(1);
+    s = await openSession(root, "Hero");
+    await s.apply(player, points);
+    await s.apply(player, status(3, 1, 20, 20, 0));
+    await s.apply(player, status(2, 0, 5));
+    assertEquals(await s.apply(player, heal), { note: "Healed 1 hit point", dropped: [bleeding, poisoned] });
+    assertEquals(s.changes, ["Skill points 0 → 3", "Healed 1 hit point"]);
+
+    // Poisoning a hit point and setting it free of poison again, with another change between, takes both back.
+    await s.apply(player, status(2, 0, 5));
+    const right = "(1,0) poison 0, bleeding 0 → poison 0, bleeding 2 r";
+    assertEquals(await s.apply(player, status(1, 0, 0, 2, 1)), { note: right, dropped: [] });
+    assertEquals(await s.apply(player, status(2, 0, 0)), { dropped: [poisoned] });
+    assertEquals(s.changes, ["Skill points 0 → 3", "Healed 1 hit point", right]);
+    assertEquals(await s.undo(1), []);
+    assertEquals((playerRecord(await s.json(player)).hpgrid as number[][])[1][1], 0, "the game's lost hit point is back");
+    assertEquals(await s.save(), 1);
+    const saved = playerRecord(decodeJson(await Deno.readFile(`${base}/Player.save`)));
+    assertEquals([saved.skillPoints, hitPointStatus(saved, 2, 0).poison, hitPointStatus(saved, 1, 0).bleed], [3, 0, 2]);
   } finally {
     await Deno.remove(root, { recursive: true });
   }
@@ -552,13 +649,13 @@ Deno.test("editor session: a change to several files is one change, made, undone
     const s = await openSession(root, "Hero");
     const player = `${s.character.root}Player.save`, here = "Hero/[ 0,0 ]/Stations.save", there = "Hero/[ 1,0 ]/Stations.save";
     await s.apply(player, (raw) => (playerRecord(raw).ensureRaft = true, "Made a raft under you"));
-    assertEquals(await s.applyAll(leaveRaft(s)), "Moved you to B,1; left your raft in A,1");
+    assertEquals((await s.applyAll(leaveRaft(s))).note, "Moved you to B,1; left your raft in A,1");
     assertEquals(s.changes, ["Made a raft under you", "Moved you to B,1; left your raft in A,1"]);
     assertEquals((await s.json(here) as unknown[]).length, 1);
 
     // If any of its edits changes nothing or throws, nothing is recorded and every draft stays as the changes made it.
     const dock = { path: there, edit: (raw: unknown) => (addRaft(raw, 5, 5, "0.8.9.9"), "docked your raft") };
-    assertEquals(await s.applyAll([dock, { path: player, edit: () => undefined }]), undefined);
+    assertEquals(await s.applyAll([dock, { path: player, edit: () => undefined }]), { dropped: [] });
     await assertRejects(() =>
       s.applyAll([dock, {
         path: player,
