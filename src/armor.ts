@@ -1,4 +1,4 @@
-// Equipment slots and the player's armor, ported from Mirklurk 0.8.9.9 (decompiled GML).
+// Equipment slots and the player's armor, ported from Mirklurk 0.9.0.0 (decompiled GML).
 // Sources: myEquips in gml_Object_obj_player_Create_0 (slot order, as Player.save lists them), player_update_gearstats and
 // player_real_combat_check in gml_GlobalScript_scr_basic_useful, item_durfix_value in gml_GlobalScript_scr_items,
 // being_get_armor_max in gml_GlobalScript_scr_ai_related, and armor / durabilityMax in gml_Object_databank_Alarm_1.

@@ -85,15 +85,16 @@ Deno.test("a save beside a quest room's way out: leaving it, or in 0.8.1.5 maybe
   };
   const w = (p: PlayerSave) => ({ ...world(p), interiors: [hideout] }) as unknown as World;
   const saved = (pos: [number, number], version?: string) => ({ ...player([1, 0, 31], pos, [1000, 1000]), version }) as PlayerSave;
-  const arrived = saved([1192, 1208], "0.8.9.9");
-  assertEquals(inferMove(w(arrived), arrived)?.pos, [1000, 1000]);
-  const leaving = saved([1208, 1224], "0.8.9.9");
-  assertEquals(inferMove(w(leaving), leaving)?.pos, [1000, 1000]);
-  // 0.8.1.5 (and a save naming no version, read as Latest's): the arrival spot is the arrival save, not a way out.
-  for (const version of ["0.8.1.5", undefined]) {
-    assertEquals(inferMove(w(saved([1192, 1208], version)), saved([1192, 1208], version)), null, `${version}`);
-    assertEquals(inferMove(w(saved([1208, 1224], version)), saved([1208, 1224], version))?.pos, [1000, 1000], `${version} leaving`);
+  // 0.8.9.9, 0.9.0.0 and a save naming no version (read as Latest's, 0.9.0.0): both spots are on the way out.
+  for (const version of ["0.8.9.9", "0.9.0.0", undefined]) {
+    const arrived = saved([1192, 1208], version);
+    assertEquals(inferMove(w(arrived), arrived)?.pos, [1000, 1000], `${version}`);
+    const leaving = saved([1208, 1224], version);
+    assertEquals(inferMove(w(leaving), leaving)?.pos, [1000, 1000], `${version} leaving`);
   }
+  // 0.8.1.5: the arrival spot is the arrival save, not a way out.
+  assertEquals(inferMove(w(saved([1192, 1208], "0.8.1.5")), saved([1192, 1208], "0.8.1.5")), null);
+  assertEquals(inferMove(w(saved([1208, 1224], "0.8.1.5")), saved([1208, 1224], "0.8.1.5"))?.pos, [1000, 1000]);
   // The shipwreck (35) puts you on the way out itself.
   const wreck: Interior = { ...hideout, kind: 35 };
   const aboard = { ...saved([1192, 1224], "0.8.1.5"), area: { x: 1, y: 0, type: 35 } } as PlayerSave;

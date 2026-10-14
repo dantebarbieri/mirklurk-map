@@ -1,23 +1,38 @@
-// Which game version's rules apply. Steam offers Mirklurk on two branches: the default one and an opt-in beta
-// (next_version_tester). A save names the version that wrote it (save_player's VERSION in Player.save), so MirkMap follows it; the
-// Latest/Beta toggle can still pick the other branch's rules, for a world you are about to play on that branch.
+// Which game version's rules apply. A save names the version that wrote it (save_player's VERSION in Player.save), so MirkMap
+// follows it. Steam runs one version now (0.9.0.0, the release of the 0.8.9.9 beta); for a save from an older version whose rules
+// differ, the version switch can show Latest's instead, as the world will be once the current game saves it.
 
 /** The game versions whose rules MirkMap has, oldest first. */
-export const VERSIONS = ["0.8.1.5", "0.8.9.9"] as const;
+export const VERSIONS = ["0.8.1.5", "0.8.9.9", "0.9.0.0"] as const;
 export type GameVersion = (typeof VERSIONS)[number];
 
 /**
- * Steam's branches and the version each one runs. This is the one place to change when a beta becomes the release: point
- * `latest` at it (and `beta` at the next beta, or at the same version until there is one).
+ * Versions whose rules are an earlier version's: nothing MirkMap reads or writes changed. 0.9.0.0 released the 0.8.9.9 beta with
+ * bug fixes only (its items, beings, texts and art are 0.8.9.9's).
  */
-export const CHANNELS = { latest: "0.8.1.5", beta: "0.8.9.9" } as const satisfies Record<string, GameVersion>;
-export type Channel = keyof typeof CHANNELS;
+const SAME_RULES: Readonly<Partial<Record<GameVersion, GameVersion>>> = { "0.9.0.0": "0.8.9.9" };
+
+/** Whether versions `a` and `b` have the same rules. */
+export const sameRules = (a: GameVersion, b: GameVersion) => (SAME_RULES[a] ?? a) === (SAME_RULES[b] ?? b);
+
+/** Steam's branches: the release, and an opt-in beta while there is one. */
+export type Channel = "latest" | "beta";
+
+/**
+ * The version each Steam branch runs. This is the one place to change when a version is released: point `latest` at it, and
+ * `beta` at a new opt-in beta while one is out (omitted when there is none, as now: the switch then offers no Beta).
+ */
+export const CHANNELS: Readonly<{ latest: GameVersion; beta?: GameVersion }> = { latest: "0.9.0.0" };
 export const CHANNEL_LABELS: Readonly<Record<Channel, string>> = { latest: "Latest", beta: "Beta" };
-/** What each branch is on Steam, for the toggle's tooltip. */
+/** What each branch is on Steam, for the switch's tooltip. */
 export const CHANNEL_NOTES: Readonly<Record<Channel, string>> = {
-  latest: "the game's default Steam branch",
-  beta: "the opt-in Steam beta, next_version_tester",
+  latest: "the game's Steam release",
+  beta: "the opt-in Steam beta",
 };
+
+/** The branches running now. */
+export const channelsOf = (channels: Readonly<Partial<Record<Channel, GameVersion>>>): Channel[] =>
+  (Object.keys(CHANNEL_LABELS) as Channel[]).filter((c) => channels[c] !== undefined);
 
 /** "0.8.9.9" as [0, 8, 9, 9]; undefined when it is not a dotted version. */
 function parts(v: string): number[] | undefined {
@@ -46,7 +61,7 @@ export function detectVersion(version: string | undefined): GameVersion | undefi
 }
 
 /**
- * What a pick on the Latest/Beta switch overrides: nothing when it is the version the save names, so the rules follow the save
+ * What a pick on the version switch overrides: nothing when it is the version the save names, so the rules follow the save
  * again, also after a reload finds the save now names the version picked.
  */
 export const overrideOf = (pick: GameVersion | undefined, detected: GameVersion | undefined): GameVersion | undefined =>
@@ -56,16 +71,16 @@ export const overrideOf = (pick: GameVersion | undefined, detected: GameVersion 
 export const atLeast = (v: GameVersion, since: GameVersion) => VERSIONS.indexOf(v) >= VERSIONS.indexOf(since);
 
 /** The branch that runs version `v`, if one does. */
-export const channelOf = (v: GameVersion): Channel | undefined => (Object.keys(CHANNELS) as Channel[]).find((c) => CHANNELS[c] === v);
+export const channelOf = (v: GameVersion): Channel | undefined => channelsOf(CHANNELS).find((c) => CHANNELS[c] === v);
 
-/** "Latest (0.8.1.5)", or the bare version when no branch runs it any more. */
+/** "Latest (0.9.0.0)", or the bare version when no branch runs it any more. */
 export function versionLabel(v: GameVersion): string {
   const c = channelOf(v);
   return c ? `${CHANNEL_LABELS[c]} (${v})` : v;
 }
 
-/** The toggle's tooltip: what each branch is and runs. */
-export const CHANNELS_TOOLTIP = (Object.keys(CHANNELS) as Channel[])
+/** The switch's tooltip: what each branch is and runs. */
+export const CHANNELS_TOOLTIP = channelsOf(CHANNELS)
   .map((c) => `${CHANNEL_LABELS[c]}: Mirklurk ${CHANNELS[c]}, ${CHANNEL_NOTES[c]}`)
   .join("\n");
 

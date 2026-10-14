@@ -1244,7 +1244,7 @@ body.map-full .sky-chip {
   margin-bottom: 10px;
 }
 
-/* The Latest/Beta switch (versionview.ts); its buttons are styled with .coin-mode. */
+/* The version switch (versionview.ts); its buttons are styled with .coin-mode. */
 .version-switch {
   display: inline-flex;
   flex-wrap: wrap;
