@@ -1,8 +1,19 @@
-// The Latest/Beta switch: which game version's rules MirkMap and the save editor follow (version.ts).
+// The version switch: which game version's rules MirkMap and the save editor follow (version.ts). It shows only when there is a
+// choice: for a save whose version's rules differ from Latest's, or while Steam runs a beta.
 
 import { h } from "./dom.ts";
 import { NO_VERSION } from "./save.ts";
-import { type Channel, CHANNEL_LABELS, CHANNEL_NOTES, CHANNELS, CHANNELS_TOOLTIP, type GameVersion, VERSIONS } from "./version.ts";
+import {
+  type Channel,
+  CHANNEL_LABELS,
+  CHANNEL_NOTES,
+  CHANNELS,
+  CHANNELS_TOOLTIP,
+  channelsOf,
+  type GameVersion,
+  sameRules,
+  VERSIONS,
+} from "./version.ts";
 
 /** Where the rules in use come from. */
 export interface VersionChoice {
@@ -15,7 +26,7 @@ export interface VersionChoice {
 }
 
 /** Steam's branches and the version each runs (version.ts's CHANNELS; tests pass others, as after a release). */
-type Channels = Readonly<Record<Channel, GameVersion>>;
+type Channels = Readonly<{ latest: GameVersion } & Partial<Record<Channel, GameVersion>>>;
 
 /** A button of the switch. */
 export interface SwitchOption {
@@ -25,20 +36,22 @@ export interface SwitchOption {
 }
 
 /**
- * The switch's buttons, oldest version first: one per branch, a single one while both run the same version, and the save's own
- * version too when no branch runs it any more, so the save can always be followed again.
+ * The switch's buttons, oldest version first: one per branch running now (one for several with the same rules), and the save's
+ * own version too when its rules are no branch's, so the save can always be followed again.
  */
 export function switchOptions(choice: VersionChoice, channels: Channels = CHANNELS): SwitchOption[] {
   const own = (v: GameVersion) => (v === choice.detected ? "; this save's version" : "");
   const out: SwitchOption[] = [];
-  for (const c of Object.keys(channels) as Channel[]) {
-    const v = channels[c];
-    if (!out.some((o) => o.version === v)) {
+  for (const c of channelsOf(channels)) {
+    const v = channels[c]!;
+    if (!out.some((o) => sameRules(o.version, v))) {
       out.push({ version: v, label: CHANNEL_LABELS[c], title: `Mirklurk ${v}, ${CHANNEL_NOTES[c]}${own(v)}` });
     }
   }
   const d = choice.detected;
-  if (d && !out.some((o) => o.version === d)) out.push({ version: d, label: d, title: `Mirklurk ${d}, on no Steam branch now${own(d)}` });
+  if (d && !out.some((o) => sameRules(o.version, d))) {
+    out.push({ version: d, label: d, title: `Mirklurk ${d}, on no Steam branch now${own(d)}` });
+  }
   return out.sort((a, b) => VERSIONS.indexOf(a.version) - VERSIONS.indexOf(b.version));
 }
 
@@ -67,24 +80,26 @@ export function versionTitle(choice: VersionChoice, extra?: string): string {
     CHANNELS_TOOLTIP,
     "",
     choice.detected
-      ? "MirkMap follows the version this save names. Pick the other to see the rules of that version, as when you take this save to the other branch; pick the save's own to follow it again."
+      ? "MirkMap follows the version this save names. Pick another to see that version's rules, as the world will be once that version loads and saves it; pick the save's own to follow it again."
       : "This save names no version, so MirkMap follows Latest's rules unless you pick another.",
     ...(extra ? ["", extra] : []),
   ].join("\n");
 }
 
 /**
- * A Latest/Beta switch for `choice`. `pick` gets the version clicked, or undefined when it is the save's own (follow the save
- * again); the caller re-renders.
+ * The version switch for `choice`, or null when there is nothing to pick (one button). `pick` gets the version clicked, or
+ * undefined when it is the save's own (follow the save again); the caller re-renders.
  */
 export function versionSwitch(
   choice: VersionChoice,
   pick: (v: GameVersion | undefined) => void,
   extra?: string,
   channels: Channels = CHANNELS,
-): HTMLElement {
+): HTMLElement | null {
   const own = ownRules(choice, channels);
-  const buttons = switchOptions(choice, channels).map(({ version, label, title }) =>
+  const options = switchOptions(choice, channels);
+  if (options.length < 2) return null;
+  const buttons = options.map(({ version, label, title }) =>
     h("button", {
       type: "button",
       "aria-pressed": String(version === choice.rules),

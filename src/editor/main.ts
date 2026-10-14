@@ -170,7 +170,7 @@ let cheated = false;
 let editing = false;
 let area: Area | undefined;
 let tool: Tool = "inspect";
-/** A version picked with the Latest/Beta switch over the one the save names; dropped for another character or save. */
+/** A version picked with the version switch over the one the save names; dropped for another character or save. */
 let rulesPick: GameVersion | undefined;
 /** The rules the editor follows: the pick, else the save's VERSION, else Latest's (version.ts). */
 const editorRules = (): GameVersion => rulesPick ?? detectVersion(world?.player.version) ?? CHANNELS.latest;
@@ -691,7 +691,7 @@ async function writable(s: EditSession): Promise<boolean> {
 class VersionError extends Error {}
 
 /**
- * Refuses changes that add an item or creature the game version in use (the Latest/Beta switch) does not have, made while the
+ * Refuses changes that add an item or creature the game version in use (the version switch) does not have, made while the
  * other version was picked: that game could not load the save. EditSession runs it on exactly what it then writes.
  */
 const suitsVersion = (doing: string): PendingCheck => {
@@ -701,7 +701,7 @@ const suitsVersion = (doing: string): PendingCheck => {
     if (!lacking.length) return;
     throw new VersionError(
       `Not ${doing}: your changes add ${joinAnd(lacking)}, which Mirklurk ${rules} does not have, so it could not load the save. ` +
-        "Undo those changes, or pick the version you will play it on with the Latest/Beta switch.",
+        "Undo those changes, or pick the version you will play it on with the version switch.",
     );
   };
 };
@@ -913,14 +913,7 @@ function summary(v: PlayerSave, p: Rec): HTMLElement {
       sky ? ` · Day ${sky.day}, ${formatClock(sky.minute)} · ${WEATHER_LABELS[weatherKind(sky)]}` : "",
     ),
     h("p", { class: "muted" }, from),
-    h(
-      "p",
-      { class: "edit-version" },
-      versionSwitch({ detected: detectVersion(world?.player.version), rules: editorRules(), saved: world?.player.version }, (pick) => {
-        rulesPick = pick;
-        void render();
-      }, VERSION_NOTE),
-    ),
+    editorSwitch(),
     editing
       ? h(
         "p",
@@ -938,7 +931,17 @@ function summary(v: PlayerSave, p: Rec): HTMLElement {
   );
 }
 
-/** The editor's word on the Latest/Beta switch. */
+/** The version switch under the character's name, when the save offers a choice (versionview.ts). */
+function editorSwitch(): HTMLElement | null {
+  const choice = { detected: detectVersion(world?.player.version), rules: editorRules(), saved: world?.player.version };
+  const control = versionSwitch(choice, (pick) => {
+    rulesPick = pick;
+    void render();
+  }, VERSION_NOTE);
+  return control && h("p", { class: "edit-version" }, control);
+}
+
+/** The editor's word on the version switch. */
 const VERSION_NOTE = "The editor offers only the items and creatures the chosen version's game has: a save holding one it lacks " +
   "does not load there. The switch also sets the rules the character card and Full map show.";
 
@@ -2467,7 +2470,7 @@ async function renderMap(my: number) {
     shown.cheated ||= cheated;
     const next = await worldState(shown, files, mapPrefs);
     if (rulesPick) setRules(next.state, rulesPick);
-    // The full map's own Latest/Beta switch sets the editor's too.
+    // The full map's own version switch sets the editor's too.
     next.state.onRules = (pick) => (rulesPick = pick);
     if (my !== renderToken) {
       next.urls.forEach((u) => URL.revokeObjectURL(u));

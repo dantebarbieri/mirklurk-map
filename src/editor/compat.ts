@@ -1,6 +1,6 @@
 // Save editor: whether the unsaved changes suit the game version in use. An item or creature that version's game lacks makes a
 // save it cannot load (version.ts), so saving or downloading changes that add one is refused. What the save already held, as a
-// save played on the beta does, is left alone.
+// save played on a newer version does, is left alone.
 
 import { BEING_NAMES, ITEM_NAMES } from "../gamedata.ts";
 import type { FileMap } from "../files.ts";

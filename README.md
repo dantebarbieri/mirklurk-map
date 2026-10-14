@@ -1,7 +1,7 @@
 # MirkMap · Mirklurk World Viewer
 
-**MirkMap** is a small browser-based viewer for **Mirklurk** 0.8.1.5 and the 0.8.9.9 beta, published at **https://map.mirklurk.danteb.com**.
-Open a character's save folder and it shows:
+**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.0.0 (and saves from 0.8.1.5 and the 0.8.9.9 beta), published at
+**https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
   the map the game itself made for it (`Maps/x_y.png`);
@@ -15,12 +15,11 @@ Open a character's save folder and it shows:
   explored entrance to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your
   wellbeing, inventory and journal.
 
-It knows the rules of both Steam branches: **Latest**, Mirklurk 0.8.1.5 (the default), and **Beta**, 0.8.9.9 (the opt-in
-`next_version_tester`), which adds the Survivors' camp in a Savage Mirk (Wilda, her Survivors and Grand Mother's hut) and its side quest,
-the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a Magus' Shard opens and Magus Clay's end in it, the
-Storage Chest, and placeables you can flip as you place them. Each save names the version that wrote it, and MirkMap and the save editor
-follow it; the **Latest / Beta** switch beside Realistic (hover it for the exact versions) shows the other branch's rules instead. See
-[Game versions](#game-versions).
+It follows **Latest**, Mirklurk 0.9.0.0, the Steam release of what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda,
+her Survivors and Grand Mother's hut) and its side quest, the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a
+Magus' Shard opens and Magus Clay's end in it, the Storage Chest, and placeables you can flip as you place them. Each save names the version
+that wrote it, and MirkMap and the save editor follow it, so a 0.8.1.5 save keeps 0.8.1.5's rules; for such a save a version switch beside
+Realistic shows Latest's rules instead. See [Game versions](#game-versions).
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -597,24 +596,32 @@ Restoring a backup undoes edits, not the mark. On a computer that never saved ed
 
 ## Game versions
 
-Steam offers Mirklurk on two branches, and MirkMap has the rules of both. `src/version.ts` maps **Latest** and **Beta** to versions
-(`CHANNELS`): when a beta becomes the release, pointing Latest at it is the one line to change.
+Steam runs Mirklurk 0.9.0.0, released on 14 October 2026 from the 0.8.9.9 beta (`next_version_tester`), which is gone. MirkMap has the rules
+of 0.8.1.5, the release before it, too. `src/version.ts` maps **Latest** to a version (`CHANNELS`), and **Beta** while Steam has an opt-in
+beta: when a version is released, pointing Latest at it is the one line to change.
 
 - **Which rules apply.** A save names the version that wrote it (`VERSION` in `Player.save`, from `save_player`). MirkMap uses the newest
-  rules it has that are no newer than that, so a later build gets Beta's and an older one Latest's; a save that names no version gets
-  Latest's. The Latest / Beta switch, beside Realistic and in the save editor under the character's name, picks the other branch's rules
-  instead, as when you take a save to the other branch. The pick lasts for that character while the page is open, through live reloads;
-  another character follows its own save, and picking the save's own version follows the save again.
+  rules it has that are no newer than that, so a later build gets 0.9.0.0's and an older one 0.8.1.5's; a save that names no version gets
+  Latest's. For a save whose version's rules differ from Latest's (0.8.1.5's), a version switch, beside Realistic and in the save editor
+  under the character's name, offers the save's own version and **Latest**: pick Latest to see the world as it will be once the current game
+  loads and saves it. A save with Latest's rules, a 0.8.9.9 save among them, has nothing to pick and shows no switch, nor does a save that
+  names no version (while a beta is out, the switch offers it too). The pick lasts for that character while the page is open, through live
+  reloads; another character follows its own save, and picking the save's own version follows the save again.
 - **What 0.8.1.5's rules change.** Harvests give `a` to `a+b−1` (`loot_amountchances`), so Cranberries 2–5, 3–8 and 4–11, Watercress up to
   5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
   Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
   The save editor offers no item from 258 on (the Storage Chest, the magic weapons and Grand Mother's wares) and spawns no Mirkfangs:
   0.8.1.5's item and being databases end at 257 and 35, and a save holding a newer one does not load there. It also refuses to save or
-  download changes that add one, as when they were made with Beta picked; what the save already holds is left alone. A raft it leaves has no
-  `xscale`, as 0.8.1.5's `save_stations` wrote none.
+  download changes that add one, as when they were made with Latest picked; what the save already holds is left alone. A raft it leaves has
+  no `xscale`, as 0.8.1.5's `save_stations` wrote none.
 - **What follows the save whatever the switch says.** Where you probably went (`src/estimate.ts`) reads what the build that saved did:
   0.8.1.5 also saved on first entering a quest room.
-- **What is 0.8.9.9's in both.** Names, pictures and the other databank values. 0.8.9.9 also changed a few that MirkMap does not show (some
+- **What 0.9.0.0 changed.** Nothing MirkMap reads or writes: its items, beings, texts and art are the beta's, so a 0.8.9.9 save gets the
+  same rules. The release fixed bugs (`save_start_save`): in 0.8.9.9, saving on a raft and saving again in the same zone after stepping off
+  it left the raft out of `Stations.save` and kept `ensureRaft`, so loading made the raft again under you (which is where MirkMap shows it);
+  0.9.0.0 clears both on every save. Character names are now made safe for folder names, and menus, tooltips and sounds were touched up.
+  Saves name `VERSION` 0.9.0.0 and have the same keys.
+- **What is 0.8.9.9's in all.** Names, pictures and the other databank values. 0.8.9.9 also changed a few that MirkMap does not show (some
   foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's unused "Unwanted
   Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The save formats are
   otherwise the same: 0.8.9.9 only added keys (`camp`, `campQ` and `isTTon` in `Player.save`, `xscale` on stations and containers) that it
@@ -622,8 +629,8 @@ Steam offers Mirklurk on two branches, and MirkMap has the rules of both. `src/v
 
 ## How the guesses work
 
-All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.8.9.9, diffed against 0.8.1.5's); the entry names are
-given so they can be re-checked after an update. Where 0.8.1.5's differ, [Game versions](#game-versions) says how.
+All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.0.0, diffed against 0.8.9.9's and 0.8.1.5's); the
+entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ, [Game versions](#game-versions) says how.
 
 **The world layout is fixed at new game** (`gml_Object_obj_menu_Alarm_8`) and saved in `Player.save`: the grid, and the zones of Bhato
 (`rangerCamp`), the Library (`libraryArea`) and Scaal (`riftQuestArea`, the fort mirrored through the centre). The random stream is only

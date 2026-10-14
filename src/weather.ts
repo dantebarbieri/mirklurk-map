@@ -1,4 +1,4 @@
-// Time of day and weather as the game keeps them (Mirklurk 0.8.9.9): one `manager_day` for the whole world, saved once per
+// Time of day and weather as the game keeps them (Mirklurk 0.9.0.0): one `manager_day` for the whole world, saved once per
 // character in Player.save (gml_GlobalScript_scr_saveload). Pure functions, shared with anything that reads or writes those keys.
 //
 // Every turn (`player_endturn` in gml_GlobalScript_scr_basic_useful) adds 8 minutes and moves the rain balance; when the hour

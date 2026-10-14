@@ -85,7 +85,7 @@ async function show(i: number, selectedFiles = files, selectedChars = chars, ref
     if (reader || sharing.isWatching) st.estimate = estimatePlayer(world, same ? state!.world.player : undefined);
     if (same && state) {
       rememberView(state);
-      // A version picked with the Latest/Beta switch stays for this character; another character follows its own save.
+      // A version picked with the version switch stays for this character; another character follows its own save.
       if (state.override) setRules(st, state.override);
       st.selected = state.selected;
       st.interiorDir = state.interiorDir;

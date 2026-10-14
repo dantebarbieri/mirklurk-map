@@ -49,11 +49,11 @@ export interface State {
   world: World;
   /** The rules the save's VERSION names (version.ts); undefined when it names none. */
   detected?: GameVersion;
-  /** Rules picked with the Latest/Beta switch over the detected ones; kept across this character's reloads, not across characters. */
+  /** Rules picked with the version switch over the detected ones; kept across this character's reloads, not across characters. */
   override?: GameVersion;
   /** The rules in use: the override, else the detected ones, else Latest's (`setRules`). */
   rules: GameVersion;
-  /** Told the override when the Latest/Beta switch changes it (the save editor follows the full map's switch). */
+  /** Told the override when the version switch changes it (the save editor follows the full map's switch). */
   onRules?: (override: GameVersion | undefined) => void;
   /** The Broken Fen's shipwreck odds per entry, by zone ("x,y"), for the landmark guesses. */
   shipwreck: Map<string, number>;

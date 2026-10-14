@@ -173,7 +173,7 @@ Deno.test("Wilda's camp: found by Grand Mother's hut once created", async () => 
   });
   const camp = landmarks(w, new Map(), NEW).find((m) => m.id === "wilda")!;
   assertEquals([camp.status, camp.zone], ["found", [1, 1]]);
-  // Under 0.8.1.5's rules (say, picked with the Latest/Beta switch) a camp the save already holds still shows.
+  // Under 0.8.1.5's rules (say, picked with the version switch) a camp the save already holds still shows.
   assertEquals(landmarks(w, new Map(), "0.8.1.5").find((m) => m.id === "wilda")?.status, "found");
   const missing = await world({ camp: true });
   assertEquals(landmarks(missing, new Map(), NEW).find((m) => m.id === "wilda")!.status, "none");
