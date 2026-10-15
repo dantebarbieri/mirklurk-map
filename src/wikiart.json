@@ -1,257 +1,257 @@
 {
-  "verified": "2026-10-14",
+  "verified": "2026-10-15",
   "beings": {
     "0": {
       "file": "assets/wiki/being_0.17df91722d.png",
       "w": 80,
       "h": 32,
-      "source": "Being-0-cropped.png"
+      "source": "Giant_Slug_sprite_(cropped).png"
     },
     "1": {
       "file": "assets/wiki/being_1.f840e02dc5.png",
       "w": 88,
       "h": 80,
-      "source": "Being-1-cropped.png"
+      "source": "Dreadfly_sprite_(cropped).png"
     },
     "2": {
       "file": "assets/wiki/being_2.bff936c245.png",
       "w": 88,
       "h": 72,
-      "source": "Being-2-cropped.png"
+      "source": "Giant_Gnat_sprite_(cropped).png"
     },
     "3": {
       "file": "assets/wiki/being_3.189ea4cef5.png",
       "w": 108,
       "h": 140,
-      "source": "Being-3-cropped.png"
+      "source": "Swamp_Troll_sprite_(cropped).png"
     },
     "4": {
       "file": "assets/wiki/being_4.a3431ec773.png",
       "w": 148,
       "h": 188,
-      "source": "Being-4-cropped.png"
+      "source": "Mire_Serpent_sprite_(cropped).png"
     },
     "5": {
       "file": "assets/wiki/being_5.251d25e5cd.png",
       "w": 84,
       "h": 216,
-      "source": "Being-5-cropped.png"
+      "source": "Soldier_sprite_(cropped).png"
     },
     "6": {
       "file": "assets/wiki/being_6.4df07a5303.png",
       "w": 90,
       "h": 155,
-      "source": "Being-6-overworld-cropped.png"
+      "source": "Captain_Eir_sprite_(cropped).png"
     },
     "7": {
       "file": "assets/wiki/being_7.58c192fa71.png",
       "w": 96,
       "h": 64,
-      "source": "Being-7-cropped.png"
+      "source": "Boulder_Crab_sprite_(cropped).png"
     },
     "8": {
       "file": "assets/wiki/being_8.222fc1c89d.png",
       "w": 78,
       "h": 174,
-      "source": "Being-8-overworld-cropped.png"
+      "source": "Magus_Clay_sprite_(cropped).png"
     },
     "9": {
       "file": "assets/wiki/being_9.c7ceb832f2.png",
       "w": 168,
       "h": 240,
-      "source": "Being-9.png"
+      "source": "Dead_Unwanted_portrait.png"
     },
     "10": {
       "file": "assets/wiki/being_10.50adc6d5eb.png",
       "w": 56,
       "h": 48,
-      "source": "Being-10-cropped.png"
+      "source": "Viper_sprite_(cropped).png"
     },
     "11": {
       "file": "assets/wiki/being_11.8c15620290.png",
       "w": 200,
       "h": 104,
-      "source": "Being-11-cropped.png"
+      "source": "Mirk_Runner_sprite_(cropped).png"
     },
     "12": {
       "file": "assets/wiki/being_12.e0033568d2.png",
       "w": 115,
       "h": 150,
-      "source": "Being-12-overworld-cropped.png"
+      "source": "Ranger_Bhato_sprite_(cropped).png"
     },
     "13": {
       "file": "assets/wiki/being_13.5f1725c354.png",
       "w": 72,
       "h": 104,
-      "source": "Being-13-cropped.png"
+      "source": "Sceetler_sprite_(cropped).png"
     },
     "14": {
       "file": "assets/wiki/being_14.d53ee24b22.png",
       "w": 80,
       "h": 135,
-      "source": "Being-14-cropped.png"
+      "source": "Scaalmyr_Grunt_sprite_(cropped).png"
     },
     "15": {
       "file": "assets/wiki/being_15.1d6b1b2e36.png",
       "w": 100,
       "h": 170,
-      "source": "Being-15-cropped.png"
+      "source": "Scaalmyr_Warrior_sprite_(cropped).png"
     },
     "16": {
       "file": "assets/wiki/being_16.9e6266f4d7.png",
       "w": 105,
       "h": 180,
-      "source": "Being-16-cropped.png"
+      "source": "Scaalmyr_Geomancer_sprite_(cropped).png"
     },
     "17": {
       "file": "assets/wiki/being_17.0d72ca81c2.png",
       "w": 56,
       "h": 56,
-      "source": "Being-17-cropped.png"
+      "source": "Mudfin_sprite_(cropped).png"
     },
     "18": {
       "file": "assets/wiki/being_18.dd17b1987e.png",
       "w": 104,
       "h": 136,
-      "source": "Being-18-cropped.png"
+      "source": "Cave_Troll_sprite_(cropped).png"
     },
     "19": {
       "file": "assets/wiki/being_19.90ea817d7b.png",
       "w": 66,
       "h": 192,
-      "source": "Being-19-overworld-cropped.png"
+      "source": "Viend_sprite_(cropped).png"
     },
     "20": {
       "file": "assets/wiki/being_20.37ad8f2405.png",
       "w": 132,
       "h": 96,
-      "source": "Being-20-overworld-cropped.png"
+      "source": "Commander_Tain_sprite_(cropped).png"
     },
     "21": {
       "file": "assets/wiki/being_21.d86d94047d.png",
       "w": 144,
       "h": 184,
-      "source": "Being-21-cropped.png"
+      "source": "Toadkin_sprite_(cropped).png"
     },
     "22": {
       "file": "assets/wiki/being_22.d594ff9b47.png",
       "w": 117,
       "h": 162,
-      "source": "Being-22-cropped.png"
+      "source": "Scaal_sprite_(cropped).png"
     },
     "23": {
       "file": "assets/wiki/being_23.70d0cc4233.png",
       "w": 56,
       "h": 48,
-      "source": "Being-23-cropped.png"
+      "source": "Red_Fang_sprite_(cropped).png"
     },
     "24": {
       "file": "assets/wiki/being_24.3373363d54.png",
       "w": 56,
       "h": 56,
-      "source": "Being-24-cropped.png"
+      "source": "Razorfin_sprite_(cropped).png"
     },
     "25": {
       "file": "assets/wiki/being_25.e1d9355575.png",
       "w": 88,
       "h": 80,
-      "source": "Being-25-cropped.png"
+      "source": "Deathfly_sprite_(cropped).png"
     },
     "26": {
       "file": "assets/wiki/being_26.a1a63dd108.png",
       "w": 126,
       "h": 175,
-      "source": "Being-26-overworld-cropped.png"
+      "source": "Gurb-Gurb_sprite_(cropped).png"
     },
     "27": {
       "file": "assets/wiki/being_27.27a7b54e61.png",
       "w": 120,
       "h": 88,
-      "source": "Being-27-cropped.png"
+      "source": "Firelouse_sprite_(cropped).png"
     },
     "28": {
       "file": "assets/wiki/being_28.834b155bd5.png",
       "w": 176,
       "h": 192,
-      "source": "Being-28-cropped.png"
+      "source": "Nightmare_sprite_(cropped).png"
     },
     "29": {
       "file": "assets/wiki/being_29.1c00ba2bae.png",
       "w": 200,
       "h": 112,
-      "source": "Being-29-cropped.png"
+      "source": "Mirk_Mauler_sprite_(cropped).png"
     },
     "30": {
       "file": "assets/wiki/being_30.9d4e540cec.png",
       "w": 96,
       "h": 80,
-      "source": "Being-30-cropped.png"
+      "source": "Titanspine_Crab_sprite_(cropped).png"
     },
     "31": {
       "file": "assets/wiki/being_31.1db1249da2.png",
       "w": 102,
       "h": 192,
-      "source": "Being-31-cropped.png"
+      "source": "Raving_Unwanted_sprite_(cropped).png"
     },
     "32": {
       "file": "assets/wiki/being_32.36a057b5ab.png",
       "w": 72,
       "h": 186,
-      "source": "Being-32-cropped.png"
+      "source": "Mutated_Unwanted_sprite_(cropped).png"
     },
     "33": {
       "file": "assets/wiki/being_33.848c57b2dc.png",
       "w": 84,
       "h": 192,
-      "source": "Being-33-overworld-cropped.png"
+      "source": "Ihar_sprite_(cropped).png"
     },
     "34": {
       "file": "assets/wiki/being_34.597d22e956.png",
       "w": 100,
       "h": 160,
-      "source": "Being-34-overworld-cropped.png"
+      "source": "Wilda_sprite_(cropped).png"
     },
     "35": {
       "file": "assets/wiki/being_35.b75a0487fe.png",
       "w": 64,
       "h": 132,
-      "source": "Being-35-cropped.png"
+      "source": "Survivor_sprite_(cropped).png"
     },
     "36": {
       "file": "assets/wiki/being_36.0f9a1346a6.png",
       "w": 90,
       "h": 156,
-      "source": "Being-36-cropped.png"
+      "source": "Grand_Mother_sprite_(cropped).png"
     },
     "37": {
       "file": "assets/wiki/being_37.20ef98fb16.png",
       "w": 235,
       "h": 120,
-      "source": "Being-37-cropped.png"
+      "source": "Mirkfang_Matriarch_sprite_(cropped).png"
     },
     "38": {
       "file": "assets/wiki/being_38.7a62fa372b.png",
       "w": 184,
       "h": 88,
-      "source": "Being-38-cropped.png"
+      "source": "Mirkfang_sprite_(cropped).png"
     },
     "39": {
       "file": "assets/wiki/being_39.5c118c92f0.png",
       "w": 240,
       "h": 120,
-      "source": "Being-39-cropped.png"
+      "source": "Giant_Mirkfang_sprite_(cropped).png"
     },
     "40": {
       "file": "assets/wiki/being_40.a366524e1e.png",
       "w": 235,
       "h": 120,
-      "source": "Being-40-cropped.png"
+      "source": "The_Terror_sprite_(cropped).png"
     },
     "41": {
       "file": "assets/wiki/being_41.26af089dcc.png",
       "w": 78,
       "h": 174,
-      "source": "Being-41-cropped.png"
+      "source": "Magus_Clay_(boss)_sprite_(cropped).png"
     }
   },
   "items": {
@@ -259,1567 +259,1567 @@
       "file": "assets/wiki/item_0.8710129fbb.png",
       "w": 184,
       "h": 224,
-      "source": "Item-0-cropped.png"
+      "source": "Wood_Buckler_icon_(cropped).png"
     },
     "1": {
       "file": "assets/wiki/item_1.f8fa8199bd.png",
       "w": 184,
       "h": 208,
-      "source": "Item-1-cropped.png"
+      "source": "Iron_Buckler_icon_(cropped).png"
     },
     "2": {
       "file": "assets/wiki/item_2.b817854ed8.png",
       "w": 88,
       "h": 208,
-      "source": "Item-2-cropped.png"
+      "source": "Shoddy_Dagger_icon_(cropped).png"
     },
     "3": {
       "file": "assets/wiki/item_3.73c8f861d3.png",
       "w": 96,
       "h": 224,
-      "source": "Item-3-cropped.png"
+      "source": "Iron_Dagger_icon_(cropped).png"
     },
     "4": {
       "file": "assets/wiki/item_4.5b7d3c9d1d.png",
       "w": 104,
       "h": 232,
-      "source": "Item-4-cropped.png"
+      "source": "Steel_Dagger_icon_(cropped).png"
     },
     "5": {
       "file": "assets/wiki/item_5.3cad9f3c50.png",
       "w": 80,
       "h": 240,
-      "source": "Item-5-cropped.png"
+      "source": "Decent_Hunting_Knife_icon_(cropped).png"
     },
     "6": {
       "file": "assets/wiki/item_6.7a57f2d54d.png",
       "w": 72,
       "h": 240,
-      "source": "Item-6-cropped.png"
+      "source": "Great_Hunting_Knife_icon_(cropped).png"
     },
     "7": {
       "file": "assets/wiki/item_7.5a4f3a40ea.png",
       "w": 104,
       "h": 240,
-      "source": "Item-7-cropped.png"
+      "source": "Hunter_Master's_Knife_icon_(cropped).png"
     },
     "8": {
       "file": "assets/wiki/item_8.d308682f19.png",
       "w": 40,
       "h": 248,
-      "source": "Item-8-cropped.png"
+      "source": "Steel_Longsword_icon_(cropped).png"
     },
     "9": {
       "file": "assets/wiki/item_9.567763907c.png",
       "w": 55,
       "h": 220,
-      "source": "Item-9-cropped.png"
+      "source": "Iron_Shortsword_icon_(cropped).png"
     },
     "10": {
       "file": "assets/wiki/item_10.30b6d7b142.png",
       "w": 50,
       "h": 225,
-      "source": "Item-10-cropped.png"
+      "source": "Steel_Shortsword_icon_(cropped).png"
     },
     "11": {
       "file": "assets/wiki/item_11.ea66dec4a4.png",
       "w": 40,
       "h": 248,
-      "source": "Item-11-cropped.png"
+      "source": "Iron_Longsword_icon_(cropped).png"
     },
     "12": {
       "file": "assets/wiki/item_12.9a1d8de821.png",
       "w": 240,
       "h": 240,
-      "source": "Item-12-cropped.png"
+      "source": "Small_Backpack_icon_(cropped).png"
     },
     "13": {
       "file": "assets/wiki/item_13.2e7ac5ff1b.png",
       "w": 224,
       "h": 120,
-      "source": "Item-13-cropped.png"
+      "source": "Apprentice_Herbalist's_Belt_icon_(cropped).png"
     },
     "14": {
       "file": "assets/wiki/item_14.df1dd5a478.png",
       "w": 240,
       "h": 232,
-      "source": "Item-14-cropped.png"
+      "source": "Medium_Backpack_icon_(cropped).png"
     },
     "15": {
       "file": "assets/wiki/item_15.c2bbde9e22.png",
       "w": 200,
       "h": 144,
-      "source": "Item-15-cropped.png"
+      "source": "Simple_Cloth_Shoes_icon_(cropped).png"
     },
     "16": {
       "file": "assets/wiki/item_16.6d4f71ef13.png",
       "w": 96,
       "h": 200,
-      "source": "Item-16-cropped.png"
+      "source": "Worn_Socks_icon_(cropped).png"
     },
     "17": {
       "file": "assets/wiki/item_17.7974c30c62.png",
       "w": 96,
       "h": 208,
-      "source": "Item-17-cropped.png"
+      "source": "Decent_Socks_icon_(cropped).png"
     },
     "18": {
       "file": "assets/wiki/item_18.a8745aa009.png",
       "w": 88,
       "h": 216,
-      "source": "Item-18-cropped.png"
+      "source": "Fine_Wool_Socks_icon_(cropped).png"
     },
     "19": {
       "file": "assets/wiki/item_19.60a7d7fe98.png",
       "w": 96,
       "h": 240,
-      "source": "Item-19-cropped.png"
+      "source": "Twig_(Willow)_icon_(cropped).png"
     },
     "20": {
       "file": "assets/wiki/item_20.280678b05a.png",
       "w": 115,
       "h": 200,
-      "source": "Item-20-cropped.png"
+      "source": "Simple_Pants_icon_(cropped).png"
     },
     "21": {
       "file": "assets/wiki/item_21.245ea1a365.png",
       "w": 105,
       "h": 205,
-      "source": "Item-21-cropped.png"
+      "source": "Hiker's_Pants_icon_(cropped).png"
     },
     "22": {
       "file": "assets/wiki/item_22.d9c1ef1f97.png",
       "w": 140,
       "h": 185,
-      "source": "Item-22-cropped.png"
+      "source": "Simple_Shirt_icon_(cropped).png"
     },
     "23": {
       "file": "assets/wiki/item_23.d442aa7a77.png",
       "w": 145,
       "h": 190,
-      "source": "Item-23-cropped.png"
+      "source": "Wool_Shirt_icon_(cropped).png"
     },
     "24": {
       "file": "assets/wiki/item_24.1e3ddcd600.png",
       "w": 150,
       "h": 190,
-      "source": "Item-24-cropped.png"
+      "source": "Hiker's_Shirt_icon_(cropped).png"
     },
     "25": {
       "file": "assets/wiki/item_25.dbb2a1d739.png",
       "w": 240,
       "h": 192,
-      "source": "Item-25-cropped.png"
+      "source": "Loaf_of_Bread_icon_(cropped).png"
     },
     "26": {
       "file": "assets/wiki/item_26.6465aca7c9.png",
       "w": 145,
       "h": 200,
-      "source": "Item-26-cropped.png"
+      "source": "Large_Backpack_icon_(cropped).png"
     },
     "27": {
       "file": "assets/wiki/item_27.0c115c556c.png",
       "w": 70,
       "h": 205,
-      "source": "Item-27-cropped.png"
+      "source": "Iron_Hand_Axe_icon_(cropped).png"
     },
     "28": {
       "file": "assets/wiki/item_28.6f8d9eb5c7.png",
       "w": 70,
       "h": 205,
-      "source": "Item-28-cropped.png"
+      "source": "Steel_Hand_Axe_icon_(cropped).png"
     },
     "29": {
       "file": "assets/wiki/item_29.51c436e6b1.png",
       "w": 104,
       "h": 236,
-      "source": "Item-29-cropped.png"
+      "source": "Iron_Felling_Axe_icon_(cropped).png"
     },
     "30": {
       "file": "assets/wiki/item_30.84911c89b5.png",
       "w": 104,
       "h": 236,
-      "source": "Item-30-cropped.png"
+      "source": "Steel_Felling_Axe_icon_(cropped).png"
     },
     "32": {
       "file": "assets/wiki/item_32.0d15ba85ac.png",
       "w": 112,
       "h": 112,
-      "source": "Item-32-cropped.png"
+      "source": "Lesser_Wound_Salve_icon_(cropped).png"
     },
     "33": {
       "file": "assets/wiki/item_33.07d360c9d4.png",
       "w": 100,
       "h": 190,
-      "source": "Item-33-cropped.png"
+      "source": "Worn_Leather_Pants_icon_(cropped).png"
     },
     "34": {
       "file": "assets/wiki/item_34.211e864847.png",
       "w": 65,
       "h": 225,
-      "source": "Item-34-cropped.png"
+      "source": "Branch_(Willow)_icon_(cropped).png"
     },
     "35": {
       "file": "assets/wiki/item_35.fffedf157d.png",
       "w": 145,
       "h": 230,
-      "source": "Item-35-cropped.png"
+      "source": "Log_(Willow)_icon_(cropped).png"
     },
     "36": {
       "file": "assets/wiki/item_36.d63f2ae39b.png",
       "w": 70,
       "h": 215,
-      "source": "Item-36-cropped.png"
+      "source": "Firewood_(Willow)_icon_(cropped).png"
     },
     "37": {
       "file": "assets/wiki/item_37.cd1b15bbcc.png",
       "w": 112,
       "h": 104,
-      "source": "Item-37-cropped.png"
+      "source": "Rock_icon_(cropped).png"
     },
     "38": {
       "file": "assets/wiki/item_38.c555ec2c69.png",
       "w": 240,
       "h": 200,
-      "source": "Item-38-cropped.png"
+      "source": "Campfire_icon_(cropped).png"
     },
     "39": {
       "file": "assets/wiki/item_39.4292cfe7a4.png",
       "w": 88,
       "h": 88,
-      "source": "Item-39-cropped.png"
+      "source": "Flint_icon_(cropped).png"
     },
     "40": {
       "file": "assets/wiki/item_40.14a469d06f.png",
       "w": 104,
       "h": 96,
-      "source": "Item-40-cropped.png"
+      "source": "Firesteel_icon_(cropped).png"
     },
     "41": {
       "file": "assets/wiki/item_41.caeec086e3.png",
       "w": 45,
       "h": 210,
-      "source": "Item-41-cropped.png"
+      "source": "Torch_icon_(cropped).png"
     },
     "42": {
       "file": "assets/wiki/item_42.a1ffe31c69.png",
       "w": 232,
       "h": 232,
-      "source": "Item-42-cropped.png"
+      "source": "Simple_Hood_icon_(cropped).png"
     },
     "43": {
       "file": "assets/wiki/item_43.df9bbff4f6.png",
       "w": 120,
       "h": 200,
-      "source": "Item-43-cropped.png"
+      "source": "Leather_Vest_icon_(cropped).png"
     },
     "44": {
       "file": "assets/wiki/item_44.c33fdbf9cf.png",
       "w": 125,
       "h": 210,
-      "source": "Item-44-cropped.png"
+      "source": "Shortbow_(Willow)_icon_(cropped).png"
     },
     "45": {
       "file": "assets/wiki/item_45.eddd610ca6.png",
       "w": 50,
       "h": 205,
-      "source": "Item-45-cropped.png"
+      "source": "Iron_Arrow_icon_(cropped).png"
     },
     "46": {
       "file": "assets/wiki/item_46.39cc74c42a.png",
       "w": 40,
       "h": 215,
-      "source": "Item-46-cropped.png"
+      "source": "Steel_Arrow_icon_(cropped).png"
     },
     "47": {
       "file": "assets/wiki/item_47.7626525928.png",
       "w": 56,
       "h": 244,
-      "source": "Item-47-cropped.png"
+      "source": "Small_Linen_Tent_icon_(cropped).png"
     },
     "50": {
       "file": "assets/wiki/item_50.10b19e6ef5.png",
       "w": 150,
       "h": 205,
-      "source": "Item-50-cropped.png"
+      "source": "Large_Scaalmyr_Husk_icon_(cropped).png"
     },
     "51": {
       "file": "assets/wiki/item_51.c2d751e65c.png",
       "w": 112,
       "h": 112,
-      "source": "Item-51-cropped.png"
+      "source": "Honey_icon_(cropped).png"
     },
     "52": {
       "file": "assets/wiki/item_52.ed7d91cfe9.png",
       "w": 112,
       "h": 112,
-      "source": "Item-52-cropped.png"
+      "source": "Beeswax_icon_(cropped).png"
     },
     "54": {
       "file": "assets/wiki/item_54.fba0bca9a0.png",
       "w": 192,
       "h": 216,
-      "source": "Item-54-cropped.png"
+      "source": "Steel_Bascinet_icon_(cropped).png"
     },
     "55": {
       "file": "assets/wiki/item_55.fac6714bed.png",
       "w": 155,
       "h": 190,
-      "source": "Item-55-cropped.png"
+      "source": "Steel_Chestplate_icon_(cropped).png"
     },
     "56": {
       "file": "assets/wiki/item_56.2f12ded324.png",
       "w": 130,
       "h": 180,
-      "source": "Item-56-cropped.png"
+      "source": "Steel_Legplates_icon_(cropped).png"
     },
     "57": {
       "file": "assets/wiki/item_57.ad3ad3a98c.png",
       "w": 208,
       "h": 240,
-      "source": "Item-57-cropped.png"
+      "source": "Sturdy_Leather_Boots_icon_(cropped).png"
     },
     "58": {
       "file": "assets/wiki/item_58.7f2f24eaf3.png",
       "w": 150,
       "h": 205,
-      "source": "Item-58-cropped.png"
+      "source": "Steel_Shield_icon_(cropped).png"
     },
     "59": {
       "file": "assets/wiki/item_59.0b7c07482f.png",
       "w": 224,
       "h": 200,
-      "source": "Item-59-cropped.png"
+      "source": "Leather_Gloves_icon_(cropped).png"
     },
     "60": {
       "file": "assets/wiki/item_60.c55ae19c16.png",
       "w": 104,
       "h": 88,
-      "source": "Item-60-cropped.png"
+      "source": "Large_Maggot_icon_(cropped).png"
     },
     "61": {
       "file": "assets/wiki/item_61.507ffbb84a.png",
       "w": 88,
       "h": 56,
-      "source": "Item-61-cropped.png"
+      "source": "Grilled_Maggot_icon_(cropped).png"
     },
     "62": {
       "file": "assets/wiki/item_62.b58d4b43ca.png",
       "w": 112,
       "h": 88,
-      "source": "Item-62-cropped.png"
+      "source": "Large_Beetle_icon_(cropped).png"
     },
     "63": {
       "file": "assets/wiki/item_63.14f7216b6c.png",
       "w": 88,
       "h": 72,
-      "source": "Item-63-cropped.png"
+      "source": "Crisp_Beetle_icon_(cropped).png"
     },
     "64": {
       "file": "assets/wiki/item_64.9014817ad3.png",
       "w": 112,
       "h": 104,
-      "source": "Item-64-cropped.png"
+      "source": "Frog_icon_(cropped).png"
     },
     "65": {
       "file": "assets/wiki/item_65.10626d093a.png",
       "w": 104,
       "h": 104,
-      "source": "Item-65-cropped.png"
+      "source": "Grilled_Frog_Legs_icon_(cropped).png"
     },
     "66": {
       "file": "assets/wiki/item_66.b188361199.png",
       "w": 224,
       "h": 112,
-      "source": "Item-66-cropped.png"
+      "source": "Crab_Meat_icon_(cropped).png"
     },
     "67": {
       "file": "assets/wiki/item_67.ae3f8086fc.png",
       "w": 208,
       "h": 112,
-      "source": "Item-67-cropped.png"
+      "source": "Grilled_Crab_Meat_icon_(cropped).png"
     },
     "68": {
       "file": "assets/wiki/item_68.7116c9a68b.png",
       "w": 220,
       "h": 70,
-      "source": "Item-68-cropped.png"
+      "source": "Tattered_Bedroll_icon_(cropped).png"
     },
     "69": {
       "file": "assets/wiki/item_69.42b64db380.png",
       "w": 216,
       "h": 96,
-      "source": "Item-69-cropped.png"
+      "source": "Bug_Meat_icon_(cropped).png"
     },
     "70": {
       "file": "assets/wiki/item_70.136017e430.png",
       "w": 200,
       "h": 88,
-      "source": "Item-70-cropped.png"
+      "source": "Grilled_Bug_Meat_icon_(cropped).png"
     },
     "72": {
       "file": "assets/wiki/item_72.3730a028d4.png",
       "w": 80,
       "h": 80,
-      "source": "Item-72-cropped.png"
+      "source": "Copper_Coin_icon_(cropped).png"
     },
     "73": {
       "file": "assets/wiki/item_73.8b04adf68e.png",
       "w": 80,
       "h": 80,
-      "source": "Item-73-cropped.png"
+      "source": "Silver_Coin_icon_(cropped).png"
     },
     "74": {
       "file": "assets/wiki/item_74.bb2433d282.png",
       "w": 80,
       "h": 80,
-      "source": "Item-74-cropped.png"
+      "source": "Gold_Coin_icon_(cropped).png"
     },
     "75": {
       "file": "assets/wiki/item_75.1d0f3160c9.png",
       "w": 70,
       "h": 230,
-      "source": "Item-75-cropped.png"
+      "source": "Wooden_Recorder_icon_(cropped).png"
     },
     "76": {
       "file": "assets/wiki/item_76.7b34990387.png",
       "w": 55,
       "h": 205,
-      "source": "Item-76-cropped.png"
+      "source": "Flinthead_Arrow_icon_(cropped).png"
     },
     "77": {
       "file": "assets/wiki/item_77.5bd5f6ced6.png",
       "w": 88,
       "h": 216,
-      "source": "Item-77-cropped.png"
+      "source": "Feather_icon_(cropped).png"
     },
     "78": {
       "file": "assets/wiki/item_78.fedf08dec6.png",
       "w": 112,
       "h": 232,
-      "source": "Item-78-cropped.png"
+      "source": "Twig_(Cypress)_icon_(cropped).png"
     },
     "79": {
       "file": "assets/wiki/item_79.1539f848e6.png",
       "w": 70,
       "h": 220,
-      "source": "Item-79-cropped.png"
+      "source": "Branch_(Cypress)_icon_(cropped).png"
     },
     "80": {
       "file": "assets/wiki/item_80.9927ce61af.png",
       "w": 145,
       "h": 225,
-      "source": "Item-80-cropped.png"
+      "source": "Log_(Cypress)_icon_(cropped).png"
     },
     "81": {
       "file": "assets/wiki/item_81.03a2d9ab48.png",
       "w": 70,
       "h": 215,
-      "source": "Item-81-cropped.png"
+      "source": "Firewood_(Cypress)_icon_(cropped).png"
     },
     "82": {
       "file": "assets/wiki/item_82.5be8c9fa66.png",
       "w": 208,
       "h": 88,
-      "source": "Item-82-cropped.png"
+      "source": "Snake_Meat_icon_(cropped).png"
     },
     "83": {
       "file": "assets/wiki/item_83.8de8c161e4.png",
       "w": 192,
       "h": 88,
-      "source": "Item-83-cropped.png"
+      "source": "Grilled_Snake_Meat_icon_(cropped).png"
     },
     "84": {
       "file": "assets/wiki/item_84.3c1e2dd40e.png",
       "w": 96,
       "h": 96,
-      "source": "Item-84-cropped.png"
+      "source": "Minor_Antidote_icon_(cropped).png"
     },
     "85": {
       "file": "assets/wiki/item_85.73fb8b9c33.png",
       "w": 80,
       "h": 200,
-      "source": "Item-85-cropped.png"
+      "source": "Sickness_Remedy_icon_(cropped).png"
     },
     "86": {
       "file": "assets/wiki/item_86.e85fc6eece.png",
       "w": 104,
       "h": 216,
-      "source": "Item-86-cropped.png"
+      "source": "Sickness_Cure_icon_(cropped).png"
     },
     "87": {
       "file": "assets/wiki/item_87.65a4f4c2bd.png",
       "w": 96,
       "h": 88,
-      "source": "Item-87-cropped.png"
+      "source": "Egg_icon_(cropped).png"
     },
     "88": {
       "file": "assets/wiki/item_88.ad11edf5c0.png",
       "w": 232,
       "h": 112,
-      "source": "Item-88-cropped.png"
+      "source": "Fried_Egg_icon_(cropped).png"
     },
     "89": {
       "file": "assets/wiki/item_89.1b089b316c.png",
       "w": 104,
       "h": 104,
-      "source": "Item-89-cropped.png"
+      "source": "Map_of_area_icon_(cropped).png"
     },
     "90": {
       "file": "assets/wiki/item_90.c3b077c4ee.png",
       "w": 70,
       "h": 220,
-      "source": "Item-90-cropped.png"
+      "source": "Stone_Club_icon_(cropped).png"
     },
     "91": {
       "file": "assets/wiki/item_91.ba7798f7fd.png",
       "w": 80,
       "h": 232,
-      "source": "Item-91-cropped.png"
+      "source": "Plant_Fiber_icon_(cropped).png"
     },
     "92": {
       "file": "assets/wiki/item_92.57dc1de483.png",
       "w": 112,
       "h": 224,
-      "source": "Item-92-cropped.png"
+      "source": "Twine_icon_(cropped).png"
     },
     "93": {
       "file": "assets/wiki/item_93.72feaec7bd.png",
       "w": 130,
       "h": 220,
-      "source": "Item-93-cropped.png"
+      "source": "Improvised_Bow_icon_(cropped).png"
     },
     "94": {
       "file": "assets/wiki/item_94.0c42c23aa5.png",
       "w": 112,
       "h": 112,
-      "source": "Item-94-cropped.png"
+      "source": "Fool's_Gold_icon_(cropped).png"
     },
     "95": {
       "file": "assets/wiki/item_95.7cdcba38e1.png",
       "w": 112,
       "h": 104,
-      "source": "Item-95-cropped.png"
+      "source": "Strange_Glowing_Bug_icon_(cropped).png"
     },
     "96": {
       "file": "assets/wiki/item_96.6967d75d1d.png",
       "w": 65,
       "h": 220,
-      "source": "Item-96-cropped.png"
+      "source": "Improvised_Torch_icon_(cropped).png"
     },
     "97": {
       "file": "assets/wiki/item_97.467d6ed55e.png",
       "w": 96,
       "h": 80,
-      "source": "Item-97-cropped.png"
+      "source": "Emerald_icon_(cropped).png"
     },
     "98": {
       "file": "assets/wiki/item_98.cefb806ab4.png",
       "w": 88,
       "h": 64,
-      "source": "Item-98-cropped.png"
+      "source": "Ruby_icon_(cropped).png"
     },
     "99": {
       "file": "assets/wiki/item_99.c4119fd33b.png",
       "w": 80,
       "h": 80,
-      "source": "Item-99-cropped.png"
+      "source": "Amethyst_icon_(cropped).png"
     },
     "100": {
       "file": "assets/wiki/item_100.90206d429e.png",
       "w": 88,
       "h": 96,
-      "source": "Item-100-cropped.png"
+      "source": "Sapphire_icon_(cropped).png"
     },
     "101": {
       "file": "assets/wiki/item_101.a7588ac60c.png",
       "w": 64,
       "h": 64,
-      "source": "Item-101-cropped.png"
+      "source": "Topaz_icon_(cropped).png"
     },
     "102": {
       "file": "assets/wiki/item_102.696def0035.png",
       "w": 232,
       "h": 224,
-      "source": "Item-102-cropped.png"
+      "source": "Shabby_Pelt_icon_(cropped).png"
     },
     "103": {
       "file": "assets/wiki/item_103.6b96116e40.png",
       "w": 210,
       "h": 65,
-      "source": "Item-103-cropped.png"
+      "source": "Vile_Meat_icon_(cropped).png"
     },
     "104": {
       "file": "assets/wiki/item_104.55cfff95a1.png",
       "w": 195,
       "h": 55,
-      "source": "Item-104-cropped.png"
+      "source": "Grilled_Vile_Meat_icon_(cropped).png"
     },
     "105": {
       "file": "assets/wiki/item_105.4277ff74c2.png",
       "w": 100,
       "h": 236,
-      "source": "Item-105-cropped.png"
+      "source": "Longbow_(Cypress)_icon_(cropped).png"
     },
     "106": {
       "file": "assets/wiki/item_106.71c3c51944.png",
       "w": 100,
       "h": 240,
-      "source": "Item-106-cropped.png"
+      "source": "Longbow_(Yew)_icon_(cropped).png"
     },
     "107": {
       "file": "assets/wiki/item_107.62e345724b.png",
       "w": 96,
       "h": 112,
-      "source": "Item-107-cropped.png"
+      "source": "Rift_Weave_icon_(cropped).png"
     },
     "108": {
       "file": "assets/wiki/item_108.05ceedbe09.png",
       "w": 230,
       "h": 145,
-      "source": "Item-108-cropped.png"
+      "source": "Hidden_Hollow_icon_(cropped).png"
     },
     "110": {
       "file": "assets/wiki/item_110.ce0cffeac2.png",
       "w": 112,
       "h": 232,
-      "source": "Item-110-cropped.png"
+      "source": "Lantern_icon_(cropped).png"
     },
     "111": {
       "file": "assets/wiki/item_111.aec0f8c11f.png",
       "w": 112,
       "h": 240,
-      "source": "Item-111-cropped.png"
+      "source": "Masterwork_Lantern_icon_(cropped).png"
     },
     "112": {
       "file": "assets/wiki/item_112.d9f4e3c9ac.png",
       "w": 112,
       "h": 240,
-      "source": "Item-112-cropped.png"
+      "source": "Lamp_Oil_icon_(cropped).png"
     },
     "113": {
       "file": "assets/wiki/item_113.ff2def6971.png",
       "w": 240,
       "h": 112,
-      "source": "Item-113-cropped.png"
+      "source": "Cloth_Repair_Kit_icon_(cropped).png"
     },
     "114": {
       "file": "assets/wiki/item_114.ee0e12d404.png",
       "w": 112,
       "h": 232,
-      "source": "Item-114-cropped.png"
+      "source": "Wood_Repair_Kit_icon_(cropped).png"
     },
     "115": {
       "file": "assets/wiki/item_115.dc29027067.png",
       "w": 112,
       "h": 240,
-      "source": "Item-115-cropped.png"
+      "source": "Metal_Repair_Kit_icon_(cropped).png"
     },
     "116": {
       "file": "assets/wiki/item_116.0149e4d16d.png",
       "w": 184,
       "h": 216,
-      "source": "Item-116-cropped.png"
+      "source": "Iron_Skull_Cap_icon_(cropped).png"
     },
     "117": {
       "file": "assets/wiki/item_117.c5ce51db24.png",
       "w": 184,
       "h": 216,
-      "source": "Item-117-cropped.png"
+      "source": "Steel_Skull_Cap_icon_(cropped).png"
     },
     "118": {
       "file": "assets/wiki/item_118.0a893d4293.png",
       "w": 140,
       "h": 220,
-      "source": "Item-118-cropped.png"
+      "source": "Improvised_Shield_icon_(cropped).png"
     },
     "119": {
       "file": "assets/wiki/item_119.b2fc3ec297.png",
       "w": 168,
       "h": 208,
-      "source": "Item-119-cropped.png"
+      "source": "Leather_Cap_icon_(cropped).png"
     },
     "120": {
       "file": "assets/wiki/item_120.96306bb00e.png",
       "w": 64,
       "h": 80,
-      "source": "Item-120-cropped.png"
+      "source": "Small_Venom_Gland_icon_(cropped).png"
     },
     "121": {
       "file": "assets/wiki/item_121.50e5d08349.png",
       "w": 65,
       "h": 225,
-      "source": "Item-121-cropped.png"
+      "source": "Moldy_Wood_icon_(cropped).png"
     },
     "122": {
       "file": "assets/wiki/item_122.42140907ec.png",
       "w": 104,
       "h": 104,
-      "source": "Item-122-cropped.png"
+      "source": "Mold_icon_(cropped).png"
     },
     "123": {
       "file": "assets/wiki/item_123.8df0b3388f.png",
       "w": 192,
       "h": 216,
-      "source": "Item-123-cropped.png"
+      "source": "Glowing_Rune_icon_(cropped).png"
     },
     "124": {
       "file": "assets/wiki/item_124.37e62a6505.png",
       "w": 240,
       "h": 128,
-      "source": "Item-124-cropped.png"
+      "source": "Glow_Goo_icon_(cropped).png"
     },
     "126": {
       "file": "assets/wiki/item_126.27973dea7b.png",
       "w": 104,
       "h": 216,
-      "source": "Item-126-cropped.png"
+      "source": "Clay's_Strange_Potion_icon_(cropped).png"
     },
     "127": {
       "file": "assets/wiki/item_127.2bae92e21d.png",
       "w": 96,
       "h": 120,
-      "source": "Item-127-cropped.png"
+      "source": "Summoning_Stone_icon_(cropped).png"
     },
     "129": {
       "file": "assets/wiki/item_129.1e1778461d.png",
       "w": 240,
       "h": 208,
-      "source": "Item-129-cropped.png"
+      "source": "Scaalmyr_Husk_icon_(cropped).png"
     },
     "130": {
       "file": "assets/wiki/item_130.f51ac2117c.png",
       "w": 208,
       "h": 216,
-      "source": "Item-130-cropped.png"
+      "source": "Ancient_Strongbox_icon_(cropped).png"
     },
     "132": {
       "file": "assets/wiki/item_132.bd3a6b7a31.png",
       "w": 112,
       "h": 120,
-      "source": "Item-132-cropped.png"
+      "source": "Ward_Breaker_icon_(cropped).png"
     },
     "134": {
       "file": "assets/wiki/item_134.a1fad69725.png",
       "w": 208,
       "h": 208,
-      "source": "Item-134-cropped.png"
+      "source": "Troll_Fat_icon_(cropped).png"
     },
     "135": {
       "file": "assets/wiki/item_135.4eca9a3e70.png",
       "w": 224,
       "h": 216,
-      "source": "Item-135-cropped.png"
+      "source": "Swamp_Troll_Hide_icon_(cropped).png"
     },
     "136": {
       "file": "assets/wiki/item_136.f2bf1379d1.png",
       "w": 224,
       "h": 224,
-      "source": "Item-136-cropped.png"
+      "source": "Cave_Troll_Hide_icon_(cropped).png"
     },
     "137": {
       "file": "assets/wiki/item_137.0f48c5421b.png",
       "w": 120,
       "h": 195,
-      "source": "Item-137-cropped.png"
+      "source": "Shabby_Pelt_Cloak_icon_(cropped).png"
     },
     "138": {
       "file": "assets/wiki/item_138.914508a617.png",
       "w": 104,
       "h": 192,
-      "source": "Item-138-cropped.png"
+      "source": "Wound_Salve_icon_(cropped).png"
     },
     "139": {
       "file": "assets/wiki/item_139.6ec9d38703.png",
       "w": 56,
       "h": 200,
-      "source": "Item-139-cropped.png"
+      "source": "Antidote_icon_(cropped).png"
     },
     "140": {
       "file": "assets/wiki/item_140.b6a47b3d61.png",
       "w": 64,
       "h": 104,
-      "source": "Item-140-cropped.png"
+      "source": "Minor_Wound_Salve_icon_(cropped).png"
     },
     "141": {
       "file": "assets/wiki/item_141.656b51532e.png",
       "w": 112,
       "h": 112,
-      "source": "Item-141-cropped.png"
+      "source": "Simple_Burn_Remedy_icon_(cropped).png"
     },
     "142": {
       "file": "assets/wiki/item_142.f22f924a3e.png",
       "w": 104,
       "h": 120,
-      "source": "Item-142-cropped.png"
+      "source": "Calmia_Root_icon_(cropped).png"
     },
     "143": {
       "file": "assets/wiki/item_143.08d7bd5435.png",
       "w": 232,
       "h": 96,
-      "source": "Item-143-cropped.png"
+      "source": "Improvised_Bandage_icon_(cropped).png"
     },
     "144": {
       "file": "assets/wiki/item_144.774befdb85.png",
       "w": 208,
       "h": 104,
-      "source": "Item-144-cropped.png"
+      "source": "Bandage_icon_(cropped).png"
     },
     "145": {
       "file": "assets/wiki/item_145.8205018810.png",
       "w": 120,
       "h": 200,
-      "source": "Item-145-cropped.png"
+      "source": "Troll_Skin_Cloak_icon_(cropped).png"
     },
     "146": {
       "file": "assets/wiki/item_146.87347ec34d.png",
       "w": 208,
       "h": 240,
-      "source": "Item-146-cropped.png"
+      "source": "Troll_Skin_Hood_icon_(cropped).png"
     },
     "147": {
       "file": "assets/wiki/item_147.9fbc844283.png",
       "w": 130,
       "h": 200,
-      "source": "Item-147-cropped.png"
+      "source": "Troll_Skin_Vest_icon_(cropped).png"
     },
     "148": {
       "file": "assets/wiki/item_148.3b1e5d159f.png",
       "w": 240,
       "h": 240,
-      "source": "Item-148-cropped.png"
+      "source": "Ranger's_Backpack_icon_(cropped).png"
     },
     "153": {
       "file": "assets/wiki/item_153.cbbfdb4c4c.png",
       "w": 215,
       "h": 70,
-      "source": "Item-153-cropped.png"
+      "source": "Decent_Bedroll_icon_(cropped).png"
     },
     "154": {
       "file": "assets/wiki/item_154.611c244eab.png",
       "w": 205,
       "h": 65,
-      "source": "Item-154-cropped.png"
+      "source": "Great_Bedroll_icon_(cropped).png"
     },
     "155": {
       "file": "assets/wiki/item_155.f53918d75b.png",
       "w": 56,
       "h": 244,
-      "source": "Item-155-cropped.png"
+      "source": "Waxed_Linen_Tent_icon_(cropped).png"
     },
     "156": {
       "file": "assets/wiki/item_156.04a70ec2f6.png",
       "w": 240,
       "h": 112,
-      "source": "Item-156-cropped.png"
+      "source": "Map_Drawing_Kit_icon_(cropped).png"
     },
     "157": {
       "file": "assets/wiki/item_157.6d700ede8a.png",
       "w": 45,
       "h": 210,
-      "source": "Item-157-cropped.png"
+      "source": "Iron_Cudgel_icon_(cropped).png"
     },
     "158": {
       "file": "assets/wiki/item_158.87925a0704.png",
       "w": 35,
       "h": 215,
-      "source": "Item-158-cropped.png"
+      "source": "Steel_Cudgel_icon_(cropped).png"
     },
     "159": {
       "file": "assets/wiki/item_159.5348c9b03b.png",
       "w": 112,
       "h": 232,
-      "source": "Item-159-cropped.png"
+      "source": "Serpent_Fang_icon_(cropped).png"
     },
     "160": {
       "file": "assets/wiki/item_160.b141b2fd91.png",
       "w": 125,
       "h": 225,
-      "source": "Item-160-cropped.png"
+      "source": "Iron_Morning_Star_icon_(cropped).png"
     },
     "161": {
       "file": "assets/wiki/item_161.cdc21531d1.png",
       "w": 125,
       "h": 225,
-      "source": "Item-161-cropped.png"
+      "source": "Steel_Morning_Star_icon_(cropped).png"
     },
     "162": {
       "file": "assets/wiki/item_162.f64221ad80.png",
       "w": 205,
       "h": 60,
-      "source": "Item-162-cropped.png"
+      "source": "Toadkin_Meat_icon_(cropped).png"
     },
     "163": {
       "file": "assets/wiki/item_163.3976174341.png",
       "w": 195,
       "h": 60,
-      "source": "Item-163-cropped.png"
+      "source": "Grilled_Toadkin_Meat_icon_(cropped).png"
     },
     "164": {
       "file": "assets/wiki/item_164.f883d2b535.png",
       "w": 224,
       "h": 200,
-      "source": "Item-164-cropped.png"
+      "source": "Worn_Leather_Gloves_icon_(cropped).png"
     },
     "165": {
       "file": "assets/wiki/item_165.72425bd9b2.png",
       "w": 224,
       "h": 200,
-      "source": "Item-165-cropped.png"
+      "source": "Iron_Reinforced_Gloves_icon_(cropped).png"
     },
     "166": {
       "file": "assets/wiki/item_166.afb7484870.png",
       "w": 240,
       "h": 120,
-      "source": "Item-166-cropped.png"
+      "source": "Journeyman_Herbalist's_Belt_icon_(cropped).png"
     },
     "167": {
       "file": "assets/wiki/item_167.6b505fc350.png",
       "w": 248,
       "h": 128,
-      "source": "Item-167-cropped.png"
+      "source": "Expert_Herbalist's_Belt_icon_(cropped).png"
     },
     "168": {
       "file": "assets/wiki/item_168.b6998f4510.png",
       "w": 248,
       "h": 128,
-      "source": "Item-168-cropped.png"
+      "source": "Master_Herbalist's_Belt_icon_(cropped).png"
     },
     "169": {
       "file": "assets/wiki/item_169.bed317198a.png",
       "w": 88,
       "h": 240,
-      "source": "Item-169-cropped.png"
+      "source": "Heavy_Branch_(Cypress)_icon_(cropped).png"
     },
     "170": {
       "file": "assets/wiki/item_170.da0131befd.png",
       "w": 244,
       "h": 124,
-      "source": "Item-170-cropped.png"
+      "source": "Raft_Base_icon_(cropped).png"
     },
     "171": {
       "file": "assets/wiki/item_171.43a17bd4b9.png",
       "w": 184,
       "h": 184,
-      "source": "Item-171-cropped.png"
+      "source": "Finish_Raft_sprite_(cropped).png"
     },
     "172": {
       "file": "assets/wiki/item_172.91614aed2b.png",
       "w": 150,
       "h": 230,
-      "source": "Item-172-cropped.png"
+      "source": "Survivor's_Field_Kit_icon_(cropped).png"
     },
     "173": {
       "file": "assets/wiki/item_173.727f98c772.png",
       "w": 224,
       "h": 112,
-      "source": "Item-173-cropped.png"
+      "source": "Vile_Bulb_(Mushroom)_icon_(cropped).png"
     },
     "174": {
       "file": "assets/wiki/item_174.51dbbd2f5e.png",
       "w": 70,
       "h": 225,
-      "source": "Item-174-cropped.png"
+      "source": "Poison_Arrow_icon_(cropped).png"
     },
     "175": {
       "file": "assets/wiki/item_175.4ad6ba48a4.png",
       "w": 216,
       "h": 128,
-      "source": "Item-175-cropped.png"
+      "source": "Water_Lily_icon_(cropped).png"
     },
     "176": {
       "file": "assets/wiki/item_176.dff3ceab65.png",
       "w": 64,
       "h": 208,
-      "source": "Item-176-cropped.png"
+      "source": "Wayfarer's_Vigor_icon_(cropped).png"
     },
     "177": {
       "file": "assets/wiki/item_177.e23720a2c0.png",
       "w": 112,
       "h": 112,
-      "source": "Item-177-cropped.png"
+      "source": "Lump_of_Coal_icon_(cropped).png"
     },
     "178": {
       "file": "assets/wiki/item_178.e724ccfd22.png",
       "w": 104,
       "h": 104,
-      "source": "Item-178-cropped.png"
+      "source": "Small_Fire_Gland_icon_(cropped).png"
     },
     "179": {
       "file": "assets/wiki/item_179.3238c108d2.png",
       "w": 140,
       "h": 220,
-      "source": "Item-179-cropped.png"
+      "source": "Gurb's_Expertimental_Bow_icon_(cropped).png"
     },
     "180": {
       "file": "assets/wiki/item_180.0dca55183f.png",
       "w": 232,
       "h": 112,
-      "source": "Item-180-cropped.png"
+      "source": "Cave_Creeper_icon_(cropped).png"
     },
     "181": {
       "file": "assets/wiki/item_181.b0176b3d42.png",
       "w": 216,
       "h": 80,
-      "source": "Item-181-cropped.png"
+      "source": "Grilled_Cave_Creeper_icon_(cropped).png"
     },
     "182": {
       "file": "assets/wiki/item_182.9d659c7371.png",
       "w": 104,
       "h": 96,
-      "source": "Item-182-cropped.png"
+      "source": "Drake_Jasper_icon_(cropped).png"
     },
     "183": {
       "file": "assets/wiki/item_183.464a79da71.png",
       "w": 104,
       "h": 112,
-      "source": "Item-183-cropped.png"
+      "source": "Dragon_Flint_icon_(cropped).png"
     },
     "184": {
       "file": "assets/wiki/item_184.9d41068f3b.png",
       "w": 92,
       "h": 248,
-      "source": "Item-184-cropped.png"
+      "source": "Iron_Greatsword_icon_(cropped).png"
     },
     "185": {
       "file": "assets/wiki/item_185.59ba28861e.png",
       "w": 92,
       "h": 244,
-      "source": "Item-185-cropped.png"
+      "source": "Steel_Greatsword_icon_(cropped).png"
     },
     "186": {
       "file": "assets/wiki/item_186.bc9f05d77c.png",
       "w": 112,
       "h": 220,
-      "source": "Item-186-cropped.png"
+      "source": "Iron_Warhammer_icon_(cropped).png"
     },
     "187": {
       "file": "assets/wiki/item_187.b66f762f20.png",
       "w": 112,
       "h": 212,
-      "source": "Item-187-cropped.png"
+      "source": "Steel_Warhammer_icon_(cropped).png"
     },
     "188": {
       "file": "assets/wiki/item_188.5febee46ab.png",
       "w": 112,
       "h": 224,
-      "source": "Item-188-cropped.png"
+      "source": "Iron_Battleaxe_icon_(cropped).png"
     },
     "189": {
       "file": "assets/wiki/item_189.8898c7e7e9.png",
       "w": 120,
       "h": 244,
-      "source": "Item-189-cropped.png"
+      "source": "Steel_Battleaxe_icon_(cropped).png"
     },
     "190": {
       "file": "assets/wiki/item_190.af404e4f28.png",
       "w": 60,
       "h": 220,
-      "source": "Item-190-cropped.png"
+      "source": "Iron_Mace_icon_(cropped).png"
     },
     "191": {
       "file": "assets/wiki/item_191.12cb958afe.png",
       "w": 65,
       "h": 230,
-      "source": "Item-191-cropped.png"
+      "source": "Steel_Mace_icon_(cropped).png"
     },
     "192": {
       "file": "assets/wiki/item_192.3dadddb35a.png",
       "w": 105,
       "h": 200,
-      "source": "Item-192-cropped.png"
+      "source": "Leather_Leg_Armor_icon_(cropped).png"
     },
     "193": {
       "file": "assets/wiki/item_193.1f2638fe9b.png",
       "w": 120,
       "h": 180,
-      "source": "Item-193-cropped.png"
+      "source": "Iron_Legplates_icon_(cropped).png"
     },
     "194": {
       "file": "assets/wiki/item_194.c350ab5217.png",
       "w": 125,
       "h": 205,
-      "source": "Item-194-cropped.png"
+      "source": "Shabby_Leather_Vest_icon_(cropped).png"
     },
     "195": {
       "file": "assets/wiki/item_195.18385a4248.png",
       "w": 105,
       "h": 205,
-      "source": "Item-195-cropped.png"
+      "source": "Shabby_Leather_Leg_Armor_icon_(cropped).png"
     },
     "196": {
       "file": "assets/wiki/item_196.8b27cd4c39.png",
       "w": 120,
       "h": 200,
-      "source": "Item-196-cropped.png"
+      "source": "Forager's_Vest_icon_(cropped).png"
     },
     "197": {
       "file": "assets/wiki/item_197.252768fa37.png",
       "w": 120,
       "h": 195,
-      "source": "Item-197-cropped.png"
+      "source": "Explorer's_Vest_icon_(cropped).png"
     },
     "198": {
       "file": "assets/wiki/item_198.29bd3e5a62.png",
       "w": 120,
       "h": 195,
-      "source": "Item-198-cropped.png"
+      "source": "Expedition_Vest_icon_(cropped).png"
     },
     "199": {
       "file": "assets/wiki/item_199.fd307ef52c.png",
       "w": 216,
       "h": 176,
-      "source": "Item-199-cropped.png"
+      "source": "Tattered_Gloves_icon_(cropped).png"
     },
     "200": {
       "file": "assets/wiki/item_200.0e14e96f23.png",
       "w": 224,
       "h": 200,
-      "source": "Item-200-cropped.png"
+      "source": "Sturdy_Leather_Gloves_icon_(cropped).png"
     },
     "201": {
       "file": "assets/wiki/item_201.fa0dd7ef81.png",
       "w": 208,
       "h": 208,
-      "source": "Item-201-cropped.png"
+      "source": "Leather_Boots_icon_(cropped).png"
     },
     "202": {
       "file": "assets/wiki/item_202.66e4b38ddf.png",
       "w": 200,
       "h": 224,
-      "source": "Item-202-cropped.png"
+      "source": "Worn_Boots_icon_(cropped).png"
     },
     "203": {
       "file": "assets/wiki/item_203.077ace9ace.png",
       "w": 200,
       "h": 160,
-      "source": "Item-203-cropped.png"
+      "source": "Wanderer's_Shoes_icon_(cropped).png"
     },
     "204": {
       "file": "assets/wiki/item_204.1761632caf.png",
       "w": 208,
       "h": 232,
-      "source": "Item-204-cropped.png"
+      "source": "Wool_Hood_icon_(cropped).png"
     },
     "205": {
       "file": "assets/wiki/item_205.b50ab8cdf8.png",
       "w": 216,
       "h": 240,
-      "source": "Item-205-cropped.png"
+      "source": "Ranger's_Hood_icon_(cropped).png"
     },
     "206": {
       "file": "assets/wiki/item_206.cf38d2c940.png",
       "w": 92,
       "h": 236,
-      "source": "Item-206-cropped.png"
+      "source": "Thorns_of_Wackah_icon_(cropped).png"
     },
     "207": {
       "file": "assets/wiki/item_207.4052d324f1.png",
       "w": 125,
       "h": 215,
-      "source": "Item-207-cropped.png"
+      "source": "Decent_Cloak_icon_(cropped).png"
     },
     "208": {
       "file": "assets/wiki/item_208.0a6de1c616.png",
       "w": 145,
       "h": 205,
-      "source": "Item-208-cropped.png"
+      "source": "Traveller's_Cloak_icon_(cropped).png"
     },
     "209": {
       "file": "assets/wiki/item_209.27fa27c060.png",
       "w": 145,
       "h": 215,
-      "source": "Item-209-cropped.png"
+      "source": "Ranger's_Cloak_icon_(cropped).png"
     },
     "210": {
       "file": "assets/wiki/item_210.817a482133.png",
       "w": 104,
       "h": 208,
-      "source": "Item-210-cropped.png"
+      "source": "Bark_(Willow)_icon_(cropped).png"
     },
     "211": {
       "file": "assets/wiki/item_211.99789aeb0a.png",
       "w": 72,
       "h": 216,
-      "source": "Item-211-cropped.png"
+      "source": "Bark_(Cypress)_icon_(cropped).png"
     },
     "212": {
       "file": "assets/wiki/item_212.5c4e0b9f3b.png",
       "w": 65,
       "h": 225,
-      "source": "Item-212-cropped.png"
+      "source": "Improvised_Enduring_Torch_icon_(cropped).png"
     },
     "213": {
       "file": "assets/wiki/item_213.194d93ef1c.png",
       "w": 70,
       "h": 230,
-      "source": "Item-213-cropped.png"
+      "source": "Branch_(Trollgnarl)_icon_(cropped).png"
     },
     "214": {
       "file": "assets/wiki/item_214.678f152fe1.png",
       "w": 140,
       "h": 225,
-      "source": "Item-214-cropped.png"
+      "source": "Log_Chunk_(Trollgnarl)_icon_(cropped).png"
     },
     "215": {
       "file": "assets/wiki/item_215.b16a76a04f.png",
       "w": 75,
       "h": 230,
-      "source": "Item-215-cropped.png"
+      "source": "Firewood_(Trollgnarl)_icon_(cropped).png"
     },
     "216": {
       "file": "assets/wiki/item_216.2e04fe9690.png",
       "w": 112,
       "h": 240,
-      "source": "Item-216-cropped.png"
+      "source": "Bark_(Trollgnarl)_icon_(cropped).png"
     },
     "217": {
       "file": "assets/wiki/item_217.038493b8ea.png",
       "w": 112,
       "h": 112,
-      "source": "Item-217-cropped.png"
+      "source": "Bramble_Berries_icon_(cropped).png"
     },
     "218": {
       "file": "assets/wiki/item_218.082d19b60e.png",
       "w": 112,
       "h": 112,
-      "source": "Item-218-cropped.png"
+      "source": "Riftvine_Berries_icon_(cropped).png"
     },
     "219": {
       "file": "assets/wiki/item_219.1008dfd78c.png",
       "w": 65,
       "h": 225,
-      "source": "Item-219-cropped.png"
+      "source": "Poison_Arrow_II_icon_(cropped).png"
     },
     "220": {
       "file": "assets/wiki/item_220.f5cade84fd.png",
       "w": 70,
       "h": 230,
-      "source": "Item-220-cropped.png"
+      "source": "Poison_Arrow_III_icon_(cropped).png"
     },
     "221": {
       "file": "assets/wiki/item_221.ea3113fb56.png",
       "w": 104,
       "h": 240,
-      "source": "Item-221-cropped.png"
+      "source": "Turnip_(item)_icon_(cropped).png"
     },
     "222": {
       "file": "assets/wiki/item_222.de71c1a2be.png",
       "w": 96,
       "h": 96,
-      "source": "Item-222-cropped.png"
+      "source": "Grilled_Turnip_icon_(cropped).png"
     },
     "223": {
       "file": "assets/wiki/item_223.3c3bb756d4.png",
       "w": 240,
       "h": 128,
-      "source": "Item-223-cropped.png"
+      "source": "Elderwort_Berries_icon_(cropped).png"
     },
     "224": {
       "file": "assets/wiki/item_224.095b71f93b.png",
       "w": 50,
       "h": 220,
-      "source": "Item-224-cropped.png"
+      "source": "Branch_(Elderwort)_icon_(cropped).png"
     },
     "225": {
       "file": "assets/wiki/item_225.87f906ffa3.png",
       "w": 96,
       "h": 112,
-      "source": "Item-225-cropped.png"
+      "source": "Cranberries_icon_(cropped).png"
     },
     "226": {
       "file": "assets/wiki/item_226.20ce79343d.png",
       "w": 240,
       "h": 232,
-      "source": "Item-226-cropped.png"
+      "source": "Watercress_icon_(cropped).png"
     },
     "227": {
       "file": "assets/wiki/item_227.afb860314f.png",
       "w": 96,
       "h": 112,
-      "source": "Item-227-cropped.png"
+      "source": "Bramble_Seeds_icon_(cropped).png"
     },
     "228": {
       "file": "assets/wiki/item_228.3abdee2d0b.png",
       "w": 96,
       "h": 112,
-      "source": "Item-228-cropped.png"
+      "source": "Elderberry_Seeds_icon_(cropped).png"
     },
     "229": {
       "file": "assets/wiki/item_229.7708747841.png",
       "w": 96,
       "h": 112,
-      "source": "Item-229-cropped.png"
+      "source": "Cranberry_Seeds_icon_(cropped).png"
     },
     "230": {
       "file": "assets/wiki/item_230.3ed61c2caf.png",
       "w": 96,
       "h": 112,
-      "source": "Item-230-cropped.png"
+      "source": "Turnip_Seeds_icon_(cropped).png"
     },
     "231": {
       "file": "assets/wiki/item_231.fcca4e88a5.png",
       "w": 96,
       "h": 112,
-      "source": "Item-231-cropped.png"
+      "source": "Watercress_Seeds_icon_(cropped).png"
     },
     "232": {
       "file": "assets/wiki/item_232.c4dc820b54.png",
       "w": 80,
       "h": 88,
-      "source": "Item-232-cropped.png"
+      "source": "Willow_Seeds_icon_(cropped).png"
     },
     "233": {
       "file": "assets/wiki/item_233.20e648ac88.png",
       "w": 88,
       "h": 88,
-      "source": "Item-233-cropped.png"
+      "source": "Cypress_Seed_Pods_icon_(cropped).png"
     },
     "234": {
       "file": "assets/wiki/item_234.c9080bbb3e.png",
       "w": 88,
       "h": 96,
-      "source": "Item-234-cropped.png"
+      "source": "Trollgnarl_Seed_Pods_icon_(cropped).png"
     },
     "235": {
       "file": "assets/wiki/item_235.d8dc028f31.png",
       "w": 224,
       "h": 176,
-      "source": "Item-235-cropped.png"
+      "source": "Pleasant_Vegetable_Soup_icon_(cropped).png"
     },
     "236": {
       "file": "assets/wiki/item_236.54044affa0.png",
       "w": 224,
       "h": 176,
-      "source": "Item-236-cropped.png"
+      "source": "Tasty_Crab_Soup_icon_(cropped).png"
     },
     "237": {
       "file": "assets/wiki/item_237.77cf245306.png",
       "w": 224,
       "h": 176,
-      "source": "Item-237-cropped.png"
+      "source": "Survivor's_Delight_icon_(cropped).png"
     },
     "238": {
       "file": "assets/wiki/item_238.350515c055.png",
       "w": 140,
       "h": 220,
-      "source": "Item-238-cropped.png"
+      "source": "Chopping_Log_icon_(cropped).png"
     },
     "239": {
       "file": "assets/wiki/item_239.14cd1813cd.png",
       "w": 230,
       "h": 230,
-      "source": "Item-239-cropped.png"
+      "source": "Primitive_Farmwork_Table_icon_(cropped).png"
     },
     "240": {
       "file": "assets/wiki/item_240.b84e8f8533.png",
       "w": 188,
       "h": 248,
-      "source": "Item-240-cropped.png"
+      "source": "Simple_Shelter_icon_(cropped).png"
     },
     "241": {
       "file": "assets/wiki/item_241.bc29eaf11c.png",
       "w": 112,
       "h": 96,
-      "source": "Item-241-cropped.png"
+      "source": "Wakebug_icon_(cropped).png"
     },
     "242": {
       "file": "assets/wiki/item_242.40e3edc667.png",
       "w": 232,
       "h": 104,
-      "source": "Item-242-cropped.png"
+      "source": "Baby_Firelouse_icon_(cropped).png"
     },
     "243": {
       "file": "assets/wiki/item_243.ee709f2cb0.png",
       "w": 112,
       "h": 112,
-      "source": "Item-243-cropped.png"
+      "source": "Bursthopper_icon_(cropped).png"
     },
     "244": {
       "file": "assets/wiki/item_244.c89210b146.png",
       "w": 80,
       "h": 72,
-      "source": "Item-244-cropped.png"
+      "source": "Grilled_Wakebug_icon_(cropped).png"
     },
     "245": {
       "file": "assets/wiki/item_245.6d8ca78a59.png",
       "w": 200,
       "h": 80,
-      "source": "Item-245-cropped.png"
+      "source": "Grilled_Baby_Firelouse_icon_(cropped).png"
     },
     "246": {
       "file": "assets/wiki/item_246.c213938d2a.png",
       "w": 104,
       "h": 72,
-      "source": "Item-246-cropped.png"
+      "source": "Grilled_Bursthopper_icon_(cropped).png"
     },
     "247": {
       "file": "assets/wiki/item_247.fd21fe31ad.png",
       "w": 96,
       "h": 88,
-      "source": "Item-247-cropped.png"
+      "source": "Firefly_icon_(cropped).png"
     },
     "248": {
       "file": "assets/wiki/item_248.f9f7e40c96.png",
       "w": 160,
       "h": 216,
-      "source": "Item-248-cropped.png"
+      "source": "Jar_of_Fireflies_icon_(cropped).png"
     },
     "249": {
       "file": "assets/wiki/item_249.5301d4cc47.png",
       "w": 48,
       "h": 231,
-      "source": "Item-249-cropped.png"
+      "source": "Canopy_(2x2_tiles)_icon_(cropped).png"
     },
     "250": {
       "file": "assets/wiki/item_250.310cc28c8c.png",
       "w": 90,
       "h": 234,
-      "source": "Item-250-cropped.png"
+      "source": "Canopy_(3x3_tiles)_icon_(cropped).png"
     },
     "251": {
       "file": "assets/wiki/item_251.55fc86ec88.png",
       "w": 112,
       "h": 232,
-      "source": "Item-251-cropped.png"
+      "source": "Gurb's_Flask_of_Vileness_icon_(cropped).png"
     },
     "252": {
       "file": "assets/wiki/item_252.a0f60f19dc.png",
       "w": 112,
       "h": 240,
-      "source": "Item-252-cropped.png"
+      "source": "Map_Ledger_icon_(cropped).png"
     },
     "253": {
       "file": "assets/wiki/item_253.e8f0b68e6b.png",
       "w": 112,
       "h": 216,
-      "source": "Item-253-cropped.png"
+      "source": "Flask_of_Fire_icon_(cropped).png"
     },
     "254": {
       "file": "assets/wiki/item_254.35d5407d1b.png",
       "w": 104,
       "h": 88,
-      "source": "Item-254-cropped.png"
+      "source": "Iron_Firesteel_icon_(cropped).png"
     },
     "255": {
       "file": "assets/wiki/item_255.a7f550fb70.png",
       "w": 104,
       "h": 88,
-      "source": "Item-255-cropped.png"
+      "source": "Worn_Firesteel_icon_(cropped).png"
     },
     "256": {
       "file": "assets/wiki/item_256.21d5318ad5.png",
       "w": 220,
       "h": 75,
-      "source": "Item-256-cropped.png"
+      "source": "Furhide_Bedroll_icon_(cropped).png"
     },
     "257": {
       "file": "assets/wiki/item_257.d0b4c15e94.png",
       "w": 225,
       "h": 70,
-      "source": "Item-257-cropped.png"
+      "source": "Improvised_Bedroll_icon_(cropped).png"
     },
     "258": {
       "file": "assets/wiki/item_258.63605fb1fa.png",
       "w": 240,
       "h": 232,
-      "source": "Item-258-cropped.png"
+      "source": "Bat_Hide_icon_(cropped).png"
     },
     "259": {
       "file": "assets/wiki/item_259.bafe41a893.png",
       "w": 70,
       "h": 225,
-      "source": "Item-259-cropped.png"
+      "source": "Bat_Meat_icon_(cropped).png"
     },
     "260": {
       "file": "assets/wiki/item_260.941b16e768.png",
       "w": 60,
       "h": 210,
-      "source": "Item-260-cropped.png"
+      "source": "Grilled_Bat_Meat_icon_(cropped).png"
     },
     "261": {
       "file": "assets/wiki/item_261.6ad908fe51.png",
       "w": 160,
       "h": 240,
-      "source": "Item-261.png"
+      "source": "Head_of_The_Terror_icon.png"
     },
     "262": {
       "file": "assets/wiki/item_262.386df4b7d3.png",
       "w": 104,
       "h": 240,
-      "source": "Item-262-cropped.png"
+      "source": "Magus'_Shard_icon_(cropped).png"
     },
     "264": {
       "file": "assets/wiki/item_264.6b94556511.png",
       "w": 216,
       "h": 240,
-      "source": "Item-264-cropped.png"
+      "source": "Clays'_Magus_Hood_icon_(cropped).png"
     },
     "265": {
       "file": "assets/wiki/item_265.b201663ec0.png",
       "w": 240,
       "h": 112,
-      "source": "Item-265-cropped.png"
+      "source": "Magi's_Ropebelt_icon_(cropped).png"
     },
     "266": {
       "file": "assets/wiki/item_266.373700f836.png",
       "w": 56,
       "h": 248,
-      "source": "Item-266-cropped.png"
+      "source": "Staff_of_The_Fire_Eater_icon_(cropped).png"
     },
     "267": {
       "file": "assets/wiki/item_267.c6f66fada7.png",
       "w": 192,
       "h": 192,
-      "source": "Item-267-cropped.png"
+      "source": "Orb_of_Poison_icon_(cropped).png"
     },
     "268": {
       "file": "assets/wiki/item_268.1d87cd57ca.png",
       "w": 240,
       "h": 240,
-      "source": "Item-268-cropped.png"
+      "source": "Orb_of_Greater_Poison_icon_(cropped).png"
     },
     "269": {
       "file": "assets/wiki/item_269.a83a64b2bf.png",
       "w": 160,
       "h": 192,
-      "source": "Item-269-cropped.png"
+      "source": "Orb_of_Fire_icon_(cropped).png"
     },
     "270": {
       "file": "assets/wiki/item_270.5a9eef67ea.png",
       "w": 224,
       "h": 224,
-      "source": "Item-270-cropped.png"
+      "source": "Orb_of_Greater_Fire_icon_(cropped).png"
     },
     "271": {
       "file": "assets/wiki/item_271.c31699109f.png",
       "w": 160,
       "h": 192,
-      "source": "Item-271-cropped.png"
+      "source": "Orb_of_Iron_Essence_icon_(cropped).png"
     },
     "272": {
       "file": "assets/wiki/item_272.29d4fdfacd.png",
       "w": 160,
       "h": 192,
-      "source": "Item-272-cropped.png"
+      "source": "Orb_of_Steel_Essence_icon_(cropped).png"
     },
     "273": {
       "file": "assets/wiki/item_273.18366944de.png",
       "w": 192,
       "h": 208,
-      "source": "Item-273-cropped.png"
+      "source": "Orb_of_Wind_icon_(cropped).png"
     },
     "274": {
       "file": "assets/wiki/item_274.07dac14975.png",
       "w": 200,
       "h": 216,
-      "source": "Item-274-cropped.png"
+      "source": "Orb_of_Storm_icon_(cropped).png"
     },
     "275": {
       "file": "assets/wiki/item_275.f488f46064.png",
       "w": 220,
       "h": 215,
-      "source": "Item-275-cropped.png"
+      "source": "Storage_Chest_icon_(cropped).png"
     }
   },
   "places": {
@@ -1827,19 +1827,19 @@
       "file": "assets/wiki/place_bhato_s_hideout.aa3f457832.png",
       "w": 48,
       "h": 42,
-      "source": "Ranger-Bhato-hut-exterior-cropped.png"
+      "source": "Ranger_Bhato_exterior_(cropped).png"
     },
     "Gurb-Gurb's hut": {
       "file": "assets/wiki/place_gurb_gurb_s_hut.797c6aab7f.png",
       "w": 79,
       "h": 120,
-      "source": "Gurb-Gurb-hollow-exterior-cropped.png"
+      "source": "Gurb-Gurb_exterior_(cropped).png"
     },
     "Ihar's shipwreck": {
       "file": "assets/wiki/place_ihar_s_shipwreck.90d58e082b.png",
       "w": 128,
       "h": 92,
-      "source": "Ihar-shipwreck-exterior-cropped.png"
+      "source": "Ihar_exterior_(cropped).png"
     }
   }
 }

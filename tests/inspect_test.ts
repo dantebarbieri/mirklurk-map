@@ -23,7 +23,7 @@ Deno.test("raft picture: finished and ridden rafts use world frame 1, bases keep
   assertEquals(markImage({ ...raft, kind: "raft yours", detail: "you stand on it" }), image);
   assertEquals(markImage({ ...raft, kind: "raft base", item: 170, name: "Raft Base" }), itemImage(170));
   assert(itemImage(170));
-  assertEquals(itemImage(171)?.source, "Item-171-cropped.png", "the wiki shows a finished raft as it looks in the world");
+  assertEquals(itemImage(171)?.source, "Finish_Raft_sprite_(cropped).png", "the wiki shows a finished raft as it looks in the world");
   assert(/^assets\/game\/[a-z0-9_]+\.[0-9a-f]{10}\.png$/.test(image.file));
   const bytes = await Deno.readFile(new URL(`../${image.file}`, import.meta.url));
   const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].slice(0, 5)

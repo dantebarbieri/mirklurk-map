@@ -1,4 +1,6 @@
 // Refresh the public title allowlist and the bundled wiki images. No save data or game files are sent to the wiki.
+import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
+import { beingTitle, itemTitle } from "../src/wiki.ts";
 import { contentHash, removeTree } from "./shared.ts";
 
 const API = "https://mirklurk.wiki/api.php";
@@ -32,11 +34,12 @@ await Deno.writeTextFile(
 );
 console.log(`Verified ${titles.length} public wiki titles`);
 
-// Images: one per creature or NPC (by being index, its in-world look first), per item, and per place below.
+// Images, named on the wiki by page title: one per creature or NPC (by being index, its in-world sprite before its portrait),
+// per item, and per place below (by the page of the NPC who lives there).
 const PLACES: Record<string, string> = {
-  "Bhato's hideout": "Ranger-Bhato-hut-exterior",
-  "Gurb-Gurb's hut": "Gurb-Gurb-hollow-exterior",
-  "Ihar's shipwreck": "Ihar-shipwreck-exterior",
+  "Bhato's hideout": "Ranger Bhato",
+  "Gurb-Gurb's hut": "Gurb-Gurb",
+  "Ihar's shipwreck": "Ihar",
 };
 const files = new Map<string, string>();
 for (const image of await query({ ailimit: "500", aiprop: "url" }, "allimages", "aicontinue")) {
@@ -44,16 +47,16 @@ for (const image of await query({ ailimit: "500", aiprop: "url" }, "allimages", 
   if (!image.url.startsWith("https://mirklurk.wiki/images/")) throw new Error(`Unexpected image URL ${image.url}`);
   files.set(image.name, image.url);
 }
-/** The first of `names` the wiki has. */
-const pick = (...names: string[]) => names.find((n) => files.has(n));
-const indices = (re: RegExp) => [...new Set([...files.keys()].flatMap((n) => re.exec(n)?.[1] ?? []))].map(Number).sort((a, b) => a - b);
+/** The first file the wiki has for page `title`, trying each kind (such as "sprite") cropped and then whole. */
+const pick = (title: string, ...kinds: string[]) => {
+  const base = title.replaceAll(" ", "_");
+  return kinds.flatMap((kind) => [`${base}_${kind}_(cropped).png`, `${base}_${kind}.png`]).find((n) => files.has(n));
+};
 type Group = "beings" | "items" | "places";
 const wanted: [Group, string, string | undefined][] = [];
-for (const i of indices(/^Being-(\d+)/)) {
-  wanted.push(["beings", String(i), pick(...["-overworld-cropped", "-cropped", "-overworld", ""].map((v) => `Being-${i}${v}.png`))]);
-}
-for (const i of indices(/^Item-(\d+)/)) wanted.push(["items", String(i), pick(`Item-${i}-cropped.png`, `Item-${i}.png`)]);
-for (const [name, f] of Object.entries(PLACES)) wanted.push(["places", name, pick(`${f}-cropped.png`, `${f}.png`)]);
+for (const [i, name] of Object.entries(BEING_NAMES)) wanted.push(["beings", i, pick(beingTitle(name, Number(i)), "sprite", "portrait")]);
+for (const [i, name] of Object.entries(ITEM_NAMES)) wanted.push(["items", i, pick(itemTitle(name), "icon", "sprite")]);
+for (const [name, title] of Object.entries(PLACES)) wanted.push(["places", name, pick(title, "exterior")]);
 
 const out = new URL("../assets/wiki/", import.meta.url);
 await removeTree(out);

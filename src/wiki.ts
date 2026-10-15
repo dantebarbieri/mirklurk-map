@@ -9,8 +9,11 @@ export function wikiUrl(title: string): string | undefined {
   return titles.has(title) ? `https://mirklurk.wiki/w/${encodeURIComponent(title.replaceAll(" ", "_"))}` : undefined;
 }
 
+/** The wiki page title for an item, which is its name unless another page has it. */
+export const itemTitle = (name: string) => name === "Turnip" ? "Turnip (item)" : name;
+
 export function itemWiki(name: string): string | undefined {
-  return wikiUrl(name === "Turnip" ? "Turnip (item)" : name);
+  return wikiUrl(itemTitle(name));
 }
 
 const aliases: Record<string, string> = {
@@ -47,6 +50,9 @@ const aliases: Record<string, string> = {
 
 /** Beings that share another's name but have their own page: Magus Clay in his realm is fought as a boss. */
 const BEING_PAGES: Readonly<Record<number, string>> = { 41: "Magus Clay (boss)" };
+
+/** The wiki page title for a being, which is its name unless it has a page of its own. */
+export const beingTitle = (name: string, being: number) => BEING_PAGES[being] ?? name;
 
 export function entityWiki(name: string, fallback = "World generation", being?: number): string | undefined {
   const title = name.replace(/^Carcass: /, "");
