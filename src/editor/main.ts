@@ -1448,8 +1448,10 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
   const add = async (index: number, n: number) => {
     let left: number | undefined;
     checkItem(index);
+    // Kept as the edit is made, so replaying it after a version switch makes the same items.
+    const rules = editorRules();
     await editPlayer("items", (rec) => {
-      const r = addItems(rec, index, n, editorRules());
+      const r = addItems(rec, index, n, rules);
       // As it was added: the session may run the edit again without earlier changes, to see whether they still do anything.
       left ??= r.left;
       return r.added ? `Added ${r.added} × ${ITEM_NAMES[index]}${r.turned ? " (some turned sideways to fit)" : ""}` : undefined;
@@ -1493,8 +1495,9 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
           if (index === undefined) throw new Error("Pick an item from the list");
           const n = readWhole(amount, "Amount");
           checkItem(index);
+          const rules = editorRules();
           await editPlayer("items", (rec) => {
-            const r = wearNew(rec, index, n, undefined, editorRules());
+            const r = wearNew(rec, index, n, undefined, rules);
             return `Put on ${r.amount > 1 ? `${r.amount} × ` : ""}${itemName(index)} (${slotLabel(r.slot)})`;
           });
         }),
@@ -1762,13 +1765,15 @@ function upkeepView(p: Rec): HTMLElement {
 }
 
 async function upkeep(what: Upkeep, cardId = "items") {
+  // Kept as the edit is made, so replaying it after a version switch restores to the same maximums.
+  const rules = editorRules();
   await editPlayer(cardId, (rec) => {
     if (what === "repair") {
-      const list = repairAll(rec, editorRules());
+      const list = repairAll(rec, rules);
       return list.length ? `Repaired ${nameList(list)}` : undefined;
     }
     if (what === "refuel") {
-      const list = refuelAll(rec, editorRules());
+      const list = refuelAll(rec, rules);
       return list.length ? `Refuelled ${nameList(list)}` : undefined;
     }
     const r = dryAll(rec);
@@ -1811,11 +1816,12 @@ function conditionEditor(c: CarriedItem, rec: Rec, holder?: string): HTMLElement
   const set = (what: string, e: () => ConditionEdit) =>
     act("items", () => {
       const change = e();
+      const rules = editorRules();
       return editPlayer("items", (draft) => {
         const old = itemAt(draft, place);
-        const was = old ? conditionOf(itemState(old), editorRules()) : {};
+        const was = old ? conditionOf(itemState(old), rules) : {};
         const wasWet = old && isWet(itemState(old)) ? Number(old.wet) : 0;
-        setCondition(draft, place, index, change, editorRules());
+        setCondition(draft, place, index, change, rules);
         const changes: string[] = [];
         if (change.durability !== undefined && was.durability && change.durability !== was.durability.value) {
           const { kind, value, max } = was.durability;
