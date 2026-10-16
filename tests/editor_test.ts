@@ -681,6 +681,24 @@ Deno.test("condition: setting an item's durability, fuel or wetness keeps to wha
   assertEquals(parsed.items[0].burnTimeLeft, 0, "the viewer reads the fuel back");
 });
 
+Deno.test("condition: orbs are made, repaired and set to 30 durability since 0.9.0.1, and to 1 with none shown before", () => {
+  assertEquals([newItem(270, 1, [0, 0]).durability, newItem(270, 1, [0, 0], undefined, "0.9.0.0").durability], [30, 1]);
+  const p = dressed({ 8: { ...backpack(), durability: ITEMS[12].durability } });
+  assertEquals(addItems(p, 270, 1, "0.8.9.9").added, 1);
+  assertEquals(addItems(p, 267, 1).added, 1);
+  assertEquals(wearNew(p, 273, 1, undefined, "0.9.0.0").amount, 1);
+  const all = () => carriedItems(p).flatMap((c) => [c, ...c.contents]).filter((c) => c.index !== 12);
+  const orbs = all();
+  assertEquals(orbs.map((c) => [c.index, itemAt(p, c.place)!.durability]), [[273, 1], [270, 1], [267, 30]]);
+  // An older game shows no orb durability, so there is nothing to repair or set; Latest's tops each up to 30.
+  assertEquals(needing(p, "repair", "0.9.0.0").map((c) => c.index), []);
+  assertThrows(() => setCondition(p, orbs[2].place, 267, { durability: 5 }, "0.9.0.0"), /no durability/);
+  setCondition(p, orbs[2].place, 267, { durability: 5 });
+  assertThrows(() => setCondition(p, orbs[2].place, 267, { durability: 31 }), /at most 30/);
+  assertEquals(repairAll(p).map((c) => c.index), [273, 270, 267]);
+  assertEquals(all().map((c) => itemAt(p, c.place)!.durability), [30, 30, 30]);
+});
+
 Deno.test("spawned creatures have a fresh grid; quest characters are protected", () => {
   const b = newBeing(17, 10, 20);
   assertEquals([b.index, b.x, b.y, b.status, b.state, b.homeX, b.localStage, b.turnLimit], [17, 168, 328, -200, 0, E, -1, E]);

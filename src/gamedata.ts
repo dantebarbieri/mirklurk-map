@@ -340,7 +340,7 @@ export const ITEM_NAMES: Record<number, string> = {
   260: "Grilled Bat Meat",
   261: "Head of The Terror",
   262: "Magus' Shard",
-  264: "Clays' Magus Hood",
+  264: "Clay's Magus Hood",
   265: "Magi's Ropebelt",
   266: "Staff of The Fire Eater",
   267: "Orb of Poison",

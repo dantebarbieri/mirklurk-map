@@ -33,9 +33,9 @@ const HARD = 3;
 
 const amount = (hp: number, armor: number) => `${plural(hp, "hit point")}${armor ? `, ${armor} armor` : ""}`;
 
-/** The saved grid against a fresh one's (being_initiate), or the fresh shape when the save has none. */
-function hitPoints(being: number, saved: HealthGrid | undefined): HTMLElement[] {
-  const cells = freshHealth(being);
+/** The saved grid against a fresh one's (being_initiate) under `rules`, or the fresh shape when the save has none. */
+function hitPoints(being: number, saved: HealthGrid | undefined, rules: GameVersion): HTMLElement[] {
+  const cells = freshHealth(being, rules);
   const fresh = cells && parseHealth(cells);
   const full = fresh && summarize(fresh);
   if (!saved) {
@@ -203,7 +203,7 @@ export function creatureView(being: number, health: HealthGrid | undefined, ctx:
   const now = health && summarize(health);
   const title = now ? `Hit points (${now.healthy} of ${now.total})` : "Hit points";
   return [
-    sectioned(section(ctx, "hit-points", title, true, ...hitPoints(being, health))),
+    sectioned(section(ctx, "hit-points", title, true, ...hitPoints(being, health, ctx.rules))),
     sectioned(section(ctx, "attack", s.ranged ? "Attacks" : "Attack", true, ...attackSection(s, ctx.difficulty, ctx.rules))),
     sectioned(section(ctx, "behaviour", "Behaviour", true, behaviour(s))),
     h(

@@ -3,6 +3,7 @@
 
 import { assert, assertEquals } from "./assert.ts";
 import {
+  armorOf,
   BEINGS,
   canHurt,
   damageCell,
@@ -143,7 +144,12 @@ Deno.test("bestiary: fresh hit points match saved full-health beings", () => {
     [-4, -4, -4, 3, 3, 3, -4, -4, -4],
   ]);
   assertEquals(freshHealth(36), Array(4).fill([1, 1, 1, 1, 1]));
-  assertEquals(freshHealth(41), Array(7).fill([1, 1, 1, 1, 1, 1, 1]));
+  // Magus Clay: 49 armor since 0.9.0.1, one layer on each of his 7×7 hit points; none before.
+  assertEquals(freshHealth(41), Array(7).fill([2, 2, 2, 2, 2, 2, 2]));
+  assertEquals(freshHealth(41, "0.9.0.1"), freshHealth(41));
+  assertEquals(freshHealth(41, "0.9.0.0"), Array(7).fill([1, 1, 1, 1, 1, 1, 1]));
+  assertEquals([armorOf(41), armorOf(41, "0.8.9.9"), armorOf(30, "0.8.1.5"), armorOf(-1)], [49, 0, BEINGS[30].armor, 0]);
+  assertEquals(freshHealth(30, "0.8.1.5"), freshHealth(30), "the others' armor is unchanged");
   // Scaal: 4 at the centre down to 1 at the corners, by distance (halves round to even).
   const scaal = freshHealth(22)!;
   assertEquals(scaal[4], [2, 2, 3, 4, 4, 4, 3, 2, 2]);

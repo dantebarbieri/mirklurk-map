@@ -1,4 +1,4 @@
-// What the traders sell and how trading works, ported from Mirklurk 0.9.0.0 (0.8.9.9's rules) and 0.8.1.5 (decompiled GML).
+// What the traders sell and how trading works, ported from Mirklurk 0.9.0.2 (0.9.0.1's rules), 0.8.9.9 and 0.8.1.5 (decompiled GML).
 // References name the source entry.
 
 import { type Coins, coinsView, priceCoins } from "./coins.ts";
@@ -47,7 +47,7 @@ export function stockOf(being: number, rules: GameVersion): readonly number[] {
 
 /**
  * Every ware's itemDB entry (gml_Object_databank_Alarm_1): price in silver, size in inventory cells (its sprite's size ÷ 16)
- * and item type. The databank's crafting-cost floor raises none of these prices.
+ * and item type, as 0.9.0.1 set them (`priceOf` has earlier prices). The databank's crafting-cost floor raises none of these prices.
  */
 const WARE_DATA: Readonly<Record<number, readonly [price: number, w: number, h: number, type: number]>> = {
   8: [20, 1, 4, 16], // Steel Longsword
@@ -91,7 +91,7 @@ const WARE_DATA: Readonly<Record<number, readonly [price: number, w: number, h: 
   191: [11.5, 1, 3, 16], // Steel Mace
   206: [20, 2, 4, 17], // Thorns of Wackah
   212: [0.08, 1, 3, 23], // Improvised Enduring Torch
-  219: [0.12, 1, 3, 24], // Poison Arrow II
+  219: [0.25, 1, 3, 24], // Poison Arrow II
   248: [1, 2, 2, 22], // Jar of Fireflies
   249: [5, 1, 5, 22], // Canopy (2x2 tiles)
   250: [15, 2, 5, 22], // Canopy (3x3 tiles)
@@ -110,30 +110,38 @@ const WARE_DATA: Readonly<Record<number, readonly [price: number, w: number, h: 
   275: [15, 3, 3, 22], // Storage Chest
 };
 
-/** What each ware costs, in silver (1 gold = 10 silver = 1000 copper). */
+/** What each ware costs in the latest game, in silver (1 gold = 10 silver = 1000 copper). */
 export const PRICES: Readonly<Record<number, number>> = Object.fromEntries(
   Object.entries(WARE_DATA).map(([index, [price]]) => [index, price]),
 );
+
+/** Prices before 0.9.0.1, which raised Poison Arrow II's from 12 to 25 copper. */
+const PRICES_BEFORE_0901: Readonly<Record<number, number>> = { 219: 0.12 };
+
+/** What ware `index` costs under `rules`, in silver. */
+export const priceOf = (index: number, rules: GameVersion): number =>
+  (!atLeast(rules, "0.9.0.1") ? PRICES_BEFORE_0901[index] : undefined) ?? PRICES[index];
 
 /** How far inventory_sort (gml_GlobalScript_scr_basic_useful) pushes some item types back, by type. */
 const TYPE_SHIFT: Readonly<Record<number, number>> = { 25: 500, 24: 450, 20: 400, 14: 300, 18: 200, 22: 100, 26: 50, 27: 40, 23: 30 };
 
 /** inventory_sort's priority: larger first, then cheaper, with arrows, medicine, camp gear, repair kits and torches further back. */
-export function sortWeight(index: number): number {
-  const [price, w, h, type] = WARE_DATA[index];
-  return w * h * 1000 - price - (TYPE_SHIFT[type] ?? 0);
+export function sortWeight(index: number, rules: GameVersion): number {
+  const [, w, h, type] = WARE_DATA[index];
+  return w * h * 1000 - priceOf(index, rules) - (TYPE_SHIFT[type] ?? 0);
 }
 
 /**
  * Stock as the trade window lists it after inventory_sort, highest priority first. Equal priorities (Ihar's three 30-silver
  * two-handers) keep the stock order here; the game breaks such ties by where they lay in the grid, which is not modelled.
  */
-export const tradeOrder = (stock: readonly number[]) => [...stock].sort((a, b) => sortWeight(b) - sortWeight(a));
+export const tradeOrder = (stock: readonly number[], rules: GameVersion) =>
+  [...stock].sort((a, b) => sortWeight(b, rules) - sortWeight(a, rules));
 
 /** A trader's wares under `rules` in display order. Commander Tain's single ware skips the sort, as in menu_add. */
 export function waresIn(being: number, rules: GameVersion): readonly number[] {
   const stock = stockOf(being, rules);
-  return being === Trader.Tain ? stock : tradeOrder(stock);
+  return being === Trader.Tain ? stock : tradeOrder(stock, rules);
 }
 
 /** Whether a being trades with the player under `rules`. */
@@ -156,8 +164,8 @@ export const waresOf = (being: number, rules: GameVersion): Ware[] =>
   waresIn(being, rules).map((index) => ({
     index,
     name: ITEM_NAMES[index] ?? `Item ${index}`,
-    price: PRICES[index],
-    coins: priceCoins(PRICES[index]),
+    price: priceOf(index, rules),
+    coins: priceCoins(priceOf(index, rules)),
     ...(WARE_NOTES[index] ? { note: WARE_NOTES[index] } : {}),
   }));
 
