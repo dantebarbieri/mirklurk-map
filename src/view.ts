@@ -349,7 +349,7 @@ export function renderWorld(st: State) {
         { class: "inventory-panel", "data-remember": "player", open: st.expanded?.has("player") },
         h("summary", {}, "Saved equipment & inventory"),
         coinRollup(p.inventory),
-        inventoryView(p.inventory, "player", st.expanded, equippedBadge(p)),
+        inventoryView(p.inventory, "player", st.expanded, equippedBadge(p), st.rules),
       ),
       h(
         "details",

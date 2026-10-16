@@ -1,6 +1,6 @@
 # MirkMap · Mirklurk World Viewer
 
-**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.0.0 (and saves from 0.8.1.5 and the 0.8.9.9 beta), published at
+**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.0.2 (and saves from 0.8.1.5, the 0.8.9.9 beta and 0.9.0.0), published at
 **https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
@@ -15,11 +15,11 @@
   explored entrance to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your
   wellbeing, inventory and journal.
 
-It follows **Latest**, Mirklurk 0.9.0.0, the Steam release of what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda,
+It follows **Latest**, Mirklurk 0.9.0.2, the Steam release of what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda,
 her Survivors and Grand Mother's hut) and its side quest, the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a
 Magus' Shard opens and Magus Clay's end in it, the Storage Chest, and placeables you can flip as you place them. Each save names the version
-that wrote it, and MirkMap and the save editor follow it, so a 0.8.1.5 save keeps 0.8.1.5's rules; for such a save a version switch beside
-Realistic shows Latest's rules instead. See [Game versions](#game-versions).
+that wrote it, and MirkMap and the save editor follow it, so a 0.8.1.5 save keeps 0.8.1.5's rules and a 0.9.0.0 save 0.9.0.0's; for such a
+save a version switch beside Realistic shows Latest's rules instead. See [Game versions](#game-versions).
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -596,17 +596,18 @@ Restoring a backup undoes edits, not the mark. On a computer that never saved ed
 
 ## Game versions
 
-Steam runs Mirklurk 0.9.0.0, released on 14 October 2026 from the 0.8.9.9 beta (`next_version_tester`), which is gone. MirkMap has the rules
-of 0.8.1.5, the release before it, too. `src/version.ts` maps **Latest** to a version (`CHANNELS`), and **Beta** while Steam has an opt-in
-beta: when a version is released, pointing Latest at it is the one line to change.
+Steam runs Mirklurk 0.9.0.2, released on 16 October 2026. It fixes bugs in 0.9.0.1, which changed orbs, Magus Clay's armor and a price of
+0.9.0.0, released on 14 October 2026 from the 0.8.9.9 beta (`next_version_tester`), which is gone. MirkMap has the rules of 0.9.0.0 (the
+beta's) and of 0.8.1.5, the release before it, too. `src/version.ts` maps **Latest** to a version (`CHANNELS`), and **Beta** while Steam has
+an opt-in beta: when a version is released, pointing Latest at it is the one line to change.
 
 - **Which rules apply.** A save names the version that wrote it (`VERSION` in `Player.save`, from `save_player`). MirkMap uses the newest
-  rules it has that are no newer than that, so a later build gets 0.9.0.0's and an older one 0.8.1.5's; a save that names no version gets
-  Latest's. For a save whose version's rules differ from Latest's (0.8.1.5's), a version switch, beside Realistic and in the save editor
-  under the character's name, offers the save's own version and **Latest**: pick Latest to see the world as it will be once the current game
-  loads and saves it. A save with Latest's rules, a 0.8.9.9 save among them, has nothing to pick and shows no switch, nor does a save that
-  names no version (while a beta is out, the switch offers it too). The pick lasts for that character while the page is open, through live
-  reloads; another character follows its own save, and picking the save's own version follows the save again.
+  rules it has that are no newer than that, so a later build gets 0.9.0.2's and an older one 0.8.1.5's; a save that names no version gets
+  Latest's. For a save whose version's rules differ from Latest's (0.8.1.5's, or 0.9.0.0's and the 0.8.9.9 beta's), a version switch, beside
+  Realistic and in the save editor under the character's name, offers the save's own version and **Latest**: pick Latest to see the world as
+  it will be once the current game loads and saves it. A save with Latest's rules, a 0.9.0.1 save among them, has nothing to pick and shows
+  no switch, nor does a save that names no version (while a beta is out, the switch offers it too). The pick lasts for that character while
+  the page is open, through live reloads; another character follows its own save, and picking the save's own version follows the save again.
 - **What 0.8.1.5's rules change.** Harvests give `a` to `a+b−1` (`loot_amountchances`), so Cranberries 2–5, 3–8 and 4–11, Watercress up to
   5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
   Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
@@ -621,6 +622,16 @@ beta: when a version is released, pointing Latest at it is the one line to chang
   it left the raft out of `Stations.save` and kept `ensureRaft`, so loading made the raft again under you (which is where MirkMap shows it);
   0.9.0.0 clears both on every save. Character names are now made safe for folder names, and menus, tooltips and sounds were touched up.
   Saves name `VERSION` 0.9.0.0 and have the same keys.
+- **What 0.9.0.1 changed.** Grand Mother's eight orbs wear: a new one has 30 durability, each cast costs 1 and the tooltip shows it, so
+  their condition shows and the save editor makes, repairs and sets them to 30; before, they had 1, which no tooltip shows. Magus Clay has
+  49 armor, one layer on each of his 7×7 hit points, where he had none. Poison Arrow II costs 25 copper at Wilda's, not 12 (its place in her
+  list is the same). Clays' Magus Hood is now Clay's Magus Hood, under every version. Loading a save from before 0.9.0.1 sets the orbs worn,
+  or in a worn container's grid, to full (`manager_area_Step_0`); MirkMap does not, so other orbs from such a save show 1/30 under Latest
+  until the game has loaded and saved it. 0.9.0.1 also changed what MirkMap does not show: orbs' drains on their wielder, how containers
+  wear orbs, what orbs sell for, Poison Arrow III's price (no merchant sells it), Butchery and the menu music. Saves name `VERSION` 0.9.0.1
+  and have the same keys.
+- **What 0.9.0.2 changed.** Nothing MirkMap reads or writes, so a 0.9.0.1 save gets the same rules: it fixed the weight after throwing from
+  a stack, outdoor torches' light at night, and the main menu's music and particles. Saves name `VERSION` 0.9.0.2 and have the same keys.
 - **What is 0.8.9.9's in all.** Names, pictures and the other databank values. 0.8.9.9 also changed a few that MirkMap does not show (some
   foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's unused "Unwanted
   Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The save formats are
@@ -629,8 +640,9 @@ beta: when a version is released, pointing Latest at it is the one line to chang
 
 ## How the guesses work
 
-All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.0.0, diffed against 0.8.9.9's and 0.8.1.5's); the
-entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ, [Game versions](#game-versions) says how.
+All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.0.2, diffed against 0.9.0.1's, 0.9.0.0's, 0.8.9.9's
+and 0.8.1.5's); the entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ, [Game versions](#game-versions)
+says how.
 
 **The world layout is fixed at new game** (`gml_Object_obj_menu_Alarm_8`) and saved in `Player.save`: the grid, and the zones of Bhato
 (`rangerCamp`), the Library (`libraryArea`) and Scaal (`riftQuestArea`, the fort mirrored through the centre). The random stream is only
@@ -710,10 +722,11 @@ its hostility chance; teams 0 (the NPCs and the Dead Unwanted) and 10 (Wilda, he
 (`being_get_target`), and from main quest stage 27 Captain Eir and Magus Clay turn on each other. A fresh being's grid (`being_initiate` in
 `gml_GlobalScript_scr_basic_useful`) starts as all healthy hit points with the species' holes and extra layers (Sceetler, Deathfly,
 Nightmare, Toadkin, Scaal by distance from its centre, Mirk Mauler, Wilda, Survivor, the Mirkfangs, and the Matriarch's and The Terror's
-armored bodies), then its `armor` is laid one layer at a time, row by row, on hit points with fewer than 3 layers; every unhurt being in the
-sampled saves matches it cell for cell. The damage-class effects paraphrase `[TTgen]` in `UI.ini`, `attack_lands` and `attack_aftermath`:
-since 0.8.9.9 Blunt blows stun 10% of the time, not 12%, and Leeching (the Mirkfangs') heals the attacker a hit point for each it destroys,
-poison included. A Giant Mirkfang that spawns may turn out a Mirkfang Matriarch (4%), and Mirkfangs come out at night, and by day in caves.
+armored bodies), then its `armor` is laid one layer at a time, row by row, on hit points with fewer than 3 layers (Magus Clay's 49 since
+0.9.0.1); every unhurt being in the sampled saves matches it cell for cell. The damage-class effects paraphrase `[TTgen]` in `UI.ini`,
+`attack_lands` and `attack_aftermath`: since 0.8.9.9 Blunt blows stun 10% of the time, not 12%, and Leeching (the Mirkfangs') heals the
+attacker a hit point for each it destroys, poison included. A Giant Mirkfang that spawns may turn out a Mirkfang Matriarch (4%), and
+Mirkfangs come out at night, and by day in caves.
 
 **Merchants' wares** (`src/merchants.ts`). Every time you open a trade window the game stocks it afresh with one new, full-condition item of
 each ware (`menu_add` in `gml_GlobalScript_scr_menu_related`), so wares never run out, then sorts them with `inventory_sort`
@@ -774,13 +787,13 @@ living hit point (`gml_GlobalScript_scr_ai_related`); when it ends, the layers a
 database's (`gml_Object_databank_Alarm_1`).
 
 **Item condition** (`src/condition.ts`). An item's tooltip (`item_draw_info` in `gml_GlobalScript_scr_items`) shows its saved `durability`
-out of the item database's `durabilityMax` when that is over 1, except on materials, coins, gems and quest items (types 14, 25 and 26): as
-_Portions left_ for food, medicine and remedies (types 19, 20 and 13; only the Loaf of Bread has more than one), as _Oil left_ for Lamp Oil,
-else as _Durability_. A new item starts full (the `item` constructor), and one not saved counts as full. Torches and lanterns
-(`item_is_lightsource`) also keep `burnTimeLeft`, the turns they burn while lit, which starts at the database's `burnTime`; a Lamp Oil flask
-pours up to 10 of its oil into a lantern at a time (`items_bonus_apply`). `wet` runs from 0 to 1 and shows when above 0, to 0.1%
-(`textf_floatpercent`). Only items with a `waterproof` value ever get wet: worn gear in the rain, what a worn bag or a chest holds
-(`wet_inventory`, `gml_Object_obj_container_Alarm_1`), and wood from a tree, wet by its trunk's life above 0.5
+out of the item database's `durabilityMax` when that is over 1 (the orbs' 30 since 0.9.0.1), except on materials, coins, gems and quest
+items (types 14, 25 and 26): as _Portions left_ for food, medicine and remedies (types 19, 20 and 13; only the Loaf of Bread has more than
+one), as _Oil left_ for Lamp Oil, else as _Durability_. A new item starts full (the `item` constructor), and one not saved counts as full.
+Torches and lanterns (`item_is_lightsource`) also keep `burnTimeLeft`, the turns they burn while lit, which starts at the database's
+`burnTime`; a Lamp Oil flask pours up to 10 of its oil into a lantern at a time (`items_bonus_apply`). `wet` runs from 0 to 1 and shows when
+above 0, to 0.1% (`textf_floatpercent`). Only items with a `waterproof` value ever get wet: worn gear in the rain, what a worn bag or a
+chest holds (`wet_inventory`, `gml_Object_obj_container_Alarm_1`), and wood from a tree, wet by its trunk's life above 0.5
 (`gml_Object_obj_tree_Step_0`).
 
 **Where you are** (`src/estimate.ts`). You are drawn as a head-and-shoulders pictogram filled with your character's hair colour (`hairBlend`

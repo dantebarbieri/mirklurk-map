@@ -1283,7 +1283,7 @@ function conditionsEditor(v: PlayerSave, p: Rec): HTMLElement[] {
 /** Wet clothes as the preview lists them, and Dry all (the same as under Items and coins). */
 function wetView(v: PlayerSave, p: Rec): HTMLElement[] {
   const body = wetClothes(v.wetness);
-  const items = orNone(() => needing(p, "dry")).length;
+  const items = orNone(() => needing(p, "dry", editorRules())).length;
   const wet = body.length || items || bodyWet(p);
   return [
     h("h4", {}, "Wet clothes"),
@@ -1448,8 +1448,10 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
   const add = async (index: number, n: number) => {
     let left: number | undefined;
     checkItem(index);
+    // Kept as the edit is made, so replaying it after a version switch makes the same items.
+    const rules = editorRules();
     await editPlayer("items", (rec) => {
-      const r = addItems(rec, index, n);
+      const r = addItems(rec, index, n, rules);
       // As it was added: the session may run the edit again without earlier changes, to see whether they still do anything.
       left ??= r.left;
       return r.added ? `Added ${r.added} × ${ITEM_NAMES[index]}${r.turned ? " (some turned sideways to fit)" : ""}` : undefined;
@@ -1493,8 +1495,9 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
           if (index === undefined) throw new Error("Pick an item from the list");
           const n = readWhole(amount, "Amount");
           checkItem(index);
+          const rules = editorRules();
           await editPlayer("items", (rec) => {
-            const r = wearNew(rec, index, n);
+            const r = wearNew(rec, index, n, undefined, rules);
             return `Put on ${r.amount > 1 ? `${r.amount} × ` : ""}${itemName(index)} (${slotLabel(r.slot)})`;
           });
         }),
@@ -1564,7 +1567,7 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
     const howMany = c.amount > 1 ? numberInput(c.amount, 1, c.amount) : null;
     howMany?.setAttribute("aria-label", `How many ${name} to remove`);
     const from = holder ? ` from ${holder}` : ` (worn: ${slotLabel(c.place.slot)})`;
-    const condition = rec ? conditionParts(conditionOf(itemState(rec))) : [];
+    const condition = rec ? conditionParts(conditionOf(itemState(rec), editorRules())) : [];
     // Where it can go: worn containers with room for it, and a free slot it fits.
     const wearIn = holder !== undefined ? orNone(() => freeSlotsFor(p, c.index))[0] : undefined;
     const choices = [
@@ -1699,11 +1702,11 @@ const CONDITION_KEYS = ["durability", "burnTimeLeft", "wet", "lit"];
 const sameCondition = (a: Rec, b: Rec) => CONDITION_KEYS.every((k) => a[k] === b[k]);
 /** Something about the item that Condition… can set: durability the game shows, fuel, or wetness. */
 const hasCondition = (index: number, rec: Rec) =>
-  !!durabilityKind(index) || fuelMax(index) !== undefined || canGetWet(index) || isWet(itemState(rec));
+  !!durabilityKind(index, editorRules()) || fuelMax(index) !== undefined || canGetWet(index) || isWet(itemState(rec));
 const joinAnd = (words: string[]) => words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}` : words[0];
 /** "durability, fuel and wetness": what Condition… sets on the item. */
 function conditionWords(index: number, rec: Rec): string {
-  const kind = durabilityKind(index);
+  const kind = durabilityKind(index, editorRules());
   return joinAnd([
     kind ? DURABILITY_LABELS[kind].toLowerCase() : "",
     fuelMax(index) !== undefined ? "fuel" : "",
@@ -1748,7 +1751,7 @@ function upkeepView(p: Rec): HTMLElement {
     "div",
     { class: "upkeep", role: "group", "aria-label": "Restore everything you wear and carry" },
     UPKEEP.map(({ what, label, tip, none }) => {
-      const n = orNone(() => needing(p, what)).length;
+      const n = orNone(() => needing(p, what, editorRules())).length;
       const idle = !n && !(what === "dry" && bodyWet(p));
       return h("button", {
         type: "button",
@@ -1762,13 +1765,15 @@ function upkeepView(p: Rec): HTMLElement {
 }
 
 async function upkeep(what: Upkeep, cardId = "items") {
+  // Kept as the edit is made, so replaying it after a version switch restores to the same maximums.
+  const rules = editorRules();
   await editPlayer(cardId, (rec) => {
     if (what === "repair") {
-      const list = repairAll(rec);
+      const list = repairAll(rec, rules);
       return list.length ? `Repaired ${nameList(list)}` : undefined;
     }
     if (what === "refuel") {
-      const list = refuelAll(rec);
+      const list = refuelAll(rec, rules);
       return list.length ? `Refuelled ${nameList(list)}` : undefined;
     }
     const r = dryAll(rec);
@@ -1786,7 +1791,7 @@ function conditionEditor(c: CarriedItem, rec: Rec, holder?: string): HTMLElement
   const name = itemName(index);
   const where = holder ? ` in ${holder}` : ` (worn: ${slotLabel(place.slot)})`;
   const at = JSON.stringify(place);
-  const now = conditionOf(itemState(rec));
+  const now = conditionOf(itemState(rec), editorRules());
   const burn = fuelMax(index);
   const wetNow = isWet(itemState(rec)) ? Number(rec.wet) : 0;
   /** Durability, portions and oil must stay above 0 (at 0 the game breaks or uses up the item); fuel may be 0. */
@@ -1811,11 +1816,12 @@ function conditionEditor(c: CarriedItem, rec: Rec, holder?: string): HTMLElement
   const set = (what: string, e: () => ConditionEdit) =>
     act("items", () => {
       const change = e();
+      const rules = editorRules();
       return editPlayer("items", (draft) => {
         const old = itemAt(draft, place);
-        const was = old ? conditionOf(itemState(old)) : {};
+        const was = old ? conditionOf(itemState(old), rules) : {};
         const wasWet = old && isWet(itemState(old)) ? Number(old.wet) : 0;
-        setCondition(draft, place, index, change);
+        setCondition(draft, place, index, change, rules);
         const changes: string[] = [];
         if (change.durability !== undefined && was.durability && change.durability !== was.durability.value) {
           const { kind, value, max } = was.durability;

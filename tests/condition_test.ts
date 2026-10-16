@@ -6,7 +6,9 @@ import {
   conditionOf,
   conditionParts,
   durabilityKind,
+  durabilityMax,
   fuelMax,
+  isOrb,
   isWet,
   itemState,
   needsFuel,
@@ -29,7 +31,27 @@ Deno.test("condition: durability shows as the tooltip shows it, named for what i
   // 0.8.9.9 adds two that can get wet: Clay's Magus Hood and Magi's Ropebelt.
   assertEquals(Object.values(ITEMS).filter((d) => d.waterproof !== undefined).length, 76);
   assert(canGetWet(264) && canGetWet(265) && !canGetWet(267), "the hood and the ropebelt get wet, an orb never does");
-  assertEquals([durabilityKind(266), durabilityKind(267), durabilityKind(261)], ["durability", undefined, undefined]);
+  assertEquals([durabilityKind(266), durabilityKind(267), durabilityKind(261)], ["durability", "durability", undefined]);
+});
+
+Deno.test("condition: since 0.9.0.1 Grand Mother's orbs wear, 30 casts from new; before, they had 1 and showed none", () => {
+  const orbs = Object.keys(ITEMS).map(Number).filter(isOrb);
+  assertEquals(orbs, [267, 268, 269, 270, 271, 272, 273, 274]);
+  for (const orb of orbs) {
+    assertEquals([durabilityMax(orb), durabilityMax(orb, "0.9.0.1"), durabilityMax(orb, "0.9.0.0")], [30, 30, 1], `${orb}`);
+    assertEquals([durabilityKind(orb, "0.9.0.2"), durabilityKind(orb, "0.8.9.9")], ["durability", undefined], `${orb}`);
+  }
+  assertEquals([durabilityMax(266, "0.9.0.0"), durabilityMax(4, "0.8.1.5"), durabilityMax(19), durabilityMax(-1)], [
+    ITEMS[266].durability,
+    ITEMS[4].durability,
+    ITEMS[19].durability,
+    undefined,
+  ]);
+  const worn = { index: 270, durability: 7 };
+  assertEquals(conditionParts(conditionOf(worn)), [{ text: "Durability 7/30", low: true }]);
+  assertEquals(conditionParts(conditionOf(worn, "0.9.0.0")), [], "an older game shows an orb's condition not at all");
+  assert(needsRepair(worn) && !needsRepair(worn, "0.9.0.0") && !needsFuel(worn, "0.9.0.0"));
+  assertEquals(conditionOf({ index: 267, durability: 1 }).durability, { kind: "durability", value: 1, max: 30 }, "a migrated save's");
 });
 
 Deno.test("condition: current and maximum values, fuel in turns, wetness in percent, low when a quarter or less is left", () => {

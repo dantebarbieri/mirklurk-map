@@ -13,7 +13,7 @@ import { creatureView } from "./creature.ts";
 import { merchantView, sells } from "./merchants.ts";
 import { playerView } from "./player.ts";
 import type { FindTarget } from "./journal.ts";
-import type { GameVersion } from "./version.ts";
+import { type GameVersion, NEWEST } from "./version.ts";
 
 const wikiAnchor = (url: string, cls: string, label: string) =>
   h("a", {
@@ -92,11 +92,11 @@ export function conditionView(parts: ConditionPart[], inline = false): HTMLEleme
   );
 }
 
-function itemRow(item: SavedItem, key: string, expanded?: Set<string>, badge?: Node | null): HTMLElement {
+function itemRow(item: SavedItem, key: string, rules: GameVersion, expanded?: Set<string>, badge?: Node | null): HTMLElement {
   const name = ITEM_NAMES[item.index] ?? `Item ${item.index}`;
   const url = itemWiki(name);
   const icon = itemImage(item.index);
-  const condition = conditionParts(conditionOf(item));
+  const condition = conditionParts(conditionOf(item, rules));
   return h(
     "li",
     {},
@@ -112,18 +112,22 @@ function itemRow(item: SavedItem, key: string, expanded?: Set<string>, badge?: N
         "details",
         { "data-remember": pocket, open: expanded ? expanded.has(pocket) : true },
         h("summary", {}, item.contents.length > 1 ? `Pocket ${i + 1}` : "Contents"),
-        inventoryView(contents, pocket, expanded),
+        inventoryView(contents, pocket, expanded, undefined, rules),
       );
     }),
   );
 }
 
-/** A saved item list; `badge` marks its top-level items (such as the player's equipped ones), not what they contain. */
+/**
+ * A saved item list, its items' condition as the game version `rules` shows it; `badge` marks its top-level items (such as the
+ * player's equipped ones), not what they contain.
+ */
 export function inventoryView(
   inventory: Inventory | undefined,
   key = "inventory",
   expanded?: Set<string>,
   badge?: (item: SavedItem) => Node | null,
+  rules: GameVersion = NEWEST,
 ): HTMLElement {
   if (!inventory || inventory.state !== "saved") {
     return h("p", { class: "muted" }, inventory?.reason ?? "Inventory is unavailable in this save.");
@@ -132,7 +136,7 @@ export function inventoryView(
     ? h(
       "ul",
       { class: "inventory-items" },
-      inventory.items.map((item, i) => itemRow(item, `${key}/${i}:${item.index}`, expanded, badge?.(item))),
+      inventory.items.map((item, i) => itemRow(item, `${key}/${i}:${item.index}`, rules, expanded, badge?.(item))),
     )
     : h("p", { class: "muted" }, "Empty when saved.");
   return inventory.note ? h("div", {}, h("p", { class: "muted" }, inventory.note), list) : list;
@@ -233,7 +237,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
     ...(m.gather ? gatherView(m.gather, rules) : []),
     ...(m.inventory
       ? [
-        inventoryView(m.inventory, `inspection:${markKey(m)}`, expanded),
+        inventoryView(m.inventory, `inspection:${markKey(m)}`, expanded, undefined, ctx.rules),
         h("p", { class: "muted" }, "Saved contents only. Unsaved changes and later decay are not visible."),
       ]
       : []),

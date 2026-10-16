@@ -1,6 +1,7 @@
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
 import {
   MAGUS_SHARD,
+  priceOf,
   PRICES,
   sells as sellsIn,
   sortWeight,
@@ -82,11 +83,26 @@ Deno.test("merchants: wares are listed in inventory_sort's order, larger first, 
   // Grand Mother's three 10-silver orbs tie and keep their stock order; the Shard (1×2) and Summoning Stone (1×1) come last.
   assertEquals(WARES[Trader.Mother], [273, 271, 269, 267, 272, 266, 274, 270, 268, 262, 127]);
   for (const being of TRADERS) {
-    const w = WARES[being].map(sortWeight);
+    const w = WARES[being].map((i) => sortWeight(i, NEW));
     assert(w.every((v, i) => i === 0 || w[i - 1] >= v), `${BEING_NAMES[being]} out of order`);
   }
   // Bow (2×3) before boots (2×2); among 2×2, the cheaper boots first; arrows pushed behind the 1×3 torch.
-  assertEquals([44, 57, 14, 41, 45].map((i) => Math.round(sortWeight(i) * 100) / 100), [5997.8, 3997, 3996.5, 2969.8, 2549.94]);
+  assertEquals([44, 57, 14, 41, 45].map((i) => Math.round(sortWeight(i, NEW) * 100) / 100), [5997.8, 3997, 3996.5, 2969.8, 2549.94]);
+});
+
+Deno.test("merchants: 0.9.0.1 raised Poison Arrow II from 12 to 25 copper; Wilda's order is the same", () => {
+  assertEquals([PRICES[219], priceOf(219, "0.9.0.2"), priceOf(219, "0.9.0.1"), priceOf(219, "0.9.0.0"), priceOf(219, OLD)], [
+    0.25,
+    0.25,
+    0.25,
+    0.12,
+    0.12,
+  ]);
+  assertEquals([priceOf(174, "0.9.0.0"), priceOf(174, "0.9.0.2")], [0.08, 0.08], "Poison Arrow kept its price");
+  const poison2 = (v: GameVersion) => waresOfIn(Trader.Wilda, v).find((w) => w.index === 219)!;
+  assertEquals([poison2("0.9.0.2").price, poison2("0.9.0.2").coins], [0.25, { gold: 0, silver: 0, copper: 25 }]);
+  assertEquals([poison2(NEW).price, poison2(NEW).coins], [0.12, { gold: 0, silver: 0, copper: 12 }]);
+  assertEquals(waresIn(Trader.Wilda, "0.9.0.2"), WARES[Trader.Wilda]);
 });
 
 Deno.test("merchants: the Storage Chest, Grand Mother's magic and her Magus' Shard from stage 30", () => {

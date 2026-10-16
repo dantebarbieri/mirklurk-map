@@ -1,4 +1,4 @@
-// Combat stats of every creature and NPC, ported from Mirklurk 0.9.0.0 (decompiled GML).
+// Combat stats of every creature and NPC, ported from Mirklurk 0.9.0.2 (decompiled GML).
 // Sources: global.beingDB in gml_Object_databank_Alarm_3 (stats and its damage totals), the examine card (case 11 in
 // gml_Object_UI_Draw_64), being_initiate in gml_GlobalScript_scr_basic_useful (a fresh being's hit points), attack_draw in
 // gml_GlobalScript_scr_gui_general, aiming in gml_Object_manager_area_Step_0 and being_get_target in gml_GlobalScript_scr_ai_related.
@@ -6,7 +6,7 @@
 import { roundGml } from "./chop.ts";
 import { plural } from "./format.ts";
 import { DAMAGE_CLASS_NAMES } from "./gamedata.ts";
-import { atLeast, type GameVersion } from "./version.ts";
+import { atLeast, type GameVersion, NEWEST } from "./version.ts";
 
 /** damageClass values ([DamageClasses] in UI.ini). */
 export const DamageClass = { Poison: 2, Sharp: 14, Blunt: 15, Force: 16, Piercing: 17, Fire: 18, Weak: 24, Leeching: 27 } as const;
@@ -272,12 +272,16 @@ export const BEINGS: Record<number, BeingStats> = {
     melee: { pattern: [[2.3, 0, 2.3], [1.2, 0, 1.2]], damageClass: 27, dist: 1.5, cost: 5, iq: 3 },
   },
   41: { // Magus Clay, in his realm
-    grid: [7, 7], xp: 750, armor: 0, apMax: 10, tilespeed: 6, hostileDist: 10, hostileChance: 1,
+    grid: [7, 7], xp: 750, armor: 49, apMax: 10, tilespeed: 6, hostileDist: 10, hostileChance: 1,
     dodgeChance: 0.25, aooChance: 0.33, team: 8,
     melee: { pattern: [[1.2, 2.2], [2.2, 1.2]], damageClass: 18, dist: 1.5, cost: 5, iq: 3 },
     ranged: { pattern: [[1.1, 2.2, 1.1], [2.2, 3.3, 2.2], [1.1, 2.2, 1.1]], damageClass: 18, dist: 16, cost: 5, iq: 3 },
   },
 };
+
+/** Being `being`'s armor under `rules`: Magus Clay had none before 0.9.0.1 and has 49 since, one layer on each of his hit points. */
+export const armorOf = (being: number, rules: GameVersion = NEWEST) =>
+  being === MAGUS_CLAY && !atLeast(rules, "0.9.0.1") ? 0 : BEINGS[being]?.armor ?? 0;
 
 export const hasRanged = (being: number) => (BEINGS[being]?.ranged?.dist ?? 0) > 0;
 
@@ -388,7 +392,7 @@ const EXTRA: Record<number, [number, number, number][]> = {
   34: [[1, 1, 1], [2, 1, 1], [1, 2, 1], [2, 2, 1]],
   35: [[1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]],
 };
-const SCAAL = 22, MIRK_MAULER = 29, MATRIARCH = 37, TERROR = 40;
+const SCAAL = 22, MIRK_MAULER = 29, MATRIARCH = 37, TERROR = 40, MAGUS_CLAY = 41;
 /** A Mirkfang Matriarch's and The Terror's 9 by 5 grid: wings with holes, and a body down the middle under extra layers. */
 const MATRIARCH_HOLES: [number, number][] = [
   [0, 2],
@@ -414,9 +418,10 @@ const MATRIARCH_BODY: [number, number][] = [[4, 0], ...[1, 2, 3, 4].flatMap((y):
 
 /**
  * The hpgrid ([y][x], as saves store it) a newly spawned being has: being_initiate's shape for its species, then its armor
- * laid one layer at a time over the hit points row by row (at most 3 per cell, 128 passes). Undefined for unknown beings.
+ * laid one layer at a time over the hit points row by row (at most 3 per cell, 128 passes), as the game version `rules` spawns
+ * it. Undefined for unknown beings.
  */
-export function freshHealth(being: number): number[][] | undefined {
+export function freshHealth(being: number, rules: GameVersion = NEWEST): number[][] | undefined {
   const s = BEINGS[being];
   if (!s) return undefined;
   const [w, hh] = s.grid;
@@ -439,7 +444,7 @@ export function freshHealth(being: number): number[][] | undefined {
     // The Terror also has a layer on each of the other hit points in her top two rows.
     if (being === TERROR) { for (let y = 0; y < 2; y++) for (let x = 0; x < w; x++) if (g[y][x] === 1) g[y][x] = 2; }
   }
-  let armor = Math.min(s.armor, w * hh * 3);
+  let armor = Math.min(armorOf(being, rules), w * hh * 3);
   for (let tries = 0; armor > 0 && tries < 128; tries++) {
     for (let y = 0; y < hh && armor > 0; y++) {
       for (let x = 0; x < w && armor > 0; x++) {

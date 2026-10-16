@@ -8,6 +8,7 @@ import {
   canGetWet,
   DURABILITY_LABELS,
   durabilityKind,
+  durabilityMax,
   fuelMax,
   isWet,
   type ItemState,
@@ -17,6 +18,7 @@ import {
 } from "../condition.ts";
 import { isRec, type Rec } from "../save-record.ts";
 import { isOffHandCopy } from "../inventory.ts";
+import { type GameVersion, NEWEST } from "../version.ts";
 
 /** Empty grid cell (GameMaker's noone). */
 const EMPTY = -4;
@@ -27,8 +29,11 @@ const COLLECTED_AREAS_ITEM = 252;
 /** Items the editor can add: everything you can carry in the item database, which leaves out only Unarmed and Finish Raft. */
 export const addable = (index: number) => !!ITEMS[index] && !ITEMS[index].uncarried;
 
-/** A new item record, as `new item(index, amount, true)` makes it; `neww` gives it the game's gold "new" highlight. */
-export function newItem(index: number, amount: number, zone: [number, number], bagTemplate?: Rec): Rec {
+/**
+ * A new item record, as `new item(index, amount, true)` makes it under the game version `rules`; `neww` gives it the game's gold
+ * "new" highlight.
+ */
+export function newItem(index: number, amount: number, zone: [number, number], bagTemplate?: Rec, rules: GameVersion = NEWEST): Rec {
   const d = ITEMS[index];
   if (!d) throw new Error(`Unknown item ${index}`);
   const item: Rec = {
@@ -36,7 +41,7 @@ export function newItem(index: number, amount: number, zone: [number, number], b
     amount,
     X: EMPTY,
     Y: EMPTY,
-    durability: d.durability ?? 1,
+    durability: durabilityMax(index, rules) ?? 1,
     wet: 0,
     rotation: 0,
     sideflipped: false,
@@ -151,9 +156,9 @@ export interface AddResult {
  * Adds `amount` of item `index` to the player's carried containers: first topping up stacks of the same item (item_stack), then
  * placing new stacks of at most stackLimit in the first free spot, scanning each container column by column as item_add does. What
  * finds no room upright is then turned sideways, as you could turn it in the game. Whatever does not fit is reported back rather
- * than dropped on the ground.
+ * than dropped on the ground. New items are made as the game version `rules` makes them.
  */
-export function addItems(p: Rec, index: number, amount: number): AddResult {
+export function addItems(p: Rec, index: number, amount: number, rules: GameVersion = NEWEST): AddResult {
   if (!addable(index)) throw new Error(`Item ${index} cannot be carried`);
   if (!Number.isInteger(amount) || amount < 1) throw new Error("Amount must be a whole number of at least 1");
   const d = ITEMS[index];
@@ -189,7 +194,7 @@ export function addItems(p: Rec, index: number, amount: number): AddResult {
         for (let y = 0; y < g.length && left; y++) {
           if (!fits(g, x, y, w, h)) continue;
           const n = Math.min(left, d.stack);
-          put(g, newItem(index, n, zone, template), x, y, sideflipped);
+          put(g, newItem(index, n, zone, template, rules), x, y, sideflipped);
           turned ||= sideflipped;
           left -= n;
         }
@@ -325,14 +330,20 @@ function slotFor(p: Rec, index: number, slot?: number): number {
 /**
  * Puts a new item `index` on, as the item constructor makes it, in `slot` or the first free slot it fits (item_fits_slot); a stack
  * (ammunition) takes up to its stack limit. A container worn this way gives an empty inventory to put things in. Returns the slot and
- * how many were put on.
+ * how many were put on. It is made as the game version `rules` makes it.
  */
-export function wearNew(p: Rec, index: number, amount = 1, slot?: number): { slot: number; amount: number } {
+export function wearNew(
+  p: Rec,
+  index: number,
+  amount = 1,
+  slot?: number,
+  rules: GameVersion = NEWEST,
+): { slot: number; amount: number } {
   if (!addable(index)) throw new Error(`Item ${index} cannot be carried`);
   if (!Number.isInteger(amount) || amount < 1) throw new Error("Amount must be a whole number of at least 1");
   const at = slotFor(p, index, slot);
   const n = Math.min(amount, ITEMS[index].stack);
-  const item = newItem(index, n, [Number(p.areaX), Number(p.areaY)], carriedBags(p)[0]?.inventory);
+  const item = newItem(index, n, [Number(p.areaX), Number(p.areaY)], carriedBags(p)[0]?.inventory, rules);
   wear(p.myEquips as unknown[], at, item);
   return { slot: at, amount: n };
 }
@@ -524,34 +535,34 @@ const everything = (p: Rec): CarriedItem[] =>
 
 /** What the Repair all, Refuel all and Dry all helpers restore. */
 export type Upkeep = "repair" | "refuel" | "dry";
-const NEEDS: Record<Upkeep, (item: ItemState) => boolean> = { repair: needsRepair, refuel: needsFuel, dry: isWet };
+const NEEDS: Record<Upkeep, (item: ItemState, rules: GameVersion) => boolean> = { repair: needsRepair, refuel: needsFuel, dry: isWet };
 
-/** The items worn or in worn containers that `what` would change. */
-export function needing(p: Rec, what: Upkeep): CarriedItem[] {
+/** The items worn or in worn containers that `what` would change under the game version `rules`. */
+export function needing(p: Rec, what: Upkeep, rules: GameVersion = NEWEST): CarriedItem[] {
   return everything(p).filter((c) => {
     const rec = itemAt(p, c.place);
-    return !!rec && NEEDS[what](itemState(rec));
+    return !!rec && NEEDS[what](itemState(rec), rules);
   });
 }
 
 /**
- * Repairs every item worn or carried to its full durability (durabilityMax), as repair kits do up to that maximum. Food portions and
- * lamp oil are used up, not worn, so they are left as they are. Returns the items repaired.
+ * Repairs every item worn or carried to its full durability (durabilityMax under `rules`), as repair kits do up to that maximum. Food
+ * portions and lamp oil are used up, not worn, so they are left as they are. Returns the items repaired.
  */
-export function repairAll(p: Rec): CarriedItem[] {
-  const list = needing(p, "repair");
-  for (const c of list) update(p, c.place, c.index, (item) => void (item.durability = ITEMS[c.index].durability));
+export function repairAll(p: Rec, rules: GameVersion = NEWEST): CarriedItem[] {
+  const list = needing(p, "repair", rules);
+  for (const c of list) update(p, c.place, c.index, (item) => void (item.durability = durabilityMax(c.index, rules)));
   return list;
 }
 
 /** Fills every torch's and lantern's burn time (burnTimeLeft to burnTime) and every Lamp Oil flask. Returns the items refuelled. */
-export function refuelAll(p: Rec): CarriedItem[] {
-  const list = needing(p, "refuel");
+export function refuelAll(p: Rec, rules: GameVersion = NEWEST): CarriedItem[] {
+  const list = needing(p, "refuel", rules);
   for (const c of list) {
     const burn = fuelMax(c.index);
     update(p, c.place, c.index, (item) => {
       if (burn !== undefined) item.burnTimeLeft = burn;
-      else item.durability = ITEMS[c.index].durability;
+      else item.durability = durabilityMax(c.index, rules);
     });
   }
   return list;
@@ -584,13 +595,16 @@ export interface ConditionEdit {
   wet?: number;
 }
 
-/** Sets the condition of the item at `place`: only the values given, each checked against what the game allows for that item. */
-export function setCondition(p: Rec, place: ItemPlace, index: number, e: ConditionEdit) {
+/**
+ * Sets the condition of the item at `place`: only the values given, each checked against what the game version `rules` allows for
+ * that item.
+ */
+export function setCondition(p: Rec, place: ItemPlace, index: number, e: ConditionEdit, rules: GameVersion = NEWEST) {
   const name = ITEM_NAMES[index] ?? `Item ${index}`;
-  const kind = durabilityKind(index), burn = fuelMax(index);
+  const kind = durabilityKind(index, rules), burn = fuelMax(index);
   if (e.durability !== undefined) {
     if (!kind) throw new Error(`${name} has no durability the game shows`);
-    const max = ITEMS[index].durability!;
+    const max = durabilityMax(index, rules)!;
     if (!Number.isFinite(e.durability) || e.durability <= 0 || e.durability > max) {
       const ends = kind === "durability" ? "breaks" : "uses up";
       throw new Error(`${DURABILITY_LABELS[kind]} must be more than 0 and at most ${max}: at 0 the game ${ends} ${name}`);

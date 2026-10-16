@@ -1,5 +1,5 @@
 {
-  "verified": "2026-10-15",
+  "verified": "2026-10-16",
   "beings": {
     "0": {
       "file": "assets/wiki/being_0.17df91722d.png",
@@ -1753,7 +1753,7 @@
       "file": "assets/wiki/item_264.6b94556511.png",
       "w": 216,
       "h": 240,
-      "source": "Clays'_Magus_Hood_icon_(cropped).png"
+      "source": "Clay's_Magus_Hood_icon_(cropped).png"
     },
     "265": {
       "file": "assets/wiki/item_265.b201663ec0.png",

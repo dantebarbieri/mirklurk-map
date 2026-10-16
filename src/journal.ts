@@ -1,4 +1,4 @@
-// The character's journal, as Mirklurk 0.9.0.0 rebuilds it from the saved main-quest stage (mainQ, global.MAINQUESTSTAGE) when
+// The character's journal, as Mirklurk 0.9.0.2 rebuilds it from the saved main-quest stage (mainQ, global.MAINQUESTSTAGE) when
 // it loads a save: journal_update in gml_GlobalScript_scr_basic_useful pushes UI.ini [Journal] "First", then the entry of every
 // stage from 0 up to the saved one that has text, filling in the place each "CCC" stands for. Stages without text add nothing.
 // The text is the game's own (src/gamedata.ts). MirkMap adds a short title to each entry and links the people and places it

@@ -5,6 +5,7 @@
 import { ITEMS } from "./itemdata.ts";
 import type { Rec } from "./save-record.ts";
 import { finite } from "./values.ts";
+import { atLeast, type GameVersion, NEWEST } from "./version.ts";
 
 /** Lamp Oil: its durability is the oil in the flask, which refills a lantern (items_bonus_apply). */
 export const LAMP_OIL = 112;
@@ -21,10 +22,23 @@ export const DURABILITY_LABELS: Readonly<Record<DurabilityKind, string>> = {
   oil: "Oil left",
 };
 
+/** Grand Mother's magic orbs (Orb of Poison to Orb of Storm). */
+export const isOrb = (index: number) => index >= 267 && index <= 274;
+
+/**
+ * Item `index`'s durabilityMax under `rules`: the item database's, except that before 0.9.0.1 the orbs had 1, never worn; since
+ * then 30, and each cast wears 1 (item_durloss).
+ */
+export function durabilityMax(index: number, rules: GameVersion = NEWEST): number | undefined {
+  const max = ITEMS[index]?.durability;
+  return max !== undefined && isOrb(index) && !atLeast(rules, "0.9.0.1") ? 1 : max;
+}
+
 /** What item `index`'s durability counts, when its tooltip shows it: a durabilityMax over 1, on a type that shows it. */
-export function durabilityKind(index: number): DurabilityKind | undefined {
+export function durabilityKind(index: number, rules: GameVersion = NEWEST): DurabilityKind | undefined {
   const d = ITEMS[index];
-  if (!d || d.durability === undefined || d.durability <= 1 || UNSHOWN.has(d.type)) return undefined;
+  const max = durabilityMax(index, rules);
+  if (!d || max === undefined || max <= 1 || UNSHOWN.has(d.type)) return undefined;
   return index === LAMP_OIL ? "oil" : PORTIONS.has(d.type) ? "portions" : "durability";
 }
 
@@ -64,11 +78,12 @@ export interface Condition {
   wet?: number;
 }
 
-export function conditionOf(item: ItemState): Condition {
+/** An item's condition under the game version `rules`. */
+export function conditionOf(item: ItemState, rules: GameVersion = NEWEST): Condition {
   const c: Condition = {};
-  const kind = durabilityKind(item.index);
+  const kind = durabilityKind(item.index, rules);
   if (kind) {
-    const max = ITEMS[item.index].durability!;
+    const max = durabilityMax(item.index, rules)!;
     c.durability = { kind, value: finite(item.durability) ? item.durability : max, max };
   }
   const burn = fuelMax(item.index);
@@ -78,14 +93,14 @@ export function conditionOf(item: ItemState): Condition {
 }
 
 /** Wear that repairing restores: durability (not portions or oil) under its maximum. */
-export function needsRepair(item: ItemState): boolean {
-  const d = conditionOf(item).durability;
+export function needsRepair(item: ItemState, rules: GameVersion = NEWEST): boolean {
+  const d = conditionOf(item, rules).durability;
   return d?.kind === "durability" && d.value < d.max;
 }
 
 /** Fuel that refuelling tops up: a torch's or lantern's burn time, or a Lamp Oil flask's oil, under full. */
-export function needsFuel(item: ItemState): boolean {
-  const c = conditionOf(item);
+export function needsFuel(item: ItemState, rules: GameVersion = NEWEST): boolean {
+  const c = conditionOf(item, rules);
   return (!!c.fuel && c.fuel.value < c.fuel.max) || (c.durability?.kind === "oil" && c.durability.value < c.durability.max);
 }
 

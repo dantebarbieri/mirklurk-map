@@ -1,5 +1,5 @@
 // The player's saved condition and belongings: hit points, wellbeing and the four stats behind it, conditions, coins and
-// inventory, and the journal (journal.ts). Wellbeing math is ported from Mirklurk 0.9.0.0: player_get_stat_changes and
+// inventory, and the journal (journal.ts). Wellbeing math is ported from Mirklurk 0.9.0.2: player_get_stat_changes and
 // player_get_combined_wellbeing in gml_GlobalScript_scr_basic_useful, with the thresholds set in gml_Room_rm_int_Create, as the
 // circle bar in gml_Object_UI_Draw_64 reports them.
 
@@ -633,7 +633,7 @@ export function playerView(p: PlayerSave, ctx: SectionContext, edit?: PlayerEdit
       "Inventory",
       true,
       coinRollup(p.inventory),
-      inventoryView(p.inventory, `${ctx.key}/inventory`, ctx.expanded, equippedBadge(p)),
+      inventoryView(p.inventory, `${ctx.key}/inventory`, ctx.expanded, equippedBadge(p), ctx.rules),
       h("p", { class: "muted" }, "As saved. E marks what you wear or hold (dashed: your other weapon set); the rest is in your bags."),
     ),
     section(ctx, "journal", "Journal", true, ...journalView(p, `${ctx.key}/journal`, ctx.expanded, ctx.find)),

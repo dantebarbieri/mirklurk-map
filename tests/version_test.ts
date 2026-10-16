@@ -23,36 +23,53 @@ import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
 import { addable } from "../src/editor/items.ts";
 import { spawnable } from "../src/editor/beings.ts";
 
-const OLD: GameVersion = "0.8.1.5", BETA: GameVersion = "0.8.9.9", NEW: GameVersion = "0.9.0.0";
+const OLD: GameVersion = "0.8.1.5", BETA: GameVersion = "0.8.9.9", REL: GameVersion = "0.9.0.0";
+const FIX: GameVersion = "0.9.0.1", NEW: GameVersion = "0.9.0.2";
 /** The branches before 0.9.0.0's release: 0.8.1.5 as Latest and the 0.8.9.9 beta. */
 const BEFORE = { latest: OLD, beta: BETA };
 
-Deno.test("version: Latest is the 0.9.0.0 release, with no beta, named in one place", () => {
-  assertEquals(VERSIONS, ["0.8.1.5", "0.8.9.9", "0.9.0.0"]);
+Deno.test("version: Latest is the 0.9.0.2 release, with no beta, named in one place", () => {
+  assertEquals(VERSIONS, ["0.8.1.5", "0.8.9.9", "0.9.0.0", "0.9.0.1", "0.9.0.2"]);
   assertEquals(CHANNELS, { latest: NEW });
   assertEquals(CHANNEL_LABELS, { latest: "Latest", beta: "Beta" });
-  assertEquals([channelOf(OLD), channelOf(BETA), channelOf(NEW)], [undefined, undefined, "latest"]);
-  assertEquals([versionLabel(OLD), versionLabel(BETA), versionLabel(NEW)], ["0.8.1.5", "0.8.9.9", "Latest (0.9.0.0)"]);
-  assertEquals(CHANNELS_TOOLTIP.split("\n"), ["Latest: Mirklurk 0.9.0.0, the game's Steam release"]);
+  assertEquals([channelOf(OLD), channelOf(BETA), channelOf(REL), channelOf(FIX), channelOf(NEW)], [
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    "latest",
+  ]);
+  assertEquals([versionLabel(OLD), versionLabel(REL), versionLabel(FIX), versionLabel(NEW)], [
+    "0.8.1.5",
+    "0.9.0.0",
+    "0.9.0.1",
+    "Latest (0.9.0.2)",
+  ]);
+  assertEquals(CHANNELS_TOOLTIP.split("\n"), ["Latest: Mirklurk 0.9.0.2, the game's Steam release"]);
   // The generated data (items, beings, art) is read from the newest version.
   assertEquals(NEWEST, NEW);
   assert(atLeast(NEW, OLD) && atLeast(NEW, BETA) && atLeast(BETA, OLD) && atLeast(OLD, OLD) && !atLeast(OLD, BETA) && !atLeast(BETA, NEW));
-  // 0.9.0.0 released the 0.8.9.9 beta with bug fixes only: the same rules.
-  assert(sameRules(NEW, BETA) && sameRules(BETA, NEW) && sameRules(OLD, OLD));
-  assert(!sameRules(OLD, BETA) && !sameRules(NEW, OLD));
+  assert(atLeast(NEW, FIX) && atLeast(FIX, REL) && !atLeast(REL, FIX) && !atLeast(FIX, NEW));
+  // 0.9.0.0 released the 0.8.9.9 beta with bug fixes only, and 0.9.0.2 fixed bugs in 0.9.0.1: the same rules.
+  assert(sameRules(REL, BETA) && sameRules(BETA, REL) && sameRules(OLD, OLD) && sameRules(NEW, FIX) && sameRules(FIX, NEW));
+  // 0.9.0.1 changed orbs, Magus Clay's armor and a price.
+  assert(!sameRules(OLD, BETA) && !sameRules(NEW, OLD) && !sameRules(FIX, REL) && !sameRules(NEW, BETA));
 });
 
 Deno.test("version: a save's VERSION picks the newest rules no newer than it", () => {
   const cases: [string | undefined, GameVersion | undefined][] = [
     ["0.8.1.5", OLD],
     ["0.8.9.9", BETA],
-    ["0.9.0.0", NEW],
-    [" 0.9.0.0 ", NEW],
+    ["0.9.0.0", REL],
+    [" 0.9.0.0 ", REL],
+    ["0.9.0.1", FIX],
+    ["0.9.0.2", NEW],
     ["0.8.5", OLD],
     ["0.8.9.8", OLD],
     ["0.8.9.10", BETA],
-    ["0.9", NEW],
-    ["0.9.0.1", NEW],
+    ["0.9", REL],
+    ["0.9.0.0.5", REL],
+    ["0.9.0.3", NEW],
     ["9.0.0.0", NEW],
     // Older than any rules MirkMap has: the oldest.
     ["0.7.2.1", OLD],
@@ -69,20 +86,20 @@ Deno.test("version: a pick overrides only another version than the save's, also 
   assertEquals(overrideOf(OLD, NEW), OLD);
   assertEquals(overrideOf(NEW, undefined), NEW);
   assertEquals(overrideOf(undefined, OLD), undefined);
-  // Latest picked on a 0.8.1.5 save, which the game then saves as 0.9.0.0: the pick is dropped, so the save is followed.
+  // Latest picked on a 0.8.1.5 save, which the game then saves as 0.9.0.2: the pick is dropped, so the save is followed.
   const pick = overrideOf(NEW, OLD);
-  assertEquals(overrideOf(pick, detectVersion("0.9.0.0")), undefined);
+  assertEquals(overrideOf(pick, detectVersion("0.9.0.2")), undefined);
 });
 
-Deno.test("version: 0.8.1.5's game has no items from 258 or beings from 36; 0.9.0.0 has 0.8.9.9's; nothing older was removed", () => {
+Deno.test("version: 0.8.1.5's game has no items from 258 or beings from 36; later ones have 0.8.9.9's; nothing older was removed", () => {
   const items = Object.keys(ITEMS).map(Number);
   assert(items.some((i) => i >= 258) && items.some((i) => i < 258));
   for (const i of items) {
-    assert(hasItem(NEW, i) && hasItem(BETA, i), `${ITEM_NAMES[i]} in 0.8.9.9 and 0.9.0.0`);
+    assert(hasItem(NEW, i) && hasItem(FIX, i) && hasItem(REL, i) && hasItem(BETA, i), `${ITEM_NAMES[i]} since 0.8.9.9`);
     assertEquals(hasItem(OLD, i), i < 258, `${i} ${ITEM_NAMES[i]}`);
   }
   for (const i of Object.keys(BEINGS).map(Number)) {
-    assert(hasBeing(NEW, i) && hasBeing(BETA, i), `${BEING_NAMES[i]} in 0.8.9.9 and 0.9.0.0`);
+    assert(hasBeing(NEW, i) && hasBeing(FIX, i) && hasBeing(REL, i) && hasBeing(BETA, i), `${BEING_NAMES[i]} since 0.8.9.9`);
     // 35 (a Survivor since 0.8.9.9) was already in 0.8.1.5's beingDB, as a guard never placed.
     assertEquals(hasBeing(OLD, i), i <= 35, `${i} ${BEING_NAMES[i]}`);
   }
@@ -106,17 +123,20 @@ Deno.test("version switch: a choice only where the rules differ; notes say wheth
     switchOptions({ detected: OLD, rules: OLD })[0].title,
     "Mirklurk 0.8.1.5, on no Steam branch now; this save's version",
   );
-  // One button, so no switch, for a 0.9.0.0 save, a 0.8.9.9 beta save (the same rules) and a save that names no version.
+  // 0.9.0.0 and the 0.8.9.9 beta share rules that are not Latest's, so their saves get a switch, named after the save's version.
+  assertEquals(labels(REL), [["0.9.0.0", REL], ["Latest", NEW]]);
+  assertEquals(labels(BETA), [["0.8.9.9", BETA], ["Latest", NEW]]);
+  // One button, so no switch, for a 0.9.0.2 save, a 0.9.0.1 save (the same rules) and a save that names no version.
   assertEquals(labels(NEW), [["Latest", NEW]]);
-  assertEquals(labels(BETA), [["Latest", NEW]]);
+  assertEquals(labels(FIX), [["Latest", NEW]]);
   assertEquals(labels(undefined), [["Latest", NEW]]);
   // While a beta is out, as before 0.9.0.0: Latest and Beta, and a later save on the beta's rules adds none.
   assertEquals(labels(OLD, BEFORE), [["Latest", OLD], ["Beta", BETA]]);
-  assertEquals(labels(NEW, BEFORE), [["Latest", OLD], ["Beta", BETA]]);
+  assertEquals(labels(REL, BEFORE), [["Latest", OLD], ["Beta", BETA]]);
   assertEquals(labels(undefined, BEFORE), [["Latest", OLD], ["Beta", BETA]]);
   // A beta with Latest's rules is one button.
-  assertEquals(labels(OLD, { latest: NEW, beta: BETA }), [["0.8.1.5", OLD], ["Latest", NEW]]);
-  assertEquals(versionNote({ detected: NEW, rules: NEW, saved: "0.9.0.0" }), "from this save (0.9.0.0)");
+  assertEquals(labels(OLD, { latest: NEW, beta: FIX }), [["0.8.1.5", OLD], ["Latest", NEW]]);
+  assertEquals(versionNote({ detected: NEW, rules: NEW, saved: "0.9.0.2" }), "from this save (0.9.0.2)");
   assertEquals(versionNote({ detected: OLD, rules: OLD, saved: "0.8.5.0" }), "from this save (0.8.5.0, so 0.8.1.5's rules)");
   assertEquals(versionNote({ detected: OLD, rules: NEW, saved: "0.8.1.5" }), "chosen; this save is 0.8.1.5");
   assertEquals(versionNote({ rules: NEW }), "this save names no version");
@@ -129,7 +149,7 @@ Deno.test("version switch: a choice only where the rules differ; notes say wheth
   assertEquals(detectVersion(bare.version), undefined);
   assertEquals(versionNote({ rules: NEW, saved: bare.version }), "this save names no version");
   assertEquals(versionNote({ rules: OLD, saved: bare.version }), "chosen; this save names no version");
-  assertEquals(parsePlayer([{ worldGrid: grid, VERSION: "0.9.0.0" }]).version, NEW);
+  assertEquals(parsePlayer([{ worldGrid: grid, VERSION: "0.9.0.2" }]).version, NEW);
   assertEquals([ownRules({ rules: OLD }), ownRules({ detected: OLD, rules: NEW })], [CHANNELS.latest, OLD]);
   const title = versionTitle({ detected: OLD, rules: OLD }, "Editor note.");
   assert(title.startsWith(CHANNELS_TOOLTIP) && title.endsWith("\n\nEditor note."), title);
@@ -165,8 +185,8 @@ Deno.test("version switch: the save's version and Latest, the one in use pressed
       const group = root.children[0] as Stub;
       return { root, group, buttons: group.children as Stub[], note: root.children[1] as Stub };
     };
-    // Nothing to pick: no switch for a 0.9.0.0 save, a 0.8.9.9 save or a save that names no version.
-    for (const detected of [NEW, BETA, undefined]) {
+    // Nothing to pick: no switch for a 0.9.0.2 save, a 0.9.0.1 save or a save that names no version.
+    for (const detected of [NEW, FIX, undefined]) {
       assertEquals(versionSwitch({ detected, rules: detected ?? NEW }, (v) => picks.push(v)), null, `${detected}`);
     }
     const old = render(OLD, OLD);
@@ -174,7 +194,7 @@ Deno.test("version switch: the save's version and Latest, the one in use pressed
     assertEquals(old.buttons.map((b) => [b.text(), b.attrs["aria-pressed"]]), [["0.8.1.5", "true"], ["Latest", "false"]]);
     assertEquals(old.buttons.map((b) => b.attrs.title), [
       "Mirklurk 0.8.1.5, on no Steam branch now; this save's version",
-      "Mirklurk 0.9.0.0, the game's Steam release",
+      "Mirklurk 0.9.0.2, the game's Steam release",
     ]);
     assertEquals([old.note.text(), old.note.attrs.class], ["from this save (0.8.1.5)", "muted version-note"]);
     assert(old.root.attrs.title.startsWith(CHANNELS_TOOLTIP));
