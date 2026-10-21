@@ -46,11 +46,15 @@ and 0.9.0.2 (rules that differ by version); #52, 0.9.1.0 (new items, one of them
    deploy in flight, and work around it.
 2. **Triage every change.** Decide whether MirkMap reads, shows, predicts or edits it, and keep the verdict and its evidence for the PR and
    the README. UI text, menus, sounds and dev-only code (`global.DEVmode`, `QUICKMODE`) rarely matter. When a change matters only if a save
-   holds some state, scan the real saves read-only for it (#52 found no worn coins). Where things land:
+   holds some state, scan the real saves read-only for it (#52 found no worn coins). Usually nothing, but check: coin and gem prices
+   (MirkMap counts face value), `item_is_armor` (only the icon and armor weight; MirkMap totals the `armor` key), AP and crafting costs,
+   forage and treasure loot, container weight, and world-generation details MirkMap reads from saves rather than predicts. Where things
+   land:
    - save format and load-time migrations (`scr_saveload`, `manager_area_Step_0`): `src/save.ts` and the editor (`src/editor/`);
    - the item database (`databank_Alarm_1`): sizes, stacks, durability, fuel and containers are generated (`src/itemdata.ts`); prices
-     (`WARE_DATA` in `src/merchants.ts`), `chopMod` (`CHOP_TOOLS` in `src/chop.ts`) and armor (`ARMOR_POINTS` in `src/armor.ts`) are ported
-     by hand;
+     (`WARE_DATA` in `src/merchants.ts`), `chopMod` (`CHOP_TOOLS` in `src/chop.ts`), armor (`ARMOR_POINTS` in `src/armor.ts`) and special
+     durability cases (the orbs in `src/condition.ts`) are ported by hand. A regex over the `ds_map_set(global.itemDB, …)` blocks lists one
+     key for every item, to compare with those tables;
    - beings (`databank_Alarm_3`): `BEINGS` in `src/bestiary.ts`; trader stock (`menu_add` in `scr_menu_related`): `STOCK` in
      `src/merchants.ts`; both by hand;
    - world generation (`obj_menu_Alarm_8`, `manager_area_Alarm_2`): `src/predict.ts`, `src/rules.ts`; harvests (`loot_amountchances`):
@@ -58,10 +62,11 @@ and 0.9.0.2 (rules that differ by version); #52, 0.9.1.0 (new items, one of them
    - names and the journal (`Languages\English\*.ini`): generated `src/gamedata.ts`; tiles and environment sprites: `assets/game/` and
      `src/artdata.json`.
 3. **Add the version** in `src/version.ts`: append it to `VERSIONS`, and point `CHANNELS.latest` at it (or `beta` while it is an opt-in
-   Steam beta; drop `beta` once it is released, as #48 did). When nothing MirkMap models changed, map it in `SAME_RULES` to the version
-   whose rules it shares, which must not be mapped itself. Add new item and being index ranges to `ADDED` (`hasItem`, `hasBeing`): the
-   editor's pickers and its save check (`src/editor/compat.ts`) already follow them, but any other list of items or beings must too, as
-   `toolsIn` in `src/chop.ts` does for the new Flint Dagger (#52). Update the header comment.
+   Steam beta; drop `beta` once it is released, as #48 did). Only when nothing MirkMap reads or writes changed, map it in `SAME_RULES` to
+   the version whose rules it shares, which must not be mapped itself. New items are a change: 0.9.1.0 got its own rules, so 0.9.0.x saves
+   now get a switch. Add new item and being index ranges to `ADDED` (`hasItem`, `hasBeing`): the editor's pickers and its save check
+   (`src/editor/compat.ts`) already follow them, but any other list of items or beings must too, as `toolsIn` in `src/chop.ts` does for the
+   new Flint Dagger (#52). Update the header comment.
 4. **Version the rules that changed.** Port the new value and keep the old one behind `atLeast(rules, "<version>")` in a function that takes
    `rules: GameVersion`, as `priceOf`, `armorOf` and `durabilityMax` do (#51), then pass the rules in use through its callers (`ctx.rules`,
    `st.rules`, `editorRules()`). What the build that wrote the save did follows the save's own version, not the switch (`src/estimate.ts`).
@@ -75,7 +80,7 @@ and 0.9.0.2 (rules that differ by version); #52, 0.9.1.0 (new items, one of them
    - art: run `tools/dump_art.csx` with `MIRKLURK_ART_OUT` set to a temporary folder and compare its `assets/game/` and `src/artdata.json`
      with the repo's. If they differ, remove `$env:MIRKLURK_ART_OUT` (it overrides the working directory), run it again from the repo root
      and delete the files it no longer references, as #43 did. Either way, set the version in `tools/dump_art.csx` and `src/artdata.json`.
-     New item icons are not map art; their pictures come from the wiki (step 9).
+     New item icons and held sprites (`spr_ui_items*`, `spr_wp_*`) are not map art; item pictures come from the wiki (step 9).
 
    Every line the generators change must match a change in the report; anything else means the wrong build or stale language files.
 6. **Bump the version stamps** once the entries behind them are re-checked: the "ported from Mirklurk <version>" header comments
@@ -85,29 +90,36 @@ and 0.9.0.2 (rules that differ by version); #52, 0.9.1.0 (new items, one of them
    if who gets a switch changed, and one "What <version> changed" bullet: what MirkMap now shows or edits differently, what changed that it
    does not show, and whether saves name the new `VERSION` with the same keys. Also update the intro at the top, the opening of "How the
    guesses work" (which `data.win` the rules were read from and diffed against), and every rule section a change touches, with entry names.
+   Take the release date from the Steam news post's `date` (UTC; `steam-notes-<version>.md`), not from memory: #52's report was a day off.
+   Run `deno fmt` before committing; it reflows README prose.
 8. **Tests** (CONTRIBUTING's rules): `tests/version_test.ts` (`VERSIONS`, Latest, `sameRules`, detection, the switch's options, `hasItem`
    and `hasBeing` for new ranges), and a by-version test in the module test of every rule that changed. `tests/inventory_test.ts` lets items
    from `FIRST_NEW_ITEM` on and beings in `NEW_BEINGS` lack a wiki page; add new beings there until `deno task wiki` finds theirs. Run
-   `deno task ci`, then `deno task test` with `$env:MIRKLURK_SAVES` set to the game's `Saves` folder (it only reads them), and check by hand
-   on `deno task dev` (`/?dev=<Character>`, `/edit/?dev=<Character>`) that a save whose version's rules differ from Latest's shows the
-   switch and one with Latest's rules does not (`src/versionview.ts`).
+   `deno task ci`, then `deno task test` with `$env:MIRKLURK_SAVES` set to the game's `Saves` folder (it only reads them). Check by hand on
+   `deno task dev` (set `$env:PORT` to avoid other sessions' servers; `/?dev=<Character>`, `/edit/?dev=<Character>`) that a save whose
+   version's rules differ from Latest's shows the switch and one with Latest's rules does not (`src/versionview.ts`), and that new items
+   appear in the editor's item list (it exists only once you enter edit mode) under Latest but not under older rules.
 9. **Wiki links and pictures.** MirkMap links an item or being only to a verified wiki page with its title (usually the in-game name; see
    `itemTitle` and `beingTitle` in `src/wiki.ts`), and `deno task wiki` bundles `File:<Title>_icon_(cropped).png` or `_icon.png` for items
    and `_sprite` or `_portrait` for beings. Tell the wiki session (or the coordinator) the titles that new or renamed content needs, and ask
-   to hear when they are live. Then run `deno task wiki` and check the diff of `src/wikidata.json`, `src/wikiart.json` and `assets/wiki/`.
-   If the version PR has merged by then, refresh in a small follow-up PR (#49); deploy it only if it changes what users see.
+   to hear when they are live. Then run `deno task wiki`, check the diff of `src/wikidata.json`, `src/wikiart.json` and `assets/wiki/`, and
+   extend the item range in `tests/wiki_test.ts` that must have pictures. The wiki usually lags, so don't hold the version PR for it: merge
+   and deploy, then refresh in a small follow-up PR (#49), deployed only if it changes what users see.
 10. **Pull request.** Fill `.github/pull_request_template.md`: what changed for players and in which files, the verdict on what was not
     modeled, and each test command with its result (real saves included, with the versions they hold). Open it ready for review, get `test`,
     `docker-smoke` and `copilot-review` green, address and resolve every review thread, and merge with a merge commit as CONTRIBUTING
-    describes.
-11. **Deploy** with this repo's `deploy-homeserver` skill (`.github/skills/deploy-homeserver/SKILL.md`). The wiki deploys to the same
-    server, so don't overlap its rollout, and the server's deploy guard may need the user's sudo password. Then report to the coordinator,
-    or the user: the PR, the homeserver PR, the live bundle, and what changed in MirkMap and what didn't.
+    describes. Copilot reviews again after every push, so batch fixes into few pushes. In PowerShell, write commit messages to a temporary
+    file for `git commit -F`; piping a here-string to `-F -` fails.
+11. **Deploy** with this repo's `deploy-homeserver` skill (`.github/skills/deploy-homeserver/SKILL.md`). Check `get_sessions_status` for
+    busy homeserver sessions first: the wiki deploys to the same server, so don't overlap its rollout. The server's deploy guard may need
+    the user's sudo password, and the runbook's trusted proxy addresses can go stale when the nightly update recreates the proxy
+    (dantebarbieri/homeserver#125 fixed that). Then report to the coordinator, or the user: the PR, the homeserver PR, the live bundle, and
+    what changed in MirkMap and what didn't.
 
 ## Guardrails
 
 - The game folder is read-only, apart from the coordinator's backup. Run the UndertaleModCli scripts on `data.<version>.win`, which Steam
-  will not replace mid-work.
+  will not replace mid-work, and compare its SHA256 before and after each `load`.
 - Never commit decompiled code, dumps, language files, saves or game binaries; the repo gets only what the tools generate. Cite entry names,
   not code, and confirm every rule and README claim in the decompiled code. A patch note with no matching code is not modeled.
 - The editor must never corrupt a save: keep fields it does not own, and add nothing the save's version lacks.
