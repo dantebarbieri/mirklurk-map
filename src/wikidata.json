@@ -1,5 +1,5 @@
 {
-  "verified": "2026-10-16",
+  "verified": "2026-10-21",
   "titles": [
     "Action points",
     "Alchemy workstation",
@@ -136,6 +136,8 @@
     "Flask of Fire",
     "Flax",
     "Flint",
+    "Flint (Large)",
+    "Flint Dagger",
     "Flinthead Arrow",
     "Focus",
     "Focused Mind",
@@ -470,6 +472,8 @@
     "Version 0.8.9.9",
     "Version 0.9.0.0",
     "Version 0.9.0.1",
+    "Version 0.9.0.2",
+    "Version 0.9.1.0",
     "Vest",
     "Viend",
     "Vile Bulb (Mushroom)",
