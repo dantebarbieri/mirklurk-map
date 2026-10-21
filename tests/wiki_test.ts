@@ -1,6 +1,6 @@
 import art from "../src/wikiart.json" with { type: "json" };
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
-import { beingImage, beingTitle, entityWiki, itemImage, itemTitle, placeImage } from "../src/wiki.ts";
+import { beingImage, beingTitle, entityWiki, itemImage, itemTitle, itemWiki, placeImage } from "../src/wiki.ts";
 import { assert, assertEquals } from "./assert.ts";
 
 Deno.test("wiki art: every bundled picture exists, same-origin and content-hashed, with its recorded size", async () => {
@@ -25,7 +25,12 @@ Deno.test("wiki art: creatures and NPCs as they look in the world, placed items 
   }
   // Without an in-world sprite on the wiki, a being falls back to its portrait.
   assertEquals([BEING_NAMES[9], beingImage(9)?.source], ["Dead Unwanted", "Dead_Unwanted_portrait.png"]);
-  for (let i = 258; i <= 275; i++) assert(i === 263 || itemImage(i), `item ${i} has a picture`);
+  for (let i = 258; i <= 277; i++) assert(i === 263 || itemImage(i), `item ${i} has a picture`);
+  // 0.9.1.0's flint, by their wiki pages' titles.
+  assertEquals([276, 277].map((i) => [ITEM_NAMES[i], itemImage(i)?.source, itemWiki(ITEM_NAMES[i])]), [
+    ["Flint (Large)", "Flint_(Large)_icon_(cropped).png", "https://mirklurk.wiki/w/Flint_(Large)"],
+    ["Flint Dagger", "Flint_Dagger_icon_(cropped).png", "https://mirklurk.wiki/w/Flint_Dagger"],
+  ]);
   assertEquals(itemImage(171)?.source, "Finish_Raft_sprite_(cropped).png");
   assertEquals([ITEM_NAMES[108], itemImage(108)?.source], ["Hidden Hollow", "Hidden_Hollow_icon_(cropped).png"]);
   assertEquals(

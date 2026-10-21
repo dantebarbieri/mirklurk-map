@@ -1,5 +1,5 @@
 {
-  "verified": "2026-10-16",
+  "verified": "2026-10-21",
   "beings": {
     "0": {
       "file": "assets/wiki/being_0.17df91722d.png",
@@ -1820,6 +1820,18 @@
       "w": 220,
       "h": 215,
       "source": "Storage_Chest_icon_(cropped).png"
+    },
+    "276": {
+      "file": "assets/wiki/item_276.a7eb5c2fd3.png",
+      "w": 208,
+      "h": 112,
+      "source": "Flint_(Large)_icon_(cropped).png"
+    },
+    "277": {
+      "file": "assets/wiki/item_277.b27dd464e2.png",
+      "w": 96,
+      "h": 208,
+      "source": "Flint_Dagger_icon_(cropped).png"
     }
   },
   "places": {
