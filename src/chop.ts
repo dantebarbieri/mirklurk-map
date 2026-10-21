@@ -1,9 +1,10 @@
-// Tree liveliness and harvest cost, ported from Mirklurk 0.9.0.2 (decompiled GML).
+// Tree liveliness and harvest cost, ported from Mirklurk 0.9.1.0 (decompiled GML).
 // Sources: tree harvest menu in gml_Object_UI_Draw_64, tree_initiate / tree_grow in scr_nature,
 // loot drops in gml_Object_obj_tree_Step_0, chopMod values in gml_Object_databank_Alarm_1.
 
 import type { Inventory } from "./inventory.ts";
 import type { Tree } from "./save.ts";
+import { type GameVersion, hasItem, NEWEST } from "./version.ts";
 
 /** Slots of a saved partArray entry (obj_tree treeParts). */
 export const Part = { size: 11, parent: 16, depth: 21, life: 22 } as const;
@@ -21,10 +22,11 @@ export const isTree = (index: number) =>
 /** [TreeStuff] Fresh0–Fresh4 in UI.ini. */
 export const FRESHNESS = ["Very Fresh", "Fresh", "Half Dead", "Mostly Dead", "Dead"] as const;
 
-/** Every item with a chopMod (the tool bonus). 31 is "Unarmed", the bare-hands fallback. */
+/** Every item with a chopMod (the tool bonus). 31 is "Unarmed", the bare-hands fallback; 277, the Flint Dagger, came in 0.9.1.0. */
 export const CHOP_TOOLS: Record<number, number> = {
   31: 1,
   159: 0.5,
+  277: 1.2,
   2: 1.25,
   3: 1.5,
   5: 1.5,
@@ -121,21 +123,29 @@ export function trunkWood(species: number, size: number): { item: number; count:
   return { item: wood[size < 0.2 ? 0 : 1], count: Math.ceil(size * h / 16) + 1 };
 }
 
-/** Chopping tools the character carries (equipped or in any bag), best first. Bare hands always work. */
-export function ownedTools(inventory: Inventory | undefined): number[] {
+const byBonus = (a: number, b: number) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b;
+
+/** Every chopping tool the game version `rules` has, best first. */
+export const toolsIn = (rules: GameVersion = NEWEST) => Object.keys(CHOP_TOOLS).map(Number).filter((t) => hasItem(rules, t)).sort(byBonus);
+
+/** Chopping tools the character carries (equipped or in any bag) that the game version `rules` has, best first. Bare hands always work. */
+export function ownedTools(inventory: Inventory | undefined, rules: GameVersion = NEWEST): number[] {
   const found = new Set<number>([UNARMED]);
   const walk = (inv: Inventory | undefined) => {
     if (inv?.state !== "saved") return;
     for (const item of inv.items) {
-      if (CHOP_TOOLS[item.index] !== undefined) found.add(item.index);
+      if (CHOP_TOOLS[item.index] !== undefined && hasItem(rules, item.index)) found.add(item.index);
       item.contents.forEach(walk);
     }
   };
   walk(inventory);
-  return [...found].sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
+  return [...found].sort(byBonus);
 }
 
-/** A manual pick only holds while the carried tools are what they were when it was made; otherwise the best carried tool. */
-export function chosenTool(owned: number[], pick?: { tool: number; owned: string }): number {
-  return pick && pick.owned === owned.join() ? pick.tool : owned[0];
+/**
+ * A manual pick only holds while the carried tools are what they were when it was made, and while the game version `rules` has it;
+ * otherwise the best carried tool.
+ */
+export function chosenTool(owned: number[], pick?: { tool: number; owned: string }, rules: GameVersion = NEWEST): number {
+  return pick && pick.owned === owned.join() && hasItem(rules, pick.tool) ? pick.tool : owned[0];
 }

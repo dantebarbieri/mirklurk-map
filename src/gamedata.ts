@@ -352,6 +352,8 @@ export const ITEM_NAMES: Record<number, string> = {
   273: "Orb of Wind",
   274: "Orb of Storm",
   275: "Storage Chest",
+  276: "Flint (Large)",
+  277: "Flint Dagger",
 };
 
 /** [DamageClasses] in UI.ini: damage class names keyed by damageClass value. */

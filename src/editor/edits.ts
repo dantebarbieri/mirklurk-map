@@ -1,4 +1,4 @@
-// Save editor: changes to a character's Player.save record, written the way the game itself leaves them (Mirklurk 0.9.0.2,
+// Save editor: changes to a character's Player.save record, written the way the game itself leaves them (Mirklurk 0.9.1.0,
 // gml_GlobalScript_scr_saveload's save_player/load_player). Every function edits the raw parsed record in place and keeps every key
 // it does not own, because load_player reads almost all of them without checking that they exist.
 

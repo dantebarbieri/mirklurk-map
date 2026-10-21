@@ -1,9 +1,9 @@
 // Which game version's rules apply. A save names the version that wrote it (save_player's VERSION in Player.save), so MirkMap
-// follows it. Steam runs one version now (0.9.0.2); for a save from an older version whose rules differ, the version switch can show
+// follows it. Steam runs one version now (0.9.1.0); for a save from an older version whose rules differ, the version switch can show
 // Latest's instead, as the world will be once the current game saves it.
 
 /** The game versions whose rules MirkMap has, oldest first. */
-export const VERSIONS = ["0.8.1.5", "0.8.9.9", "0.9.0.0", "0.9.0.1", "0.9.0.2"] as const;
+export const VERSIONS = ["0.8.1.5", "0.8.9.9", "0.9.0.0", "0.9.0.1", "0.9.0.2", "0.9.1.0"] as const;
 export type GameVersion = (typeof VERSIONS)[number];
 
 /**
@@ -22,7 +22,7 @@ export type Channel = "latest" | "beta";
  * The version each Steam branch runs. This is the one place to change when a version is released: point `latest` at it, and
  * `beta` at a new opt-in beta while one is out (omitted when there is none, as now: the switch then offers no Beta).
  */
-export const CHANNELS: Readonly<{ latest: GameVersion; beta?: GameVersion }> = { latest: "0.9.0.2" };
+export const CHANNELS: Readonly<{ latest: GameVersion; beta?: GameVersion }> = { latest: "0.9.1.0" };
 export const CHANNEL_LABELS: Readonly<Record<Channel, string>> = { latest: "Latest", beta: "Beta" };
 /** What each branch is on Steam, for the switch's tooltip. */
 export const CHANNEL_NOTES: Readonly<Record<Channel, string>> = {
@@ -73,7 +73,7 @@ export const atLeast = (v: GameVersion, since: GameVersion) => VERSIONS.indexOf(
 /** The branch that runs version `v`, if one does. */
 export const channelOf = (v: GameVersion): Channel | undefined => channelsOf(CHANNELS).find((c) => CHANNELS[c] === v);
 
-/** "Latest (0.9.0.2)", or the bare version when no branch runs it any more. */
+/** "Latest (0.9.1.0)", or the bare version when no branch runs it any more. */
 export function versionLabel(v: GameVersion): string {
   const c = channelOf(v);
   return c ? `${CHANNEL_LABELS[c]} (${v})` : v;
@@ -88,8 +88,10 @@ export const CHANNELS_TOOLTIP = channelsOf(CHANNELS)
  * What each version added to the item and being databases (global.itemDB in gml_Object_databank_Alarm_1, global.beingDB in
  * Alarm_3), as inclusive index ranges. An older game has no data for these: a save holding one fails to load there.
  */
-const ADDED: Readonly<Partial<Record<GameVersion, { items: [number, number]; beings: [number, number] }>>> = {
+const ADDED: Readonly<Partial<Record<GameVersion, { items?: [number, number]; beings?: [number, number] }>>> = {
   "0.8.9.9": { items: [258, 275], beings: [36, 41] },
+  // Flint (Large) and the Flint Dagger made from it.
+  "0.9.1.0": { items: [276, 277] },
 };
 
 const addedIn = (key: "items" | "beings", index: number): GameVersion | undefined =>

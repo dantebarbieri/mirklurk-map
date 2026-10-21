@@ -1,4 +1,4 @@
-// Coins and prices (Mirklurk 0.9.0.2). Item prices are in silver: Copper Coin 0.01, Silver Coin 1, Gold Coin 10
+// Coins and prices (Mirklurk 0.9.1.0). Item prices are in silver: Copper Coin 0.01, Silver Coin 1, Gold Coin 10
 // (gml_Object_databank_Alarm_1), and item_draw_cost in gml_GlobalScript_scr_items shows a price as gold, silver, copper.
 
 import { h } from "./dom.ts";
@@ -33,6 +33,10 @@ export function countCoins(inv: Inventory | undefined): Coins {
   return out;
 }
 
+/**
+ * What coins are worth in copper, at face value: what trading counts them at since 0.9.1.0, whose item_get_price no longer scales coins
+ * (and gems) by their durability. Before, a coin worn by lying in a container outside counted for less, which no save we have shows.
+ */
 export const coinValue = (c: Coins) => c.copper + c.silver * SILVER + c.gold * GOLD;
 
 /** The fewest coins worth `copper`: 100 copper make a silver, 10 silver a gold. */

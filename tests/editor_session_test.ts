@@ -207,6 +207,13 @@ Deno.test("editor session: saving and downloading refuse what the version in use
     await s.apply(player, give(258, 1));
     await assertRejects(() => s.download(check("0.8.1.5")), new RegExp(`lacks ${ITEM_NAMES[258]}$`));
     await s.undo(s.changes.length - 1);
+    // A Flint Dagger, new in 0.9.1.0: a 0.9.0.2 game lacks it, Latest's has it.
+    await s.apply(player, give(277, 1));
+    await assertRejects(() => s.download(check("0.9.0.2")), new RegExp(`lacks ${ITEM_NAMES[277]}$`));
+    const latest: string[][] = [];
+    await s.download(check("0.9.1.0", latest));
+    assertEquals(latest, [[]]);
+    await s.undo(s.changes.length - 1);
 
     // The check sees the very bytes written: an edit made while it runs is refused by a save and left out of a download.
     const shards = (bytes: Uint8Array) => JSON.stringify(decodeJson(bytes)).split('"index":262,').length - 1;
