@@ -18,7 +18,7 @@ import {
   treeMarks,
   yourRaftMarks,
 } from "./objects.ts";
-import { CHOP_TOOLS, chosenTool, ownedTools, trunkOf, UNARMED } from "./chop.ts";
+import { CHOP_TOOLS, chosenTool, ownedTools, toolsIn, trunkOf, UNARMED } from "./chop.ts";
 import { amountText, fernAt, fernShade, GATHER_KINDS, GATHER_LAYERS, gatherMarks, gatherOrder } from "./gather.ts";
 import { pct, plural } from "./format.ts";
 import { heatBounds, type Landmark, type LandmarkId, landmarks, shipwreckOdds, zoneHeat } from "./predict.ts";
@@ -1228,8 +1228,8 @@ function mapLegend(st: State, layers: Layers): HTMLElement {
 
 /** "Chop with" select for the tree inspection; changing it dispatches "retool" on `target`. */
 function toolPicker(st: State, target: () => Element | undefined): HTMLElement {
-  const owned = ownedTools(st.world.player.inventory);
-  const tools = Object.keys(CHOP_TOOLS).map(Number).sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
+  const owned = ownedTools(st.world.player.inventory, st.rules);
+  const tools = toolsIn(st.rules);
   const tool = h(
     "select",
     { "aria-label": "Chopping tool for harvest costs" },
@@ -1368,8 +1368,8 @@ const TRUNK_FILTERS: [number, string][] = [
   [4, "Dead only"],
 ];
 
-/** The tool chosen for harvest costs, else the best one the character carries. */
-const chopTool = (st: State) => chosenTool(ownedTools(st.world.player.inventory), st.prefs.chopTool);
+/** The tool chosen for harvest costs, else the best one the character carries, among those the rules in use have. */
+const chopTool = (st: State) => chosenTool(ownedTools(st.world.player.inventory, st.rules), st.prefs.chopTool, st.rules);
 
 const treeLife = (m: Mark) => (m.tree && trunkOf(m.tree)?.life) ?? 2;
 
