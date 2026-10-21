@@ -1,4 +1,4 @@
-// Combat stats of every creature and NPC, ported from Mirklurk 0.9.0.2 (decompiled GML).
+// Combat stats of every creature and NPC, ported from Mirklurk 0.9.1.0 (decompiled GML).
 // Sources: global.beingDB in gml_Object_databank_Alarm_3 (stats and its damage totals), the examine card (case 11 in
 // gml_Object_UI_Draw_64), being_initiate in gml_GlobalScript_scr_basic_useful (a fresh being's hit points), attack_draw in
 // gml_GlobalScript_scr_gui_general, aiming in gml_Object_manager_area_Step_0 and being_get_target in gml_GlobalScript_scr_ai_related.

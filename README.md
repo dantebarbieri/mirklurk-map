@@ -1,7 +1,7 @@
 # MirkMap · Mirklurk World Viewer
 
-**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.0.2 (and saves from 0.8.1.5, the 0.8.9.9 beta and 0.9.0.0), published at
-**https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
+**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.1.0 (and saves from 0.8.1.5, the 0.8.9.9 beta, 0.9.0.0 and 0.9.0.2),
+published at **https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
   the map the game itself made for it (`Maps/x_y.png`);
@@ -15,11 +15,12 @@
   explored entrance to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your
   wellbeing, inventory and journal.
 
-It follows **Latest**, Mirklurk 0.9.0.2, the Steam release of what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda,
+It follows **Latest**, Mirklurk 0.9.1.0, the Steam release of what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda,
 her Survivors and Grand Mother's hut) and its side quest, the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a
-Magus' Shard opens and Magus Clay's end in it, the Storage Chest, and placeables you can flip as you place them. Each save names the version
-that wrote it, and MirkMap and the save editor follow it, so a 0.8.1.5 save keeps 0.8.1.5's rules and a 0.9.0.0 save 0.9.0.0's; for such a
-save a version switch beside Realistic shows Latest's rules instead. See [Game versions](#game-versions).
+Magus' Shard opens and Magus Clay's end in it, the Storage Chest, and placeables you can flip as you place them. 0.9.1.0 added large flint
+and the Flint Dagger made from it. Each save names the version that wrote it, and MirkMap and the save editor follow it, so a 0.8.1.5 save
+keeps 0.8.1.5's rules and a 0.9.0.2 save 0.9.0.2's; for such a save a version switch beside Realistic shows Latest's rules instead. See
+[Game versions](#game-versions).
 
 Save processing happens in the browser tab. Files stay local unless you add a world to your library to sync or share it. Realistic mode and
 the pictures in inspections load bundled art from the same site, never a third party. There is no world seed to type in — the game does not
@@ -366,11 +367,11 @@ Willows have hanging crowns, cypresses have pointed, uneven boughs, Trollgnarls 
 flower clusters. Map markers and list icons share the same hand-drawn shapes. Freshness colours the foliage (or the bare Trollgnarl); the
 pale stems on the other species are just a visual anchor, not a second health indicator. No wiki images are loaded for these icons.
 **Trunks** hides all but the drier trees (Half Dead, Mostly Dead or Dead only), which are much cheaper to fell for logs. **Chop with**,
-beside a clicked tree's harvest cost, picks the tool used for costs; it defaults to the best chopping tool your character carries (equipped
-or in a bag), else bare hands, and a manual pick resets to that default once the carried tools change. Hovering a tree shows its freshness,
-% alive and trunk harvest cost; clicking it shows the cost with the chosen tool and every other tool, the logs the felled trunk drops, and a
-link to the wiki's _Tree health and chopping_ guide. **Trees, deadest first** lists the zone's trees (respecting the filter), and the
-choices are kept across zones and characters.
+beside a clicked tree's harvest cost, picks the tool used for costs among those the game version in use has (the Flint Dagger only since
+0.9.1.0); it defaults to the best chopping tool your character carries (equipped or in a bag), else bare hands, and a manual pick resets to
+that default once the carried tools change. Hovering a tree shows its freshness, % alive and trunk harvest cost; clicking it shows the cost
+with the chosen tool and every other tool, the logs the felled trunk drops, and a link to the wiki's _Tree health and chopping_ guide.
+**Trees, deadest first** lists the zone's trees (respecting the filter), and the choices are kept across zones and characters.
 
 Costs are the action points the game's harvest menu shows, at save time; trees keep growing and drying after that. The game refuses a chop
 that costs more than the player's maximum of 8 AP (`actionPointsMax` in `gml_Object_obj_player_Create_0`), and the inspector says so;
@@ -596,18 +597,19 @@ Restoring a backup undoes edits, not the mark. On a computer that never saved ed
 
 ## Game versions
 
-Steam runs Mirklurk 0.9.0.2, released on 16 October 2026. It fixes bugs in 0.9.0.1, which changed orbs, Magus Clay's armor and a price of
-0.9.0.0, released on 14 October 2026 from the 0.8.9.9 beta (`next_version_tester`), which is gone. MirkMap has the rules of 0.9.0.0 (the
-beta's) and of 0.8.1.5, the release before it, too. `src/version.ts` maps **Latest** to a version (`CHANNELS`), and **Beta** while Steam has
-an opt-in beta: when a version is released, pointing Latest at it is the one line to change.
+Steam runs Mirklurk 0.9.1.0, released on 21 October 2026, which adds large flint and the Flint Dagger to 0.9.0.2 (16 October). That fixed
+bugs in 0.9.0.1, which changed orbs, Magus Clay's armor and a price of 0.9.0.0, released on 14 October 2026 from the 0.8.9.9 beta
+(`next_version_tester`), which is gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, and 0.9.0.2's 0.9.0.1's) and of
+0.8.1.5, the release before the beta. `src/version.ts` maps **Latest** to a version (`CHANNELS`), and **Beta** while Steam has an opt-in
+beta: when a version is released, pointing Latest at it is the one line to change.
 
 - **Which rules apply.** A save names the version that wrote it (`VERSION` in `Player.save`, from `save_player`). MirkMap uses the newest
-  rules it has that are no newer than that, so a later build gets 0.9.0.2's and an older one 0.8.1.5's; a save that names no version gets
-  Latest's. For a save whose version's rules differ from Latest's (0.8.1.5's, or 0.9.0.0's and the 0.8.9.9 beta's), a version switch, beside
-  Realistic and in the save editor under the character's name, offers the save's own version and **Latest**: pick Latest to see the world as
-  it will be once the current game loads and saves it. A save with Latest's rules, a 0.9.0.1 save among them, has nothing to pick and shows
-  no switch, nor does a save that names no version (while a beta is out, the switch offers it too). The pick lasts for that character while
-  the page is open, through live reloads; another character follows its own save, and picking the save's own version follows the save again.
+  rules it has that are no newer than that, so a later build gets 0.9.1.0's and an older one 0.8.1.5's; a save that names no version gets
+  Latest's. For a save whose version's rules differ from Latest's (0.8.1.5's, 0.9.0.0's and the 0.8.9.9 beta's, or 0.9.0.1's and 0.9.0.2's),
+  a version switch, beside Realistic and in the save editor under the character's name, offers the save's own version and **Latest**: pick
+  Latest to see the world as it will be once the current game loads and saves it. A 0.9.1.0 save has nothing to pick and shows no switch,
+  nor does a save that names no version (while a beta is out, the switch offers it too). The pick lasts for that character while the page is
+  open, through live reloads; another character follows its own save, and picking the save's own version follows the save again.
 - **What 0.8.1.5's rules change.** Harvests give `a` to `a+b−1` (`loot_amountchances`), so Cranberries 2–5, 3–8 and 4–11, Watercress up to
   5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
   Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
@@ -632,6 +634,18 @@ an opt-in beta: when a version is released, pointing Latest at it is the one lin
   and have the same keys.
 - **What 0.9.0.2 changed.** Nothing MirkMap reads or writes, so a 0.9.0.1 save gets the same rules: it fixed the weight after throwing from
   a stack, outdoor torches' light at night, and the main menu's music and particles. Saves name `VERSION` 0.9.0.2 and have the same keys.
+- **What 0.9.1.0 changed.** Two items: **Flint (Large)** (276), a striking stone that stacks five to a cell (the forage spots that give
+  Flint give one 2.5% of the time), and the **Flint Dagger** (277), crafted from one for 8 AP: a one-handed dagger with 20 durability that
+  chops with a tool bonus of ×1.2, and that random treasure can now hold. MirkMap names them and the save editor makes them; the dagger's
+  condition shows out of 20, and a clicked tree lists it among the chopping tools. Under an earlier version's rules neither exists: the
+  editor offers neither and refuses to save or download changes that add one, as under 0.8.1.5's (0.9.0.2's item database ends at 275), and
+  trees list no Flint Dagger. The rest of 0.9.1.0 changes nothing MirkMap shows. Coins and gems trade at full price whatever their
+  durability and no longer wear in containers outside; MirkMap already counts coins at face value and shows no coin durability (no save we
+  have holds a worn one). Forager's, Explorer's and Expedition Vests lose the armor icon and the skill discount on worn armor's weight, but
+  their armor still counts in the total MirkMap shows. Planting seeds costs 6 AP instead of 8, and crafting most of them less. Zones
+  generated from now on get no rifts in Vast Waters, the shipwreck puts you a tile lower inside, and the camp clears what stood where its
+  huts go, all of which MirkMap reads from the save. It also fixed ground containers' weight, and added Balanced Zoom, farther scouting, an
+  on-screen keyboard and fixes to menus, sounds and the cursor at dark doors. Saves name `VERSION` 0.9.1.0 and have the same keys.
 - **What is 0.8.9.9's in all.** Names, pictures and the other databank values. 0.8.9.9 also changed a few that MirkMap does not show (some
   foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's unused "Unwanted
   Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The save formats are
@@ -640,9 +654,9 @@ an opt-in beta: when a version is released, pointing Latest at it is the one lin
 
 ## How the guesses work
 
-All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.0.2, diffed against 0.9.0.1's, 0.9.0.0's, 0.8.9.9's
-and 0.8.1.5's); the entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ, [Game versions](#game-versions)
-says how.
+All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.1.0, diffed against 0.9.0.2's, 0.9.0.1's, 0.9.0.0's,
+0.8.9.9's and 0.8.1.5's); the entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ,
+[Game versions](#game-versions) says how.
 
 **The world layout is fixed at new game** (`gml_Object_obj_menu_Alarm_8`) and saved in `Player.save`: the grid, and the zones of Bhato
 (`rangerCamp`), the Library (`libraryArea`) and Scaal (`riftQuestArea`, the fort mirrored through the centre). The random stream is only
@@ -686,8 +700,9 @@ is the root part. The harvest menu (`gml_Object_UI_Draw_64`) shows freshness `ro
 `24 × size ÷ (round(max(0.1, 1 − life) × 10) × 0.5)` AP, so a dead trunk costs a tenth of a living one. Trunks are then multiplied by
 `1.33 + size` (Elderwort uses `8 × size` for its stem and `4 × size` for branches instead). The cost is capped at 32, multiplied by 1.2 for
 Cypress and 2 for Trollgnarl, divided by the tool's `chopMod` (`gml_Object_databank_Alarm_1`; e.g. Iron Hand Axe 3, Steel Felling Axe 4.2,
-bare hands 1), and rounded to 0.2 AP (at least 0.2). A felled trunk drops `ceil(size × trunk sprite height ÷ 16) + 1` logs, or branches when
-its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by `life − 0.5`, so dead wood is dry.
+0.9.1.0's Flint Dagger 1.2, bare hands 1), and rounded to 0.2 AP (at least 0.2). A felled trunk drops
+`ceil(size × trunk sprite height ÷ 16) + 1` logs, or branches when its size is under 0.2 (`gml_Object_obj_tree_Step_0`). The wood is wet by
+`life − 0.5`, so dead wood is dry.
 
 **Gatherables** (`src/gather.ts`). They are tiles of the saved `Hinderance` layer, which `tile_is_harvestable`
 (`gml_GlobalScript_scr_tiles_autotiling`) and `tile_to_enum` (`gml_GlobalScript_scr_tiles_finders`) read: 147 Calmia, 148 Vile Bulb, 150–159
@@ -735,11 +750,11 @@ repair kits, lamp oil and torches pushed back by their type. Commander Tain's Ma
 two-handers) keep the stock order here; the game breaks such ties by grid position. Prices are the item database's, in silver
 (`gml_Object_databank_Alarm_1`: a copper coin is 0.01, a silver 1 and a gold 10). The trade window (`gml_Object_UI_Draw_64`) charges exactly
 that, with no markup, and pays the same price for your goods scaled by condition (`item_get_price` in `gml_GlobalScript_scr_items`:
-durability left, at least 10%, or fuel left for light sources, at least 25%); quest items cannot be sold. Coins count at face value, the
-trade goes through once your goods cover the cost, and the difference comes back in coins. When each merchant offers **Trade** comes from
-the NPC dialogue options in `gml_Object_UI_Draw_64`: most in their everyday conversation, Viend only from main-quest stage 27, once Clay has
-fled the fort, and Grand Mother only once Wilda trusts you, since her hut is locked until then. Grand Mother adds the Magus' Shard from main
-quest stage 30.
+durability left, at least 10%, except for coins and gems since 0.9.1.0, or fuel left for light sources, at least 25%); quest items cannot be
+sold. Coins count at face value (before 0.9.1.0 a coin worn by lying in a container outside counted for less), the trade goes through once
+your goods cover the cost, and the difference comes back in coins. When each merchant offers **Trade** comes from the NPC dialogue options
+in `gml_Object_UI_Draw_64`: most in their everyday conversation, Viend only from main-quest stage 27, once Clay has fled the fort, and Grand
+Mother only once Wilda trusts you, since her hut is locked until then. Grand Mother adds the Magus' Shard from main quest stage 30.
 
 **Wellbeing per turn** (`src/player.ts`). The circle bar (`gml_Object_UI_Draw_64`) shows `haelth` as wellbeing and `focus`, `energy`
 (Stamina), `hunger` (Satiation) and `warmth` as percentages. `player_get_stat_changes` in `gml_GlobalScript_scr_basic_useful` scores each

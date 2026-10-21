@@ -699,6 +699,25 @@ Deno.test("condition: orbs are made, repaired and set to 30 durability since 0.9
   assertEquals(all().map((c) => itemAt(p, c.place)!.durability), [30, 30, 30]);
 });
 
+Deno.test("items: 0.9.1.0's Flint (Large) stacks five to a cell, and its Flint Dagger is a one-handed weapon made with 20 durability", () => {
+  assertEquals([ITEMS[276], ITEMS[277]], [{ w: 2, h: 1, stack: 5, type: 18 }, { w: 1, h: 2, stack: 1, type: 16, durability: 20 }]);
+  assert(addable(276) && addable(277));
+  assertEquals([newItem(276, 3, [0, 0]).durability, newItem(277, 1, [0, 0]).durability], [1, 20]);
+  const p = dressed({ 8: { ...backpack(), durability: ITEMS[12].durability } });
+  assertEquals(addItems(p, 276, 7), { added: 7, left: 0 });
+  assertEquals(carriedItems(p).flatMap((c) => c.contents).map((c) => [c.index, c.amount]), [[276, 5], [276, 2]]);
+  assertEquals(SLOT_TAKES.flatMap((_, s) => fitsSlot(277, s) ? [s] : []), [0, 2]);
+  assert(!isTwoHandedMelee(277), "a dagger leaves the off hand free");
+  assertEquals(wearNew(p, 277), { slot: 0, amount: 1 });
+  const dagger = { slot: 0, path: [] };
+  setCondition(p, dagger, 277, { durability: 5 });
+  assertThrows(() => setCondition(p, dagger, 277, { durability: 21 }), /at most 20/);
+  assertEquals(needing(p, "repair").map((c) => c.index), [277]);
+  assertEquals(repairAll(p).map((c) => c.index), [277]);
+  assertEquals(itemAt(p, dagger)!.durability, 20);
+  assertEquals(parsePlayer([p]).equipment.map((e) => [e.slot, e.item.index]), [[0, 277], [8, 12]]);
+});
+
 Deno.test("spawned creatures have a fresh grid; quest characters are protected", () => {
   const b = newBeing(17, 10, 20);
   assertEquals([b.index, b.x, b.y, b.status, b.state, b.homeX, b.localStage, b.turnLimit], [17, 168, 328, -200, 0, E, -1, E]);

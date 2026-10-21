@@ -11,6 +11,7 @@ import {
   Part,
   partLabel,
   roundGml,
+  toolsIn,
   trunkOf,
   trunkWood,
   UNARMED,
@@ -113,4 +114,23 @@ Deno.test("chop: the default tool is the best one carried, even in a bag", () =>
   assertEquals(chosenTool([IRON_HAND_AXE, UNARMED], { tool: UNARMED, owned: `${IRON_HAND_AXE},${UNARMED}` }), UNARMED);
   assertEquals(chosenTool([IRON_HAND_AXE, UNARMED], { tool: UNARMED, owned: `${UNARMED}` }), IRON_HAND_AXE);
   assert(Object.values(CHOP_TOOLS).every((m) => m > 0));
+});
+
+Deno.test("chop: 0.9.1.0's Flint Dagger chops with ×1.2, a tool only its rules list, pick or carry", () => {
+  const FLINT_DAGGER = 277, SERPENT_FANG = 159, SHODDY_DAGGER = 2;
+  assertEquals(CHOP_TOOLS[FLINT_DAGGER], 1.2);
+  assertEquals(harvestCost(Nature.Willow, part(0.95, 0.3), CHOP_TOOLS[FLINT_DAGGER]), 12.4);
+  const latest = toolsIn("0.9.1.0"), before = toolsIn("0.9.0.2");
+  assertEquals(latest, toolsIn());
+  assertEquals(latest.filter((t) => !before.includes(t)), [FLINT_DAGGER]);
+  assertEquals(latest.slice(-4), [SHODDY_DAGGER, FLINT_DAGGER, UNARMED, SERPENT_FANG], "between the Shoddy Dagger and bare hands");
+  assertEquals(before.length, Object.keys(CHOP_TOOLS).length - 1);
+  const item = (index: number) => ({ index, amount: 1, contents: [] });
+  const inv: Inventory = { state: "saved", items: [item(FLINT_DAGGER), item(SERPENT_FANG)] };
+  assertEquals(ownedTools(inv), [FLINT_DAGGER, UNARMED, SERPENT_FANG]);
+  assertEquals(ownedTools(inv, "0.9.0.2"), [UNARMED, SERPENT_FANG]);
+  // A pick of it lapses under rules without it, though the carried tools are the same.
+  const pick = { tool: FLINT_DAGGER, owned: `${UNARMED},${SERPENT_FANG}` };
+  assertEquals(chosenTool([UNARMED, SERPENT_FANG], pick), FLINT_DAGGER);
+  assertEquals(chosenTool([UNARMED, SERPENT_FANG], pick, "0.9.0.2"), UNARMED);
 });

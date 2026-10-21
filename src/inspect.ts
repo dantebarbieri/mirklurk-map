@@ -7,7 +7,20 @@ import type { Inventory, SavedItem } from "./inventory.ts";
 import { type Mark, markKey } from "./objects.ts";
 import { amountText, type Gather, gatherAt, type GatherKind } from "./gather.ts";
 import type { Tree } from "./save.ts";
-import { CHOP_TOOLS, formatAp, FRESHNESS, harvestCost, MAX_AP, NATDEAD, Nature, partLabel, trunkOf, trunkWood, UNARMED } from "./chop.ts";
+import {
+  CHOP_TOOLS,
+  formatAp,
+  FRESHNESS,
+  harvestCost,
+  MAX_AP,
+  NATDEAD,
+  Nature,
+  partLabel,
+  toolsIn,
+  trunkOf,
+  trunkWood,
+  UNARMED,
+} from "./chop.ts";
 import { beingImage, entityWiki, itemImage, itemWiki, placeImage, type WikiImage, wikiUrl, wikiVerified } from "./wiki.ts";
 import { creatureView } from "./creature.ts";
 import { merchantView, sells } from "./merchants.ts";
@@ -232,7 +245,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
     ...(m.tree
       ? (m.layer === "brambles" || m.layer === "vines"
         ? brambleView(m.tree, tool ?? UNARMED)
-        : treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, expanded, picker))
+        : treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, rules, expanded, picker))
       : []),
     ...(m.gather ? gatherView(m.gather, rules) : []),
     ...(m.inventory
@@ -309,8 +322,8 @@ function brambleView(plant: Tree, tool: number): HTMLElement[] {
   ].filter((e): e is HTMLElement => !!e);
 }
 
-/** Trunk liveliness, the game's harvest cost for the trunk with the chosen tool, and what it drops. */
-function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>, picker?: HTMLElement): HTMLElement[] {
+/** Trunk liveliness, the game's harvest cost for the trunk with the chosen tool, and what it drops; every tool the rules have. */
+function treeView(tree: Tree, tool: number, key: string, rules: GameVersion, expanded?: Set<string>, picker?: HTMLElement): HTMLElement[] {
   const trunk = trunkOf(tree);
   if (!trunk) return [h("p", { class: "muted" }, "No standing trunk was saved for this plant.")];
   const label = partLabel(tree.index, trunk.part);
@@ -318,7 +331,7 @@ function treeView(tree: Tree, tool: number, key: string, expanded?: Set<string>,
   const tooDear = (t: number) => harvestCost(tree.index, trunk.part, CHOP_TOOLS[t]) > MAX_AP;
   const wood = trunkWood(tree.index, trunk.size);
   const wet = Math.max(0, trunk.life - 0.5);
-  const tools = Object.keys(CHOP_TOOLS).map(Number).sort((a, b) => CHOP_TOOLS[b] - CHOP_TOOLS[a] || a - b);
+  const tools = toolsIn(rules);
   const branches = (tree.parts?.length ?? 1) - 1;
   return [
     h(
