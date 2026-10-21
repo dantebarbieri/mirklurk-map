@@ -38,14 +38,15 @@ the exact before → after values, what the player sees, and the Steam patch not
 
 **Precedents** (`gh pr view <n> --json files`, `git show`): #43–#45, the 0.8.9.9 beta (new items, beings, art and rules; `src/version.ts`
 and the version switch); #48, 0.9.0.0 (nothing to model: shared rules, Latest, Beta hidden); #49, the wiki refresh after it; #51, 0.9.0.1
-and 0.9.0.2 (rules that differ by version).
+and 0.9.0.2 (rules that differ by version); #52, 0.9.1.0 (new items, one of them a chopping tool).
 
 ## Steps
 
 1. **Start.** Read the report and the latest version PR. Check `get_sessions_status` for another seed-map session on the same files or a
    deploy in flight, and work around it.
 2. **Triage every change.** Decide whether MirkMap reads, shows, predicts or edits it, and keep the verdict and its evidence for the PR and
-   the README. UI text, menus, sounds and dev-only code (`global.DEVmode`, `QUICKMODE`) rarely matter. Where things land:
+   the README. UI text, menus, sounds and dev-only code (`global.DEVmode`, `QUICKMODE`) rarely matter. When a change matters only if a save
+   holds some state, scan the real saves read-only for it (#52 found no worn coins). Where things land:
    - save format and load-time migrations (`scr_saveload`, `manager_area_Step_0`): `src/save.ts` and the editor (`src/editor/`);
    - the item database (`databank_Alarm_1`): sizes, stacks, durability, fuel and containers are generated (`src/itemdata.ts`); prices
      (`WARE_DATA` in `src/merchants.ts`), `chopMod` (`CHOP_TOOLS` in `src/chop.ts`) and armor (`ARMOR_POINTS` in `src/armor.ts`) are ported
@@ -58,8 +59,9 @@ and 0.9.0.2 (rules that differ by version).
      `src/artdata.json`.
 3. **Add the version** in `src/version.ts`: append it to `VERSIONS`, and point `CHANNELS.latest` at it (or `beta` while it is an opt-in
    Steam beta; drop `beta` once it is released, as #48 did). When nothing MirkMap models changed, map it in `SAME_RULES` to the version
-   whose rules it shares, which must not be mapped itself. Add new item and being index ranges to `ADDED`, so the editor offers and accepts
-   them only under versions that have them (`hasItem`, `hasBeing`, `src/editor/compat.ts`). Update the header comment.
+   whose rules it shares, which must not be mapped itself. Add new item and being index ranges to `ADDED` (`hasItem`, `hasBeing`): the
+   editor's pickers and its save check (`src/editor/compat.ts`) already follow them, but any other list of items or beings must too, as
+   `toolsIn` in `src/chop.ts` does for the new Flint Dagger (#52). Update the header comment.
 4. **Version the rules that changed.** Port the new value and keep the old one behind `atLeast(rules, "<version>")` in a function that takes
    `rules: GameVersion`, as `priceOf`, `armorOf` and `durabilityMax` do (#51), then pass the rules in use through its callers (`ctx.rules`,
    `st.rules`, `editorRules()`). What the build that wrote the save did follows the save's own version, not the switch (`src/estimate.ts`).
@@ -71,8 +73,9 @@ and 0.9.0.2 (rules that differ by version).
      installed game's `Languages\English\*.ini`, which the game rewrites on launch, so first check that they match the new build (the
      coordinator's `Languages-<version>` snapshot) or launch the game once;
    - art: run `tools/dump_art.csx` with `MIRKLURK_ART_OUT` set to a temporary folder and compare its `assets/game/` and `src/artdata.json`
-     with the repo's. If they differ, run it from the repo root and delete the files it no longer references, as #43 did. Either way, set
-     the version in `tools/dump_art.csx` and `src/artdata.json`.
+     with the repo's. If they differ, remove `$env:MIRKLURK_ART_OUT` (it overrides the working directory), run it again from the repo root
+     and delete the files it no longer references, as #43 did. Either way, set the version in `tools/dump_art.csx` and `src/artdata.json`.
+     New item icons are not map art; their pictures come from the wiki (step 9).
 
    Every line the generators change must match a change in the report; anything else means the wrong build or stale language files.
 6. **Bump the version stamps** once the entries behind them are re-checked: the "ported from Mirklurk <version>" header comments
@@ -83,10 +86,11 @@ and 0.9.0.2 (rules that differ by version).
    does not show, and whether saves name the new `VERSION` with the same keys. Also update the intro at the top, the opening of "How the
    guesses work" (which `data.win` the rules were read from and diffed against), and every rule section a change touches, with entry names.
 8. **Tests** (CONTRIBUTING's rules): `tests/version_test.ts` (`VERSIONS`, Latest, `sameRules`, detection, the switch's options, `hasItem`
-   and `hasBeing` for new ranges), and a by-version test in the module test of every rule that changed. New items or beings without wiki
-   pages yet are exempt in `tests/inventory_test.ts` (`FIRST_NEW_ITEM`, `NEW_BEINGS`) until `deno task wiki` finds them. Run `deno task ci`,
-   then `deno task test` with `$env:MIRKLURK_SAVES` set to the game's `Saves` folder (it only reads them), and check by hand on
-   `deno task dev` (`/?dev=<Character>`, `/edit/?dev=<Character>`) that an older save shows the switch and a new one does not.
+   and `hasBeing` for new ranges), and a by-version test in the module test of every rule that changed. `tests/inventory_test.ts` lets items
+   from `FIRST_NEW_ITEM` on and beings in `NEW_BEINGS` lack a wiki page; add new beings there until `deno task wiki` finds theirs. Run
+   `deno task ci`, then `deno task test` with `$env:MIRKLURK_SAVES` set to the game's `Saves` folder (it only reads them), and check by hand
+   on `deno task dev` (`/?dev=<Character>`, `/edit/?dev=<Character>`) that a save whose version's rules differ from Latest's shows the
+   switch and one with Latest's rules does not (`src/versionview.ts`).
 9. **Wiki links and pictures.** MirkMap links an item or being only to a verified wiki page with its title (usually the in-game name; see
    `itemTitle` and `beingTitle` in `src/wiki.ts`), and `deno task wiki` bundles `File:<Title>_icon_(cropped).png` or `_icon.png` for items
    and `_sprite` or `_portrait` for beings. Tell the wiki session (or the coordinator) the titles that new or renamed content needs, and ask
