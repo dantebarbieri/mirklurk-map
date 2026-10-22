@@ -1,7 +1,7 @@
 # MirkMap · Mirklurk World Viewer
 
-**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.1.0 (and saves from 0.8.1.5, the 0.8.9.9 beta, 0.9.0.0 and 0.9.0.2),
-published at **https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
+**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.1.2 (and saves from 0.8.1.5, the 0.8.9.9 beta, 0.9.0.0, 0.9.0.2 and
+0.9.1.0), published at **https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
   the map the game itself made for it (`Maps/x_y.png`);
@@ -15,7 +15,7 @@ published at **https://map.mirklurk.danteb.com**. Open a character's save folder
   explored entrance to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your
   wellbeing, inventory and journal.
 
-It follows **Latest**, Mirklurk 0.9.1.0, the Steam release of what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda,
+It follows **Latest**, Mirklurk 0.9.1.2, the Steam release of what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda,
 her Survivors and Grand Mother's hut) and its side quest, the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a
 Magus' Shard opens and Magus Clay's end in it, the Storage Chest, and placeables you can flip as you place them. 0.9.1.0 added large flint
 and the Flint Dagger made from it. Each save names the version that wrote it, and MirkMap and the save editor follow it, so a 0.8.1.5 save
@@ -597,19 +597,19 @@ Restoring a backup undoes edits, not the mark. On a computer that never saved ed
 
 ## Game versions
 
-Steam runs Mirklurk 0.9.1.0, released on 21 October 2026, which adds large flint and the Flint Dagger to 0.9.0.2 (16 October). That fixed
-bugs in 0.9.0.1, which changed orbs, Magus Clay's armor and a price of 0.9.0.0, released on 14 October 2026 from the 0.8.9.9 beta
-(`next_version_tester`), which is gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, and 0.9.0.2's 0.9.0.1's) and of
-0.8.1.5, the release before the beta. `src/version.ts` maps **Latest** to a version (`CHANNELS`), and **Beta** while Steam has an opt-in
-beta: when a version is released, pointing Latest at it is the one line to change.
+Steam runs Mirklurk 0.9.1.2, released on 22 October 2026, which fixed bugs in 0.9.1.0 (21 October). That added large flint and the Flint
+Dagger to 0.9.0.2 (16 October), which fixed bugs in 0.9.0.1, which changed orbs, Magus Clay's armor and a price of 0.9.0.0, released on 14
+October 2026 from the 0.8.9.9 beta (`next_version_tester`), which is gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's,
+0.9.0.2's 0.9.0.1's and 0.9.1.2's 0.9.1.0's) and of 0.8.1.5, the release before the beta. `src/version.ts` maps **Latest** to a version
+(`CHANNELS`), and **Beta** while Steam has an opt-in beta: when a version is released, pointing Latest at it is the one line to change.
 
 - **Which rules apply.** A save names the version that wrote it (`VERSION` in `Player.save`, from `save_player`). MirkMap uses the newest
-  rules it has that are no newer than that, so a later build gets 0.9.1.0's and an older one 0.8.1.5's; a save that names no version gets
+  rules it has that are no newer than that, so a later build gets 0.9.1.2's and an older one 0.8.1.5's; a save that names no version gets
   Latest's. For a save whose version's rules differ from Latest's (0.8.1.5's, 0.9.0.0's and the 0.8.9.9 beta's, or 0.9.0.1's and 0.9.0.2's),
   a version switch, beside Realistic and in the save editor under the character's name, offers the save's own version and **Latest**: pick
-  Latest to see the world as it will be once the current game loads and saves it. A 0.9.1.0 save has nothing to pick and shows no switch,
-  nor does a save that names no version (while a beta is out, the switch offers it too). The pick lasts for that character while the page is
-  open, through live reloads; another character follows its own save, and picking the save's own version follows the save again.
+  Latest to see the world as it will be once the current game loads and saves it. A 0.9.1.2 or 0.9.1.0 save has nothing to pick and shows no
+  switch, nor does a save that names no version (while a beta is out, the switch offers it too). The pick lasts for that character while the
+  page is open, through live reloads; another character follows its own save, and picking the save's own version follows the save again.
 - **What 0.8.1.5's rules change.** Harvests give `a` to `a+b−1` (`loot_amountchances`), so Cranberries 2–5, 3–8 and 4–11, Watercress up to
   5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
   Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
@@ -646,6 +646,12 @@ beta: when a version is released, pointing Latest at it is the one line to chang
   generated from now on get no rifts in Vast Waters, the shipwreck puts you a tile lower inside, and the camp clears what stood where its
   huts go, all of which MirkMap reads from the save. It also fixed ground containers' weight, and added Balanced Zoom, farther scouting, an
   on-screen keyboard and fixes to menus, sounds and the cursor at dark doors. Saves name `VERSION` 0.9.1.0 and have the same keys.
+- **What 0.9.1.2 changed.** Nothing MirkMap reads or writes, so a 0.9.1.0 save gets the same rules. It fixed two bugs in what the game lets
+  you click: while scouting, the cursor is no longer pulled back toward you on a tile you can see (`cursor_Step_1`; `scoutRange` 240 → 512
+  in `obj_player_Create_0`), and a ranged weapon or orb can target a visible being within its range and line of sight even where the ranged
+  tiles were not yet updated (`tile_is_in_rangedarray`, `cursor_resolve_highlight`). It also fades the main menu's particles out and blanks
+  the unused `spr_logo`; no item, being, trader, loot, world-generation, text or map art changed. Saves name `VERSION` 0.9.1.2 and have the
+  same keys.
 - **What is 0.8.9.9's in all.** Names, pictures and the other databank values. 0.8.9.9 also changed a few that MirkMap does not show (some
   foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's unused "Unwanted
   Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The save formats are
@@ -654,8 +660,8 @@ beta: when a version is released, pointing Latest at it is the one line to chang
 
 ## How the guesses work
 
-All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.1.0, diffed against 0.9.0.2's, 0.9.0.1's, 0.9.0.0's,
-0.8.9.9's and 0.8.1.5's); the entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ,
+All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.1.2, diffed against 0.9.1.0's, 0.9.0.2's, 0.9.0.1's,
+0.9.0.0's, 0.8.9.9's and 0.8.1.5's); the entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ,
 [Game versions](#game-versions) says how.
 
 **The world layout is fixed at new game** (`gml_Object_obj_menu_Alarm_8`) and saved in `Player.save`: the grid, and the zones of Bhato

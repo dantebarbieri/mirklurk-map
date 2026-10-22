@@ -1,4 +1,4 @@
-// What the traders sell and how trading works, ported from Mirklurk 0.9.1.0 (unchanged since 0.9.0.1), 0.8.9.9 and 0.8.1.5
+// What the traders sell and how trading works, ported from Mirklurk 0.9.1.2 (unchanged since 0.9.0.1), 0.8.9.9 and 0.8.1.5
 // (decompiled GML). References name the source entry.
 
 import { type Coins, coinsView, priceCoins } from "./coins.ts";
