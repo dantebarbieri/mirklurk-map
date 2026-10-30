@@ -83,6 +83,6 @@ foreach (var sprite in Data.Sprites.Where(s => allowed.IsMatch(s.Name.Content)))
 
 Directory.CreateDirectory(Path.Combine(root, "src"));
 File.WriteAllText(Path.Combine(root, "src", "artdata.json"),
-    JsonConvert.SerializeObject(new { version = "0.9.1.2", tilesets, sprites, rooms }, Formatting.Indented) + "\n");
+    JsonConvert.SerializeObject(new { version = "0.9.2.0", tilesets, sprites, rooms }, Formatting.Indented) + "\n");
 Console.WriteLine($"Exported {tilesets.Count} tilesets and {sprites.Count} environment sprite strips to {outDir}");
 }

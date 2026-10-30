@@ -111,10 +111,10 @@ import {
   fuelMax,
   isWet,
   itemState,
+  stackLimit,
   wetText,
 } from "../condition.ts";
 import { conditionView } from "../inspect.ts";
-import { ITEMS } from "../itemdata.ts";
 import { SLOT_NAMES } from "../armor.ts";
 import { deleteBeing, habitat, habitatRefusal, isQuestBeing, spawnable, spawnBeing } from "./beings.ts";
 import { areaObjects } from "./area.ts";
@@ -1531,7 +1531,7 @@ function itemsCard(v: PlayerSave, p: Rec, saved: Rec | undefined): HTMLElement {
 
 const itemName = (index: number) => ITEM_NAMES[index] ?? `Item ${index}`;
 /** The most of an item one stack (one cell) holds. */
-const stackOf = (index: number) => ITEMS[index]?.stack ?? 1;
+const stackOf = (index: number) => stackLimit(index, editorRules());
 const stackText = (index: number) => stackOf(index) > 1 ? `Stacks up to ${stackOf(index)}` : "Does not stack";
 /** An equipment slot's name; the second weapon set's hands say so. */
 const slotLabel = (slot: number) => `${SLOT_NAMES[slot] ?? `slot ${slot + 1}`}${slot === 2 || slot === 3 ? " (second set)" : ""}`;

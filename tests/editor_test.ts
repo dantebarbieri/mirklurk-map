@@ -360,6 +360,53 @@ Deno.test("larger items fill every cell they cover with a copy carrying their or
   assertEquals(freeCells(p), 0);
 });
 
+Deno.test("items: 0.9.2.0 adds and wears torch stacks, topping up only identical condition", () => {
+  for (const index of [41, 96, 212]) {
+    const make = (extra: Rec = {}) => {
+      const grid = empty(2, 3);
+      const torch = { ...newItem(index, 1, [2, 1]), X: 0, Y: 0, futureField: { keep: true }, ...extra };
+      for (let y = 0; y < 3; y++) grid[y][0] = structuredClone(torch);
+      return player(grid);
+    };
+    const p = make();
+    assertEquals(addItems(p, index, 5), { added: 5, left: 0 });
+    const g = carriedBags(p)[0].grid as Rec[][];
+    assertEquals(g.map((r) => r.map((c) => c.amount)), [[3, 3], [3, 3], [3, 3]]);
+    assertEquals(g[2][0].futureField, { keep: true });
+    assert(g[0][0] !== g[1][0]);
+    for (
+      const extra of [
+        { durability: Number(ITEMS[index].durability) - 0.00001 },
+        { burnTimeLeft: Number(ITEMS[index].burn) - 0.00001 },
+        { durability: undefined },
+        { burnTimeLeft: undefined },
+      ]
+    ) {
+      const other = make(extra);
+      assertEquals(addItems(other, index, 4), { added: 3, left: 1 });
+      assertEquals((carriedBags(other)[0].grid[0][0] as Rec).amount, 1, "mismatched torch left untouched");
+    }
+    const old = make();
+    assertEquals(addItems(old, index, 3, "0.9.1.2"), { added: 1, left: 2 });
+    assertEquals((carriedBags(old)[0].grid[0][0] as Rec).amount, 1);
+    const fresh = player(empty(1, 3));
+    assertEquals(addItems(fresh, index, 4), { added: 3, left: 1 });
+    for (const [rules, amount] of [["0.9.1.2", 1], ["0.9.2.0", 3]] as const) {
+      const worn = dressed({});
+      assertEquals(wearNew(worn, index, 8, 0, rules), { slot: 0, amount });
+    }
+  }
+});
+
+Deno.test("items: removal clears all serialized copies even outside the rotated item's rectangle", () => {
+  const grid = empty(4, 2);
+  const torch = { ...newItem(41, 3, [0, 0]), X: 0, Y: 0, sideflipped: true };
+  for (const [x, y] of [[0, 0], [1, 0], [2, 0], [3, 1]]) grid[y][x] = structuredClone(torch);
+  const p = player(grid);
+  removeItem(p, { slot: 1, path: [{ part: 0, x: 0, y: 0 }] }, 41, "all");
+  assertEquals(grid, empty(4, 2));
+});
+
 Deno.test("adding reports what does not fit and refuses nonsense", () => {
   const p = player(empty(1, 1));
   assertEquals(addItems(p, 8, 1), { added: 0, left: 1 }, "a 1×4 spear does not fit a 1×1 grid");

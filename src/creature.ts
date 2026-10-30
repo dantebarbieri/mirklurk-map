@@ -5,10 +5,12 @@ import {
   type Attack,
   BEINGS,
   type BeingStats,
+  blockOf,
   canHurt,
   damageCell,
   damageClassInfo,
   damageText,
+  dodgeOf,
   formatPercent,
   formatTiles,
   freshHealth,
@@ -177,13 +179,14 @@ function hostility(s: BeingStats): [string, string] {
 }
 
 /** The rest of the examine card, and the XP. */
-function behaviour(s: BeingStats): HTMLElement {
+function behaviour(being: number, s: BeingStats, rules: GameVersion): HTMLElement {
   return h(
     "dl",
     { class: "creature-stats" },
     row("Movement", `${formatTiles(s.tilespeed)} a turn`),
     row("Hostility", ...hostility(s)),
-    row("Dodge", formatPercent(s.dodgeChance), "", "Chance it shifts its hit points aside when attacked, so blows can miss"),
+    row("Dodge", formatPercent(dodgeOf(being, rules)), "", "Chance it shifts its hit points aside when attacked, so blows can miss"),
+    row("Block", formatPercent(blockOf(being, rules)), "", "Chance it blocks an entire melee or ranged attack"),
     row(
       "Attack of opportunity",
       formatPercent(s.aooChance),
@@ -205,7 +208,7 @@ export function creatureView(being: number, health: HealthGrid | undefined, ctx:
   return [
     sectioned(section(ctx, "hit-points", title, true, ...hitPoints(being, health, ctx.rules))),
     sectioned(section(ctx, "attack", s.ranged ? "Attacks" : "Attack", true, ...attackSection(s, ctx.difficulty, ctx.rules))),
-    sectioned(section(ctx, "behaviour", "Behaviour", true, behaviour(s))),
+    sectioned(section(ctx, "behaviour", "Behaviour", true, behaviour(being, s, ctx.rules))),
     h(
       "p",
       { class: "creature-links" },

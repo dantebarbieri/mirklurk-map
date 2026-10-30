@@ -1,4 +1,4 @@
-// Equipment slots and the player's armor, ported from Mirklurk 0.9.1.2 (decompiled GML).
+// Equipment slots and the player's armor and blocking, ported from Mirklurk 0.9.2.0 (decompiled GML).
 // Sources: myEquips in gml_Object_obj_player_Create_0 (slot order, as Player.save lists them), player_update_gearstats and
 // player_real_combat_check in gml_GlobalScript_scr_basic_useful, item_durfix_value in gml_GlobalScript_scr_items,
 // being_get_armor_max in gml_GlobalScript_scr_ai_related, and armor / durabilityMax in gml_Object_databank_Alarm_1.
@@ -7,6 +7,7 @@ import { roundGml } from "./chop.ts";
 import { type HealthGrid, Hp } from "./health.ts";
 import type { SavedItem } from "./inventory.ts";
 import { ITEMS } from "./itemdata.ts";
+import { atLeast, type GameVersion, NEWEST } from "./version.ts";
 
 /**
  * myEquips.subSlots in order. Slots 0–1 and 2–3 are the two weapon sets (main hand, then off hand: a shield, a torch or
@@ -100,6 +101,19 @@ export interface Equipped {
   slot: number;
   active: boolean;
   item: SavedItem;
+}
+
+/** item_is_shield and the 0.9.2.0 itemDB blockChance values. Armor and durability are unchanged. */
+const SHIELD_BLOCK: Readonly<Record<number, number>> = { 0: 0.08, 1: 0.08, 50: 0.12, 58: 0.12, 118: 0.1 };
+
+export const shieldBlock = (index: number, rules: GameVersion = NEWEST): number | undefined =>
+  SHIELD_BLOCK[index] === undefined ? undefined : atLeast(rules, "0.9.2.0") ? SHIELD_BLOCK[index] : 0;
+
+/** player_get_block: only the active off-hand shield counts; Shield Savant adds 2.5 percentage points per rank. */
+export function playerBlock(equipment: readonly Equipped[], rank: number, rules: GameVersion = NEWEST): number {
+  const shield = equipment.find((e) => e.active && (e.slot === 1 || e.slot === 3));
+  const base = shield && shieldBlock(shield.item.index, rules);
+  return base === undefined ? 0 : base + rank * 0.025;
 }
 
 /** item_durfix_value: an item's armor scaled by its durability, to 0.01. Undefined for items without armor. */

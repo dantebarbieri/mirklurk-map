@@ -1,4 +1,4 @@
-// Combat stats of every creature and NPC, ported from Mirklurk 0.9.1.2 (decompiled GML).
+// Combat stats of every creature and NPC, ported from Mirklurk 0.9.2.0 (decompiled GML).
 // Sources: global.beingDB in gml_Object_databank_Alarm_3 (stats and its damage totals), the examine card (case 11 in
 // gml_Object_UI_Draw_64), being_initiate in gml_GlobalScript_scr_basic_useful (a fresh being's hit points), attack_draw in
 // gml_GlobalScript_scr_gui_general, aiming in gml_Object_manager_area_Step_0 and being_get_target in gml_GlobalScript_scr_ai_related.
@@ -44,6 +44,8 @@ export interface BeingStats {
   hostileChance: number;
   /** Chance it shifts its grid aside when attacked (get_dodges). */
   dodgeChance: number;
+  /** Chance of blocking an entire attack; zero when the databank leaves it out. */
+  blockChance?: number;
   /** Chance it strikes at a target leaving its reach (being_ao_check); the databank fills in 0.33 when it is left out. */
   aooChance: number;
   /**
@@ -85,12 +87,14 @@ export const BEINGS: Record<number, BeingStats> = {
     melee: { pattern: [[1.3, 1.3], [1.3, 1.3]], damageClass: 2, dist: 3.25, cost: 6, iq: 3 },
   },
   5: { // Soldier
+    blockChance: 0.1,
     grid: [4, 3], xp: 250, armor: 12, apMax: 10, tilespeed: 6, hostileDist: 12, hostileChance: 0.75,
     dodgeChance: 0.2, aooChance: 0.33, team: 0,
     melee: { pattern: [[0.1, 0.1], [0.1, 0.1]], damageClass: 15, dist: 1.5, cost: 6, iq: 3 },
     ranged: { pattern: [[1.2, 2.2], [2.2, 1.2]], damageClass: 17, dist: 14, cost: 6, iq: 3 },
   },
   6: { // Captain Eir
+    blockChance: 0.15,
     grid: [5, 4], xp: 500, armor: 20, apMax: 10, tilespeed: 6, hostileDist: 7, hostileChance: 0.7,
     dodgeChance: 0.15, aooChance: 0.33, team: 0,
     melee: { pattern: [[0, 1.2, 0], [1.2, 2.2, 1.2], [0, 1.2, 0]], damageClass: 15, dist: 2.25, cost: 6, iq: 3 },
@@ -122,6 +126,7 @@ export const BEINGS: Record<number, BeingStats> = {
     melee: { pattern: [[0.1, 0], [0, 0.1]], damageClass: 17, dist: 1.5, cost: 6, iq: 2 },
   },
   12: { // Ranger Bhato
+    blockChance: 0.1,
     grid: [3, 4], xp: 200, armor: 0, apMax: 10, tilespeed: 6, hostileDist: 15, hostileChance: 0.75,
     dodgeChance: 0.25, aooChance: 0.33, team: 0,
     melee: { pattern: [[1.2, 1.2, 1.2]], damageClass: 14, dist: 1.5, cost: 6, iq: 3 },
@@ -139,11 +144,13 @@ export const BEINGS: Record<number, BeingStats> = {
     melee: { pattern: [[0.1, 1.1, 0.1], [0, 1.1, 0], [0, 1.1, 0]], damageClass: 15, dist: 1.5, cost: 6, iq: 3 },
   },
   15: { // Scaalmyr Warrior
+    blockChance: 0.1,
     grid: [5, 3], xp: 125, armor: 15, apMax: 10, tilespeed: 7, hostileDist: 7, hostileChance: 1,
-    dodgeChance: 0.12, aooChance: 0.6, team: 5,
+    dodgeChance: 0.1, aooChance: 0.6, team: 5,
     melee: { pattern: [[1.2, 0, 1.2], [0, 1.2, 0], [1.2, 0, 1.2]], damageClass: 14, dist: 2.25, cost: 6, iq: 3 },
   },
   16: { // Scaalmyr Geomancer
+    blockChance: 0.075,
     grid: [5, 3], xp: 300, armor: 15, apMax: 10, tilespeed: 6, hostileDist: 7, hostileChance: 1,
     dodgeChance: 0.05, aooChance: 0.2, team: 5,
     melee: { pattern: [[0.2, 0, 0.2], [0, 2.3, 0], [0.2, 0, 0.2]], damageClass: 24, dist: 1.5, cost: 6, iq: 3 },
@@ -155,6 +162,7 @@ export const BEINGS: Record<number, BeingStats> = {
     melee: { pattern: [[1.2, 1.2]], damageClass: 14, dist: 1.5, cost: 6, iq: 1 },
   },
   18: { // Cave Troll
+    blockChance: 0.1,
     grid: [5, 5], xp: 200, armor: 25, apMax: 10, tilespeed: 5, hostileDist: 6, hostileChance: 0.67,
     dodgeChance: 0, aooChance: 0.33, team: 9,
     melee: { pattern: [[0.1, 1.2, 0.1], [1.2, 2.2, 1.2], [0.1, 1.2, 0.1]], damageClass: 15, dist: 2.25, cost: 6, iq: 1 },
@@ -221,6 +229,7 @@ export const BEINGS: Record<number, BeingStats> = {
     melee: { pattern: [[1.2, 1.2]], damageClass: 17, dist: 1.5, cost: 6, iq: 1 },
   },
   31: { // Raving Unwanted
+    blockChance: 0.05,
     grid: [4, 2], xp: 30, armor: 0, apMax: 10, tilespeed: 6, hostileDist: 8, hostileChance: 0.5,
     dodgeChance: 0.25, aooChance: 0.45, team: 8,
     melee: { pattern: [[0.2, 0.2], [0.2, 0.2]], damageClass: 14, dist: 1.5, cost: 6, iq: 1 },
@@ -242,6 +251,7 @@ export const BEINGS: Record<number, BeingStats> = {
     ranged: { pattern: [[0, 1.2, 0], [1.2, 3.3, 1.2], [0, 1.2, 0]], damageClass: 17, dist: 12, cost: 7, iq: 3 },
   },
   35: { // Survivor
+    blockChance: 0.2,
     grid: [4, 3], xp: 150, armor: 0, apMax: 10, tilespeed: 6, hostileDist: 12, hostileChance: 0.85,
     dodgeChance: 0.25, aooChance: 0.33, team: 10,
     melee: { pattern: [[0, 1.1, 0], [1.1, 2.2, 1.1], [0, 1.1, 0]], damageClass: 17, dist: 2.25, cost: 6, iq: 3 },
@@ -282,6 +292,14 @@ export const BEINGS: Record<number, BeingStats> = {
 /** Being `being`'s armor under `rules`: Magus Clay had none before 0.9.0.1 and has 49 since, one layer on each of his hit points. */
 export const armorOf = (being: number, rules: GameVersion = NEWEST) =>
   being === MAGUS_CLAY && !atLeast(rules, "0.9.0.1") ? 0 : BEINGS[being]?.armor ?? 0;
+
+/** Blocking was player-only before 0.9.2.0 (being_blocks_attack). */
+export const blockOf = (being: number, rules: GameVersion = NEWEST): number =>
+  atLeast(rules, "0.9.2.0") ? BEINGS[being]?.blockChance ?? 0 : 0;
+
+/** Scaalmyr Warrior's dodge fell from 12% to 10% in 0.9.2.0. */
+export const dodgeOf = (being: number, rules: GameVersion = NEWEST): number =>
+  being === 15 && !atLeast(rules, "0.9.2.0") ? 0.12 : BEINGS[being]?.dodgeChance ?? 0;
 
 export const hasRanged = (being: number) => (BEINGS[being]?.ranged?.dist ?? 0) > 0;
 

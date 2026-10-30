@@ -5,11 +5,13 @@ import { assert, assertEquals } from "./assert.ts";
 import {
   armorOf,
   BEINGS,
+  blockOf,
   canHurt,
   damageCell,
   DamageClass,
   damageClassInfo,
   damageText,
+  dodgeOf,
   formatPercent,
   formatTiles,
   freshHealth,
@@ -22,6 +24,18 @@ import {
 import { BEING_NAMES, DAMAGE_CLASS_NAMES } from "../src/gamedata.ts";
 import { NPC_BEINGS } from "../src/rules.ts";
 import { HAVE_SAVES, SAVES } from "./saves.ts";
+import { VERSIONS } from "../src/version.ts";
+
+Deno.test("bestiary: 0.9.2.0 adds eight blocks and lowers Warrior dodge without changing older rules", () => {
+  const blocks: Record<number, number> = { 5: 0.1, 6: 0.15, 12: 0.1, 15: 0.1, 16: 0.075, 18: 0.1, 31: 0.05, 35: 0.2 };
+  for (const v of VERSIONS) {
+    for (const i of Object.keys(BEINGS).map(Number)) {
+      assertEquals(blockOf(i, v), v === "0.9.2.0" ? blocks[i] ?? 0 : 0, `${v}: ${i}`);
+      assertEquals(dodgeOf(i, v), i === 15 && v !== "0.9.2.0" ? 0.12 : BEINGS[i].dodgeChance, `${v}: ${i}`);
+    }
+  }
+  assertEquals([blockOf(-1), dodgeOf(-1), blockOf(16), dodgeOf(15)], [0, 0, 0.075, 0.1]);
+});
 
 const rectangular = (g: number[][]) => g.length > 0 && g.every((r) => r.length > 0 && r.length === g[0].length);
 

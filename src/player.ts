@@ -1,10 +1,10 @@
 // The player's saved condition and belongings: hit points, wellbeing and the four stats behind it, conditions, coins and
-// inventory, and the journal (journal.ts). Wellbeing math is ported from Mirklurk 0.9.1.2: player_get_stat_changes and
+// inventory, and the journal (journal.ts). Wellbeing math is ported from Mirklurk 0.9.2.0: player_get_stat_changes and
 // player_get_combined_wellbeing in gml_GlobalScript_scr_basic_useful, with the thresholds set in gml_Room_rm_int_Create, as the
 // circle bar in gml_Object_UI_Draw_64 reports them.
 
 import { type Coins, coinsView, coinValue, countCoins, fewestCoins } from "./coins.ts";
-import { ARMOR, armorToPlace, isWeaponSlot, itemArmor, SLOT_NAMES, totalArmor } from "./armor.ts";
+import { ARMOR, armorToPlace, isWeaponSlot, itemArmor, playerBlock, shieldBlock, SLOT_NAMES, totalArmor } from "./armor.ts";
 import { h } from "./dom.ts";
 import { plural } from "./format.ts";
 import { ITEM_NAMES } from "./gamedata.ts";
@@ -508,6 +508,14 @@ function armorView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
   return [
     h(
       "p",
+      { class: "player-block muted" },
+      p.shieldSavant === undefined
+        ? "Block chance unavailable: Shield Savant rank was not saved."
+        : `Block ${percent(playerBlock(p.equipment, p.shieldSavant, ctx.rules))} with your active weapon set. ` +
+          "A shield is required; Shield Savant adds 2.5 percentage points per rank.",
+    ),
+    h(
+      "p",
       { class: "player-armor" },
       h("strong", {}, `Armor ${armorText(total)}`),
       " from equipment: ",
@@ -535,6 +543,7 @@ function armorView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
               ` ${armor}`,
               (e.item.durability ?? max) < max ? ` of ${full} (${Math.round((e.item.durability ?? max) / max * 100)}% durability)` : "",
               e.active ? "" : ", other weapon set",
+              shieldBlock(e.item.index, ctx.rules) === undefined ? "" : `; base block ${percent(shieldBlock(e.item.index, ctx.rules)!)}`,
             ),
           )
         ),

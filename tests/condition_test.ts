@@ -9,13 +9,34 @@ import {
   durabilityMax,
   fuelMax,
   isOrb,
+  isTorch,
   isWet,
   itemState,
   needsFuel,
   needsRepair,
+  stackLimit,
+  stacksMatch,
   wetText,
 } from "../src/condition.ts";
 import { ITEMS } from "../src/itemdata.ts";
+import { VERSIONS } from "../src/version.ts";
+
+Deno.test("condition: only 0.9.2.0 torches stack, with exactly matching fuel and durability", () => {
+  for (const index of [41, 96, 212]) {
+    assert(isTorch(index));
+    for (const v of VERSIONS) assertEquals(stackLimit(index, v), v === "0.9.2.0" ? 3 : 1);
+    const torch = { index, burnTimeLeft: fuelMax(index), durability: durabilityMax(index) };
+    assert(stacksMatch(torch, { ...torch }));
+    assert(!stacksMatch(torch, { ...torch, durability: Number(torch.durability) - 0.00001 }));
+    assert(!stacksMatch(torch, { ...torch, burnTimeLeft: Number(torch.burnTimeLeft) - 0.00001 }));
+    assert(!stacksMatch(torch, { ...torch, burnTimeLeft: undefined }));
+    assert(!stacksMatch(torch, { ...torch, index: index === 41 ? 96 : 41 }));
+  }
+  assertEquals(stackLimit(-1), 1);
+  assertEquals(stackLimit(72, "0.8.1.5"), 20);
+  assert(!isTorch(110), "lanterns do not get torch rules");
+  assert(stacksMatch({ index: 72, durability: 1 }, { index: 72, durability: 100 }));
+});
 
 Deno.test("condition: durability shows as the tooltip shows it, named for what it counts", () => {
   assertEquals(durabilityKind(4), "durability", "Steel Dagger");

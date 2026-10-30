@@ -25,6 +25,17 @@ export const DURABILITY_LABELS: Readonly<Record<DurabilityKind, string>> = {
 /** Grand Mother's magic orbs (Orb of Poison to Orb of Storm). */
 export const isOrb = (index: number) => index >= 267 && index <= 274;
 
+/** item_is_torch: lanterns are not torches. */
+export const isTorch = (index: number) => index === 41 || index === 96 || index === 212;
+
+/** Torch stacks were single items before 0.9.2.0; the generated database holds the newest limits. */
+export const stackLimit = (index: number, rules: GameVersion = NEWEST): number =>
+  isTorch(index) && !atLeast(rules, "0.9.2.0") ? 1 : ITEMS[index]?.stack ?? 1;
+
+/** item_stack_match: torch condition must match exactly, not approximately or by its displayed rounded value. */
+export const stacksMatch = (a: ItemState, b: ItemState): boolean =>
+  a.index === b.index && (!isTorch(a.index) || (a.burnTimeLeft === b.burnTimeLeft && a.durability === b.durability));
+
 /**
  * Item `index`'s durabilityMax under `rules`: the item database's, except that before 0.9.0.1 the orbs had 1, never worn; since
  * then 30, and each cast wears 1 (item_durloss).
