@@ -1,6 +1,6 @@
 import art from "../src/wikiart.json" with { type: "json" };
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
-import { beingImage, beingTitle, entityWiki, itemImage, itemTitle, itemWiki, placeImage } from "../src/wiki.ts";
+import { beingImage, beingTitle, entityWiki, itemImage, itemTitle, itemWiki, placeImage, wikiUrl } from "../src/wiki.ts";
 import { assert, assertEquals } from "./assert.ts";
 
 Deno.test("wiki art: every bundled picture exists, same-origin and content-hashed, with its recorded size", async () => {
@@ -45,6 +45,12 @@ Deno.test("wiki art: creatures and NPCs as they look in the world, placed items 
 Deno.test("wiki titles: beings and items with a disambiguated page", () => {
   assertEquals([beingTitle("Magus Clay", 8), beingTitle("Magus Clay", 41)], ["Magus Clay", "Magus Clay (boss)"]);
   assertEquals([itemTitle("Turnip"), itemTitle("Iron Dagger")], ["Turnip (item)", "Iron Dagger"]);
+});
+
+Deno.test("wiki links: published 0.9.2.0 version page is verified alongside earlier versions", () => {
+  for (const version of ["0.9.1.2", "0.9.2.0"]) {
+    assertEquals(wikiUrl(`Version ${version}`), `https://mirklurk.wiki/w/Version_${version}`);
+  }
 });
 
 Deno.test("wiki links: Magus Clay the NPC and the boss in his realm have separate pages", () => {
