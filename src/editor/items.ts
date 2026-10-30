@@ -15,6 +15,8 @@ import {
   itemState,
   needsFuel,
   needsRepair,
+  stackLimit,
+  stacksMatch,
 } from "../condition.ts";
 import { isRec, type Rec } from "../save-record.ts";
 import { isOffHandCopy } from "../inventory.ts";
@@ -163,16 +165,20 @@ export function addItems(p: Rec, index: number, amount: number, rules: GameVersi
   if (!Number.isInteger(amount) || amount < 1) throw new Error("Amount must be a whole number of at least 1");
   const d = ITEMS[index];
   const bags = carriedBags(p);
+  const limit = stackLimit(index, rules);
+  const zone: [number, number] = [Number(p.areaX), Number(p.areaY)];
+  const template = bags[0]?.inventory;
+  const fresh = newItem(index, 1, zone, template, rules);
   let left = amount;
-  if (d.stack > 1) {
+  if (limit > 1) {
     for (const bag of bags) {
       const g = bag.grid;
       for (let x = 0; x < g[0].length && left; x++) {
         for (let y = 0; y < g.length && left; y++) {
           const here = origin(g, x, y);
-          if (!here || here.index !== index || Number(here.amount) >= d.stack) continue;
+          if (!here || !stacksMatch(itemState(here), itemState(fresh)) || Number(here.amount) >= limit) continue;
           const have = Number(here.amount);
-          const add = Math.min(left, d.stack - have);
+          const add = Math.min(left, limit - have);
           const wet = typeof here.wet === "number" ? here.wet * have / (have + add) : here.wet;
           for (const c of copies(g, x, y)) {
             c.amount = have + add;
@@ -183,8 +189,6 @@ export function addItems(p: Rec, index: number, amount: number, rules: GameVersi
       }
     }
   }
-  const zone: [number, number] = [Number(p.areaX), Number(p.areaY)];
-  const template = bags[0]?.inventory;
   let turned = false;
   for (const sideflipped of d.w === d.h ? [false] : [false, true]) {
     const [w, h] = sideflipped ? [d.h, d.w] : [d.w, d.h];
@@ -193,7 +197,7 @@ export function addItems(p: Rec, index: number, amount: number, rules: GameVersi
       for (let x = 0; x < g[0].length && left; x++) {
         for (let y = 0; y < g.length && left; y++) {
           if (!fits(g, x, y, w, h)) continue;
-          const n = Math.min(left, d.stack);
+          const n = Math.min(left, limit);
           put(g, newItem(index, n, zone, template, rules), x, y, sideflipped);
           turned ||= sideflipped;
           left -= n;
@@ -342,7 +346,7 @@ export function wearNew(
   if (!addable(index)) throw new Error(`Item ${index} cannot be carried`);
   if (!Number.isInteger(amount) || amount < 1) throw new Error("Amount must be a whole number of at least 1");
   const at = slotFor(p, index, slot);
-  const n = Math.min(amount, ITEMS[index].stack);
+  const n = Math.min(amount, stackLimit(index, rules));
   const item = newItem(index, n, [Number(p.areaX), Number(p.areaY)], carriedBags(p)[0]?.inventory, rules);
   wear(p.myEquips as unknown[], at, item);
   return { slot: at, amount: n };

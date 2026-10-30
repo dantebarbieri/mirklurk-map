@@ -878,6 +878,31 @@ Deno.test("editor session: a world from My worlds is saved back to the library, 
   }
 });
 
+Deno.test("editor session: optional container alpha survives save, download and reload without adding it to older records", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-alpha-" });
+  try {
+    await fixture(root);
+    const path = `${root}/Hero/[ 0,0 ]/Containers.save`;
+    const containers = [
+      { sprite: "spr_drops", pic: 0, index: 0, xx: 40, yy: 40, gridSave: [], alpha: 0.25, futureField: true },
+      { sprite: "spr_drops", pic: 0, index: 0, xx: 56, yy: 40, gridSave: [] },
+    ];
+    const bytes = new Uint8Array([...encoder.encode(JSON.stringify(containers)), 0]);
+    await Deno.writeFile(path, bytes);
+    const s = await openSession(root, "Hero");
+    await s.apply("Hero/Player.save", (raw) => (setSkillPoints(playerRecord(raw), 7), "Skill points 0 → 7"));
+    const back = await unzip((await s.download()).blob);
+    assertEquals(back.get("Hero/[ 0,0 ]/Containers.save"), bytes);
+    await s.save();
+    assertEquals(await Deno.readFile(path), bytes, "current area's final write preserves unknown and absent keys");
+    const reopened = await openSession(root, "Hero");
+    const again = await unzip((await reopened.download()).blob);
+    assertEquals(decodeJson(again.get("Hero/[ 0,0 ]/Containers.save")!), containers);
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("editor session: a copy downloads with its changes and the mark, then saves into the game's folder at its own path", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
   try {

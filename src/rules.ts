@@ -1,4 +1,4 @@
-// Game rules ported from Mirklurk 0.9.1.2 (decompiled GML). Where 0.8.1.5's differ, the code using them takes a game version
+// Game rules ported from Mirklurk 0.9.2.0 (decompiled GML). Where 0.8.1.5's differ, the code using them takes a game version
 // (version.ts). References name the source entry.
 
 /** Zone (room) edge in game units; tiles are 16 units, so 160 tiles per side. */

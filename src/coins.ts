@@ -1,4 +1,4 @@
-// Coins and prices (Mirklurk 0.9.1.2). Item prices are in silver: Copper Coin 0.01, Silver Coin 1, Gold Coin 10
+// Coins and prices (Mirklurk 0.9.2.0). Item prices are in silver: Copper Coin 0.01, Silver Coin 1, Gold Coin 10
 // (gml_Object_databank_Alarm_1), and item_draw_cost in gml_GlobalScript_scr_items shows a price as gold, silver, copper.
 
 import { h } from "./dom.ts";

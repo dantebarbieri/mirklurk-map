@@ -165,3 +165,11 @@ Deno.test("zip: stored and deflated entries", async () => {
   assertEquals(decodeJson(await entries[1].read()), []);
   await assertRejects(() => readZip(new Blob([enc.encode("not a zip")])), /not a ZIP/);
 });
+Deno.test("player: shield rank is optional and reads Fighter skill 4, not unspent points", () => {
+  const worldGrid = Array.from({ length: 5 }, () => [1, 1, 1, 1, 1]);
+  assertEquals(parsePlayer([{ worldGrid }]).shieldSavant, undefined);
+  assertEquals(parsePlayer([{ worldGrid, skillPoints: 99, fighterSkills: [1, 2, 3, 4, 7] }]).shieldSavant, 7);
+  for (const fighterSkills of [[], [0, 0, 0, 0, "7"], [0, 0, 0, 0, NaN]]) {
+    assertEquals(parsePlayer([{ worldGrid, fighterSkills }]).shieldSavant, undefined);
+  }
+});

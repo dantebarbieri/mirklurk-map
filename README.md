@@ -1,6 +1,6 @@
 # MirkMap · Mirklurk World Viewer
 
-**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.1.2 (and saves from 0.8.1.5, the 0.8.9.9 beta, 0.9.0.0, 0.9.0.2 and
+**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.2.0 (and saves from 0.8.1.5, the 0.8.9.9 beta, 0.9.0.0, 0.9.0.2 and
 0.9.1.0), published at **https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
@@ -15,7 +15,7 @@
   explored entrance to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your
   wellbeing, inventory and journal.
 
-It follows **Latest**, Mirklurk 0.9.1.2, the Steam release of what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda,
+It follows **Latest**, Mirklurk 0.9.2.0, the Steam release of what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda,
 her Survivors and Grand Mother's hut) and its side quest, the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a
 Magus' Shard opens and Magus Clay's end in it, the Storage Chest, and placeables you can flip as you place them. 0.9.1.0 added large flint
 and the Flint Dagger made from it. Each save names the version that wrote it, and MirkMap and the save editor follow it, so a 0.8.1.5 save
@@ -300,7 +300,7 @@ points and 2 armor"); a being saved without one shows that fresh shape instead. 
 Weak) with what that class does, then the total, its reach in tiles, its AP cost and its intelligence for the save's difficulty. The
 Mirkfangs leech: each hit point they destroy heals one of their own. The Sceetler, Scaalmyr Geomancer, Scaal, Soldier, Magus Clay (at the
 fort and in his realm), Ranger Bhato and Wilda also shoot, with another pattern, class and reach: a **Melee / Ranged** toggle switches
-between the two and stays on your choice for the next being. **Behaviour** lists movement, hostility, dodge and attack-of-opportunity
+between the two and stays on your choice for the next being. **Behaviour** lists movement, hostility, dodge, block and attack-of-opportunity
 chances and the XP for the kill. Commander Tain, Grand Mother and the Dead Unwanted never attack, and NPCs and Wilda's Survivors never
 target you.
 
@@ -316,16 +316,17 @@ entrance (labelled below it so the building's name stays readable) and leads ins
 your grid with burned and lost (wounded) hit points, armor layers, poison stacks and bleeding, and says when new hit points from levelling
 up are not placed yet. Under it, **Armor** totals your equipment's armor as the game's equipment screen does and says how many armor points
 you will distribute on your hit points when the next combat starts (the total rounded down, at most 3 layers on each living hit point), with
-**Armor by item** showing what each worn piece gives at its current durability. **Wellbeing** shows wellbeing and its four stats, Focus,
-Stamina, Satiation and Warmth (the game's word for body temperature; its bar marks the comfortable 40–60% band), each with what it does to
-wellbeing per turn, plus warm-to-the-core, well rested, sickness and overburdened bonuses or penalties and the net change. **Conditions and
-level** lists the active effects (sickness, well fed, well rested, stamina boost, overburdened, shelter, tired and so on) with turns left
-where the save records them, wet clothing, level, XP to the next level and unspent skill points. **Inventory** lists equipped items and bag
-contents like a container, each worn or held item marked **E** (with its slot on hover; dashed for the weapon set not in hand, since worn
-vests, pants and belts have pockets too), under a roll-up of every coin carried, bags included: **True coins** shows them as they are,
-**Minimum coins** the same value in the fewest coins (100 copper make a silver, 10 silver a gold). The choice is kept for the session and
-applies to every roll-up, including the one in **Saved equipment & inventory**. **Journal** shows your journal (see below). Everything is
-the state at save time; the game keeps changing it every turn.
+**Armor by item** showing what each worn piece gives at its current durability and each shield's base block chance. **Block** shows the
+active off-hand shield's chance plus Shield Savant (or says when its rank was not saved). **Wellbeing** shows wellbeing and its four stats,
+Focus, Stamina, Satiation and Warmth (the game's word for body temperature; its bar marks the comfortable 40–60% band), each with what it
+does to wellbeing per turn, plus warm-to-the-core, well rested, sickness and overburdened bonuses or penalties and the net change.
+**Conditions and level** lists the active effects (sickness, well fed, well rested, stamina boost, overburdened, shelter, tired and so on)
+with turns left where the save records them, wet clothing, level, XP to the next level and unspent skill points. **Inventory** lists
+equipped items and bag contents like a container, each worn or held item marked **E** (with its slot on hover; dashed for the weapon set not
+in hand, since worn vests, pants and belts have pockets too), under a roll-up of every coin carried, bags included: **True coins** shows
+them as they are, **Minimum coins** the same value in the fewest coins (100 copper make a silver, 10 silver a gold). The choice is kept for
+the session and applies to every roll-up, including the one in **Saved equipment & inventory**. **Journal** shows your journal (see below).
+Everything is the state at save time; the game keeps changing it every turn.
 
 ### Journal
 
@@ -483,14 +484,14 @@ writes it (decompiled entries in brackets):
   and rain are written as `player_endturn` leaves them, and days alive move with the day. The game eases the air temperature back toward the
   hour's usual value, and going back in time stops regrowth in zones visited later until the clock catches up.
 - **Items and coins**: added to the bags you carry exactly as picking them up would (`item_pickup`, `item_stack`, `item_add`). Stacks are
-  topped up first, then each new stack goes in the first free spot, column by column, written in every cell it covers. What finds no room
-  upright anywhere is then turned sideways (`sideflipped`, covering height × width), as you could turn it in the game; nothing already in
-  your bags is rearranged. New items glow gold in the game until you look at them. Whatever does not fit is reported, never dropped. Sizes,
-  stack limits and durability come from the game's item database (`src/itemdata.ts`). Every item you can carry can be added, including ones
-  the game keeps out of random treasure (`NONLOOTABLE`): quest items, seeds, Water Lilies and things you place, such as a Campfire, a
-  Storage Chest or a Raft Base (place it in deep water, then finish the raft at it). Only Unarmed (your bare hands) and Finish Raft (the
-  recipe that turns a placed Raft Base into the raft, never an item) are left out, and items the game version in use does not have (see
-  [Game versions](#game-versions)).
+  topped up first, then each new stack goes in the first free spot, column by column, written in every cell it covers. Torches top up only
+  when fuel and durability match exactly, and stack to three only under 0.9.2.0 rules. What finds no room upright anywhere is then turned
+  sideways (`sideflipped`, covering height × width), as you could turn it in the game; nothing already in your bags is rearranged. New items
+  glow gold in the game until you look at them. Whatever does not fit is reported, never dropped. Sizes, stack limits and durability come
+  from the game's item database (`src/itemdata.ts`). Every item you can carry can be added, including ones the game keeps out of random
+  treasure (`NONLOOTABLE`): quest items, seeds, Water Lilies and things you place, such as a Campfire, a Storage Chest or a Raft Base (place
+  it in deep water, then finish the raft at it). Only Unarmed (your bare hands) and Finish Raft (the recipe that turns a placed Raft Base
+  into the raft, never an item) are left out, and items the game version in use does not have (see [Game versions](#game-versions)).
 - **Removing items**: **What you wear and carry** lists every worn item by slot, with what its containers hold, and each container's size
   and free cells (a bag kept inside another holds nothing, as above). **Remove** takes all of an item, or as many of a stack as you say, out
   of the save: every grid cell it covered is emptied, every copy of the containers it was in is kept the same (the game saves a copy of an
@@ -597,19 +598,20 @@ Restoring a backup undoes edits, not the mark. On a computer that never saved ed
 
 ## Game versions
 
-Steam runs Mirklurk 0.9.1.2, released on 22 October 2026, which fixed bugs in 0.9.1.0 (21 October). That added large flint and the Flint
-Dagger to 0.9.0.2 (16 October), which fixed bugs in 0.9.0.1, which changed orbs, Magus Clay's armor and a price of 0.9.0.0, released on 14
-October 2026 from the 0.8.9.9 beta (`next_version_tester`), which is gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's,
-0.9.0.2's 0.9.0.1's and 0.9.1.2's 0.9.1.0's) and of 0.8.1.5, the release before the beta. `src/version.ts` maps **Latest** to a version
-(`CHANNELS`), and **Beta** while Steam has an opt-in beta: when a version is released, pointing Latest at it is the one line to change.
+Steam runs Mirklurk 0.9.2.0, released on 29 October 2026, which changed torch stacking and blocking, and fixed inventory and combat bugs in
+0.9.1.2 (22 October), which fixed bugs in 0.9.1.0 (21 October). That added large flint and the Flint Dagger to 0.9.0.2 (16 October), which
+fixed bugs in 0.9.0.1, which changed orbs, Magus Clay's armor and a price of 0.9.0.0, released on 14 October 2026 from the 0.8.9.9 beta
+(`next_version_tester`), which is gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's 0.9.0.1's and 0.9.1.2's
+0.9.1.0's) and of 0.8.1.5, the release before the beta. `src/version.ts` maps **Latest** to a version (`CHANNELS`), and **Beta** while Steam
+has an opt-in beta: when a version is released, pointing Latest at it is the one line to change.
 
 - **Which rules apply.** A save names the version that wrote it (`VERSION` in `Player.save`, from `save_player`). MirkMap uses the newest
-  rules it has that are no newer than that, so a later build gets 0.9.1.2's and an older one 0.8.1.5's; a save that names no version gets
-  Latest's. For a save whose version's rules differ from Latest's (0.8.1.5's, 0.9.0.0's and the 0.8.9.9 beta's, or 0.9.0.1's and 0.9.0.2's),
-  a version switch, beside Realistic and in the save editor under the character's name, offers the save's own version and **Latest**: pick
-  Latest to see the world as it will be once the current game loads and saves it. A 0.9.1.2 or 0.9.1.0 save has nothing to pick and shows no
-  switch, nor does a save that names no version (while a beta is out, the switch offers it too). The pick lasts for that character while the
-  page is open, through live reloads; another character follows its own save, and picking the save's own version follows the save again.
+  rules it has that are no newer than that, so a later build gets 0.9.2.0's and an older one 0.8.1.5's; a save that names no version gets
+  Latest's. For a save whose version's rules differ from Latest's (every known version before 0.9.2.0), a version switch, beside Realistic
+  and in the save editor under the character's name, offers the save's own version and **Latest**: pick Latest to see the world as it will
+  be once the current game loads and saves it. A 0.9.2.0 save has nothing to pick and shows no switch, nor does a save that names no version
+  (while a beta is out, the switch offers it too). The pick lasts for that character while the page is open, through live reloads; another
+  character follows its own save, and picking the save's own version follows the save again.
 - **What 0.8.1.5's rules change.** Harvests give `a` to `a+b−1` (`loot_amountchances`), so Cranberries 2–5, 3–8 and 4–11, Watercress up to
   5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
   Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
@@ -652,16 +654,33 @@ October 2026 from the 0.8.9.9 beta (`next_version_tester`), which is gone. MirkM
   tiles were not yet updated (`tile_is_in_rangedarray`, `cursor_resolve_highlight`). It also fades the main menu's particles out and blanks
   the unused `spr_logo`; no item, being, trader, loot, world-generation, text or map art changed. Saves name `VERSION` 0.9.1.2 and have the
   same keys.
-- **What is 0.8.9.9's in all.** Names, pictures and the other databank values. 0.8.9.9 also changed a few that MirkMap does not show (some
-  foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's unused "Unwanted
-  Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The save formats are
-  otherwise the same: 0.8.9.9 only added keys (`camp`, `campQ` and `isTTon` in `Player.save`, `xscale` on stations and containers) that it
-  reads as absent in older saves and that 0.8.1.5 ignores.
+- **What 0.9.2.0 changed.** The three torches (Torch, Improvised Torch and Improvised Enduring Torch) stack up to three, only with exactly
+  matching `burnTimeLeft` and `durability` (`item_stack_match` in `scr_items`, `databank_Alarm_1`). The editor's Add and Wear it use that
+  limit; adding new torches tops up only full-fuel, full-durability torches. Older rules still allow only one. Shields gain base block
+  chances: Wood and Iron Bucklers 8%, Improvised Shield 10%, Steel Shield and Large Scaalmyr Husk 12%. The character card shows the active
+  off-hand shield's base plus 2.5 percentage points per Shield Savant rank (`player_get_block` in `scr_basic_useful`); armor is unchanged.
+  Successful blocks now wear the shield by 1 durability (75%) or 2 (25%); MirkMap displays saved durability, not simulated attacks. Creature
+  cards show block chances (`databank_Alarm_3`, `being_blocks_attack` in `scr_ai_related`): Raving Unwanted 5%, Scaalmyr Geomancer 7.5%,
+  Scaalmyr Warrior, Cave Troll, Soldier and Ranger Bhato 10%, Captain Eir 15%, Survivor 20%, all others zero. Scaalmyr Warrior's dodge is
+  now 10% instead of 12%. Older rules retain zero creature block, skill-only shield block and the old dodge. The game fixes
+  load/equipped-item carry-weight accounting, adds automatic rotation to permitted pickup/stack/sort paths and clears removed inventory
+  items by reference across the whole grid (`scr_saveload`, `scr_items`, `scr_basic_useful`). MirkMap does not calculate carry weight; its
+  editor already tries upright then sideways, clears all serialized copies by origin and lets the game rebuild weights. It does not simulate
+  AI reactions to distant attacks or thrown containers' water depth/transparency. Unlit torches now attack as blunt while lit ones remain
+  fire (`obj_player_Step_0`); MirkMap does not show player weapon damage, and no static damage class was changed. Saves name `VERSION`
+  0.9.2.0 and add optional container `alpha` (`save_containers`, read only when present in `load_containers`), which the editor preserves
+  without adding it to older records. No items, creatures, recipes, loot, merchants, world generation or map art changed. The menu's hover
+  sound and unused logo changed; removed QUICKMODE starter gear was dev-only.
+- **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
+  show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
+  unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
+  save formats are otherwise the same: 0.8.9.9 only added keys (`camp`, `campQ` and `isTTon` in `Player.save`, `xscale` on stations and
+  containers) that it reads as absent in older saves and that 0.8.1.5 ignores.
 
 ## How the guesses work
 
-All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.1.2, diffed against 0.9.1.0's, 0.9.0.2's, 0.9.0.1's,
-0.9.0.0's, 0.8.9.9's and 0.8.1.5's); the entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ,
+All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.2.0, diffed against 0.9.1.2's, 0.9.1.0's, 0.9.0.2's,
+0.9.0.1's, 0.9.0.0's, 0.8.9.9's and 0.8.1.5's); the entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ,
 [Game versions](#game-versions) says how.
 
 **The world layout is fixed at new game** (`gml_Object_obj_menu_Alarm_8`) and saved in `Player.save`: the grid, and the zones of Bhato
@@ -734,20 +753,21 @@ hit and miss flashes that fade within a second and are ignored.
 
 **Creature stats and fresh hit points** (`src/bestiary.ts`). The numbers are `global.beingDB` (`gml_Object_databank_Alarm_3`), shown as the
 examine card shows them (case 11 in `gml_Object_UI_Draw_64`): reach, movement and hostile distance in whole tiles, and a ranged attack only
-when `rangedDist > 0`. A pattern cell `a.b` deals `a` to `b` damage (`floor` and `round(frac × 10)`, as `attack_draw` in
-`gml_GlobalScript_scr_gui_general` prints it), and the total adds up every cell as the databank does. A being shoots only when you are out
-of its melee reach, within range and in its line of sight; on Hard (`myDiff` 3 in `Player.save`) it aims one intelligence level better, up
-to Highest; Sharp blows and High or better intelligence may land the pattern turned by quarter turns (`gml_Object_manager_area_Step_0`,
-`being_get_attack_xy` in `gml_GlobalScript_scr_ai_related`). Each turn a being sees a target within its hostile distance it turns on it with
-its hostility chance; teams 0 (the NPCs and the Dead Unwanted) and 10 (Wilda, her Survivors and Grand Mother) never pick you
-(`being_get_target`), and from main quest stage 27 Captain Eir and Magus Clay turn on each other. A fresh being's grid (`being_initiate` in
-`gml_GlobalScript_scr_basic_useful`) starts as all healthy hit points with the species' holes and extra layers (Sceetler, Deathfly,
-Nightmare, Toadkin, Scaal by distance from its centre, Mirk Mauler, Wilda, Survivor, the Mirkfangs, and the Matriarch's and The Terror's
-armored bodies), then its `armor` is laid one layer at a time, row by row, on hit points with fewer than 3 layers (Magus Clay's 49 since
-0.9.0.1); every unhurt being in the sampled saves matches it cell for cell. The damage-class effects paraphrase `[TTgen]` in `UI.ini`,
-`attack_lands` and `attack_aftermath`: since 0.8.9.9 Blunt blows stun 10% of the time, not 12%, and Leeching (the Mirkfangs') heals the
-attacker a hit point for each it destroys, poison included. A Giant Mirkfang that spawns may turn out a Mirkfang Matriarch (4%), and
-Mirkfangs come out at night, and by day in caves.
+when `rangedDist > 0`. Since 0.9.2.0, `being_blocks_attack` checks the being's `blockChance` before applying an attack, including
+projectiles; older rules give non-player beings zero block. Scaalmyr Warrior's dodge is 10% since that version, 12% before. A pattern cell
+`a.b` deals `a` to `b` damage (`floor` and `round(frac × 10)`, as `attack_draw` in `gml_GlobalScript_scr_gui_general` prints it), and the
+total adds up every cell as the databank does. A being shoots only when you are out of its melee reach, within range and in its line of
+sight; on Hard (`myDiff` 3 in `Player.save`) it aims one intelligence level better, up to Highest; Sharp blows and High or better
+intelligence may land the pattern turned by quarter turns (`gml_Object_manager_area_Step_0`, `being_get_attack_xy` in
+`gml_GlobalScript_scr_ai_related`). Each turn a being sees a target within its hostile distance it turns on it with its hostility chance;
+teams 0 (the NPCs and the Dead Unwanted) and 10 (Wilda, her Survivors and Grand Mother) never pick you (`being_get_target`), and from main
+quest stage 27 Captain Eir and Magus Clay turn on each other. A fresh being's grid (`being_initiate` in `gml_GlobalScript_scr_basic_useful`)
+starts as all healthy hit points with the species' holes and extra layers (Sceetler, Deathfly, Nightmare, Toadkin, Scaal by distance from
+its centre, Mirk Mauler, Wilda, Survivor, the Mirkfangs, and the Matriarch's and The Terror's armored bodies), then its `armor` is laid one
+layer at a time, row by row, on hit points with fewer than 3 layers (Magus Clay's 49 since 0.9.0.1); every unhurt being in the sampled saves
+matches it cell for cell. The damage-class effects paraphrase `[TTgen]` in `UI.ini`, `attack_lands` and `attack_aftermath`: since 0.8.9.9
+Blunt blows stun 10% of the time, not 12%, and Leeching (the Mirkfangs') heals the attacker a hit point for each it destroys, poison
+included. A Giant Mirkfang that spawns may turn out a Mirkfang Matriarch (4%), and Mirkfangs come out at night, and by day in caves.
 
 **Merchants' wares** (`src/merchants.ts`). Every time you open a trade window the game stocks it afresh with one new, full-condition item of
 each ware (`menu_add` in `gml_GlobalScript_scr_menu_related`), so wares never run out, then sorts them with `inventory_sort`
@@ -805,7 +825,8 @@ well and the loader skips that copy, so the viewer drops it too. `player_update_
 `gml_GlobalScript_scr_items`), and rounds the total to 0.1: the **Total Armor** of the equipment screen. When combat starts,
 `player_real_combat_check` gives `min(floor(totalArmor), being_get_armor_max)` armor points to distribute, the cap being 3 layers on each
 living hit point (`gml_GlobalScript_scr_ai_related`); when it ends, the layers are removed. Armor values and maximum durability are the item
-database's (`gml_Object_databank_Alarm_1`).
+database's (`gml_Object_databank_Alarm_1`). Blocking is separate: `player_get_block` checks only the active off-hand shield, adds its base
+`blockChance` (zero before 0.9.2.0) to Fighter skill 4 (`fighterSkills[4]`) times 0.025, and gives zero without a shield.
 
 **Item condition** (`src/condition.ts`). An item's tooltip (`item_draw_info` in `gml_GlobalScript_scr_items`) shows its saved `durability`
 out of the item database's `durabilityMax` when that is over 1 (the orbs' 30 since 0.9.0.1), except on materials, coins, gems and quest

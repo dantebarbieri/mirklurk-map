@@ -102,6 +102,8 @@ export interface PlayerSave {
   level: number;
   xp: number;
   skillPoints: number;
+  /** Fighter skill 4, used for shield blocking; absent when the save does not record it. */
+  shieldSavant?: number;
   /** New hit points from levelling up that are not placed on the grid yet (hpAddPoints). */
   newHitPoints: number;
   /** Turns of sickness left (sickTime). */
@@ -188,6 +190,7 @@ export function parsePlayer(raw: unknown): PlayerSave {
     level: num(p.level, 1),
     xp: num(p.xp),
     skillPoints: num(p.skillPoints),
+    shieldSavant: Array.isArray(p.fighterSkills) && finite(p.fighterSkills[4]) ? p.fighterSkills[4] : undefined,
     newHitPoints: num(p.hpAddPoints),
     sickTime: num(p.sickTime),
     warmthTime: num(p.warmthTime),

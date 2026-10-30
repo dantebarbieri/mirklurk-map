@@ -1,14 +1,44 @@
-import { assert, assertEquals } from "./assert.ts";
+import { assert, assertAlmost, assertEquals } from "./assert.ts";
 import { HAVE_SAVES, SAVES } from "./saves.ts";
-import { ARMOR, armorRoom, armorToPlace, type Equipped, itemArmor, SLOT_NAMES, totalArmor } from "../src/armor.ts";
+import {
+  ARMOR,
+  armorRoom,
+  armorToPlace,
+  type Equipped,
+  itemArmor,
+  playerBlock,
+  shieldBlock,
+  SLOT_NAMES,
+  totalArmor,
+} from "../src/armor.ts";
 import { parseHealth } from "../src/health.ts";
 import type { SavedItem } from "../src/inventory.ts";
 import { ITEMS } from "../src/itemdata.ts";
 import { decodeJson, parsePlayer } from "../src/save.ts";
+import { VERSIONS } from "../src/version.ts";
 
 const saved = (index: number, durability?: number): SavedItem => ({ index, amount: 1, durability, contents: [] });
 const worn = (slot: number, item: SavedItem, active = true): Equipped => ({ slot, active, item });
 
+Deno.test("armor: shield base block and additive Shield Savant follow the rules and active off hand", () => {
+  const bases: Record<number, number> = { 0: 0.08, 1: 0.08, 50: 0.12, 58: 0.12, 118: 0.1 };
+  for (const v of VERSIONS) {
+    for (const [id, chance] of Object.entries(bases)) {
+      const base = v === "0.9.2.0" ? chance : 0;
+      const index = Number(id);
+      assertEquals(shieldBlock(index, v), base);
+      for (const rank of [0, 1, 10]) {
+        assertAlmost(playerBlock([worn(1, saved(index, 1))], rank, v), base + rank * 0.025);
+        assertAlmost(playerBlock([worn(1, saved(41)), worn(3, saved(index))], rank, v), 0);
+        assertAlmost(playerBlock([worn(1, saved(index), false), worn(3, saved(58))], rank, v), (v === "0.9.2.0" ? 0.12 : 0) + rank * 0.025);
+      }
+    }
+  }
+  assertEquals(shieldBlock(41), undefined);
+  assertEquals(shieldBlock(0), 0.08);
+  assertEquals(playerBlock([], 10), 0);
+  assertEquals(playerBlock([worn(0, saved(0))], 10), 0);
+});
 Deno.test("armor and item condition use the same durability maximum for every armored item", () => {
   assertEquals(Object.keys(ARMOR).length, 49); // 0.8.9.9 adds Clay's Magus Hood
   for (const [key, [armor, max]] of Object.entries(ARMOR)) {
