@@ -27,7 +27,7 @@ const FLYERS = new Set([1, 2, 22, 25, 37, 38, 39, 40]);
 /** is_swimmer: Mire Serpent, Mudfin and Razorfin live in the water. */
 const SWIMMERS = new Set([4, 17, 24]);
 /** size 0 in global.beingDB (gml_Object_databank_Alarm_3): small creatures, which cannot wade as deep. */
-const SMALL = new Set([0, 1, 2, 7, 10, 11, 13, 17, 23, 24, 25, 27, 29, 30, 38, 39]);
+const SMALL = new Set([0, 1, 2, 7, 10, 11, 13, 17, 23, 24, 25, 27, 29, 30, 38, 39, 43]);
 const GIANT_SLUG = 0, MIRE_SERPENT = 4;
 
 /** How a kind of creature gets about: what decides where it can be. */

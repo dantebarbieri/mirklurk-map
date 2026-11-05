@@ -58,6 +58,8 @@ export const BEING_NAMES: Record<number, string> = {
   39: "Giant Mirkfang",
   40: "The Terror",
   41: "Magus Clay",
+  42: "Toadkin Shaman",
+  43: "Giant Snail",
 };
 
 /** [MapLocation] in Bestiary.ini: labels the game prints on its own area maps. */
@@ -88,7 +90,7 @@ export const NATURE_NAMES: Record<number, string> = {
 
 /** [ItemTitles] in Items.ini: item names keyed by item index (placed stations use these). */
 export const ITEM_NAMES: Record<number, string> = {
-  0: "Wood Buckler",
+  0: "Wooden Buckler",
   1: "Iron Buckler",
   2: "Shoddy Dagger",
   3: "Iron Dagger",
@@ -354,6 +356,12 @@ export const ITEM_NAMES: Record<number, string> = {
   275: "Storage Chest",
   276: "Flint (Large)",
   277: "Flint Dagger",
+  278: "Snail Shell Shard",
+  279: "Intact Snail Shell",
+  280: "Iron Shield",
+  281: "Iron Chestplate",
+  282: "Steel Buckler",
+  283: "Wooden Shield",
 };
 
 /** [DamageClasses] in UI.ini: damage class names keyed by damageClass value. */

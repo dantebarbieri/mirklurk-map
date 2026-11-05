@@ -289,4 +289,6 @@ export const ITEMS: Record<number, ItemData> = {
   275: { w: 3, h: 3, stack: 1, type: 22, bag: [7, 5] },
   276: { w: 2, h: 1, stack: 5, type: 18 },
   277: { w: 1, h: 2, stack: 1, type: 16, durability: 20 },
+  278: { w: 1, h: 2, stack: 5, type: 14, durability: 1 },
+  279: { w: 2, h: 2, stack: 1, type: 15, durability: 16 },
 };

@@ -232,6 +232,8 @@ Deno.test("creatures live where the game lets them: swimmers in water, walkers o
   assertEquals(can(RUNNER), [1, 1, 1, 0, 0, 0, 1], "a small walker wades only above -0.3; reeds lift it out of the water");
   assertEquals(can(TROLL), [1, 1, 1, 1, 0, 0, 1], "a big one above -0.4");
   assertEquals(can(SLUG), [1, 1, 1, 0, 0, 0, 1], "a Giant Slug keeps out of the second water layer");
+  assertEquals(can(43), can(RUNNER), "Giant Snail uses the small-walker rule, not Giant Slug's special case");
+  assertEquals(can(42), can(TROLL), "Toadkin Shaman uses the large-walker rule");
   assertEquals(can(DREADFLY), [1, 1, 1, 1, 1, 1, 1], "flyers go anywhere");
   assertEquals([habitat(MUDFIN), habitat(DREADFLY), habitat(RUNNER)], ["swims", "flies", "walks"]);
   assert(/brambles/.test(habitatRefusal(RUNNER, w, 5, true)!) && /needs water/.test(habitatRefusal(MUDFIN, w, 0, true)!));

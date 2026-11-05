@@ -9,7 +9,9 @@ import {
   DURABILITY_LABELS,
   durabilityKind,
   durabilityMax,
+  equippedLimit,
   fuelMax,
+  isTorch,
   isWet,
   type ItemState,
   itemState,
@@ -20,7 +22,7 @@ import {
 } from "../condition.ts";
 import { isRec, type Rec } from "../save-record.ts";
 import { isOffHandCopy } from "../inventory.ts";
-import { type GameVersion, NEWEST } from "../version.ts";
+import { atLeast, type GameVersion, NEWEST } from "../version.ts";
 
 /** Empty grid cell (GameMaker's noone). */
 const EMPTY = -4;
@@ -346,7 +348,7 @@ export function wearNew(
   if (!addable(index)) throw new Error(`Item ${index} cannot be carried`);
   if (!Number.isInteger(amount) || amount < 1) throw new Error("Amount must be a whole number of at least 1");
   const at = slotFor(p, index, slot);
-  const n = Math.min(amount, stackLimit(index, rules));
+  const n = Math.min(amount, equippedLimit(index, rules));
   const item = newItem(index, n, [Number(p.areaX), Number(p.areaY)], carriedBags(p)[0]?.inventory, rules);
   wear(p.myEquips as unknown[], at, item);
   return { slot: at, amount: n };
@@ -367,13 +369,17 @@ function emptyContainers(item: Rec) {
 }
 
 /** Takes the item at `place` (in a container) out of it and wears it in `slot` or the first free slot it fits. */
-export function wearCarried(p: Rec, place: ItemPlace, index: number, slot?: number): number {
+export function wearCarried(p: Rec, place: ItemPlace, index: number, slot?: number, rules: GameVersion = NEWEST): number {
   const found = locate(p, place);
   const name = ITEM_NAMES[index] ?? `Item ${index}`;
   if (!found || found.item.index !== index || place.path.length !== 1) throw new Error(`${name} is no longer there`);
   const at = slotFor(p, index, slot);
   const item = JSON.parse(JSON.stringify(found.item));
-  removeItem(p, place, index, "all");
+  const split = isTorch(index) && atLeast(rules, "0.9.5.0");
+  // A split creates a new item; leave its ID to the game, keeping the original stack's ID in the bag.
+  if (split && Number(item.amount) > 1) delete item.DEVID;
+  removeItem(p, place, index, split ? 1 : "all");
+  if (split) item.amount = 1;
   emptyContainers(item);
   item.sideflipped = false;
   wear(p.myEquips as unknown[], at, item);

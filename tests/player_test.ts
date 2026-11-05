@@ -17,14 +17,19 @@ import {
   setCoinMode,
   sicknessLevel,
   signedPercent,
-  statChange,
-  statStatus,
+  statChange as versionedStatChange,
+  statStatus as versionedStatStatus,
   temperatureLabel,
-  wellbeingChange,
+  wellbeingChange as versionedWellbeingChange,
   wellbeingTrend,
   wetClothes,
   xpForLevel,
 } from "../src/player.ts";
+import { atLeast, detectVersion, NEWEST, VERSIONS } from "../src/version.ts";
+type Stat = Parameters<typeof versionedStatChange>[0];
+const statChange = (stat: Stat, v: number) => versionedStatChange(stat, v, "0.9.2.0");
+const statStatus = (stat: Stat, v: number) => versionedStatStatus(stat, v, "0.9.2.0");
+const wellbeingChange = (p: Parameters<typeof versionedWellbeingChange>[0]) => versionedWellbeingChange(p, "0.9.2.0");
 
 type Wellbeing = Parameters<typeof wellbeingChange>[0];
 const player = (over: Partial<Wellbeing> = {}): Wellbeing => ({
@@ -54,6 +59,32 @@ Deno.test("player: each stat's wellbeing change follows the game's thresholds an
   assertEquals(statChange("warmth", 0), -0.03);
   assertEquals(statChange("warmth", 0.8), -0.015);
   assertEquals(statChange("warmth", 1), -0.03);
+});
+
+Deno.test("player: 0.9.5.0 hunger and temperature skill milestones round after the reduction", () => {
+  for (const rules of VERSIONS) {
+    assertEquals(versionedStatChange("satiation", 0, rules, 0), atLeast(rules, "0.9.5.0") ? -0.015 : -0.01);
+    assertEquals(versionedStatChange("warmth", 0, rules, 3), atLeast(rules, "0.9.5.0") ? -0.025 : -0.03);
+  }
+  for (
+    const [rank, hungry, cold] of [[0, -0.015, -0.03], [2, -0.015, -0.03], [3, -0.013, -0.025], [6, -0.01, -0.021], [9, -0.008, -0.016]]
+  ) {
+    assertAlmost(versionedStatChange("satiation", 0, NEWEST, rank)!, hungry);
+    assertAlmost(versionedStatChange("warmth", 0, NEWEST, rank)!, cold);
+    assertAlmost(versionedStatChange("warmth", 1, NEWEST, rank)!, cold);
+  }
+  assertEquals(versionedStatChange("satiation", 0.5, NEWEST, null), 0.005);
+  assertEquals(versionedStatChange("warmth", 0.5, NEWEST, null), 0);
+  assertEquals(versionedStatChange("satiation", 0.1, NEWEST, null), undefined);
+  assertEquals(
+    versionedStatStatus("warmth", 0, NEWEST, null).text,
+    "Wellbeing effect unavailable: the relevant Survivor skill rank was not saved.",
+  );
+  const p = player({ vitals: { wellbeing: 0.5, focus: 0.3, stamina: 0.3, satiation: 0, warmth: 0 } });
+  assertEquals(versionedWellbeingChange(p), undefined);
+  const known = versionedWellbeingChange({ ...p, slowMetabolism: 3, bodyWarmth: 6 });
+  assertEquals(known?.total, -0.034);
+  assertEquals(versionedWellbeingChange(p, "0.9.2.0")?.total, -0.04);
 });
 
 Deno.test("player: combined wellbeing adds timers, sickness and overburdening like player_get_combined_wellbeing", () => {
@@ -196,7 +227,7 @@ const players = (() => {
 
 Deno.test({ name: "player: real saves agree with the wellbeing port", ignore: players.length === 0 }, () => {
   for (const [name, p] of players) {
-    const change = wellbeingChange(p);
+    const change = versionedWellbeingChange(p, detectVersion(p.version) ?? NEWEST);
     assert(change && p.vitals, `${name}: vitals saved`);
     // The game keeps aeList 30 exactly while wellbeing is at most 33% and the combined change is negative.
     assertEquals(p.effects.includes(30), p.vitals.wellbeing <= 0.33 && change.total < 0, `${name}: dangerously low flag`);

@@ -1,4 +1,4 @@
-// Equipment slots and the player's armor and blocking, ported from Mirklurk 0.9.2.0 (decompiled GML).
+// Equipment slots and the player's armor and blocking, ported from Mirklurk 0.9.5.0 (decompiled GML).
 // Sources: myEquips in gml_Object_obj_player_Create_0 (slot order, as Player.save lists them), player_update_gearstats and
 // player_real_combat_check in gml_GlobalScript_scr_basic_useful, item_durfix_value in gml_GlobalScript_scr_items,
 // being_get_armor_max in gml_GlobalScript_scr_ai_related, and armor / durabilityMax in gml_Object_databank_Alarm_1.
@@ -85,6 +85,7 @@ const ARMOR_POINTS: Readonly<Record<number, number>> = {
   208: 0.25,
   209: 0.5,
   264: 1,
+  279: 1.6,
 };
 
 /** [armor, durabilityMax] of every item with armor. */
@@ -103,11 +104,15 @@ export interface Equipped {
   item: SavedItem;
 }
 
-/** item_is_shield and the 0.9.2.0 itemDB blockChance values. Armor and durability are unchanged. */
-const SHIELD_BLOCK: Readonly<Record<number, number>> = { 0: 0.08, 1: 0.08, 50: 0.12, 58: 0.12, 118: 0.1 };
+/** item_is_shield and itemDB blockChance values; the Intact Snail Shell was added in 0.9.5.0. */
+const SHIELD_BLOCK: Readonly<Record<number, number>> = { 0: 0.08, 1: 0.08, 50: 0.12, 58: 0.12, 118: 0.1, 279: 0.09 };
 
 export const shieldBlock = (index: number, rules: GameVersion = NEWEST): number | undefined =>
-  SHIELD_BLOCK[index] === undefined ? undefined : atLeast(rules, "0.9.2.0") ? SHIELD_BLOCK[index] : 0;
+  SHIELD_BLOCK[index] === undefined || (index === 279 && !atLeast(rules, "0.9.5.0"))
+    ? undefined
+    : atLeast(rules, "0.9.2.0")
+    ? SHIELD_BLOCK[index]
+    : 0;
 
 /** player_get_block: only the active off-hand shield counts; Shield Savant adds 2.5 percentage points per rank. */
 export function playerBlock(equipment: readonly Equipped[], rank: number, rules: GameVersion = NEWEST): number {

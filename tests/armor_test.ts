@@ -15,7 +15,7 @@ import { parseHealth } from "../src/health.ts";
 import type { SavedItem } from "../src/inventory.ts";
 import { ITEMS } from "../src/itemdata.ts";
 import { decodeJson, parsePlayer } from "../src/save.ts";
-import { VERSIONS } from "../src/version.ts";
+import { atLeast, VERSIONS } from "../src/version.ts";
 
 const saved = (index: number, durability?: number): SavedItem => ({ index, amount: 1, durability, contents: [] });
 const worn = (slot: number, item: SavedItem, active = true): Equipped => ({ slot, active, item });
@@ -24,13 +24,16 @@ Deno.test("armor: shield base block and additive Shield Savant follow the rules 
   const bases: Record<number, number> = { 0: 0.08, 1: 0.08, 50: 0.12, 58: 0.12, 118: 0.1 };
   for (const v of VERSIONS) {
     for (const [id, chance] of Object.entries(bases)) {
-      const base = v === "0.9.2.0" ? chance : 0;
+      const base = atLeast(v, "0.9.2.0") ? chance : 0;
       const index = Number(id);
       assertEquals(shieldBlock(index, v), base);
       for (const rank of [0, 1, 10]) {
         assertAlmost(playerBlock([worn(1, saved(index, 1))], rank, v), base + rank * 0.025);
         assertAlmost(playerBlock([worn(1, saved(41)), worn(3, saved(index))], rank, v), 0);
-        assertAlmost(playerBlock([worn(1, saved(index), false), worn(3, saved(58))], rank, v), (v === "0.9.2.0" ? 0.12 : 0) + rank * 0.025);
+        assertAlmost(
+          playerBlock([worn(1, saved(index), false), worn(3, saved(58))], rank, v),
+          (atLeast(v, "0.9.2.0") ? 0.12 : 0) + rank * 0.025,
+        );
       }
     }
   }
@@ -40,7 +43,7 @@ Deno.test("armor: shield base block and additive Shield Savant follow the rules 
   assertEquals(playerBlock([worn(0, saved(0))], 10), 0);
 });
 Deno.test("armor and item condition use the same durability maximum for every armored item", () => {
-  assertEquals(Object.keys(ARMOR).length, 49); // 0.8.9.9 adds Clay's Magus Hood
+  assertEquals(Object.keys(ARMOR).length, 50); // Includes 0.9.5.0's Intact Snail Shell.
   for (const [key, [armor, max]] of Object.entries(ARMOR)) {
     const index = Number(key);
     assertEquals(max, ITEMS[index].durability, `item ${index}`);
@@ -48,6 +51,17 @@ Deno.test("armor and item condition use the same durability maximum for every ar
     assertEquals(itemArmor(saved(index, max)), armor, `item ${index} at full durability`);
     assertEquals(itemArmor(saved(index, 0)), 0, `item ${index} with no durability gives no armor`);
   }
+});
+
+Deno.test("armor: Intact Snail Shell gives scaled armor and 9% plus Shield Savant only since 0.9.5.0", () => {
+  assertEquals(ARMOR[279], [1.6, 16]);
+  assertEquals(itemArmor(saved(279, 9)), 0.9);
+  assertEquals(itemArmor(saved(279, 16)), 1.6);
+  for (const v of VERSIONS) {
+    assertEquals(shieldBlock(279, v), atLeast(v, "0.9.5.0") ? 0.09 : undefined);
+  }
+  assertAlmost(playerBlock([worn(1, saved(279))], 4), 0.19);
+  assertEquals(playerBlock([worn(3, saved(279), false)], 4), 0);
 });
 
 Deno.test("armor: each piece scales with durability to 0.01, the total to 0.1", () => {

@@ -32,6 +32,10 @@ export const isTorch = (index: number) => index === 41 || index === 96 || index 
 export const stackLimit = (index: number, rules: GameVersion = NEWEST): number =>
   isTorch(index) && !atLeast(rules, "0.9.2.0") ? 1 : ITEMS[index]?.stack ?? 1;
 
+/** Since 0.9.5.0 a torch stack stays in the bag: only one torch can be held in each hand. */
+export const equippedLimit = (index: number, rules: GameVersion = NEWEST): number =>
+  isTorch(index) && atLeast(rules, "0.9.5.0") ? 1 : stackLimit(index, rules);
+
 /** item_stack_match: torch condition must match exactly, not approximately or by its displayed rounded value. */
 export const stacksMatch = (a: ItemState, b: ItemState): boolean =>
   a.index === b.index && (!isTorch(a.index) || (a.burnTimeLeft === b.burnTimeLeft && a.durability === b.durability));

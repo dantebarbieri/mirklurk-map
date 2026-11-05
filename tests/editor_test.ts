@@ -407,6 +407,43 @@ Deno.test("items: removal clears all serialized copies even outside the rotated 
   assertEquals(grid, empty(4, 2));
 });
 
+Deno.test("items: 0.9.5.0 equips one torch and keeps the remaining stack and all condition/unknown fields", () => {
+  for (const index of [41, 96, 212]) {
+    for (const rules of ["0.9.2.0", "0.9.5.0"] as const) {
+      const p = dressed({});
+      assertEquals(wearNew(p, index, 3, 0, rules).amount, rules === "0.9.5.0" ? 1 : 3);
+      const grid = empty(1, 3);
+      const torch = cell(index, 3, 0, 0, { durability: 12.5, burnTimeLeft: 8.25, lit: true, DEVID: "original-stack", unknown: [1, 2] });
+      for (let y = 0; y < 3; y++) grid[y][0] = structuredClone(torch);
+      const carried = dressed({ 8: backpack(grid) });
+      const place = { slot: 8, path: [{ part: 0, x: 0, y: 0 }] };
+      assertEquals(wearCarried(carried, place, index, 1, rules), 1);
+      const equipped = (carried.myEquips as Rec[])[1];
+      assertEquals([equipped.durability, equipped.burnTimeLeft, equipped.lit, equipped.unknown], [12.5, 8.25, true, [1, 2]]);
+      assertEquals(equipped.amount, rules === "0.9.5.0" ? 1 : 3);
+      const remainder = itemAt(carried, place);
+      if (rules === "0.9.5.0") {
+        assert(!Object.hasOwn(equipped, "DEVID"), "the game allocates the new split item's ID, not the editor");
+        assertEquals(remainder?.amount, 2);
+        assertEquals(remainder?.DEVID, "original-stack");
+        assertEquals(carriedBags(carried)[0].grid.map((r) => r[0]), [remainder, remainder, remainder]);
+      } else assertEquals(remainder, undefined);
+    }
+  }
+});
+
+Deno.test("items: 0.9.5.0 shell items have only their defined sizes, limits and equipment slots", () => {
+  assertEquals([ITEMS[278], ITEMS[279]], [
+    { w: 1, h: 2, stack: 5, type: 14, durability: 1 },
+    { w: 2, h: 2, stack: 1, type: 15, durability: 16 },
+  ]);
+  const p = dressed({ 8: backpack() });
+  assertEquals(addItems(p, 278, 6), { added: 6, left: 0 });
+  assertEquals(carriedItems(p)[0].contents.map((c) => c.amount), [5, 1]);
+  assertEquals(wearNew(p, 279), { slot: 1, amount: 1 });
+  for (const i of [280, 281, 282, 283]) assert(!addable(i) && !fitsSlot(i, 1), `reserved title ${i}`);
+});
+
 Deno.test("adding reports what does not fit and refuses nonsense", () => {
   const p = player(empty(1, 1));
   assertEquals(addItems(p, 8, 1), { added: 0, left: 1 }, "a 1×4 spear does not fit a 1×1 grid");
@@ -776,6 +813,10 @@ Deno.test("spawned creatures have a fresh grid; quest characters are protected",
   // 0.8.9.9: Wilda's Survivors and Grand Mother are essential, and The Terror's and Clay's deaths in his realm advance quests.
   for (const i of [34, 35, 36, 40, 41]) assert(isQuestBeing(i) && !spawnable(i), `being ${i} is a quest character`);
   assert(spawnable(37) && spawnable(38) && spawnable(39), "the other Mirkfangs can be spawned");
+  for (const index of [42, 43]) {
+    assert(spawnable(index));
+    assertEquals(newBeing(index, 20, 30).hpgrid, freshHealth(index));
+  }
   assertEquals([habitat(38), habitat(37), habitat(36)], ["flies", "flies", "walks"]);
   const list: unknown[] = [{ index: 3 }];
   spawnBeing(list, 2, 0, 0);

@@ -1,5 +1,5 @@
 // The player's saved condition and belongings: hit points, wellbeing and the four stats behind it, conditions, coins and
-// inventory, and the journal (journal.ts). Wellbeing math is ported from Mirklurk 0.9.2.0: player_get_stat_changes and
+// inventory, and the journal (journal.ts). Wellbeing math is ported from Mirklurk 0.9.5.0: player_get_stat_changes and
 // player_get_combined_wellbeing in gml_GlobalScript_scr_basic_useful, with the thresholds set in gml_Room_rm_int_Create, as the
 // circle bar in gml_Object_UI_Draw_64 reports them.
 
@@ -15,6 +15,7 @@ import { journalView } from "./journal.ts";
 import type { PlayerSave } from "./save.ts";
 import { clamp01 } from "./values.ts";
 import { wikiUrl } from "./wiki.ts";
+import { atLeast, type GameVersion, NEWEST } from "./version.ts";
 
 export type Stat = "focus" | "stamina" | "satiation" | "warmth";
 /** In the order the card lists them. */
@@ -49,15 +50,20 @@ function gmRound(v: number): number {
 }
 
 /** One stat's change to wellbeing per turn (player_get_stat_changes), rounded to 0.1% as the game does. */
-export function statChange(stat: Stat, v: number): number {
+export function statChange(stat: Stat, v: number, rules: GameVersion = NEWEST, rank: number | null = 0): number | undefined {
   let ret = 0;
   if (stat === "warmth") {
     if (v <= COMFORT_LOW) ret = -RATES.warmth[0] * clamp01((COMFORT_LOW - v) / COMFORT_LOW);
     else if (v >= COMFORT_HIGH) ret = -RATES.warmth[0] * clamp01((v - COMFORT_HIGH) / (1 - COMFORT_HIGH));
   } else {
-    const [lose, gain] = RATES[stat];
+    const [oldLose, gain] = RATES[stat];
+    const lose = stat === "satiation" && atLeast(rules, "0.9.5.0") ? 0.015 : oldLose;
     if (v < LOSE_BELOW) ret = -lose * clamp01((LOSE_BELOW - v) / LOSE_BELOW);
     else if (v >= GAIN_AT) ret = gain;
+  }
+  if (ret < 0 && (stat === "satiation" || stat === "warmth") && atLeast(rules, "0.9.5.0")) {
+    if (rank === null) return undefined;
+    ret *= 1 - Math.floor(rank / 3) * 0.15;
   }
   return gmRound(ret / 0.001) * 0.001 + 0;
 }
@@ -83,14 +89,17 @@ const toneOf = (c: number): Tone => c > 0 ? "gain" : c < 0 ? "loss" : "none";
 
 export interface StatStatus {
   /** Wellbeing per turn, as a fraction. */
-  change: number;
+  change: number | undefined;
   tone: Tone;
   text: string;
 }
 
 /** What a stat does to wellbeing right now, in words. */
-export function statStatus(stat: Stat, v: number): StatStatus {
-  const change = statChange(stat, v);
+export function statStatus(stat: Stat, v: number, rules: GameVersion = NEWEST, rank: number | null = 0): StatStatus {
+  const change = statChange(stat, v, rules, rank);
+  if (change === undefined) {
+    return { change, tone: "none", text: "Wellbeing effect unavailable: the relevant Survivor skill rank was not saved." };
+  }
   const tone = toneOf(change);
   const perTurn = `${signedPercent(change)} wellbeing per turn`;
   if (stat === "warmth") {
@@ -144,13 +153,20 @@ export function sicknessLevel(effects: readonly number[]): number {
   return 0;
 }
 
-type Wellbeing = Pick<PlayerSave, "vitals" | "effects" | "sickTime" | "warmthTime" | "restedTime">;
+type Wellbeing = Pick<PlayerSave, "vitals" | "effects" | "sickTime" | "warmthTime" | "restedTime" | "slowMetabolism" | "bodyWarmth">;
+const statRank = (p: Pick<PlayerSave, "slowMetabolism" | "bodyWarmth">, stat: Stat): number | null =>
+  stat === "satiation" ? p.slowMetabolism ?? null : stat === "warmth" ? p.bodyWarmth ?? null : 0;
 
 /** player_get_combined_wellbeing: how much wellbeing changes per turn, and why; undefined when the stats were not saved. */
-export function wellbeingChange(p: Wellbeing): WellbeingChange | undefined {
+export function wellbeingChange(p: Wellbeing, rules: GameVersion = NEWEST): WellbeingChange | undefined {
   if (!p.vitals) return undefined;
   const vitals = p.vitals;
-  const parts: WellbeingPart[] = STATS.map((stat) => ({ label: STAT_LABELS[stat], change: statChange(stat, vitals[stat]), stat }));
+  const parts: WellbeingPart[] = [];
+  for (const stat of STATS) {
+    const change = statChange(stat, vitals[stat], rules, statRank(p, stat));
+    if (change === undefined) return undefined;
+    parts.push({ label: STAT_LABELS[stat], change, stat });
+  }
   if (p.warmthTime > 0) parts.push({ label: "Warm to the core", change: 0.01 });
   if (p.restedTime > 0) parts.push({ label: "Well rested", change: 0.01 });
   // The game reads the level from aeList while sickTime lasts; without one it would misread it, so that state is skipped.
@@ -352,7 +368,14 @@ const VITAL_NAMES: Readonly<Record<Stat | "wellbeing", string>> = { ...STAT_LABE
  * The bar of `li` as a slider: dragging moves its fill (or needle), value and note at once, and letting go sets the vital. `data-key`
  * lets the editor put the focus back once the page is drawn again.
  */
-function editableBar(li: HTMLElement, kind: Stat | "wellbeing", v: number, edit: PlayerEditing): void {
+function editableBar(
+  li: HTMLElement,
+  kind: Stat | "wellbeing",
+  v: number,
+  edit: PlayerEditing,
+  rules: GameVersion,
+  rank: number | null = 0,
+): void {
   const input = h("input", {
     type: "range",
     class: "vital-slider",
@@ -370,7 +393,7 @@ function editableBar(li: HTMLElement, kind: Stat | "wellbeing", v: number, edit:
       if (needle) needle.style.left = at;
       li.querySelector(".vital-value")!.textContent = percent(to);
       if (kind !== "wellbeing") {
-        const s = statStatus(kind, to);
+        const s = statStatus(kind, to, rules, rank);
         const note = li.querySelector(".vital-note")!;
         note.className = `vital-note ${s.tone}`;
         note.textContent = s.text;
@@ -404,8 +427,8 @@ function bar(kind: Stat | "wellbeing", v: number): HTMLElement {
   );
 }
 
-function statRow(stat: Stat, v: number, edit?: PlayerEditing): HTMLElement {
-  const s = statStatus(stat, v);
+function statRow(stat: Stat, v: number, rules: GameVersion, rank: number | null, edit?: PlayerEditing): HTMLElement {
+  const s = statStatus(stat, v, rules, rank);
   const li = h(
     "li",
     { class: `vital ${stat}` },
@@ -418,13 +441,31 @@ function statRow(stat: Stat, v: number, edit?: PlayerEditing): HTMLElement {
     bar(stat, v),
     h("div", { class: `vital-note ${s.tone}` }, s.text),
   );
-  if (edit) editableBar(li, stat, v, edit);
+  if (edit) editableBar(li, stat, v, edit, rules, rank);
   return li;
 }
 
 function wellbeingView(p: PlayerSave, ctx: SectionContext, edit?: PlayerEditing): HTMLElement[] {
-  const change = wellbeingChange(p);
-  if (!p.vitals || !change) return [h("p", { class: "muted" }, "Wellbeing and its stats were not saved.")];
+  const change = wellbeingChange(p, ctx.rules);
+  if (!p.vitals) return [h("p", { class: "muted" }, "Wellbeing and its stats were not saved.")];
+  if (!change) {
+    const row = h(
+      "li",
+      { class: "vital wellbeing" },
+      h(
+        "div",
+        { class: "vital-row" },
+        h("span", { class: "vital-name" }, "Wellbeing"),
+        h("span", { class: "vital-value" }, percent(p.vitals.wellbeing)),
+      ),
+      bar("wellbeing", p.vitals.wellbeing),
+      h("div", { class: "vital-note none" }, "Net change unavailable: relevant Survivor skill ranks were not saved."),
+    );
+    if (edit) editableBar(row, "wellbeing", p.vitals.wellbeing, edit, ctx.rules);
+    return [
+      h("ul", { class: "vitals" }, row, STATS.map((stat) => statRow(stat, p.vitals![stat], ctx.rules, statRank(p, stat), edit))),
+    ];
+  }
   const wb = p.vitals.wellbeing;
   const tone = toneOf(change.total);
   const extras = change.parts.filter((x) => !x.stat);
@@ -439,20 +480,20 @@ function wellbeingView(p: PlayerSave, ctx: SectionContext, edit?: PlayerEditing)
       h("span", { class: "vital-value" }, percent(wb)),
       h(
         "span",
-        { class: `vital-change ${tone}`, title: "Net change per turn at save time" },
+        { class: `vital-change ${tone}`, title: "Net change per turn under the selected rules" },
         `${signedPercent(change.total)} per turn`,
       ),
     ),
     bar("wellbeing", wb),
     h("div", { class: `vital-note ${tone}` }, `${wellbeingTrend(wb, change.total)}. The change per turn sums the lines below.`),
   );
-  if (edit) editableBar(row, "wellbeing", wb, edit);
+  if (edit) editableBar(row, "wellbeing", wb, edit, ctx.rules);
   return [
     h(
       "ul",
       { class: "vitals" },
       row,
-      STATS.map((stat) => statRow(stat, p.vitals![stat], edit)),
+      STATS.map((stat) => statRow(stat, p.vitals![stat], ctx.rules, statRank(p, stat), edit)),
       extras.map((x) =>
         h(
           "li",
@@ -468,9 +509,18 @@ function wellbeingView(p: PlayerSave, ctx: SectionContext, edit?: PlayerEditing)
       h(
         "ul",
         {},
-        h("li", {}, "Satiation: +0.5% from 50%; below 20% it costs up to 1% (at 0%)."),
+        h(
+          "li",
+          {},
+          atLeast(ctx.rules, "0.9.5.0")
+            ? "Satiation: +0.5% from 50%; below 20% it costs up to 1.5% (at 0%), reduced by 15% for every three Slow Metabolism ranks."
+            : "Satiation: +0.5% from 50%; below 20% it costs up to 1% (at 0%).",
+        ),
         h("li", {}, "Focus and stamina: +0.2% each from 50%; below 20% each costs up to 0.5%."),
         h("li", {}, "Warmth: no effect between 40% and 60%; colder or hotter costs up to 3% (at 0% or 100%)."),
+        atLeast(ctx.rules, "0.9.5.0")
+          ? h("li", {}, "Body Warmth reduces temperature's wellbeing penalty by 15% for every three ranks.")
+          : null,
         h("li", {}, "Warm to the core and well rested: +1% each while they last. Sickness I–III: −1% to −3%."),
         h("li", {}, "Very or extremely overburdened: −1% or −2%."),
         h("li", {}, "Each stat's share is rounded to 0.1%. Wellbeing stays between 0% and 100%; from 50%, resting heals lost hit points."),
@@ -544,6 +594,7 @@ function armorView(p: PlayerSave, ctx: SectionContext): HTMLElement[] {
               (e.item.durability ?? max) < max ? ` of ${full} (${Math.round((e.item.durability ?? max) / max * 100)}% durability)` : "",
               e.active ? "" : ", other weapon set",
               shieldBlock(e.item.index, ctx.rules) === undefined ? "" : `; base block ${percent(shieldBlock(e.item.index, ctx.rules)!)}`,
+              e.item.index === 279 ? "; restores 0.3 durability per turn while held in the active off hand, up to 16" : "",
             ),
           )
         ),
