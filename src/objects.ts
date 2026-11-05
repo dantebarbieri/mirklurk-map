@@ -215,6 +215,8 @@ export const CREATURE_ICON: Record<number, string> = {
   3: "troll", // Swamp Troll
   18: "troll", // Cave Troll
   21: "toad", // Toadkin
+  42: "toad", // Toadkin Shaman
+  43: "snail", // Giant Snail
   14: "scaalmyr", // Grunt
   15: "scaalmyr", // Warrior
   16: "scaalmyr", // Geomancer

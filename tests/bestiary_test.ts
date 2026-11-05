@@ -24,14 +24,15 @@ import {
 import { BEING_NAMES, DAMAGE_CLASS_NAMES } from "../src/gamedata.ts";
 import { NPC_BEINGS } from "../src/rules.ts";
 import { HAVE_SAVES, SAVES } from "./saves.ts";
-import { VERSIONS } from "../src/version.ts";
+import { atLeast, VERSIONS } from "../src/version.ts";
 
 Deno.test("bestiary: 0.9.2.0 adds eight blocks and lowers Warrior dodge without changing older rules", () => {
   const blocks: Record<number, number> = { 5: 0.1, 6: 0.15, 12: 0.1, 15: 0.1, 16: 0.075, 18: 0.1, 31: 0.05, 35: 0.2 };
   for (const v of VERSIONS) {
     for (const i of Object.keys(BEINGS).map(Number)) {
-      assertEquals(blockOf(i, v), v === "0.9.2.0" ? blocks[i] ?? 0 : 0, `${v}: ${i}`);
-      assertEquals(dodgeOf(i, v), i === 15 && v !== "0.9.2.0" ? 0.12 : BEINGS[i].dodgeChance, `${v}: ${i}`);
+      const base = atLeast(v, "0.9.5.0") && (i === 21 || i === 42) ? (i === 21 ? 0.1 : 0.15) : blocks[i] ?? 0;
+      assertEquals(blockOf(i, v), atLeast(v, "0.9.2.0") ? base : 0, `${v}: ${i}`);
+      assertEquals(dodgeOf(i, v), i === 15 && !atLeast(v, "0.9.2.0") ? 0.12 : BEINGS[i].dodgeChance, `${v}: ${i}`);
     }
   }
   assertEquals([blockOf(-1), dodgeOf(-1), blockOf(16), dodgeOf(15)], [0, 0, 0.075, 0.1]);
@@ -39,8 +40,8 @@ Deno.test("bestiary: 0.9.2.0 adds eight blocks and lowers Warrior dodge without 
 
 const rectangular = (g: number[][]) => g.length > 0 && g.every((r) => r.length > 0 && r.length === g[0].length);
 
-Deno.test("bestiary: every being 0–41 with consistent attacks", () => {
-  assertEquals(Object.keys(BEINGS).map(Number).sort((a, b) => a - b), [...Array(42).keys()]);
+Deno.test("bestiary: every being 0–43 with consistent attacks", () => {
+  assertEquals(Object.keys(BEINGS).map(Number).sort((a, b) => a - b), [...Array(44).keys()]);
   for (const [i, s] of Object.entries(BEINGS)) {
     assert(BEING_NAMES[+i] !== undefined, `${i} has a name`);
     for (const a of [s.melee, ...(s.ranged ? [s.ranged] : [])]) {
@@ -60,6 +61,22 @@ Deno.test("bestiary: every being 0–41 with consistent attacks", () => {
   assertEquals(Object.keys(BEINGS).filter((i) => !canHurt(BEINGS[+i].melee)).map(Number), [9, 20, 36]);
   for (const npc of NPC_BEINGS) assert(!targetsYou(BEINGS[npc]), `${BEING_NAMES[npc]} never targets you`);
   assert(targetsYou(BEINGS[22]));
+});
+
+Deno.test("bestiary: 0.9.5.0 Shaman and Snail attacks and exact fresh HP shapes", () => {
+  assertEquals([BEING_NAMES[42], BEING_NAMES[43]], ["Toadkin Shaman", "Giant Snail"]);
+  assertEquals(freshHealth(42), [
+    [-4, -4, 1, -4, -4],
+    [-4, 1, 3, 1, -4],
+    [1, 3, 3, 3, 1],
+    [-4, 1, 3, 1, -4],
+    [-4, -4, 1, -4, -4],
+  ]);
+  assertEquals(freshHealth(43), [[-4, 2, 2], [1, 2, 2]]);
+  assertEquals(totalDamage(BEINGS[42].melee.pattern), { min: 4, max: 8 });
+  assertEquals(totalDamage(BEINGS[43].melee.pattern), { min: 0, max: 1 });
+  assertEquals([BEINGS[42].xp, BEINGS[42].melee.damageClass, BEINGS[42].apMax, BEINGS[42].melee.cost], [60, 15, 10, 6]);
+  assertEquals([BEINGS[43].xp, BEINGS[43].melee.damageClass, BEINGS[43].apMax, BEINGS[43].melee.cost], [15, 24, 2, 2]);
 });
 
 Deno.test("bestiary: 0.8.9.9's Mirkfangs, Survivors, Grand Mother and Magus Clay in his realm", () => {

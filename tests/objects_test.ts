@@ -35,6 +35,8 @@ Deno.test("creatures: every creature is drawn as its kind's icon, NPCs and unkno
   // Kinds that look alike in the game share an icon.
   assertEquals([CREATURE_ICON[1], CREATURE_ICON[2], CREATURE_ICON[25]], ["fly", "fly", "fly"]);
   assertEquals([CREATURE_ICON[14], CREATURE_ICON[15], CREATURE_ICON[16]], ["scaalmyr", "scaalmyr", "scaalmyr"]);
+  assertEquals([CREATURE_ICON[42], CREATURE_ICON[43]], ["toad", "snail"]);
+  assert(CREATURE_ICONS.snail.body !== CREATURE_ICONS.slug.body, "a snail has its own shell silhouette");
   assert(Object.keys(CREATURE_ICON).every((i) => !NPC_MARKERS.has(Number(i))), "NPCs keep the NPC marker");
   // Wilda's Survivors never target you, so they are drawn as NPCs, unlabelled like the Soldiers; Grand Mother is labelled.
   const survivor = marks.find((m) => m.being === 35)!;

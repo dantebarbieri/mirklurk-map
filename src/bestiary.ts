@@ -1,4 +1,4 @@
-// Combat stats of every creature and NPC, ported from Mirklurk 0.9.2.0 (decompiled GML).
+// Combat stats of every creature and NPC, ported from Mirklurk 0.9.5.0 (decompiled GML).
 // Sources: global.beingDB in gml_Object_databank_Alarm_3 (stats and its damage totals), the examine card (case 11 in
 // gml_Object_UI_Draw_64), being_initiate in gml_GlobalScript_scr_basic_useful (a fresh being's hit points), attack_draw in
 // gml_GlobalScript_scr_gui_general, aiming in gml_Object_manager_area_Step_0 and being_get_target in gml_GlobalScript_scr_ai_related.
@@ -178,6 +178,7 @@ export const BEINGS: Record<number, BeingStats> = {
     melee: { pattern: [[0]], damageClass: 15, dist: 2.25, cost: 6, iq: 3 },
   },
   21: { // Toadkin
+    blockChance: 0.1,
     grid: [5, 5], xp: 45, armor: 0, apMax: 10, tilespeed: 5, hostileDist: 7, hostileChance: 0.4,
     dodgeChance: 0.08, aooChance: 0.45, team: 6,
     melee: { pattern: [[0.1, 0.1], [0.1, 0.1]], damageClass: 15, dist: 1.5, cost: 6, iq: 3 },
@@ -287,6 +288,17 @@ export const BEINGS: Record<number, BeingStats> = {
     melee: { pattern: [[1.2, 2.2], [2.2, 1.2]], damageClass: 18, dist: 1.5, cost: 5, iq: 3 },
     ranged: { pattern: [[1.1, 2.2, 1.1], [2.2, 3.3, 2.2], [1.1, 2.2, 1.1]], damageClass: 18, dist: 16, cost: 5, iq: 3 },
   },
+  42: { // Toadkin Shaman
+    blockChance: 0.15,
+    grid: [5, 5], xp: 60, armor: 0, apMax: 10, tilespeed: 5, hostileDist: 8, hostileChance: 0.4,
+    dodgeChance: 0.06, aooChance: 0.4, team: 6,
+    melee: { pattern: [[1.2, 1.2], [1.2, 1.2]], damageClass: 15, dist: 1.5, cost: 6, iq: 3 },
+  },
+  43: { // Giant Snail
+    grid: [3, 2], xp: 15, armor: 0, apMax: 2, tilespeed: 1.5, hostileDist: 1.6, hostileChance: 0.45,
+    dodgeChance: 0, aooChance: 0.04, team: 4,
+    melee: { pattern: [[0.1]], damageClass: 24, dist: 1.5, cost: 2, iq: 0 },
+  },
 };
 
 /** Being `being`'s armor under `rules`: Magus Clay had none before 0.9.0.1 and has 49 since, one layer on each of his hit points. */
@@ -295,7 +307,7 @@ export const armorOf = (being: number, rules: GameVersion = NEWEST) =>
 
 /** Blocking was player-only before 0.9.2.0 (being_blocks_attack). */
 export const blockOf = (being: number, rules: GameVersion = NEWEST): number =>
-  atLeast(rules, "0.9.2.0") ? BEINGS[being]?.blockChance ?? 0 : 0;
+  !atLeast(rules, "0.9.2.0") || ((being === 21 || being >= 42) && !atLeast(rules, "0.9.5.0")) ? 0 : BEINGS[being]?.blockChance ?? 0;
 
 /** Scaalmyr Warrior's dodge fell from 12% to 10% in 0.9.2.0. */
 export const dodgeOf = (being: number, rules: GameVersion = NEWEST): number =>
@@ -404,11 +416,15 @@ const HOLES: Record<number, [number, number][]> = {
   21: [[0, 0], [0, 1], [1, 0], [4, 0], [4, 1], [3, 0], [0, 4], [0, 3], [1, 4], [4, 4], [4, 3], [3, 4]],
   38: [[1, 0], [0, 2], [2, 2]],
   39: [[1, 0], [3, 0], [0, 2], [4, 2], [0, 3], [1, 3], [3, 3], [4, 3]],
+  42: [[0, 0], [0, 1], [1, 0], [4, 0], [4, 1], [3, 0], [0, 4], [0, 3], [1, 4], [4, 4], [4, 3], [3, 4]],
+  43: [[0, 0]],
 };
 const EXTRA: Record<number, [number, number, number][]> = {
   13: [[1, 1, 3]],
   34: [[1, 1, 1], [2, 1, 1], [1, 2, 1], [2, 2, 1]],
   35: [[1, 1, 2], [2, 1, 1], [1, 2, 1], [2, 2, 2]],
+  42: [[2, 1, 2], [2, 2, 2], [2, 3, 2], [1, 2, 2], [3, 2, 2]],
+  43: [[1, 0, 1], [2, 0, 1], [1, 1, 1], [2, 1, 1]],
 };
 const SCAAL = 22, MIRK_MAULER = 29, MATRIARCH = 37, TERROR = 40, MAGUS_CLAY = 41;
 /** A Mirkfang Matriarch's and The Terror's 9 by 5 grid: wings with holes, and a body down the middle under extra layers. */

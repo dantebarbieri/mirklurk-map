@@ -173,3 +173,13 @@ Deno.test("player: shield rank is optional and reads Fighter skill 4, not unspen
     assertEquals(parsePlayer([{ worldGrid, fighterSkills }]).shieldSavant, undefined);
   }
 });
+
+Deno.test("player: wellbeing skills read optional Survivor ranks without inventing missing values", () => {
+  const worldGrid = Array.from({ length: 5 }, () => [1, 1, 1, 1, 1]);
+  const p = parsePlayer([{ worldGrid, survivorSkills: [0, 3, 0, 6, 9] }]);
+  assertEquals([p.slowMetabolism, p.bodyWarmth], [3, 6]);
+  for (const survivorSkills of [undefined, [], [0, "3", 0, null], [0, NaN, 0, Infinity]]) {
+    const old = parsePlayer([{ worldGrid, survivorSkills }]);
+    assertEquals([old.slowMetabolism, old.bodyWarmth], [undefined, undefined]);
+  }
+});

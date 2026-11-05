@@ -104,6 +104,9 @@ export interface PlayerSave {
   skillPoints: number;
   /** Fighter skill 4, used for shield blocking; absent when the save does not record it. */
   shieldSavant?: number;
+  /** Survivor skills 1 and 3; 0.9.5.0 uses these for hunger and temperature wellbeing penalties. */
+  slowMetabolism?: number;
+  bodyWarmth?: number;
   /** New hit points from levelling up that are not placed on the grid yet (hpAddPoints). */
   newHitPoints: number;
   /** Turns of sickness left (sickTime). */
@@ -191,6 +194,8 @@ export function parsePlayer(raw: unknown): PlayerSave {
     xp: num(p.xp),
     skillPoints: num(p.skillPoints),
     shieldSavant: Array.isArray(p.fighterSkills) && finite(p.fighterSkills[4]) ? p.fighterSkills[4] : undefined,
+    slowMetabolism: Array.isArray(p.survivorSkills) && finite(p.survivorSkills[1]) ? p.survivorSkills[1] : undefined,
+    bodyWarmth: Array.isArray(p.survivorSkills) && finite(p.survivorSkills[3]) ? p.survivorSkills[3] : undefined,
     newHitPoints: num(p.hpAddPoints),
     sickTime: num(p.sickTime),
     warmthTime: num(p.warmthTime),

@@ -108,6 +108,7 @@ import {
   conditionParts,
   DURABILITY_LABELS,
   durabilityKind,
+  equippedLimit,
   fuelMax,
   isWet,
   itemState,
@@ -1593,7 +1594,12 @@ function carriedView(p: Rec, saved: Rec | undefined): HTMLElement {
         { class: "carried-name" },
         name,
         c.amount > 1 || stackOf(c.index) > 1
-          ? h("span", { title: stackText(c.index) }, ` ×${c.amount}`, h("span", { class: "muted" }, ` / ${stackOf(c.index)}`))
+          ? h(
+            "span",
+            { title: stackText(c.index) },
+            ` ×${c.amount}`,
+            h("span", { class: "muted" }, ` / ${holder ? stackOf(c.index) : equippedLimit(c.index, editorRules())}`),
+          )
           : "",
         holder ? null : h("span", { class: "muted" }, ` ${slotLabel(c.place.slot)}`),
         sizes.map((b) => h("span", { class: "muted" }, ` · ${bagRoom(b)}`)),
@@ -1668,7 +1674,8 @@ async function moveCarried(c: CarriedItem, choice: string, from: string) {
 /** Puts a carried item on, in the first free slot it fits. */
 async function wearFromBag(c: CarriedItem, from: string) {
   const { place, index } = c;
-  await editPlayer("items", (rec) => `Put on ${itemName(index)}${from} (${slotLabel(wearCarried(rec, place, index))})`);
+  const rules = editorRules();
+  await editPlayer("items", (rec) => `Put on ${itemName(index)}${from} (${slotLabel(wearCarried(rec, place, index, undefined, rules))})`);
 }
 
 /** Removes some or all of a carried item; a container with things in it asks first. */
