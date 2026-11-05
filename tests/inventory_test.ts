@@ -7,7 +7,7 @@ import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
 import { entityWiki, itemWiki, wikiUrl } from "../src/wiki.ts";
 
 /** Beings and items 0.8.9.9 added (or, for being 35, renamed): the wiki catalog bundled before the update has no pages for them. */
-const NEW_BEINGS = new Set([35, 36, 37, 38, 39, 40, 42, 43]);
+const NEW_BEINGS = new Set([35, 36, 37, 38, 39, 40]);
 const FIRST_NEW_ITEM = 258;
 
 const item = (index = 3, X = 0, Y = 0, amount = 1) => ({ index, X, Y, amount, durability: 81, wet: 0.25, subParts: [] });
@@ -217,8 +217,7 @@ Deno.test("wiki: only verified titles produce direct article links; loot uses sp
   assertEquals(itemWiki("Turnip"), wikiUrl("Turnip (item)"));
   assertEquals(entityWiki("Turnip"), wikiUrl("Turnip (nature)"));
   assertEquals(wikiUrl("Tree health and chopping"), "https://mirklurk.wiki/w/Tree_health_and_chopping");
-  // Wooden Buckler's canonical rename and the new entities await the separately published wiki refresh.
   for (const [i, name] of Object.entries(ITEM_NAMES)) {
-    assert(+i === 0 || +i >= FIRST_NEW_ITEM || itemWiki(name), `No verified item page: ${name}`);
+    assert(+i >= FIRST_NEW_ITEM || itemWiki(name), `No verified item page: ${name}`);
   }
 });

@@ -696,7 +696,9 @@ one line to change.
   restores only its four designated armor cells from 1 to 2, never lost HP. These specials, new spawn substitution/companion rolls, death
   recovery/deletion, rain wetting, waterproof storage, fire/crafting fixes, advice, audio and game-menu presentation are not simulated.
   World-layout routines are unchanged, but encounter initialization/repopulation consumes different RNG; this is not full seed-output
-  equivalence. Generated map art is unchanged; wiki links/pictures are refreshed separately after publication.
+  equivalence. Generated map art is unchanged. The post-publication wiki refresh bundles links and cropped pictures for both new items and
+  creatures, their loot-page titles and Version 0.9.5.0, plus Wooden Buckler's canonical article and renamed icon. The old Wood Buckler
+  article remains a redirect; no game rules change with the wiki refresh.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
