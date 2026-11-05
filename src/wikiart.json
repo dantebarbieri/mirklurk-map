@@ -1,5 +1,5 @@
 {
-  "verified": "2026-10-30",
+  "verified": "2026-11-05",
   "beings": {
     "0": {
       "file": "assets/wiki/being_0.17df91722d.png",
@@ -252,6 +252,18 @@
       "w": 78,
       "h": 174,
       "source": "Magus_Clay_(boss)_sprite_(cropped).png"
+    },
+    "42": {
+      "file": "assets/wiki/being_42.4641271c01.png",
+      "w": 120,
+      "h": 174,
+      "source": "Toadkin_Shaman_sprite_(cropped).png"
+    },
+    "43": {
+      "file": "assets/wiki/being_43.4d0dd9bfce.png",
+      "w": 80,
+      "h": 56,
+      "source": "Giant_Snail_sprite_(cropped).png"
     }
   },
   "items": {
@@ -259,7 +271,7 @@
       "file": "assets/wiki/item_0.8710129fbb.png",
       "w": 184,
       "h": 224,
-      "source": "Wood_Buckler_icon_(cropped).png"
+      "source": "Wooden_Buckler_icon_(cropped).png"
     },
     "1": {
       "file": "assets/wiki/item_1.f8fa8199bd.png",
@@ -1832,6 +1844,18 @@
       "w": 96,
       "h": 208,
       "source": "Flint_Dagger_icon_(cropped).png"
+    },
+    "278": {
+      "file": "assets/wiki/item_278.1fe30cca91.png",
+      "w": 104,
+      "h": 232,
+      "source": "Snail_Shell_Shard_icon_(cropped).png"
+    },
+    "279": {
+      "file": "assets/wiki/item_279.c5d3fa6a7b.png",
+      "w": 232,
+      "h": 240,
+      "source": "Intact_Snail_Shell_icon_(cropped).png"
     }
   },
   "places": {
