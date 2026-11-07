@@ -717,7 +717,8 @@ and **Beta** while Steam has an opt-in beta: when a version is released, pointin
   no being definition or code reference and is not new released content. Regenerated names/item data and map art are unchanged apart from
   the art version stamp. Saves advance `VERSION` to 0.9.5.3 without other schema changes; edits preserve version, optional `deathOption`,
   `DEVID`, container `alpha` and unknown fields. This comparison does not assign individual fixes to intermediate 0.9.5.1/0.9.5.2 builds.
-  Wiki metadata is refreshed separately after publication.
+  The post-publication wiki refresh adds the verified Version 0.9.5.3 page to the bundled catalog; all 312 bundled pictures are unchanged.
+  It changes no game rules or save fields.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
