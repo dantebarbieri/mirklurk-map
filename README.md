@@ -1,6 +1,6 @@
 # MirkMap · Mirklurk World Viewer
 
-**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.5.0 (and earlier saves from 0.8.1.5 through 0.9.2.0), published at
+**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.5.3 (and earlier saves from 0.8.1.5 through 0.9.5.0), published at
 **https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
@@ -15,7 +15,7 @@
   explored entrance to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your
   wellbeing, inventory and journal.
 
-It follows **Latest**, Mirklurk 0.9.5.0, building on what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda, her
+It follows **Latest**, Mirklurk 0.9.5.3, building on what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda, her
 Survivors and Grand Mother's hut) and its side quest, the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a
 Magus' Shard opens and Magus Clay's end in it, the Storage Chest, and placeables you can flip as you place them. 0.9.1.0 added large flint
 and the Flint Dagger made from it. Each save names the version that wrote it, and MirkMap and the save editor follow it, so a 0.8.1.5 save
@@ -599,22 +599,23 @@ Restoring a backup undoes edits, not the mark. On a computer that never saved ed
 
 ## Game versions
 
-Steam runs Mirklurk 0.9.5.0, released on 5 November 2026 (Steam build 26457137), which adds death options, two creatures and two functional
-items, changes travel and skill rules, and fixes inventory/crafting/weather bugs. It follows 0.9.2.0 (29 October), which changed torch
-stacking and blocking, and fixed inventory and combat bugs in 0.9.1.2 (22 October), which fixed bugs in 0.9.1.0 (21 October). That added
-large flint and the Flint Dagger to 0.9.0.2 (16 October), which fixed bugs in 0.9.0.1, which changed orbs, Magus Clay's armor and a price of
-0.9.0.0, released on 14 October 2026 from the 0.8.9.9 beta (`next_version_tester`), which is gone. MirkMap has the rules of each of them
-(0.9.0.0's are the beta's, 0.9.0.2's 0.9.0.1's and 0.9.1.2's 0.9.1.0's) and of 0.8.1.5, the release before the beta. `src/version.ts` maps
-**Latest** to a version (`CHANNELS`), and **Beta** while Steam has an opt-in beta: when a version is released, pointing Latest at it is the
-one line to change.
+Steam runs Mirklurk 0.9.5.3, released on 6 November 2026 (Steam build 26484105), which fixes equipment swaps, fire eligibility,
+resting/sleeping Focus recovery, raw Wakebug's Focus effect and carried-light catch-up timing. It follows 0.9.5.0 (5 November, build
+26457137), which adds death options, two creatures and two functional items, changes travel and skill rules, and fixes
+inventory/crafting/weather bugs. It follows 0.9.2.0 (29 October), which changed torch stacking and blocking, and fixed inventory and combat
+bugs in 0.9.1.2 (22 October), which fixed bugs in 0.9.1.0 (21 October). That added large flint and the Flint Dagger to 0.9.0.2 (16 October),
+which fixed bugs in 0.9.0.1, which changed orbs, Magus Clay's armor and a price of 0.9.0.0, released on 14 October 2026 from the 0.8.9.9
+beta (`next_version_tester`), which is gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's 0.9.0.1's, 0.9.1.2's
+0.9.1.0's and 0.9.5.3's 0.9.5.0's) and of 0.8.1.5, the release before the beta. `src/version.ts` maps **Latest** to a version (`CHANNELS`),
+and **Beta** while Steam has an opt-in beta: when a version is released, pointing Latest at it is the one line to change.
 
 - **Which rules apply.** A save names the version that wrote it (`VERSION` in `Player.save`, from `save_player`). MirkMap uses the newest
-  rules it has that are no newer than that, so a later build gets 0.9.5.0's and an older one 0.8.1.5's; a save that names no version gets
+  rules it has that are no newer than that, so a later build gets 0.9.5.3's and an older one 0.8.1.5's; a save that names no version gets
   Latest's. For a save whose version's rules differ from Latest's (every known version before 0.9.5.0), a version switch, beside Realistic
   and in the save editor under the character's name, offers the save's own version and **Latest**: pick Latest to see the world as it will
-  be once the current game loads and saves it. A 0.9.5.0 save has nothing to pick and shows no switch, nor does a save that names no version
-  (while a beta is out, the switch offers it too). The pick lasts for that character while the page is open, through live reloads; another
-  character follows its own save, and picking the save's own version follows the save again.
+  be once the current game loads and saves it. A 0.9.5.0 or 0.9.5.3 save has nothing to pick and shows no switch (their modeled rules
+  match), nor does a save that names no version (while a beta is out, the switch offers it too). The pick lasts for that character while the
+  page is open, through live reloads; another character follows its own save, and picking the save's own version follows the save again.
 - **What 0.8.1.5's rules change.** Harvests give `a` to `a+b−1` (`loot_amountchances`), so Cranberries 2–5, 3–8 and 4–11, Watercress up to
   5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
   Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
@@ -699,6 +700,24 @@ one line to change.
   equivalence. Generated map art is unchanged. The post-publication wiki refresh bundles links and cropped pictures for both new items and
   creatures, their loot-page titles and Version 0.9.5.0, plus Wooden Buckler's canonical article and renamed icon. The old Wood Buckler
   article remains a redirect; no game rules change with the wiki refresh.
+- **What 0.9.5.3 changed.** MirkMap recognizes the new save version and names it Latest; its modeled rules are still 0.9.5.0's. The direct
+  0.9.5.0-to-0.9.5.3 comparison has no new entities, recipes, loot, prices, stats, English text, world-layout or encounter-generation
+  changes. In the game, same-kind nonstackable equipment now swaps rather than entering the stack-merge path; stackable items still merge,
+  and torches retain their single-equipped-item handling (`UI_Draw_64`). MirkMap's editor only wears items into free slots and does not
+  simulate occupied-slot swaps or equip AP. Fire starting now needs tinder and either both spark components or a positive existing-flame
+  contribution, retaining wetness/skill effects; MirkMap does not simulate fire attempts. Raw **Wakebug** (241) now grants +3 percentage
+  points Focus, not Grilled Wakebug (244); **Bursthopper** (243) keeps +15 points Stamina, because its former later Focus branch was
+  unreachable (`player_item_consume` in `scr_basic_useful`). MirkMap does not consume food or apply its effects. Rest/sleep ticks now wait
+  for both alarms to be below zero and the player's turn, and Focus interpolation clamps at its target and resets its difference; nominal
+  recovery amounts are unchanged (`obj_player_Step_0`). MirkMap reads/edits saved vitals and calculates wellbeing, not rest ticks or Focus
+  interpolation. Entering a previously visited area no longer charges held weapon/offhand lights historical elapsed-area time
+  (`station_turnpass` in `scr_smartones`, `obj_screenfader_Step_0`); ordinary turns still consume held fuel, while placed lights still catch
+  up. MirkMap reads/edits fuel, not its passage over time. The equip-tooltip AP icon scales with its text; Russian/Chinese font routing,
+  seven removed Iron Cudgel animation pixels and a QUICKMODE-only rest trace do not affect MirkMap. The added unused Huge Spider sprite has
+  no being definition or code reference and is not new released content. Regenerated names/item data and map art are unchanged apart from
+  the art version stamp. Saves advance `VERSION` to 0.9.5.3 without other schema changes; edits preserve version, optional `deathOption`,
+  `DEVID`, container `alpha` and unknown fields. This comparison does not assign individual fixes to intermediate 0.9.5.1/0.9.5.2 builds.
+  Wiki metadata is refreshed separately after publication.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
@@ -707,9 +726,9 @@ one line to change.
 
 ## How the guesses work
 
-All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.5.0, diffed against 0.9.2.0's, 0.9.1.2's, 0.9.1.0's,
-0.9.0.2's, 0.9.0.1's, 0.9.0.0's, 0.8.9.9's and 0.8.1.5's); the entry names are given so they can be re-checked after an update. Where
-0.8.1.5's differ, [Game versions](#game-versions) says how.
+All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.5.3, diffed against 0.9.5.0's, 0.9.2.0's, 0.9.1.2's,
+0.9.1.0's, 0.9.0.2's, 0.9.0.1's, 0.9.0.0's, 0.8.9.9's and 0.8.1.5's); the entry names are given so they can be re-checked after an update.
+Where 0.8.1.5's differ, [Game versions](#game-versions) says how.
 
 **The world layout is fixed at new game** (`gml_Object_obj_menu_Alarm_8`) and saved in `Player.save`: the grid, and the zones of Bhato
 (`rangerCamp`), the Library (`libraryArea`) and Scaal (`riftQuestArea`, the fort mirrored through the centre). The random stream is only
