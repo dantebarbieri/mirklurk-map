@@ -910,40 +910,43 @@ Deno.test("editor session: optional container alpha survives save, download and 
   }
 });
 
-Deno.test("editor session: 0.9.5.0 death modes and item IDs survive edits/export/reload; older saves gain neither", async () => {
+Deno.test("editor session: death modes and item IDs survive edits/export/reload through 0.9.5.3; absent fields stay absent", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-095-" });
   try {
-    for (const mode of [undefined, 0, 1, 2]) {
-      await fixture(root);
-      const path = `${root}/Hero/Player.save`;
-      const raw = decodeJson(await Deno.readFile(path));
-      const p = playerRecord(raw);
-      p.VERSION = mode === undefined ? "0.9.2.0" : "0.9.5.0";
-      if (mode !== undefined) p.deathOption = mode;
-      const equips = p.myEquips as Record<string, unknown>[];
-      const pouch = equips[1];
-      pouch.futureItem = { retained: true };
-      if (mode !== undefined) pouch.DEVID = `pouch-${mode}`;
-      const part = (pouch.subParts as Record<string, unknown>[])[0];
-      const item = { index: 72, amount: 5, X: 0, Y: 0, subParts: [], ...(mode === undefined ? {} : { DEVID: `nested-${mode}` }) };
-      part.gridSave = [[item, E, E, E], [E, E, E, E]];
-      await Deno.writeFile(path, new Uint8Array([...encoder.encode(JSON.stringify(raw)), 0]));
-      await Deno.utime(`${root}/Hero/[ 0,0 ]/Containers.save`, new Date(), new Date(Date.now() + 1000));
-      const s = await openSession(root, "Hero");
-      await s.apply("Hero/Player.save", (value) => (setSkillPoints(playerRecord(value), 7), "Set skill points"));
-      const check = (value: unknown) => {
-        const record = playerRecord(value);
-        assertEquals(Object.hasOwn(record, "deathOption"), mode !== undefined);
-        assertEquals(record.deathOption, mode);
-        assertEquals((record.myEquips as unknown[])[1], pouch, "nested IDs and unknown fields remain exact");
-      };
-      const exported = await unzip((await s.download()).blob);
-      check(decodeJson(exported.get("Hero/Player.save")!));
-      await s.save();
-      check(decodeJson(await Deno.readFile(path)));
-      const reopened = await openSession(root, "Hero");
-      check(await reopened.json("Hero/Player.save"));
-      assertEquals(playerRecord(await reopened.json("Hero/Player.save")).skillPoints, 7);
+    for (const version of ["0.9.2.0", "0.9.5.0", "0.9.5.3"]) {
+      for (const mode of [undefined, 0, 1, 2]) {
+        await fixture(root);
+        const path = `${root}/Hero/Player.save`;
+        const raw = decodeJson(await Deno.readFile(path));
+        const p = playerRecord(raw);
+        p.VERSION = version;
+        if (mode !== undefined) p.deathOption = mode;
+        const equips = p.myEquips as Record<string, unknown>[];
+        const pouch = equips[1];
+        pouch.futureItem = { retained: true };
+        if (mode !== undefined) pouch.DEVID = `pouch-${mode}`;
+        const part = (pouch.subParts as Record<string, unknown>[])[0];
+        const item = { index: 72, amount: 5, X: 0, Y: 0, subParts: [], ...(mode === undefined ? {} : { DEVID: `nested-${mode}` }) };
+        part.gridSave = [[item, E, E, E], [E, E, E, E]];
+        await Deno.writeFile(path, new Uint8Array([...encoder.encode(JSON.stringify(raw)), 0]));
+        await Deno.utime(`${root}/Hero/[ 0,0 ]/Containers.save`, new Date(), new Date(Date.now() + 1000));
+        const s = await openSession(root, "Hero");
+        await s.apply("Hero/Player.save", (value) => (setSkillPoints(playerRecord(value), 7), "Set skill points"));
+        const check = (value: unknown) => {
+          const record = playerRecord(value);
+          assertEquals(record.VERSION, version);
+          assertEquals(Object.hasOwn(record, "deathOption"), mode !== undefined);
+          assertEquals(record.deathOption, mode);
+          assertEquals((record.myEquips as unknown[])[1], pouch, "nested IDs and unknown fields remain exact");
+        };
+        const exported = await unzip((await s.download()).blob);
+        check(decodeJson(exported.get("Hero/Player.save")!));
+        await s.save();
+        check(decodeJson(await Deno.readFile(path)));
+        const reopened = await openSession(root, "Hero");
+        check(await reopened.json("Hero/Player.save"));
+        assertEquals(playerRecord(await reopened.json("Hero/Player.save")).skillPoints, 7);
+      }
     }
   } finally {
     await Deno.remove(root, { recursive: true });
