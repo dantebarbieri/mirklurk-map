@@ -47,8 +47,8 @@ Deno.test("wiki titles: beings and items with a disambiguated page", () => {
   assertEquals([itemTitle("Turnip"), itemTitle("Iron Dagger")], ["Turnip (item)", "Iron Dagger"]);
 });
 
-Deno.test("wiki links: published 0.9.5.0 version page is verified alongside earlier versions", () => {
-  for (const version of ["0.9.1.2", "0.9.2.0", "0.9.5.0"]) {
+Deno.test("wiki links: published 0.9.5.3 version page is verified alongside earlier versions", () => {
+  for (const version of ["0.9.1.2", "0.9.2.0", "0.9.5.0", "0.9.5.3"]) {
     assertEquals(wikiUrl(`Version ${version}`), `https://mirklurk.wiki/w/Version_${version}`);
   }
 });
