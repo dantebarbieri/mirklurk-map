@@ -762,8 +762,8 @@ one line to change.
   seed. Regenerated names/items/map art remain identical except the audit stamp; no item or creature icon sweep is needed.
   `scr_saveload::save_player`, `obj_menu_Create_0` and `obj_menu_Step_0` advance the version markers to 0.9.5.6 without a schema migration.
   Edits preserve older versions, unknown fields, optional death options, item IDs and container alpha. English Items/UI/Bestiary/Keys were
-  refreshed with unchanged content; English Nature is retained unchanged, not freshly generated. The mandatory wiki catalog refresh follows
-  confirmed publication separately.
+  refreshed with unchanged content; English Nature is retained unchanged, not freshly generated. The post-publication wiki refresh adds the
+  verified Version 0.9.5.6 page to the bundled catalog; all 312 bundled pictures are unchanged.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
