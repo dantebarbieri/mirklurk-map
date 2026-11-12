@@ -745,8 +745,9 @@ change.
   records, recipes, loot, prices and English content used here are unchanged; named-only items remain unavailable. Items/UI/Bestiary and the
   new Keys.ini were refreshed on launch; Nature.ini is retained unchanged because this build removes its writer, not because it has new
   translations. Saves name VERSION 0.9.5.5 with no schema migration; unknown fields, optional death options, item IDs and container alpha
-  remain untouched. Generated data and map art are unchanged except their audit stamp. The wiki catalog refresh follows confirmed
-  publication separately. This direct 0.9.5.3→0.9.5.5 audit does not attribute fixes to an unexamined 0.9.5.4.
+  remain untouched. Generated data and map art are unchanged except their audit stamp. The post-publication wiki refresh adds the verified
+  Version 0.9.5.5 page to the bundled catalog; all 312 bundled pictures are unchanged. This direct 0.9.5.3→0.9.5.5 audit does not attribute
+  fixes to an unexamined 0.9.5.4.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
