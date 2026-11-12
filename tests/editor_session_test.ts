@@ -911,10 +911,10 @@ Deno.test("editor session: optional container alpha survives save, download and 
   }
 });
 
-Deno.test("editor session: death modes and item IDs survive edits/export/reload through 0.9.5.5; absent fields stay absent", async () => {
+Deno.test("editor session: death modes and item IDs survive edits/export/reload through 0.9.5.6; absent fields stay absent", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-095-" });
   try {
-    for (const version of ["0.9.2.0", "0.9.5.0", "0.9.5.3", "0.9.5.5"]) {
+    for (const version of ["0.9.2.0", "0.9.5.0", "0.9.5.3", "0.9.5.5", "0.9.5.6"]) {
       for (const mode of [undefined, 0, 1, 2]) {
         await fixture(root);
         const path = `${root}/Hero/Player.save`;
@@ -954,7 +954,7 @@ Deno.test("editor session: death modes and item IDs survive edits/export/reload 
   }
 });
 
-Deno.test("editor session: 0.9.5.5 preserves saved Rift pits and fort plants instead of regenerating or repairing terrain", async () => {
+Deno.test("editor session: 0.9.5.5 and 0.9.5.6 preserve the same saved Rift pits and fort plants without repair", async () => {
   const tilemap = (values: [number, number][]) => {
     const bytes = new Uint8Array(8 + 160 * 160 * 4);
     const view = new DataView(bytes.buffer);
@@ -964,7 +964,7 @@ Deno.test("editor session: 0.9.5.5 preserves saved Rift pits and fort plants ins
     return bytes;
   };
   const at = 80 * 160 + 80;
-  for (const version of ["0.9.5.3", "0.9.5.5"]) {
+  for (const version of ["0.9.5.3", "0.9.5.5", "0.9.5.6"]) {
     const saved: [string, Uint8Array][] = [
       ["[ 0,0 ]/Containers.save", encoder.encode("[]")],
       ["[ 0,0 ]/NatureData.tmap", tilemap([[at, 1]])],
