@@ -36,7 +36,8 @@ import type { GameVersion } from "../src/version.ts";
 import { deleteBeing, newBeing, spawnBeing } from "../src/editor/beings.ts";
 import { cheatedInfo } from "../src/cheated.ts";
 import { readMarker } from "../src/marker.ts";
-import { decodeJson, parsePlayer } from "../src/save.ts";
+import { decodeJson, decodeTilemap, parsePlayer } from "../src/save.ts";
+import { Ground, groundMap } from "../src/editor/ground.ts";
 import { playerRecord } from "../src/save-record.ts";
 import { loadWorld } from "../src/world.ts";
 import { identify, newToken, packSave, SHARE_INTERVAL, unpackSave, worldId } from "../src/sharing-format.ts";
@@ -910,10 +911,10 @@ Deno.test("editor session: optional container alpha survives save, download and 
   }
 });
 
-Deno.test("editor session: death modes and item IDs survive edits/export/reload through 0.9.5.3; absent fields stay absent", async () => {
+Deno.test("editor session: death modes and item IDs survive edits/export/reload through 0.9.5.5; absent fields stay absent", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-095-" });
   try {
-    for (const version of ["0.9.2.0", "0.9.5.0", "0.9.5.3"]) {
+    for (const version of ["0.9.2.0", "0.9.5.0", "0.9.5.3", "0.9.5.5"]) {
       for (const mode of [undefined, 0, 1, 2]) {
         await fixture(root);
         const path = `${root}/Hero/Player.save`;
@@ -950,6 +951,61 @@ Deno.test("editor session: death modes and item IDs survive edits/export/reload 
     }
   } finally {
     await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("editor session: 0.9.5.5 preserves saved Rift pits and fort plants instead of regenerating or repairing terrain", async () => {
+  const tilemap = (values: [number, number][]) => {
+    const bytes = new Uint8Array(8 + 160 * 160 * 4);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(0, 160, true);
+    view.setUint32(4, 160, true);
+    for (const [at, tile] of values) view.setUint32(8 + at * 4, tile, true);
+    return bytes;
+  };
+  const at = 80 * 160 + 80;
+  for (const version of ["0.9.5.3", "0.9.5.5"]) {
+    const saved: [string, Uint8Array][] = [
+      ["[ 0,0 ]/Containers.save", encoder.encode("[]")],
+      ["[ 0,0 ]/NatureData.tmap", tilemap([[at, 1]])],
+      ["[ 0,0 ]/Hinderance.tmap", tilemap([[at, 80]])],
+      ...[1, 2, 3].map((level): [string, Uint8Array] => [`RW${level}/Data.tmap`, tilemap([[at, 3], [at + 1, 1]])]),
+      ["[ 0,0 ]/Stations.save", encoder.encode(JSON.stringify([{ index: 249, x: 1288, y: 1288, xscale: -1, future: true }]))],
+    ];
+    const files: FileMap = new Map([
+      ["Hero/Player.save", {
+        read: () =>
+          Promise.resolve(encoder.encode(JSON.stringify([{
+            VERSION: version,
+            worldGrid: grid(0),
+            areaType: 0,
+            areaX: 0,
+            areaY: 0,
+            mainQ: 23,
+            skillPoints: 0,
+          }]))),
+      }],
+      ...saved.map((
+        [path, bytes],
+      ): [string, { read: () => Promise<Uint8Array> }] => [`Hero/${path}`, { read: () => Promise.resolve(bytes) }]),
+    ]);
+    const source = new CopySource(files, "saved terrain");
+    const read = await source.read();
+    const s = new EditSession(source, read, read.characters[0], `terrain-${version}`, memoryStore().store);
+    await s.apply("Hero/Player.save", (raw) => (setSkillPoints(playerRecord(raw), 3), "Set skill points"));
+    const exported = await unzip((await s.download()).blob);
+    const world = await loadWorld(files, "Hero/", "Hero");
+    assertEquals(world.player.version, version);
+    for (const [path, bytes] of saved) {
+      assertEquals(exported.get(`Hero/${path}`), bytes, `${version}: ${path} stays byte-exact`);
+      assertEquals(await world.files.get(`Hero/${path}`)!.read(), bytes);
+      if (path.endsWith("/Data.tmap")) {
+        const data = decodeTilemap(bytes).data;
+        const ground = groundMap(data, undefined, []);
+        assertEquals([ground[at], ground[at + 1], ground[at + 2]], [Ground.Blocked, Ground.Blocked, Ground.Free]);
+      }
+    }
+    assertEquals(playerRecord(decodeJson(exported.get("Hero/Player.save")!)).VERSION, version);
   }
 });
 
