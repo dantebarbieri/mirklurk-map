@@ -978,7 +978,13 @@ Deno.test("editor session: old and latest builds preserve saved Rift pits, fort 
       ["[ 0,0 ]/NatureData.tmap", tilemap([[at, 1]])],
       ["[ 0,0 ]/Hinderance.tmap", tilemap([[at, 80]])],
       ["[ 0,0,124,192 ]/Dungeon.tmap", tilemap([[at, 110], [at + 1, 114]])],
-      ["[ 0,0,124,192 ]/Beings.save", encoder.encode(JSON.stringify([{ index: 16, hpgrid: [[2, 1]], future: "retained" }]))],
+      [
+        "[ 0,0,124,192 ]/Beings.save",
+        encoder.encode(JSON.stringify([
+          { index: 16, hpgrid: Array(3).fill([2, 2, 2, 2, 2]), future: "retained" },
+          ...(version === "0.9.6.5" ? [newBeing(16, 1, 2, "0.9.6.5")] : []),
+        ])),
+      ],
       [
         "[ 0,0,124,192 ]/Containers.save",
         encoder.encode(JSON.stringify([{

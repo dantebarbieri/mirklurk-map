@@ -25,7 +25,7 @@ import {
 import { BEING_NAMES, DAMAGE_CLASS_NAMES } from "../src/gamedata.ts";
 import { NPC_BEINGS } from "../src/rules.ts";
 import { HAVE_SAVES, readTree } from "./saves.ts";
-import { atLeast, detectVersion, NEWEST, VERSIONS } from "../src/version.ts";
+import { atLeast, detectVersion, type GameVersion, NEWEST, VERSIONS } from "../src/version.ts";
 import { findCharacters } from "../src/files.ts";
 import { decodeJson, parsePlayer } from "../src/save.ts";
 
@@ -234,17 +234,36 @@ Deno.test("bestiary: fresh hit points match saved full-health beings", () => {
   assertEquals(freshHealth(-1), undefined);
 });
 
+type SavedBeing = { index: number; hpgrid?: number[][] };
+
+/** load_beings retains the old grid even after the character's VERSION advances. */
+function savedBaseline(b: SavedBeing, rules: GameVersion): number[][] | undefined {
+  const legacy = b.index === 16 && atLeast(rules, "0.9.6.5") && b.hpgrid?.length === 3 && b.hpgrid.every((r) => r.length === 5);
+  return freshHealth(b.index, legacy ? "0.9.5.6" : rules);
+}
+
+Deno.test("saved being baselines: one upgraded character can keep old and new Geomancer grids together", () => {
+  const legacy = freshHealth(16, "0.9.5.6")!;
+  const current = freshHealth(16, "0.9.6.5")!;
+  const beings = [{ index: 16, hpgrid: legacy }, { index: 16, hpgrid: current }];
+  assertEquals(beings.map((b) => savedBaseline(b, "0.9.6.5")), [legacy, current]);
+  assertEquals(beings.map((b) => b.hpgrid.length), [3, 4], "baseline lookup never modifies either saved shape");
+  assertEquals(savedBaseline({ index: 16 }, "0.9.6.5"), current);
+  assertEquals(savedBaseline({ index: 45, hpgrid: legacy }, "0.9.6.5"), freshHealth(45), "only the changed species has this exception");
+});
+
 Deno.test({ name: "real saves: no saved being has more hit points or armor than a fresh one", ignore: !HAVE_SAVES }, async () => {
   let full = 0;
   const files = readTree();
+  const characters = findCharacters(files);
   for (const [file, source] of files) {
     if (!file.endsWith("/Beings.save")) continue;
-    const character = findCharacters(files).find((c) => file.startsWith(c.root));
+    const character = characters.find((c) => file.startsWith(c.root));
     const player = character && files.get(`${character.root}Player.save`);
     const rules = player ? detectVersion(parsePlayer(decodeJson(await player.read())).version) ?? NEWEST : NEWEST;
-    const beings = decodeJson(await source.read()) as { index: number; hpgrid?: number[][] }[];
+    const beings = decodeJson(await source.read()) as SavedBeing[];
     for (const b of beings) {
-      const fresh = freshHealth(b.index, rules);
+      const fresh = savedBaseline(b, rules);
       if (!fresh || !Array.isArray(b.hpgrid)) continue;
       const at = `${BEING_NAMES[b.index]} in ${file}`;
       assertEquals([b.hpgrid.length, b.hpgrid[0].length], [fresh.length, fresh[0].length], `${at}: shape`);
