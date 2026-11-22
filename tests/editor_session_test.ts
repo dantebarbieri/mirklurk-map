@@ -223,6 +223,14 @@ Deno.test("editor session: saving and downloading refuse what the version in use
     await s.undo(s.changes.length - 1);
     await s.undo(s.changes.length - 1);
 
+    await s.apply(player, give(286, 2));
+    await s.apply(beings, spawn(45, 90));
+    await assertRejects(() => s.save(check("0.9.5.6")), /lacks Mirk Lurker, Spider Silk/);
+    await assertRejects(() => s.download(check("0.9.5.6")), /lacks Mirk Lurker, Spider Silk/);
+    await s.download(check("0.9.6.5"));
+    await s.undo(s.changes.length - 1);
+    await s.undo(s.changes.length - 1);
+
     // The check sees the very bytes written: an edit made while it runs is refused by a save and left out of a download.
     const shards = (bytes: Uint8Array) => JSON.stringify(decodeJson(bytes)).split('"index":262,').length - 1;
     const held = shards(await Deno.readFile(`${root}/Hero/Player.save`));
@@ -911,10 +919,10 @@ Deno.test("editor session: optional container alpha survives save, download and 
   }
 });
 
-Deno.test("editor session: death modes and item IDs survive edits/export/reload through 0.9.5.6; absent fields stay absent", async () => {
+Deno.test("editor session: death modes and item IDs survive edits/export/reload through 0.9.6.5; absent fields stay absent", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-095-" });
   try {
-    for (const version of ["0.9.2.0", "0.9.5.0", "0.9.5.3", "0.9.5.5", "0.9.5.6"]) {
+    for (const version of ["0.9.2.0", "0.9.5.0", "0.9.5.3", "0.9.5.5", "0.9.5.6", "0.9.6.5"]) {
       for (const mode of [undefined, 0, 1, 2]) {
         await fixture(root);
         const path = `${root}/Hero/Player.save`;
@@ -954,7 +962,7 @@ Deno.test("editor session: death modes and item IDs survive edits/export/reload 
   }
 });
 
-Deno.test("editor session: 0.9.5.5 and 0.9.5.6 preserve the same saved Rift pits and fort plants without repair", async () => {
+Deno.test("editor session: old and latest builds preserve saved Rift pits, fort plants and cave webs without repair", async () => {
   const tilemap = (values: [number, number][]) => {
     const bytes = new Uint8Array(8 + 160 * 160 * 4);
     const view = new DataView(bytes.buffer);
@@ -964,11 +972,24 @@ Deno.test("editor session: 0.9.5.5 and 0.9.5.6 preserve the same saved Rift pits
     return bytes;
   };
   const at = 80 * 160 + 80;
-  for (const version of ["0.9.5.3", "0.9.5.5", "0.9.5.6"]) {
+  for (const version of ["0.9.5.3", "0.9.5.5", "0.9.5.6", "0.9.6.5"]) {
     const saved: [string, Uint8Array][] = [
       ["[ 0,0 ]/Containers.save", encoder.encode("[]")],
       ["[ 0,0 ]/NatureData.tmap", tilemap([[at, 1]])],
       ["[ 0,0 ]/Hinderance.tmap", tilemap([[at, 80]])],
+      ["[ 0,0,124,192 ]/Dungeon.tmap", tilemap([[at, 110], [at + 1, 114]])],
+      ["[ 0,0,124,192 ]/Beings.save", encoder.encode(JSON.stringify([{ index: 16, hpgrid: [[2, 1]], future: "retained" }]))],
+      [
+        "[ 0,0,124,192 ]/Containers.save",
+        encoder.encode(JSON.stringify([{
+          index: 287,
+          status: -205,
+          alpha: 0.5,
+          future: "retained",
+          x: 1288,
+          y: 1288,
+        }])),
+      ],
       ...[1, 2, 3].map((level): [string, Uint8Array] => [`RW${level}/Data.tmap`, tilemap([[at, 3], [at + 1, 1]])]),
       ["[ 0,0 ]/Stations.save", encoder.encode(JSON.stringify([{ index: 249, x: 1288, y: 1288, xscale: -1, future: true }]))],
     ];

@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "./assert.ts";
-import { CREATURE_ICON, detailMarks, riftRadius, sealedMarks, solidMarks, yourRaftMarks } from "../src/objects.ts";
+import { CREATURE_ICON, detailMarks, locationLayer, riftRadius, sealedMarks, solidMarks, yourRaftMarks } from "../src/objects.ts";
 import type { Interior } from "../src/world.ts";
 import type { PlayerSave } from "../src/save.ts";
 import { CREATURE_ICONS } from "../src/mapview.ts";
@@ -11,6 +11,29 @@ Deno.test("rift poison radius follows its sprite", () => {
   assertEquals(riftRadius("spr_rift_16x16"), 60);
   assertEquals(riftRadius("spr_rift_32x32_dead"), 0);
   assertEquals(riftRadius("spr_rift_16x16_dead"), 0);
+});
+
+Deno.test("saved special cave entrances and webbed treasure are classified without inventing gear or spawns", () => {
+  assertEquals(locationLayer(13), "caves");
+  const entrance = solidMarks([{
+    sprite: "spr_caves_48x32_special",
+    pic: 0,
+    index: -200,
+    x: 100,
+    y: 200,
+    transPoint: [13, 124, 192, 1288, 1288, -200],
+  }], []);
+  assertEquals(entrance.map((m) => [m.layer, m.name, m.x, m.y]), [["caves", "Spider cave", 124, 192]]);
+  const inventory = { state: "saved" as const, items: [{ index: 286, amount: 12, contents: [] }] };
+  const marks = detailMarks({
+    beings: [],
+    stations: [],
+    decorations: [],
+    interactables: [],
+    containers: [{ index: 287, status: -205, x: 8, y: 8, sprite: "spr_placed_16x16_taller", pic: 12, inventory }],
+  });
+  assertEquals(marks.map((m) => [m.layer, m.name, m.item, m.inventory]), [["loot", "Webbed treasure", undefined, inventory]]);
+  assertEquals([CREATURE_ICON[45], CREATURE_ICON[46]], ["spider", "spider"]);
 });
 
 Deno.test("creatures: every creature is drawn as its kind's icon, NPCs and unknown beings as before", () => {

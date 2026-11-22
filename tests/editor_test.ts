@@ -444,6 +444,18 @@ Deno.test("items: 0.9.5.0 shell items have only their defined sizes, limits and 
   for (const i of [280, 281, 282, 283]) assert(!addable(i) && !fitsSlot(i, 1), `reserved title ${i}`);
 });
 
+Deno.test("items: 0.9.6.5 meat and silk stack in their exact footprints without becoming equipment", () => {
+  for (const [index, stack] of [[284, 6], [285, 6], [286, 20]]) {
+    const p = dressed({ 8: backpack() });
+    assertEquals(addItems(p, index, stack + 1, "0.9.6.5"), { added: stack + 1, left: 0 });
+    assertEquals(carriedItems(p)[0].contents.map((c) => c.amount), [stack, 1]);
+    assertEquals(parsePlayer([p]).equipment[0].item.contents[0].state, "saved");
+    assertEquals(ITEMS[index].w * ITEMS[index].h, index === 286 ? 2 : 3);
+    assert(!fitsSlot(index, 1));
+  }
+  assert(!addable(287), "special treasure is not inventory gear");
+});
+
 Deno.test("adding reports what does not fit and refuses nonsense", () => {
   const p = player(empty(1, 1));
   assertEquals(addItems(p, 8, 1), { added: 0, left: 1 }, "a 1×4 spear does not fit a 1×1 grid");
@@ -813,7 +825,7 @@ Deno.test("spawned creatures have a fresh grid; quest characters are protected",
   // 0.8.9.9: Wilda's Survivors and Grand Mother are essential, and The Terror's and Clay's deaths in his realm advance quests.
   for (const i of [34, 35, 36, 40, 41]) assert(isQuestBeing(i) && !spawnable(i), `being ${i} is a quest character`);
   assert(spawnable(37) && spawnable(38) && spawnable(39), "the other Mirkfangs can be spawned");
-  for (const index of [42, 43]) {
+  for (const index of [42, 43, 45, 46]) {
     assert(spawnable(index));
     assertEquals(newBeing(index, 20, 30).hpgrid, freshHealth(index));
   }
@@ -832,6 +844,18 @@ Deno.test("spawned creatures have a fresh grid; quest characters are protected",
   assertEquals(crowd, [{ index: 2 }]);
   assertThrows(() => deleteBeing(crowd, 0, third), /no longer there/);
   assertThrows(() => newBeing(12, 0, 0), /cannot be spawned/);
+});
+
+Deno.test("new creature edits keep selected version stats and reject unsupported spiders", () => {
+  assertEquals(newBeing(16, 1, 2, "0.9.5.6").hpgrid, Array(3).fill([2, 2, 2, 2, 2]));
+  assertEquals(newBeing(16, 1, 2, "0.9.6.5").hpgrid, Array(4).fill([2, 2, 2, 2, 2]));
+  const retained: Rec = { index: 16, hpgrid: [[7]], custom: { untouched: true } };
+  const list: unknown[] = [retained];
+  for (const i of [45, 46]) assertThrows(() => spawnBeing(list, i, 1, 2, "0.9.5.6"), /has no/);
+  assertEquals(list, [retained], "a rejected spawn leaves saved creatures and unknown fields alone");
+  const spider = spawnBeing(list, 45, 1, 2, "0.9.6.5");
+  assertEquals(parseBeings([spider])[0].health?.w, 6);
+  assertEquals(list[0], retained);
 });
 
 Deno.test("ground: walls and pits block, water is water, shade is free, things take tiles", () => {

@@ -1,4 +1,4 @@
-// Time of day and weather as the game keeps them (Mirklurk 0.9.5.6): one `manager_day` for the whole world, saved once per
+// Time of day and weather as the game keeps them (Mirklurk 0.9.6.5): one `manager_day` for the whole world, saved once per
 // character in Player.save (gml_GlobalScript_scr_saveload). Pure functions, shared with anything that reads or writes those keys.
 //
 // Every turn (`player_endturn` in gml_GlobalScript_scr_basic_useful) adds 8 minutes and moves the rain balance; when the hour
@@ -253,6 +253,6 @@ export type Exposure = "outdoors" | "sheltered" | "underground";
  */
 export function exposure(areaType: number): Exposure {
   if ([0, 1, 2, 3, 4, 5, 22, 23, 100].includes(areaType)) return "outdoors";
-  if ([10, 11, 12, 20, 21, 24, 25, 26, 30, 33].includes(areaType)) return "underground";
+  if ([10, 11, 12, 13, 20, 21, 24, 25, 26, 30, 33].includes(areaType)) return "underground";
   return "sheltered";
 }

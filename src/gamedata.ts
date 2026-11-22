@@ -60,6 +60,8 @@ export const BEING_NAMES: Record<number, string> = {
   41: "Magus Clay",
   42: "Toadkin Shaman",
   43: "Giant Snail",
+  45: "Mirk Lurker",
+  46: "Deathlob",
 };
 
 /** [MapLocation] in Bestiary.ini: labels the game prints on its own area maps. */
@@ -362,6 +364,9 @@ export const ITEM_NAMES: Record<number, string> = {
   281: "Iron Chestplate",
   282: "Steel Buckler",
   283: "Wooden Shield",
+  284: "Spider Meat",
+  285: "Grilled Spider Meat",
+  286: "Spider Silk",
 };
 
 /** [DamageClasses] in UI.ini: damage class names keyed by damageClass value. */
@@ -442,6 +447,7 @@ export const SPRITES: Record<string, readonly number[]> = {
   "spr_built_48x32": [48, 48, 0, 48, 0, 47, 16, 47],
   "spr_built_64x32": [64, 32, 0, 32, 0, 63, 0, 31],
   "spr_caves_48x32": [48, 48, 0, 48, 0, 47, 16, 47],
+  "spr_caves_48x32_special": [48, 48, 0, 48, 0, 47, 16, 47],
   "spr_caves_64x48": [64, 64, 0, 64, 0, 63, 16, 63],
   "spr_cavesolids_16x16": [16, 48, 0, 48, 0, 15, 32, 47],
   "spr_cavesolids_32x32": [32, 64, 0, 64, 0, 31, 32, 63],

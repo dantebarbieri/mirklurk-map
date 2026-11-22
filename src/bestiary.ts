@@ -1,4 +1,4 @@
-// Combat stats of every creature and NPC, ported from Mirklurk 0.9.5.6 (decompiled GML).
+// Combat stats of every creature and NPC, ported from Mirklurk 0.9.6.5 (decompiled GML).
 // Sources: global.beingDB in gml_Object_databank_Alarm_3 (stats and its damage totals), the examine card (case 11 in
 // gml_Object_UI_Draw_64), being_initiate in gml_GlobalScript_scr_basic_useful (a fresh being's hit points), attack_draw in
 // gml_GlobalScript_scr_gui_general, aiming in gml_Object_manager_area_Step_0 and being_get_target in gml_GlobalScript_scr_ai_related.
@@ -151,10 +151,10 @@ export const BEINGS: Record<number, BeingStats> = {
   },
   16: { // Scaalmyr Geomancer
     blockChance: 0.075,
-    grid: [5, 3], xp: 300, armor: 15, apMax: 10, tilespeed: 6, hostileDist: 7, hostileChance: 1,
+    grid: [5, 4], xp: 200, armor: 20, apMax: 10, tilespeed: 6, hostileDist: 10, hostileChance: 1,
     dodgeChance: 0.05, aooChance: 0.2, team: 5,
     melee: { pattern: [[0.2, 0, 0.2], [0, 2.3, 0], [0.2, 0, 0.2]], damageClass: 24, dist: 1.5, cost: 6, iq: 3 },
-    ranged: { pattern: [[0.1, 0.1, 0.1], [0.1, 0.1, 0.1], [0.1, 0.1, 0.1]], damageClass: 18, dist: 8, cost: 6, iq: 3 },
+    ranged: { pattern: [[0.1, 0.1, 0.1], [0.1, 1.2, 0.1], [0.1, 0.1, 0.1]], damageClass: 18, dist: 10, cost: 6, iq: 3 },
   },
   17: { // Mudfin
     grid: [2, 3], xp: 25, armor: 0, apMax: 10, tilespeed: 4, hostileDist: 5, hostileChance: 1,
@@ -299,11 +299,35 @@ export const BEINGS: Record<number, BeingStats> = {
     dodgeChance: 0, aooChance: 0.04, team: 4,
     melee: { pattern: [[0.1]], damageClass: 24, dist: 1.5, cost: 2, iq: 0 },
   },
+  45: { // Mirk Lurker
+    grid: [6, 6], xp: 75, armor: 0, apMax: 10, tilespeed: 7, hostileDist: 8, hostileChance: 0.45,
+    dodgeChance: 0.4, aooChance: 0.33, team: 12,
+    melee: { pattern: [[1.2, 1.2], [0.1, 0.1]], damageClass: 15, dist: 1.5, cost: 4, iq: 3 },
+  },
+  46: { // Deathlob
+    grid: [7, 7], xp: 260, armor: 0, apMax: 10, tilespeed: 8, hostileDist: 9, hostileChance: 0.75,
+    dodgeChance: 0.33, aooChance: 0.33, team: 12,
+    melee: { pattern: [[2.2, 1.1], [1.1, 2.2]], damageClass: 15, dist: 2.25, cost: 3, iq: 3 },
+  },
 };
+
+/** The selected build's definitions; saved hit points are never resized to match them. */
+export function statsOf(being: number, rules: GameVersion = NEWEST): BeingStats | undefined {
+  const s = BEINGS[being];
+  if (being !== 16 || !s || atLeast(rules, "0.9.6.5")) return s;
+  return {
+    ...s,
+    grid: [5, 3],
+    xp: 300,
+    armor: 15,
+    hostileDist: 7,
+    ranged: { ...s.ranged!, dist: 8, pattern: [[0.1, 0.1, 0.1], [0.1, 0.1, 0.1], [0.1, 0.1, 0.1]] },
+  };
+}
 
 /** Being `being`'s armor under `rules`: Magus Clay had none before 0.9.0.1 and has 49 since, one layer on each of his hit points. */
 export const armorOf = (being: number, rules: GameVersion = NEWEST) =>
-  being === MAGUS_CLAY && !atLeast(rules, "0.9.0.1") ? 0 : BEINGS[being]?.armor ?? 0;
+  being === MAGUS_CLAY && !atLeast(rules, "0.9.0.1") ? 0 : statsOf(being, rules)?.armor ?? 0;
 
 /** Blocking was player-only before 0.9.2.0 (being_blocks_attack). */
 export const blockOf = (being: number, rules: GameVersion = NEWEST): number =>
@@ -456,7 +480,7 @@ const MATRIARCH_BODY: [number, number][] = [[4, 0], ...[1, 2, 3, 4].flatMap((y):
  * it. Undefined for unknown beings.
  */
 export function freshHealth(being: number, rules: GameVersion = NEWEST): number[][] | undefined {
-  const s = BEINGS[being];
+  const s = statsOf(being, rules);
   if (!s) return undefined;
   const [w, hh] = s.grid;
   const g = Array.from({ length: hh }, () => Array<number>(w).fill(1));
@@ -468,6 +492,21 @@ export function freshHealth(being: number, rules: GameVersion = NEWEST): number[
       for (let x = 0; x < w; x++) {
         const v = roundGml(4 - 4 * (Math.sqrt((x - 4) ** 2 + (y - 4) ** 2) / 8));
         g[y][x] = v === 0 ? -4 : v;
+      }
+    }
+  } else if (being === 45 || being === 46) {
+    for (let y = 0; y < hh; y++) {
+      for (let x = 0; x < w; x++) {
+        const diagonal = x === y || x === w - 1 - y;
+        g[y][x] = being === 45
+          ? (diagonal ? 1 : -4)
+          : x === 3 && y === 3
+          ? 3
+          : Math.hypot(x - 3, y - 3) <= 1
+          ? 2
+          : x === 3 || y === 3 || diagonal
+          ? 1
+          : -4;
       }
     }
   } else if (being === MIRK_MAULER) {

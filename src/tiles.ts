@@ -46,7 +46,7 @@ export function areaLayers(kind: number): TileLayer[] {
     37: "rm_realm_magus",
   };
   const override: Record<string, string> = { EffWater: "ts_effects_water" };
-  if ([10, 11, 12].includes(kind)) override.Dungeon = "ts_cave";
+  if ([10, 11, 12, 13].includes(kind)) override.Dungeon = "ts_cave";
   else if ([30, 32, 36].includes(kind)) {
     override.Dungeon = override.OnTop = override.EffWater = "ts_castle";
   } else if ([20, 21, 33, 37].includes(kind)) {

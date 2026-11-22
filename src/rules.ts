@@ -1,4 +1,4 @@
-// Game rules ported from Mirklurk 0.9.5.6 (decompiled GML). Where 0.8.1.5's differ, the code using them takes a game version
+// Game rules ported from Mirklurk 0.9.6.5 (decompiled GML). Where 0.8.1.5's differ, the code using them takes a game version
 // (version.ts). References name the source entry.
 
 /** Zone (room) edge in game units; tiles are 16 units, so 160 tiles per side. */
@@ -41,6 +41,7 @@ export const INTERIOR_NAMES: Record<number, string> = {
   10: "Cave",
   11: "Large cave",
   12: "Cave",
+  13: "Spider cave",
   20: "Ruin",
   21: "Ruin cellar",
   24: "Rift depths I",

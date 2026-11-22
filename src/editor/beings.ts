@@ -6,6 +6,7 @@ import { BEINGS, freshHealth } from "../bestiary.ts";
 import { BEING_NAMES } from "../gamedata.ts";
 import { NPC_BEINGS, Thresh, TILES } from "../rules.ts";
 import { isRec, type Rec } from "../save-record.ts";
+import { type GameVersion, hasBeing, NEWEST } from "../version.ts";
 import { layerAt, tileHeight, type WaterLayers } from "./raft.ts";
 
 /** Scaal is the main quest's boss; a second one would not be part of the quest. */
@@ -46,8 +47,9 @@ export const habitat = (index: number): "flies" | "swims" | "walks" =>
 export function habitatRefusal(index: number, w: WaterLayers, i: number, outside: boolean): string | undefined {
   const name = BEING_NAMES[index] ?? "This creature";
   if (FLYERS.has(index)) return undefined;
+  const spider = index === 45 || index === 46;
   const thorny = layerAt(w, "NatureData", i);
-  if (thorny >= 1 && thorny <= 3) return `${name} cannot go on brambles, sharp ground or rift vines; only flyers can`;
+  if (!spider && thorny >= 1 && thorny <= 3) return `${name} cannot go on brambles, sharp ground or rift vines; only flyers or spiders can`;
   // Without heights the ground counts as dry.
   const y = w.heights?.[i] ?? 0;
   if (index === MIRE_SERPENT) return y > Thresh.water ? `${name} needs deep water` : undefined;
@@ -58,14 +60,15 @@ export function habitatRefusal(index: number, w: WaterLayers, i: number, outside
   }
   // step_in_water_here: water, and not lifted out of it (by reeds, say).
   const wading = layerAt(w, "Water1", i) > 0 && height >= -1;
-  if (wading && y <= (SMALL.has(index) ? Thresh.water : Thresh.deep)) return `The water is too deep for ${name}, which walks`;
+  if (wading && y <= (spider || SMALL.has(index) ? Thresh.water : Thresh.deep)) return `The water is too deep for ${name}, which walks`;
 }
 
 /** A creature as save_beings writes a fresh one standing on the centre of tile (tileX, tileY). */
-export function newBeing(index: number, tileX: number, tileY: number): Rec {
+export function newBeing(index: number, tileX: number, tileY: number, rules: GameVersion = NEWEST): Rec {
   if (!spawnable(index)) throw new Error(`${BEING_NAMES[index] ?? `Being ${index}`} cannot be spawned`);
+  if (!hasBeing(rules, index)) throw new Error(`Mirklurk ${rules} has no ${BEING_NAMES[index]}`);
   if (![tileX, tileY].every((t) => Number.isInteger(t) && t >= 0 && t < TILES)) throw new Error("Tile is outside the area");
-  const hpgrid = freshHealth(index)!;
+  const hpgrid = freshHealth(index, rules)!;
   return {
     index,
     status: -200,
@@ -83,8 +86,8 @@ export function newBeing(index: number, tileX: number, tileY: number): Rec {
   };
 }
 
-export function spawnBeing(beings: unknown[], index: number, tileX: number, tileY: number): Rec {
-  const being = newBeing(index, tileX, tileY);
+export function spawnBeing(beings: unknown[], index: number, tileX: number, tileY: number, rules: GameVersion = NEWEST): Rec {
+  const being = newBeing(index, tileX, tileY, rules);
   beings.push(being);
   return being;
 }
