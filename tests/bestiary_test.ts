@@ -17,14 +17,17 @@ import {
   freshHealth,
   hardIq,
   hasRanged,
+  statsOf,
   targetsYou,
   totalDamage,
   turnsPattern,
 } from "../src/bestiary.ts";
 import { BEING_NAMES, DAMAGE_CLASS_NAMES } from "../src/gamedata.ts";
 import { NPC_BEINGS } from "../src/rules.ts";
-import { HAVE_SAVES, SAVES } from "./saves.ts";
-import { atLeast, VERSIONS } from "../src/version.ts";
+import { HAVE_SAVES, readTree } from "./saves.ts";
+import { atLeast, detectVersion, type GameVersion, NEWEST, VERSIONS } from "../src/version.ts";
+import { findCharacters } from "../src/files.ts";
+import { decodeJson, parsePlayer } from "../src/save.ts";
 
 Deno.test("bestiary: 0.9.2.0 adds eight blocks and lowers Warrior dodge without changing older rules", () => {
   const blocks: Record<number, number> = { 5: 0.1, 6: 0.15, 12: 0.1, 15: 0.1, 16: 0.075, 18: 0.1, 31: 0.05, 35: 0.2 };
@@ -40,8 +43,8 @@ Deno.test("bestiary: 0.9.2.0 adds eight blocks and lowers Warrior dodge without 
 
 const rectangular = (g: number[][]) => g.length > 0 && g.every((r) => r.length > 0 && r.length === g[0].length);
 
-Deno.test("bestiary: every being 0–43 with consistent attacks", () => {
-  assertEquals(Object.keys(BEINGS).map(Number).sort((a, b) => a - b), [...Array(44).keys()]);
+Deno.test("bestiary: every defined being through 46 with consistent attacks", () => {
+  assertEquals(Object.keys(BEINGS).map(Number).sort((a, b) => a - b), [...Array(44).keys(), 45, 46]);
   for (const [i, s] of Object.entries(BEINGS)) {
     assert(BEING_NAMES[+i] !== undefined, `${i} has a name`);
     for (const a of [s.melee, ...(s.ranged ? [s.ranged] : [])]) {
@@ -61,6 +64,49 @@ Deno.test("bestiary: every being 0–43 with consistent attacks", () => {
   assertEquals(Object.keys(BEINGS).filter((i) => !canHurt(BEINGS[+i].melee)).map(Number), [9, 20, 36]);
   for (const npc of NPC_BEINGS) assert(!targetsYou(BEINGS[npc]), `${BEING_NAMES[npc]} never targets you`);
   assert(targetsYou(BEINGS[22]));
+});
+
+Deno.test("bestiary: Geomancer's six changed fields and fresh armor follow the selected version", () => {
+  for (const v of VERSIONS) {
+    const s = statsOf(16, v)!;
+    const newer = atLeast(v, "0.9.6.5");
+    assertEquals(
+      [s.grid, s.xp, s.armor, s.hostileDist, s.ranged!.dist, s.ranged!.pattern[1][1]],
+      newer ? [[5, 4], 200, 20, 10, 10, 1.2] : [[5, 3], 300, 15, 7, 8, 0.1],
+    );
+    assertEquals(freshHealth(16, v), Array(newer ? 4 : 3).fill([2, 2, 2, 2, 2]));
+    assertEquals(armorOf(16, v), newer ? 20 : 15);
+    assertEquals(totalDamage(s.ranged!.pattern), newer ? { min: 1, max: 10 } : { min: 0, max: 9 });
+  }
+  assertEquals(statsOf(-1), undefined);
+  assertEquals(BEINGS[16].grid, [5, 4], "older lookups do not mutate latest");
+});
+
+Deno.test("bestiary: 0.9.6.5 spiders have exact fresh shapes and base attacks", () => {
+  assertEquals([BEING_NAMES[45], BEING_NAMES[46]], ["Mirk Lurker", "Deathlob"]);
+  assertEquals(freshHealth(45), [
+    [1, -4, -4, -4, -4, 1],
+    [-4, 1, -4, -4, 1, -4],
+    [-4, -4, 1, 1, -4, -4],
+    [-4, -4, 1, 1, -4, -4],
+    [-4, 1, -4, -4, 1, -4],
+    [1, -4, -4, -4, -4, 1],
+  ]);
+  assertEquals(freshHealth(46), [
+    [1, -4, -4, 1, -4, -4, 1],
+    [-4, 1, -4, 1, -4, 1, -4],
+    [-4, -4, 1, 2, 1, -4, -4],
+    [1, 1, 2, 3, 2, 1, 1],
+    [-4, -4, 1, 2, 1, -4, -4],
+    [-4, 1, -4, 1, -4, 1, -4],
+    [1, -4, -4, 1, -4, -4, 1],
+  ]);
+  assertEquals([totalDamage(BEINGS[45].melee.pattern), totalDamage(BEINGS[46].melee.pattern)], [{ min: 2, max: 6 }, { min: 6, max: 6 }]);
+  for (const i of [45, 46]) {
+    assertEquals(BEINGS[i].melee.damageClass, DamageClass.Blunt);
+    assert(targetsYou(BEINGS[i]));
+  }
+  assertEquals([BEINGS[45].xp, BEINGS[46].xp, BEINGS[45].melee.cost, BEINGS[46].melee.cost], [75, 260, 4, 3]);
 });
 
 Deno.test("bestiary: 0.9.5.0 Shaman and Snail attacks and exact fresh HP shapes", () => {
@@ -188,20 +234,36 @@ Deno.test("bestiary: fresh hit points match saved full-health beings", () => {
   assertEquals(freshHealth(-1), undefined);
 });
 
-function* beingSaves(root: string): Generator<string> {
-  for (const e of Deno.readDirSync(root)) {
-    const p = `${root}/${e.name}`;
-    if (e.isDirectory) yield* beingSaves(p);
-    else if (e.name === "Beings.save") yield p;
-  }
+type SavedBeing = { index: number; hpgrid?: number[][] };
+
+/** load_beings retains the old grid even after the character's VERSION advances. */
+function savedBaseline(b: SavedBeing, rules: GameVersion): number[][] | undefined {
+  const legacy = b.index === 16 && atLeast(rules, "0.9.6.5") && b.hpgrid?.length === 3 && b.hpgrid.every((r) => r.length === 5);
+  return freshHealth(b.index, legacy ? "0.9.5.6" : rules);
 }
 
-Deno.test({ name: "real saves: no saved being has more hit points or armor than a fresh one", ignore: !HAVE_SAVES }, () => {
+Deno.test("saved being baselines: one upgraded character can keep old and new Geomancer grids together", () => {
+  const legacy = freshHealth(16, "0.9.5.6")!;
+  const current = freshHealth(16, "0.9.6.5")!;
+  const beings = [{ index: 16, hpgrid: legacy }, { index: 16, hpgrid: current }];
+  assertEquals(beings.map((b) => savedBaseline(b, "0.9.6.5")), [legacy, current]);
+  assertEquals(beings.map((b) => b.hpgrid.length), [3, 4], "baseline lookup never modifies either saved shape");
+  assertEquals(savedBaseline({ index: 16 }, "0.9.6.5"), current);
+  assertEquals(savedBaseline({ index: 45, hpgrid: legacy }, "0.9.6.5"), freshHealth(45), "only the changed species has this exception");
+});
+
+Deno.test({ name: "real saves: no saved being has more hit points or armor than a fresh one", ignore: !HAVE_SAVES }, async () => {
   let full = 0;
-  for (const file of beingSaves(SAVES)) {
-    const beings = JSON.parse(Deno.readTextFileSync(file).replace(/\0+$/, "")) as { index: number; hpgrid?: number[][] }[];
+  const files = readTree();
+  const characters = findCharacters(files);
+  for (const [file, source] of files) {
+    if (!file.endsWith("/Beings.save")) continue;
+    const character = characters.find((c) => file.startsWith(c.root));
+    const player = character && files.get(`${character.root}Player.save`);
+    const rules = player ? detectVersion(parsePlayer(decodeJson(await player.read())).version) ?? NEWEST : NEWEST;
+    const beings = decodeJson(await source.read()) as SavedBeing[];
     for (const b of beings) {
-      const fresh = freshHealth(b.index);
+      const fresh = savedBaseline(b, rules);
       if (!fresh || !Array.isArray(b.hpgrid)) continue;
       const at = `${BEING_NAMES[b.index]} in ${file}`;
       assertEquals([b.hpgrid.length, b.hpgrid[0].length], [fresh.length, fresh[0].length], `${at}: shape`);

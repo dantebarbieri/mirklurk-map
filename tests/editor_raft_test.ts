@@ -234,12 +234,20 @@ Deno.test("creatures live where the game lets them: swimmers in water, walkers o
   assertEquals(can(SLUG), [1, 1, 1, 0, 0, 0, 1], "a Giant Slug keeps out of the second water layer");
   assertEquals(can(43), can(RUNNER), "Giant Snail uses the small-walker rule, not Giant Slug's special case");
   assertEquals(can(42), can(TROLL), "Toadkin Shaman uses the large-walker rule");
+  for (const spider of [45, 46]) {
+    assertEquals(can(spider), [1, 1, 1, 0, 0, 1, 1], "spiders cross thorns but neither size wades below the water threshold");
+    for (const nature of [1, 2, 3]) {
+      set("NatureData", 5, nature);
+      assertEquals(habitatRefusal(spider, w, 5, true), undefined);
+    }
+  }
   assertEquals(can(DREADFLY), [1, 1, 1, 1, 1, 1, 1], "flyers go anywhere");
   assertEquals([habitat(MUDFIN), habitat(DREADFLY), habitat(RUNNER)], ["swims", "flies", "walks"]);
   assert(/brambles/.test(habitatRefusal(RUNNER, w, 5, true)!) && /needs water/.test(habitatRefusal(MUDFIN, w, 0, true)!));
   // Inside, raised floors (Dungeon 1–9) lift a walker out of the water; outdoors that layer means nothing.
   set("Dungeon", 4, 5);
   assertEquals([tileHeight(w, 4, false), habitatRefusal(TROLL, w, 4, false), tileHeight(w, 4, true)], [-6, undefined, 13]);
+  assertEquals(habitatRefusal(46, w, 4, false), undefined, "raised cave floors lift spiders above water too");
 });
 
 // --- Real saves ---

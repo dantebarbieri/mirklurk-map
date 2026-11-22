@@ -1,5 +1,5 @@
 // Which game version's rules apply. A save names the version that wrote it (save_player's VERSION in Player.save), so MirkMap
-// follows it. Steam runs one version now (0.9.5.6); for a save from an older version whose rules differ, the version switch can show
+// follows it. Steam runs one version now (0.9.6.5); for a save from an older version whose rules differ, the version switch can show
 // Latest's instead, as the world will be once the current game saves it.
 
 /** The game versions whose rules MirkMap has, oldest first. */
@@ -16,6 +16,7 @@ export const VERSIONS = [
   "0.9.5.3",
   "0.9.5.5",
   "0.9.5.6",
+  "0.9.6.5",
 ] as const;
 export type GameVersion = (typeof VERSIONS)[number];
 
@@ -45,7 +46,7 @@ export type Channel = "latest" | "beta";
  * The version each Steam branch runs. This is the one place to change when a version is released: point `latest` at it, and
  * `beta` at a new opt-in beta while one is out (omitted when there is none, as now: the switch then offers no Beta).
  */
-export const CHANNELS: Readonly<{ latest: GameVersion; beta?: GameVersion }> = { latest: "0.9.5.6" };
+export const CHANNELS: Readonly<{ latest: GameVersion; beta?: GameVersion }> = { latest: "0.9.6.5" };
 export const CHANNEL_LABELS: Readonly<Record<Channel, string>> = { latest: "Latest", beta: "Beta" };
 /** What each branch is on Steam, for the switch's tooltip. */
 export const CHANNEL_NOTES: Readonly<Record<Channel, string>> = {
@@ -96,7 +97,7 @@ export const atLeast = (v: GameVersion, since: GameVersion) => VERSIONS.indexOf(
 /** The branch that runs version `v`, if one does. */
 export const channelOf = (v: GameVersion): Channel | undefined => channelsOf(CHANNELS).find((c) => CHANNELS[c] === v);
 
-/** "Latest (0.9.5.6)", or the bare version when no branch runs it any more. */
+/** "Latest (0.9.6.5)", or the bare version when no branch runs it any more. */
 export function versionLabel(v: GameVersion): string {
   const c = channelOf(v);
   return c ? `${CHANNEL_LABELS[c]} (${v})` : v;
@@ -116,6 +117,7 @@ const ADDED: Readonly<Partial<Record<GameVersion, { items?: [number, number]; be
   // Flint (Large) and the Flint Dagger made from it.
   "0.9.1.0": { items: [276, 277] },
   "0.9.5.0": { items: [278, 279], beings: [42, 43] },
+  "0.9.6.5": { items: [284, 286], beings: [45, 46] },
 };
 
 const addedIn = (key: "items" | "beings", index: number): GameVersion | undefined =>

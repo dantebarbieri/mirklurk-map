@@ -435,6 +435,11 @@ export const CREATURE_ICONS: Record<string, { body: string; detail?: string; eye
     detail: "M-4 0 C-7 -4 -1 -7 1 -3 C3 1 -3 2 -3 -1 Q-3 -4 0 -3",
     eye: "M3 -5 H4 V-4 H3 Z M6 -5 H7 V-4 H6 Z",
   },
+  spider: {
+    body:
+      "M-2 -2 L-6 -6 L-7 -5 L-3 -1 L-7 -2 V0 L-3 1 L-7 3 V5 L-2 2 L-5 6 L-4 7 L-1 3 Q0 5 1 3 L4 7 L5 6 L2 2 L7 5 V3 L3 1 L7 0 V-2 L3 -1 L7 -5 L6 -6 L2 -2 Q0 -5 -2 -2 Z",
+    eye: "M-1 -2 H-.2 V-1 H-1 Z M.2 -2 H1 V-1 H.2 Z",
+  },
   fish: {
     body:
       "M-3 -1.5 L-6.5 -4 L-4.5 0 L-6.5 4 L-3 1.5 Q-1.5 3 .5 3.5 L2 5 L3 2.5 Q5.5 2 6.5 .5 Q5.5 -1.5 3.5 -2 Q2 -2.5 1 -2.5 L-.5 -5.5 Q-2 -4.5 -2 -2.5 Z",

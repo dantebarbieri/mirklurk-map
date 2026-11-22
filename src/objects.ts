@@ -107,7 +107,7 @@ const tile = (x: number, y: number) => `tile ${x >> 4},${y >> 4}`;
 export const locationLayer = (kind: number | null | undefined): Layer =>
   kind == null
     ? "places"
-    : kind >= 10 && kind <= 12
+    : kind >= 10 && kind <= 13
     ? "caves"
     : kind === 20 || kind === 21
     ? "ruins"
@@ -217,6 +217,8 @@ export const CREATURE_ICON: Record<number, string> = {
   21: "toad", // Toadkin
   42: "toad", // Toadkin Shaman
   43: "snail", // Giant Snail
+  45: "spider", // Mirk Lurker
+  46: "spider", // Deathlob
   14: "scaalmyr", // Grunt
   15: "scaalmyr", // Warrior
   16: "scaalmyr", // Geomancer
@@ -261,7 +263,8 @@ export function detailMarks(d: ZoneDetail): Mark[] {
     };
     // Containers that are items (a placed Hidden Hollow, say) are pictured as that item.
     const item = ITEM_NAMES[c.index] ? c.index : undefined;
-    if (c.index === 152) out.push({ layer: "loot", kind: "loot", ...at, name: c.status === -214 ? "Unsearched remains" : "Remains" });
+    if (c.index === 287) out.push({ layer: "loot", kind: "loot", ...at, name: "Webbed treasure" });
+    else if (c.index === 152) out.push({ layer: "loot", kind: "loot", ...at, name: c.status === -214 ? "Unsearched remains" : "Remains" });
     // Treasure chests stay after looting and can hold your items, unlike remains, so they count as storage.
     else if (CHEST[c.index]) out.push({ layer: "storage", kind: "storage chest", ...at, name: CHEST[c.index] });
     else if (c.status === -215) out.push({ layer: "loot", kind: "loot", ...at, name: "Supplies" });

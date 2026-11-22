@@ -7,7 +7,7 @@ import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
 import { entityWiki, itemWiki, wikiUrl } from "../src/wiki.ts";
 
 /** Beings and items 0.8.9.9 added (or, for being 35, renamed): the wiki catalog bundled before the update has no pages for them. */
-const NEW_BEINGS = new Set([35, 36, 37, 38, 39, 40]);
+const NEW_BEINGS = new Set([35, 36, 37, 38, 39, 40, 45, 46]);
 const FIRST_NEW_ITEM = 258;
 
 const item = (index = 3, X = 0, Y = 0, amount = 1) => ({ index, X, Y, amount, durability: 81, wet: 0.25, subParts: [] });

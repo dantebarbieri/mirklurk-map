@@ -2346,7 +2346,7 @@ async function mapCard(v: PlayerSave, p: Rec): Promise<HTMLElement> {
         return;
       }
       void edit("map", beingsPath, (raw) => {
-        spawnBeing(raw as unknown[], kind, tx, ty);
+        spawnBeing(raw as unknown[], kind, tx, ty, rules);
         return `Spawned a ${BEING_NAMES[kind]} in ${areaName(a)}, tile ${tx},${ty}`;
       });
     }

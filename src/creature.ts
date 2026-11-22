@@ -3,7 +3,6 @@
 
 import {
   type Attack,
-  BEINGS,
   type BeingStats,
   blockOf,
   canHurt,
@@ -16,6 +15,7 @@ import {
   freshHealth,
   hardIq,
   INTELLIGENCE,
+  statsOf,
   targetsYou,
   totalDamage,
   turnsPattern,
@@ -201,7 +201,7 @@ const sectioned = (el: HTMLElement) => (el.classList.add("creature-section"), el
 
 /** Inspection sections for a living being: its saved hit points, its attacks (melee/ranged) and its combat stats. */
 export function creatureView(being: number, health: HealthGrid | undefined, ctx: SectionContext): HTMLElement[] {
-  const s = BEINGS[being];
+  const s = statsOf(being, ctx.rules);
   if (!s) return health ? [sectioned(section(ctx, "hit-points", "Hit points", true, healthGridView(health), healthLegend(health)))] : [];
   const now = health && summarize(health);
   const title = now ? `Hit points (${now.healthy} of ${now.total})` : "Hit points";
@@ -209,6 +209,17 @@ export function creatureView(being: number, health: HealthGrid | undefined, ctx:
     sectioned(section(ctx, "hit-points", title, true, ...hitPoints(being, health, ctx.rules))),
     sectioned(section(ctx, "attack", s.ranged ? "Attacks" : "Attack", true, ...attackSection(s, ctx.difficulty, ctx.rules))),
     sectioned(section(ctx, "behaviour", "Behaviour", true, behaviour(being, s, ctx.rules))),
+    ...(being === 45 || being === 46
+      ? [
+        h(
+          "p",
+          { class: "muted creature-note" },
+          `Base attack shown. Once its turn counter reaches ${
+            being === 45 ? 2 : 3
+          }, a melee attack uses Poison and resets the counter; it advances per creature turn, not per attack.`,
+        ),
+      ]
+      : []),
     h(
       "p",
       { class: "creature-links" },

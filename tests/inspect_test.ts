@@ -3,6 +3,9 @@ import { entityUrl, markImage, picture } from "../src/inspect.ts";
 import { markIcon } from "../src/mapview.ts";
 import type { Mark } from "../src/objects.ts";
 import { itemImage } from "../src/wiki.ts";
+import { creatureView } from "../src/creature.ts";
+import { parseHealth } from "../src/health.ts";
+import type { GameVersion } from "../src/version.ts";
 import { assert, assertEquals } from "./assert.ts";
 
 const raft: Mark = { layer: "rafts", kind: "raft", item: 171, name: "Raft", x: 344, y: 744 };
@@ -37,6 +40,8 @@ Deno.test("raft picture: finished and ridden rafts use world frame 1, bases keep
 class ElementStub {
   attrs: Record<string, string> = {};
   children: (ElementStub | string)[] = [];
+  style = { cssText: "" };
+  classList = { add: (_name: string) => {} };
   constructor(readonly tag: string) {}
   setAttribute(key: string, value: string) {
     this.attrs[key] = value;
@@ -44,7 +49,43 @@ class ElementStub {
   append(child: ElementStub | string) {
     this.children.push(child);
   }
+  addEventListener(_type: string, _handler: () => void) {}
+  replaceChildren(...children: (ElementStub | string)[]) {
+    this.children = children;
+  }
+  text(): string {
+    return this.children.map((c) => typeof c === "string" ? c : c.text()).join("");
+  }
 }
+
+Deno.test("creature cards use selected Geomancer stats, retain saved health and qualify spider attacks", () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "document");
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: {
+      createElement: (tag: string) => new ElementStub(tag),
+      createElementNS: (_ns: string, tag: string) => new ElementStub(tag),
+    },
+  });
+  try {
+    const saved = parseHealth([[2, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 1, 1, 1, 1]])!;
+    const render = (being: number, rules: GameVersion) =>
+      (creatureView(being, saved, { key: "test", rules }) as unknown as ElementStub[]).map((el) => el.text()).join(" ");
+    assert(render(16, "0.9.5.6").includes("300 XP"));
+    const latest = render(16, "0.9.6.5");
+    assert(latest.includes("200 XP") && latest.includes("within 10 tiles"));
+    assert(latest.includes("A fresh one has 20 hit points, 20 armor"));
+    assertEquals([saved.w, saved.h, saved.cells[0][0].hp], [5, 3, 2], "existing grid stays unchanged");
+    for (const i of [45, 46]) {
+      const text = render(i, "0.9.6.5");
+      assert(text.includes("Blunt") && text.includes("uses Poison"));
+      assert(text.includes(`counter reaches ${i === 45 ? 2 : 3}`) && text.includes("per creature turn, not per attack"));
+    }
+  } finally {
+    if (original) Object.defineProperty(globalThis, "document", original);
+    else Reflect.deleteProperty(globalThis, "document");
+  }
+});
 
 Deno.test("raft rendering: distinct shared SVG symbols and a cropped, game-credited world picture", () => {
   const original = Object.getOwnPropertyDescriptor(globalThis, "document");

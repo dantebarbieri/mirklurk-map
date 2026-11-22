@@ -1,5 +1,5 @@
 {
-  "version": "0.9.5.6",
+  "version": "0.9.6.5",
   "tilesets": {
     "ts_ash": {
       "file": "assets/game/ts_ash.b1df1b9111.png",
@@ -180,7 +180,7 @@
       ]
     },
     "ts_cave": {
-      "file": "assets/game/ts_cave.e7a74caf10.png",
+      "file": "assets/game/ts_cave.5ca418bd8c.png",
       "width": 240,
       "height": 260,
       "columns": 12,
@@ -1799,6 +1799,14 @@
       "oy": 32,
       "frames": 2
     },
+    "spr_caves_48x32_special": {
+      "file": "assets/game/spr_caves_48x32_special.47808e3e21.png",
+      "w": 48,
+      "h": 48,
+      "ox": 0,
+      "oy": 48,
+      "frames": 1
+    },
     "spr_caves_48x32": {
       "file": "assets/game/spr_caves_48x32.977520b35d.png",
       "w": 48,
@@ -1936,12 +1944,12 @@
       "frames": 1
     },
     "spr_placed_16x16_taller": {
-      "file": "assets/game/spr_placed_16x16_taller.157413c78a.png",
+      "file": "assets/game/spr_placed_16x16_taller.e2388fc15d.png",
       "w": 16,
       "h": 24,
       "ox": 8,
       "oy": 16,
-      "frames": 12
+      "frames": 15
     },
     "spr_placed_16x16_wider": {
       "file": "assets/game/spr_placed_16x16_wider.527632d104.png",

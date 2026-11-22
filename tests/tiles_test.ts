@@ -32,6 +32,8 @@ Deno.test("tiles: all eight GameMaker mirror/flip/rotation transforms", () => {
 Deno.test("tiles: correct room-specific dungeon and roof art", () => {
   const sets = (kind: number) => Object.fromEntries(areaLayers(kind).map((l) => [l.name, l.tileset]));
   assertEquals(sets(10).Dungeon, "ts_cave");
+  assertEquals(sets(13), sets(10), "saved spider caves use cave layers, including web tiles");
+  for (const web of [110, 111, 112, 113, 114]) assert(tileSource(ART.tilesets.ts_cave, web));
   assertEquals(sets(21).Dungeon, "ts_ruin");
   assertEquals(sets(21).OnTop, "ts_ruin_top");
   assertEquals(sets(26).Dungeon, "ts_riftworld");
