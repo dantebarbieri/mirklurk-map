@@ -188,6 +188,11 @@ Deno.test("editor session: saving and downloading refuse what the version in use
       seen.push(lacking);
       if (lacking.length) throw new Error(`lacks ${lacking.join(", ")}`);
     };
+    await s.apply(player, give(296, 1));
+    assertEquals(s.changes.length, 1, "the bow actually fits before testing compatibility");
+    await assertRejects(() => s.download(check("0.9.6.5")), /lacks Sturdy Shortbow/);
+    await s.download(check("0.9.9.7"));
+    await s.undo(0);
     // Beta picked on this 0.8.1.5 save: a Magus' Shard, two Bat Hides and a Mirkfang Matriarch; then the switch goes back to Latest.
     await s.apply(player, give(262, 1));
     await s.apply(player, give(258, 2));

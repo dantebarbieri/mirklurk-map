@@ -22,7 +22,7 @@ import {
 } from "../condition.ts";
 import { isRec, type Rec } from "../save-record.ts";
 import { isOffHandCopy } from "../inventory.ts";
-import { atLeast, type GameVersion, NEWEST } from "../version.ts";
+import { atLeast, type GameVersion, hasItem, NEWEST } from "../version.ts";
 
 /** Empty grid cell (GameMaker's noone). */
 const EMPTY = -4;
@@ -40,6 +40,7 @@ export const addable = (index: number) => !!ITEMS[index] && !ITEMS[index].uncarr
 export function newItem(index: number, amount: number, zone: [number, number], bagTemplate?: Rec, rules: GameVersion = NEWEST): Rec {
   const d = ITEMS[index];
   if (!d) throw new Error(`Unknown item ${index}`);
+  if (!hasItem(rules, index)) throw new Error(`Mirklurk ${rules} has no ${ITEM_NAMES[index] ?? `item ${index}`}`);
   const item: Rec = {
     index,
     amount,
@@ -164,6 +165,7 @@ export interface AddResult {
  */
 export function addItems(p: Rec, index: number, amount: number, rules: GameVersion = NEWEST): AddResult {
   if (!addable(index)) throw new Error(`Item ${index} cannot be carried`);
+  if (!hasItem(rules, index)) throw new Error(`Mirklurk ${rules} has no ${ITEM_NAMES[index]}`);
   if (!Number.isInteger(amount) || amount < 1) throw new Error("Amount must be a whole number of at least 1");
   const d = ITEMS[index];
   const bags = carriedBags(p);
@@ -346,6 +348,7 @@ export function wearNew(
   rules: GameVersion = NEWEST,
 ): { slot: number; amount: number } {
   if (!addable(index)) throw new Error(`Item ${index} cannot be carried`);
+  if (!hasItem(rules, index)) throw new Error(`Mirklurk ${rules} has no ${ITEM_NAMES[index]}`);
   if (!Number.isInteger(amount) || amount < 1) throw new Error("Amount must be a whole number of at least 1");
   const at = slotFor(p, index, slot);
   const n = Math.min(amount, equippedLimit(index, rules));

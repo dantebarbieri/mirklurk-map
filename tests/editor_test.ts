@@ -441,7 +441,22 @@ Deno.test("items: 0.9.5.0 shell items have only their defined sizes, limits and 
   assertEquals(addItems(p, 278, 6), { added: 6, left: 0 });
   assertEquals(carriedItems(p)[0].contents.map((c) => c.amount), [5, 1]);
   assertEquals(wearNew(p, 279), { slot: 1, amount: 1 });
-  for (const i of [280, 281, 282, 283]) assert(!addable(i) && !fitsSlot(i, 1), `reserved title ${i}`);
+  for (const i of [280, 282, 283]) assert(addable(i) && fitsSlot(i, 1), `tester shield ${i}`);
+  assert(addable(281) && fitsSlot(281, 7), "tester chestplate");
+});
+
+Deno.test("items: all thirteen tester definitions are rejected under stable rules before mutating inventory", () => {
+  for (const index of [280, 281, 282, 283, 288, 289, 290, 291, 292, 293, 294, 295, 296]) {
+    const p = dressed({ 8: backpack() });
+    const before = structuredClone(p);
+    assertThrows(() => newItem(index, 1, [0, 0], undefined, "0.9.6.5"), /Mirklurk 0.9.6.5 has no/);
+    assertThrows(() => wearNew(p, index, 1, undefined, "0.9.6.5"), /Mirklurk 0.9.6.5 has no/);
+    assertThrows(() => addItems(p, index, 1, "0.9.6.5"), /Mirklurk 0.9.6.5 has no/);
+    assertEquals(p, before);
+    assertEquals(addItems(p, index, 1, "0.9.9.7"), { added: 1, left: 0 });
+    assertEquals(carriedItems(p)[0].contents[0].index, index);
+    assertEquals(carriedItems(p)[0].contents[0].amount, 1);
+  }
 });
 
 Deno.test("items: 0.9.6.5 meat and silk stack in their exact footprints without becoming equipment", () => {

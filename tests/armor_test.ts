@@ -43,13 +43,22 @@ Deno.test("armor: shield base block and additive Shield Savant follow the rules 
   assertEquals(playerBlock([worn(0, saved(0))], 10), 0);
 });
 Deno.test("armor and item condition use the same durability maximum for every armored item", () => {
-  assertEquals(Object.keys(ARMOR).length, 50); // Includes 0.9.5.0's Intact Snail Shell.
+  assertEquals(Object.keys(ARMOR).length, 58); // Includes the tester's eight armored items.
   for (const [key, [armor, max]] of Object.entries(ARMOR)) {
     const index = Number(key);
     assertEquals(max, ITEMS[index].durability, `item ${index}`);
     assertEquals(itemArmor(saved(index)), armor, `item ${index} with no saved durability is full`);
     assertEquals(itemArmor(saved(index, max)), armor, `item ${index} at full durability`);
     assertEquals(itemArmor(saved(index, 0)), 0, `item ${index} with no durability gives no armor`);
+  }
+});
+
+Deno.test("armor: tester shield blocks are gated while their saved durability-scaled armor is readable", () => {
+  for (const [index, block, armor] of [[280, 0.12, 4], [282, 0.08, 3.5], [283, 0.12, 2.5]]) {
+    assertEquals(shieldBlock(index, "0.9.6.5"), undefined);
+    assertEquals(shieldBlock(index, "0.9.9.7"), block);
+    assertEquals(itemArmor(saved(index)), armor);
+    assertAlmost(playerBlock([worn(1, saved(index))], 2, "0.9.9.7"), block + 0.05);
   }
 });
 

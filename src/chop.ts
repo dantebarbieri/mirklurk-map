@@ -1,4 +1,4 @@
-// Tree liveliness and harvest cost, ported from Mirklurk 0.9.6.5 (decompiled GML).
+// Tree liveliness and harvest cost: Mirklurk 0.9.6.5 rules with 0.9.9.7 tester tools (decompiled GML).
 // Sources: tree harvest menu in gml_Object_UI_Draw_64, tree_initiate / tree_grow in scr_nature,
 // loot drops in gml_Object_obj_tree_Step_0, chopMod values in gml_Object_databank_Alarm_1.
 
@@ -45,6 +45,9 @@ export const CHOP_TOOLS: Record<number, number> = {
   28: 3.4,
   29: 4,
   30: 4.2,
+  289: 3,
+  290: 1.25,
+  295: 1.6,
 };
 export const UNARMED = 31;
 

@@ -163,7 +163,8 @@ Deno.test("weather: the rain balance's tilt and its way back to even", () => {
 
 Deno.test("weather: who feels it — outdoors, sheltered in buildings, underground", () => {
   assertEquals([0, 1, 5, 22, 23, 100].map(exposure), Array(6).fill("outdoors"));
-  assertEquals([10, 11, 12, 13, 20, 21, 24, 25, 26, 30, 33].map(exposure), Array(11).fill("underground"));
+  assertEquals([10, 11, 12, 20, 21, 24, 25, 26, 30, 33].map(exposure), Array(10).fill("underground"));
+  assertEquals(exposure(13), "sheltered", "cave-like area 13 is excluded from area_is_dungeonlike");
   assertEquals([31, 32, 34, 35].map(exposure), Array(4).fill("sheltered"));
 });
 

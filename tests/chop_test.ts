@@ -121,10 +121,10 @@ Deno.test("chop: 0.9.1.0's Flint Dagger chops with ×1.2, a tool only its rules 
   assertEquals(CHOP_TOOLS[FLINT_DAGGER], 1.2);
   assertEquals(harvestCost(Nature.Willow, part(0.95, 0.3), CHOP_TOOLS[FLINT_DAGGER]), 12.4);
   const latest = toolsIn("0.9.1.0"), before = toolsIn("0.9.0.2");
-  assertEquals(latest, toolsIn());
+  assertEquals(latest, toolsIn("0.9.6.5"));
   assertEquals(latest.filter((t) => !before.includes(t)), [FLINT_DAGGER]);
   assertEquals(latest.slice(-4), [SHODDY_DAGGER, FLINT_DAGGER, UNARMED, SERPENT_FANG], "between the Shoddy Dagger and bare hands");
-  assertEquals(before.length, Object.keys(CHOP_TOOLS).length - 1);
+  assertEquals(before.length, Object.keys(CHOP_TOOLS).length - 4);
   const item = (index: number) => ({ index, amount: 1, contents: [] });
   const inv: Inventory = { state: "saved", items: [item(FLINT_DAGGER), item(SERPENT_FANG)] };
   assertEquals(ownedTools(inv), [FLINT_DAGGER, UNARMED, SERPENT_FANG]);
@@ -133,4 +133,13 @@ Deno.test("chop: 0.9.1.0's Flint Dagger chops with ×1.2, a tool only its rules 
   const pick = { tool: FLINT_DAGGER, owned: `${UNARMED},${SERPENT_FANG}` };
   assertEquals(chosenTool([UNARMED, SERPENT_FANG], pick), FLINT_DAGGER);
   assertEquals(chosenTool([UNARMED, SERPENT_FANG], pick, "0.9.0.2"), UNARMED);
+});
+
+Deno.test("chop: tester tools are listed and selected only under beta rules", () => {
+  const beta = toolsIn("0.9.9.7"), stable = toolsIn("0.9.6.5");
+  assertEquals(beta.filter((i) => !stable.includes(i)).sort((a, b) => a - b), [289, 290, 295]);
+  const inv: Inventory = { state: "saved", items: [289, 290, 295].map((index) => ({ index, amount: 1, contents: [] })) };
+  assertEquals(ownedTools(inv, "0.9.6.5"), [UNARMED]);
+  assertEquals(ownedTools(inv, "0.9.9.7"), [289, 295, 290, UNARMED]);
+  assertEquals([CHOP_TOOLS[289], CHOP_TOOLS[290], CHOP_TOOLS[295]], [3, 1.25, 1.6]);
 });
