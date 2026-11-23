@@ -1,5 +1,5 @@
 // Which game version's rules apply. A save names the version that wrote it (save_player's VERSION in Player.save), so MirkMap
-// follows it. Steam runs one version now (0.9.6.5); for a save from an older version whose rules differ, the version switch can show
+// follows it. Steam's release is 0.9.6.5 and opt-in tester is 0.9.9.7; for a save from an older version whose rules differ, the switch can show
 // Latest's instead, as the world will be once the current game saves it.
 
 /** The game versions whose rules MirkMap has, oldest first. */
@@ -17,6 +17,7 @@ export const VERSIONS = [
   "0.9.5.5",
   "0.9.5.6",
   "0.9.6.5",
+  "0.9.9.7",
 ] as const;
 export type GameVersion = (typeof VERSIONS)[number];
 
@@ -44,14 +45,14 @@ export type Channel = "latest" | "beta";
 
 /**
  * The version each Steam branch runs. This is the one place to change when a version is released: point `latest` at it, and
- * `beta` at a new opt-in beta while one is out (omitted when there is none, as now: the switch then offers no Beta).
+ * `beta` at a new opt-in beta while one is out (omitted when there is none: the switch then offers no Beta).
  */
-export const CHANNELS: Readonly<{ latest: GameVersion; beta?: GameVersion }> = { latest: "0.9.6.5" };
+export const CHANNELS: Readonly<{ latest: GameVersion; beta?: GameVersion }> = { latest: "0.9.6.5", beta: "0.9.9.7" };
 export const CHANNEL_LABELS: Readonly<Record<Channel, string>> = { latest: "Latest", beta: "Beta" };
 /** What each branch is on Steam, for the switch's tooltip. */
 export const CHANNEL_NOTES: Readonly<Record<Channel, string>> = {
   latest: "the game's Steam release",
-  beta: "the opt-in Steam beta",
+  beta: "the opt-in Steam beta (next_version_tester)",
 };
 
 /** The branches running now. */
@@ -112,19 +113,18 @@ export const CHANNELS_TOOLTIP = channelsOf(CHANNELS)
  * What each version added to the item and being databases (global.itemDB in gml_Object_databank_Alarm_1, global.beingDB in
  * Alarm_3), as inclusive index ranges. An older game has no data for these: a save holding one fails to load there.
  */
-const ADDED: Readonly<Partial<Record<GameVersion, { items?: [number, number]; beings?: [number, number] }>>> = {
-  "0.8.9.9": { items: [258, 275], beings: [36, 41] },
+type IndexRanges = readonly (readonly [number, number])[];
+const ADDED: Readonly<Partial<Record<GameVersion, { items?: IndexRanges; beings?: IndexRanges }>>> = {
+  "0.8.9.9": { items: [[258, 275]], beings: [[36, 41]] },
   // Flint (Large) and the Flint Dagger made from it.
-  "0.9.1.0": { items: [276, 277] },
-  "0.9.5.0": { items: [278, 279], beings: [42, 43] },
-  "0.9.6.5": { items: [284, 286], beings: [45, 46] },
+  "0.9.1.0": { items: [[276, 277]] },
+  "0.9.5.0": { items: [[278, 279]], beings: [[42, 43]] },
+  "0.9.6.5": { items: [[284, 286]], beings: [[45, 46]] },
+  "0.9.9.7": { items: [[280, 283], [288, 296]] },
 };
 
 const addedIn = (key: "items" | "beings", index: number): GameVersion | undefined =>
-  VERSIONS.find((v) => {
-    const r = ADDED[v]?.[key];
-    return !!r && index >= r[0] && index <= r[1];
-  });
+  VERSIONS.find((v) => ADDED[v]?.[key]?.some(([start, end]) => index >= start && index <= end));
 
 /** Whether version `v`'s game knows item `index`. */
 export const hasItem = (v: GameVersion, index: number) => {

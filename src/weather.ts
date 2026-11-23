@@ -253,6 +253,6 @@ export type Exposure = "outdoors" | "sheltered" | "underground";
  */
 export function exposure(areaType: number): Exposure {
   if ([0, 1, 2, 3, 4, 5, 22, 23, 100].includes(areaType)) return "outdoors";
-  if ([10, 11, 12, 13, 20, 21, 24, 25, 26, 30, 33].includes(areaType)) return "underground";
+  if ([10, 11, 12, 20, 21, 24, 25, 26, 30, 33].includes(areaType)) return "underground";
   return "sheltered";
 }

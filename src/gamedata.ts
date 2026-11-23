@@ -367,6 +367,15 @@ export const ITEM_NAMES: Record<number, string> = {
   284: "Spider Meat",
   285: "Grilled Spider Meat",
   286: "Spider Silk",
+  288: "Battle Hammer",
+  289: "Halfmoon Axe",
+  290: "War Mace",
+  291: "Well Tailored Socks",
+  292: "Laughable Socks",
+  293: "Well Tailored Shirt",
+  294: "Well Tailored Pants",
+  295: "Hand Sickle",
+  296: "Sturdy Shortbow",
 };
 
 /** [DamageClasses] in UI.ini: damage class names keyed by damageClass value. */

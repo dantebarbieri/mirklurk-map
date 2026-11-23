@@ -22,7 +22,7 @@ import {
 } from "../condition.ts";
 import { isRec, type Rec } from "../save-record.ts";
 import { isOffHandCopy } from "../inventory.ts";
-import { atLeast, type GameVersion, NEWEST } from "../version.ts";
+import { atLeast, type GameVersion, hasItem, NEWEST } from "../version.ts";
 
 /** Empty grid cell (GameMaker's noone). */
 const EMPTY = -4;
@@ -40,6 +40,7 @@ export const addable = (index: number) => !!ITEMS[index] && !ITEMS[index].uncarr
 export function newItem(index: number, amount: number, zone: [number, number], bagTemplate?: Rec, rules: GameVersion = NEWEST): Rec {
   const d = ITEMS[index];
   if (!d) throw new Error(`Unknown item ${index}`);
+  if (!hasItem(rules, index)) throw new Error(`Mirklurk ${rules} has no ${ITEM_NAMES[index] ?? `item ${index}`}`);
   const item: Rec = {
     index,
     amount,
@@ -164,6 +165,7 @@ export interface AddResult {
  */
 export function addItems(p: Rec, index: number, amount: number, rules: GameVersion = NEWEST): AddResult {
   if (!addable(index)) throw new Error(`Item ${index} cannot be carried`);
+  if (!hasItem(rules, index)) throw new Error(`Mirklurk ${rules} has no ${ITEM_NAMES[index]}`);
   if (!Number.isInteger(amount) || amount < 1) throw new Error("Amount must be a whole number of at least 1");
   const d = ITEMS[index];
   const bags = carriedBags(p);
@@ -282,7 +284,7 @@ export const SLOT_TAKES: readonly number[] = [0, 21, 0, 21, 1, 2, 3, 4, 7, 5, 9,
  * weapon_is_ranged: bows and crossbows, which are two-handed (type 17) but leave the off hand to their ammunition. Since 0.8.9.9
  * the magic orbs are ranged too, but they are one-handed (type 16), so only the bows matter here.
  */
-const RANGED = new Set([93, 44, 105, 106, 179]);
+const RANGED = new Set([93, 44, 105, 106, 179, 296]);
 /** A two-handed melee weapon: the loader also puts it in the off hand beside it, and the save holds a copy there. */
 export const isTwoHandedMelee = (index: number) => ITEMS[index]?.type === 17 && !RANGED.has(index);
 
@@ -346,6 +348,7 @@ export function wearNew(
   rules: GameVersion = NEWEST,
 ): { slot: number; amount: number } {
   if (!addable(index)) throw new Error(`Item ${index} cannot be carried`);
+  if (!hasItem(rules, index)) throw new Error(`Mirklurk ${rules} has no ${ITEM_NAMES[index]}`);
   if (!Number.isInteger(amount) || amount < 1) throw new Error("Amount must be a whole number of at least 1");
   const at = slotFor(p, index, slot);
   const n = Math.min(amount, equippedLimit(index, rules));

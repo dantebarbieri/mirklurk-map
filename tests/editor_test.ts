@@ -52,7 +52,7 @@ import { Ground, groundMap, reachable, tileBox } from "../src/editor/ground.ts";
 import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
 import { readMarker, writeMarker } from "../src/marker.ts";
 import { decodeJson, parseBeings, parsePlayer } from "../src/save.ts";
-import { playerRecord, type Rec } from "../src/save-record.ts";
+import { isRec, playerRecord, type Rec } from "../src/save-record.ts";
 import { parseHealth } from "../src/health.ts";
 import { parseInventoryGrid } from "../src/inventory.ts";
 import { conditionsOf, xpForLevel } from "../src/player.ts";
@@ -441,7 +441,49 @@ Deno.test("items: 0.9.5.0 shell items have only their defined sizes, limits and 
   assertEquals(addItems(p, 278, 6), { added: 6, left: 0 });
   assertEquals(carriedItems(p)[0].contents.map((c) => c.amount), [5, 1]);
   assertEquals(wearNew(p, 279), { slot: 1, amount: 1 });
-  for (const i of [280, 281, 282, 283]) assert(!addable(i) && !fitsSlot(i, 1), `reserved title ${i}`);
+  for (const i of [280, 282, 283]) assert(addable(i) && fitsSlot(i, 1), `tester shield ${i}`);
+  assert(addable(281) && fitsSlot(281, 7), "tester chestplate");
+});
+
+Deno.test("items: stable rejects tester additions; Beta writes two separate items with exact footprints and durability", () => {
+  for (
+    const [index, w, h, durability] of [
+      [280, 2, 3, 150],
+      [281, 2, 3, 150],
+      [282, 2, 2, 250],
+      [283, 2, 3, 65],
+      [288, 1, 4, 175],
+      [289, 1, 4, 175],
+      [290, 1, 4, 200],
+      [291, 1, 2, 65],
+      [292, 1, 2, 15],
+      [293, 2, 3, 80],
+      [294, 2, 3, 80],
+      [295, 2, 2, 90],
+      [296, 2, 3, 90],
+    ]
+  ) {
+    const p = dressed({ 8: backpack() });
+    const before = structuredClone(p);
+    assertThrows(() => newItem(index, 1, [0, 0], undefined, "0.9.6.5"), /Mirklurk 0.9.6.5 has no/);
+    assertThrows(() => wearNew(p, index, 1, undefined, "0.9.6.5"), /Mirklurk 0.9.6.5 has no/);
+    assertThrows(() => addItems(p, index, 1, "0.9.6.5"), /Mirklurk 0.9.6.5 has no/);
+    assertEquals(p, before);
+    assertEquals(addItems(p, index, 2, "0.9.9.7"), { added: 2, left: 0 });
+    const items = carriedItems(p)[0].contents;
+    assertEquals(items.map((c) => [c.index, c.amount]), [[index, 1], [index, 1]], `single-item stacks for ${index}`);
+    assertEquals(freeCells(p), 35 - 2 * w * h);
+    const grid = carriedBags(p)[0].grid;
+    for (const item of items) {
+      const raw = itemAt(p, item.place);
+      assert(raw);
+      assertEquals([raw.durability, raw.sideflipped], [durability, false], `initial condition for ${index}`);
+      const cells = grid.flatMap((row, y) =>
+        row.flatMap((value, x) => isRec(value) && value.X === raw.X && value.Y === raw.Y ? [[x - Number(raw.X), y - Number(raw.Y)]] : [])
+      );
+      assertEquals(cells, Array.from({ length: h }, (_, y) => Array.from({ length: w }, (_, x) => [x, y])).flat(), `footprint ${index}`);
+    }
+  }
 });
 
 Deno.test("items: 0.9.6.5 meat and silk stack in their exact footprints without becoming equipment", () => {
@@ -618,6 +660,30 @@ Deno.test("equipment: a two-handed weapon fills the off hand, comes off into a b
   assertEquals((equips[3] as Rec).index, 29);
   assertThrows(() => wearCarried(p, inPack.place, 29), /no longer there/);
 });
+
+for (const carried of [false, true]) {
+  Deno.test(`equipment: a ${carried ? "carried" : "new"} tester shortbow leaves the off hand for ammunition`, () => {
+    for (const arrows of [false, true]) {
+      const p = dressed({ 8: backpack() });
+      const equips = p.myEquips as unknown[];
+      if (arrows) equips[1] = cell(45, 10, E, E, { unknown: "preserved ammunition field" });
+      const before = structuredClone(equips[1]);
+      if (carried) {
+        assertEquals(addItems(p, 296, 1, "0.9.9.7"), { added: 1, left: 0 });
+        const bow = carriedItems(p).find((c) => c.index === 12)!.contents[0];
+        assertEquals(wearCarried(p, bow.place, 296, 0, "0.9.9.7"), 0);
+        assertEquals(freeCells(p), 35, "the carried bow's grid cells are cleared");
+      } else {
+        assertEquals(wearNew(p, 296, 1, 0, "0.9.9.7"), { slot: 0, amount: 1 });
+      }
+      assertEquals((equips[0] as Rec).index, 296);
+      assertEquals(equips[1], before, "no duplicate bow or changed ammunition");
+      assertEquals(carriedItems(p).filter((c) => c.index === 296).length, 1);
+      assertEquals(takeOff(p, 0, 296), 12);
+      assertEquals(equips[1], before, "removing the bow preserves ammunition");
+    }
+  });
+}
 
 Deno.test("equipment: taking off needs room in another bag, and a container must be empty first", () => {
   const full = empty(4, 2).map((row, y) => row.map((_, x) => cell(72, 20, x, y)));
