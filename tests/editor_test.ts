@@ -52,7 +52,7 @@ import { Ground, groundMap, reachable, tileBox } from "../src/editor/ground.ts";
 import { cheatedInfo, ensureCheated, isCheated, markCheated } from "../src/cheated.ts";
 import { readMarker, writeMarker } from "../src/marker.ts";
 import { decodeJson, parseBeings, parsePlayer } from "../src/save.ts";
-import { playerRecord, type Rec } from "../src/save-record.ts";
+import { isRec, playerRecord, type Rec } from "../src/save-record.ts";
 import { parseHealth } from "../src/health.ts";
 import { parseInventoryGrid } from "../src/inventory.ts";
 import { conditionsOf, xpForLevel } from "../src/player.ts";
@@ -445,17 +445,44 @@ Deno.test("items: 0.9.5.0 shell items have only their defined sizes, limits and 
   assert(addable(281) && fitsSlot(281, 7), "tester chestplate");
 });
 
-Deno.test("items: all thirteen tester definitions are rejected under stable rules before mutating inventory", () => {
-  for (const index of [280, 281, 282, 283, 288, 289, 290, 291, 292, 293, 294, 295, 296]) {
+Deno.test("items: stable rejects tester additions; Beta writes two separate items with exact footprints and durability", () => {
+  for (
+    const [index, w, h, durability] of [
+      [280, 2, 3, 150],
+      [281, 2, 3, 150],
+      [282, 2, 2, 250],
+      [283, 2, 3, 65],
+      [288, 1, 4, 175],
+      [289, 1, 4, 175],
+      [290, 1, 4, 200],
+      [291, 1, 2, 65],
+      [292, 1, 2, 15],
+      [293, 2, 3, 80],
+      [294, 2, 3, 80],
+      [295, 2, 2, 90],
+      [296, 2, 3, 90],
+    ]
+  ) {
     const p = dressed({ 8: backpack() });
     const before = structuredClone(p);
     assertThrows(() => newItem(index, 1, [0, 0], undefined, "0.9.6.5"), /Mirklurk 0.9.6.5 has no/);
     assertThrows(() => wearNew(p, index, 1, undefined, "0.9.6.5"), /Mirklurk 0.9.6.5 has no/);
     assertThrows(() => addItems(p, index, 1, "0.9.6.5"), /Mirklurk 0.9.6.5 has no/);
     assertEquals(p, before);
-    assertEquals(addItems(p, index, 1, "0.9.9.7"), { added: 1, left: 0 });
-    assertEquals(carriedItems(p)[0].contents[0].index, index);
-    assertEquals(carriedItems(p)[0].contents[0].amount, 1);
+    assertEquals(addItems(p, index, 2, "0.9.9.7"), { added: 2, left: 0 });
+    const items = carriedItems(p)[0].contents;
+    assertEquals(items.map((c) => [c.index, c.amount]), [[index, 1], [index, 1]], `single-item stacks for ${index}`);
+    assertEquals(freeCells(p), 35 - 2 * w * h);
+    const grid = carriedBags(p)[0].grid;
+    for (const item of items) {
+      const raw = itemAt(p, item.place);
+      assert(raw);
+      assertEquals([raw.durability, raw.sideflipped], [durability, false], `initial condition for ${index}`);
+      const cells = grid.flatMap((row, y) =>
+        row.flatMap((value, x) => isRec(value) && value.X === raw.X && value.Y === raw.Y ? [[x - Number(raw.X), y - Number(raw.Y)]] : [])
+      );
+      assertEquals(cells, Array.from({ length: h }, (_, y) => Array.from({ length: w }, (_, x) => [x, y])).flat(), `footprint ${index}`);
+    }
   }
 });
 
