@@ -806,11 +806,12 @@ gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's
   Shield, Iron Chestplate, Steel Buckler and Wooden Shield (280–283), plus Battle Hammer, Halfmoon Axe, War Mace, Well Tailored Socks,
   Laughable Socks, Well Tailored Shirt, Well Tailored Pants, Hand Sickle and Sturdy Shortbow (288–296). Generated dimensions, single-item
   stacks, durability and waterproof fields follow `databank_Alarm_1`. Only Beta offers these items; stable pickers and writes reject
-  additions, while an existing save's unknown fields remain untouched. The new shields' base block chances are 12%, 8% and 12%; Shield
-  Savant remains additive. Saved gear uses its durability-scaled armor. Halfmoon Axe, War Mace and Hand Sickle join the chopping choices
-  with bonuses ×3, ×1.25 and ×1.6 only under tester rules. `manager_area_Alarm_2` now assigns the already-defined special cave sprite to
-  eligible selected normal cave candidates after the existing 0.333 chance; this is not a one-third chance per area. Existing saved areas
-  load without regeneration. Saved area 13 entrances, grids, webs and treasure remain authoritative; MirkMap adds no generator, placement
+  additions, while an existing save's unknown fields remain untouched. Equipping the Sturdy Shortbow leaves the off hand for ammunition,
+  whether new or taken from a bag, as `weapon_is_ranged` specifies. The new shields' base block chances are 12%, 8% and 12%; Shield Savant
+  remains additive. Saved gear uses its durability-scaled armor. Halfmoon Axe, War Mace and Hand Sickle join the chopping choices with
+  bonuses ×3, ×1.25 and ×1.6 only under tester rules. `manager_area_Alarm_2` now assigns the already-defined special cave sprite to eligible
+  selected normal cave candidates after the existing 0.333 chance; this is not a one-third chance per area. Existing saved areas load
+  without regeneration. Saved area 13 entrances, grids, webs and treasure remain authoritative; MirkMap adds no generator, placement
   prediction or walking AP simulator. All 46 creature definitions, including the spiders and Geomancer's rebalance, are unchanged. The
   distinction between cave-like area 13 and `area_is_dungeonlike`, which excludes it, corrects its weather exposure without changing its
   cave tiles or saved grids. `obj_player_Create` exposes the Sturdy Shortbow recipe (2 Twine, 2 Trollgnarl branches and 10 Spider Silk);

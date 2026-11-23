@@ -634,6 +634,30 @@ Deno.test("equipment: a two-handed weapon fills the off hand, comes off into a b
   assertThrows(() => wearCarried(p, inPack.place, 29), /no longer there/);
 });
 
+for (const carried of [false, true]) {
+  Deno.test(`equipment: a ${carried ? "carried" : "new"} tester shortbow leaves the off hand for ammunition`, () => {
+    for (const arrows of [false, true]) {
+      const p = dressed({ 8: backpack() });
+      const equips = p.myEquips as unknown[];
+      if (arrows) equips[1] = cell(45, 10, E, E, { unknown: "preserved ammunition field" });
+      const before = structuredClone(equips[1]);
+      if (carried) {
+        assertEquals(addItems(p, 296, 1, "0.9.9.7"), { added: 1, left: 0 });
+        const bow = carriedItems(p).find((c) => c.index === 12)!.contents[0];
+        assertEquals(wearCarried(p, bow.place, 296, 0, "0.9.9.7"), 0);
+        assertEquals(freeCells(p), 35, "the carried bow's grid cells are cleared");
+      } else {
+        assertEquals(wearNew(p, 296, 1, 0, "0.9.9.7"), { slot: 0, amount: 1 });
+      }
+      assertEquals((equips[0] as Rec).index, 296);
+      assertEquals(equips[1], before, "no duplicate bow or changed ammunition");
+      assertEquals(carriedItems(p).filter((c) => c.index === 296).length, 1);
+      assertEquals(takeOff(p, 0, 296), 12);
+      assertEquals(equips[1], before, "removing the bow preserves ammunition");
+    }
+  });
+}
+
 Deno.test("equipment: taking off needs room in another bag, and a container must be empty first", () => {
   const full = empty(4, 2).map((row, y) => row.map((_, x) => cell(72, 20, x, y)));
   const p = dressed({ 8: backpack(), 9: cell(13, 1, E, E, { subParts: [{ type: 0, parentIndex: 13, gridSave: full }] }) });
