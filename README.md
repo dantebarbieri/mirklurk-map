@@ -821,10 +821,12 @@ gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's
   be removed with conditional log placement, not guaranteed logs. Log scattering and fern revisit growth, rendering/settings fixes,
   sickness-without-level handling and missing foreign language keys are game behavior; MirkMap does not advance time or regrow terrain. Its
   wellbeing view already omits sickness with no saved level. No merchant stock or guaranteed treasure drops are inferred from new
-  definitions. All 74 environment PNGs and their metadata match the stable export byte-for-byte; stable picture attribution and wiki inputs
-  remain unchanged pending verified beta publication. New item names use the captured English INIs. Saves keep the same encoding and
-  VERSION; the supplied fort-only tester fixture verifies parsing and byte-exact export, private edits and undo, but contains no cave or
-  raft encounter. `NEWEST` describes audited generated data; it is not the default Steam channel, which remains stable.
+  definitions. All 74 environment PNGs and their metadata match the stable export byte-for-byte. A post-publication wiki refresh adds the
+  thirteen tester items' canonical pages and cropped icons, plus Version 0.9.9.7, without replacing existing pictures or their attribution.
+  Published beta art does not make these items available under Latest's stable rules. New item names use the captured English INIs. Saves
+  keep the same encoding and VERSION; the supplied fort-only tester fixture verifies parsing and byte-exact export, private edits and undo,
+  but contains no cave or raft encounter. `NEWEST` describes audited generated data; it is not the default Steam channel, which remains
+  stable.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
