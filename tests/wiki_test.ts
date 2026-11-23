@@ -49,7 +49,7 @@ Deno.test("wiki titles: beings and items with a disambiguated page", () => {
 });
 
 Deno.test("wiki links: published 0.9.6.5 version page is verified alongside earlier versions", () => {
-  for (const version of ["0.9.1.2", "0.9.2.0", "0.9.5.0", "0.9.5.3", "0.9.5.5", "0.9.5.6", "0.9.6.5"]) {
+  for (const version of ["0.9.1.2", "0.9.2.0", "0.9.5.0", "0.9.5.3", "0.9.5.5", "0.9.5.6", "0.9.6.0", "0.9.6.1", "0.9.6.2", "0.9.6.5"]) {
     assertEquals(wikiUrl(`Version ${version}`), `https://mirklurk.wiki/w/Version_${version}`);
   }
 });
