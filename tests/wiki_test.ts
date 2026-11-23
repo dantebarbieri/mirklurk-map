@@ -20,12 +20,13 @@ Deno.test("wiki art: creatures and NPCs as they look in the world, placed items 
   assertEquals([BEING_NAMES[8], beingImage(8)?.source], ["Magus Clay", "Magus_Clay_sprite_(cropped).png"]);
   // Magus Clay in his realm (0.8.9.9's being 41) has his own boss page and picture on the wiki.
   assertEquals([BEING_NAMES[41], beingImage(41)?.source], ["Magus Clay", "Magus_Clay_(boss)_sprite_(cropped).png"]);
-  for (const i of [36, 37, 38, 39, 40, 42, 43]) {
+  for (const i of [36, 37, 38, 39, 40, 42, 43, 45, 46]) {
     assertEquals(beingImage(i)?.source, `${BEING_NAMES[i].replaceAll(" ", "_")}_sprite_(cropped).png`);
   }
   // Without an in-world sprite on the wiki, a being falls back to its portrait.
   assertEquals([BEING_NAMES[9], beingImage(9)?.source], ["Dead Unwanted", "Dead_Unwanted_portrait.png"]);
   for (let i = 258; i <= 279; i++) assert(i === 263 || itemImage(i), `item ${i} has a picture`);
+  for (let i = 284; i <= 286; i++) assert(itemImage(i), `item ${i} has a picture`);
   // 0.9.1.0's flint, by their wiki pages' titles.
   assertEquals([276, 277].map((i) => [ITEM_NAMES[i], itemImage(i)?.source, itemWiki(ITEM_NAMES[i])]), [
     ["Flint (Large)", "Flint_(Large)_icon_(cropped).png", "https://mirklurk.wiki/w/Flint_(Large)"],
@@ -47,9 +48,28 @@ Deno.test("wiki titles: beings and items with a disambiguated page", () => {
   assertEquals([itemTitle("Turnip"), itemTitle("Iron Dagger")], ["Turnip (item)", "Iron Dagger"]);
 });
 
-Deno.test("wiki links: published 0.9.5.6 version page is verified alongside earlier versions", () => {
-  for (const version of ["0.9.1.2", "0.9.2.0", "0.9.5.0", "0.9.5.3", "0.9.5.5", "0.9.5.6"]) {
+Deno.test("wiki links: published 0.9.6.5 version page is verified alongside earlier versions", () => {
+  for (const version of ["0.9.1.2", "0.9.2.0", "0.9.5.0", "0.9.5.3", "0.9.5.5", "0.9.5.6", "0.9.6.5"]) {
     assertEquals(wikiUrl(`Version ${version}`), `https://mirklurk.wiki/w/Version_${version}`);
+  }
+});
+
+Deno.test("wiki: 0.9.6.5 entities link to published pages and the four redrawn items use qualified replacements", () => {
+  for (const i of [284, 285, 286]) {
+    const name = ITEM_NAMES[i];
+    assertEquals(itemWiki(name), `https://mirklurk.wiki/w/${name.replaceAll(" ", "_")}`);
+    assertEquals(itemImage(i)?.source, `${name.replaceAll(" ", "_")}_icon_(cropped).png`);
+  }
+  for (const i of [45, 46]) {
+    const name = BEING_NAMES[i];
+    const url = `https://mirklurk.wiki/w/${name.replaceAll(" ", "_")}`;
+    assertEquals(entityWiki(name, "Bestiary", i), url);
+    assertEquals(entityWiki(`Carcass: ${name}`, "Loot tables", i), url);
+    assertEquals(wikiUrl(`${name} loot`), `${url}_loot`);
+  }
+  assertEquals(wikiUrl("Webbed treasure"), "https://mirklurk.wiki/w/Webbed_treasure");
+  for (const i of [58, 195, 224, 260]) {
+    assertEquals(itemImage(i)?.source, `${ITEM_NAMES[i].replaceAll(" ", "_")}_icon_(0.9.6.5,_cropped).png`);
   }
 });
 

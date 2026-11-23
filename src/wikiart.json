@@ -1,5 +1,5 @@
 {
-  "verified": "2026-11-12",
+  "verified": "2026-11-23",
   "beings": {
     "0": {
       "file": "assets/wiki/being_0.17df91722d.png",
@@ -264,6 +264,18 @@
       "w": 80,
       "h": 56,
       "source": "Giant_Snail_sprite_(cropped).png"
+    },
+    "45": {
+      "file": "assets/wiki/being_45.d4b8c2796e.png",
+      "w": 168,
+      "h": 160,
+      "source": "Mirk_Lurker_sprite_(cropped).png"
+    },
+    "46": {
+      "file": "assets/wiki/being_46.8c6c8e5f83.png",
+      "w": 224,
+      "h": 208,
+      "source": "Deathlob_sprite_(cropped).png"
     }
   },
   "items": {
@@ -592,10 +604,10 @@
       "source": "Sturdy_Leather_Boots_icon_(cropped).png"
     },
     "58": {
-      "file": "assets/wiki/item_58.7f2f24eaf3.png",
+      "file": "assets/wiki/item_58.184ac7f80c.png",
       "w": 150,
       "h": 205,
-      "source": "Steel_Shield_icon_(cropped).png"
+      "source": "Steel_Shield_icon_(0.9.6.5,_cropped).png"
     },
     "59": {
       "file": "assets/wiki/item_59.0b7c07482f.png",
@@ -1354,10 +1366,10 @@
       "source": "Shabby_Leather_Vest_icon_(cropped).png"
     },
     "195": {
-      "file": "assets/wiki/item_195.18385a4248.png",
+      "file": "assets/wiki/item_195.99362f4b66.png",
       "w": 105,
       "h": 205,
-      "source": "Shabby_Leather_Leg_Armor_icon_(cropped).png"
+      "source": "Shabby_Leather_Leg_Armor_icon_(0.9.6.5,_cropped).png"
     },
     "196": {
       "file": "assets/wiki/item_196.8b27cd4c39.png",
@@ -1528,10 +1540,10 @@
       "source": "Elderwort_Berries_icon_(cropped).png"
     },
     "224": {
-      "file": "assets/wiki/item_224.095b71f93b.png",
-      "w": 50,
+      "file": "assets/wiki/item_224.e7ce38975f.png",
+      "w": 60,
       "h": 220,
-      "source": "Branch_(Elderwort)_icon_(cropped).png"
+      "source": "Branch_(Elderwort)_icon_(0.9.6.5,_cropped).png"
     },
     "225": {
       "file": "assets/wiki/item_225.87f906ffa3.png",
@@ -1744,10 +1756,10 @@
       "source": "Bat_Meat_icon_(cropped).png"
     },
     "260": {
-      "file": "assets/wiki/item_260.941b16e768.png",
+      "file": "assets/wiki/item_260.676ca99f4f.png",
       "w": 60,
       "h": 210,
-      "source": "Grilled_Bat_Meat_icon_(cropped).png"
+      "source": "Grilled_Bat_Meat_icon_(0.9.6.5,_cropped).png"
     },
     "261": {
       "file": "assets/wiki/item_261.6ad908fe51.png",
@@ -1856,6 +1868,24 @@
       "w": 232,
       "h": 240,
       "source": "Intact_Snail_Shell_icon_(cropped).png"
+    },
+    "284": {
+      "file": "assets/wiki/item_284.1b70228ea5.png",
+      "w": 65,
+      "h": 210,
+      "source": "Spider_Meat_icon_(cropped).png"
+    },
+    "285": {
+      "file": "assets/wiki/item_285.92f922d1cb.png",
+      "w": 60,
+      "h": 190,
+      "source": "Grilled_Spider_Meat_icon_(cropped).png"
+    },
+    "286": {
+      "file": "assets/wiki/item_286.e2d3b09db2.png",
+      "w": 232,
+      "h": 104,
+      "source": "Spider_Silk_icon_(cropped).png"
     }
   },
   "places": {

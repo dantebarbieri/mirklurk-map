@@ -41,6 +41,13 @@ const PLACES: Record<string, string> = {
   "Gurb-Gurb's hut": "Gurb-Gurb",
   "Ihar's shipwreck": "Ihar",
 };
+// These published replacements keep the earlier wiki files intact.
+const ITEM_IMAGES: Record<number, string> = {
+  58: "Steel_Shield_icon_(0.9.6.5,_cropped).png",
+  195: "Shabby_Leather_Leg_Armor_icon_(0.9.6.5,_cropped).png",
+  224: "Branch_(Elderwort)_icon_(0.9.6.5,_cropped).png",
+  260: "Grilled_Bat_Meat_icon_(0.9.6.5,_cropped).png",
+};
 const files = new Map<string, string>();
 for (const image of await query({ ailimit: "500", aiprop: "url" }, "allimages", "aicontinue")) {
   if (typeof image.name !== "string" || typeof image.url !== "string") throw new Error("Invalid wiki image");
@@ -55,7 +62,11 @@ const pick = (title: string, ...kinds: string[]) => {
 type Group = "beings" | "items" | "places";
 const wanted: [Group, string, string | undefined][] = [];
 for (const [i, name] of Object.entries(BEING_NAMES)) wanted.push(["beings", i, pick(beingTitle(name, Number(i)), "sprite", "portrait")]);
-for (const [i, name] of Object.entries(ITEM_NAMES)) wanted.push(["items", i, pick(itemTitle(name), "icon", "sprite")]);
+for (const [i, name] of Object.entries(ITEM_NAMES)) {
+  const image = ITEM_IMAGES[Number(i)];
+  if (image && !files.has(image)) throw new Error(`Required wiki replacement missing: ${image}`);
+  wanted.push(["items", i, image ?? pick(itemTitle(name), "icon", "sprite")]);
+}
 for (const [name, title] of Object.entries(PLACES)) wanted.push(["places", name, pick(title, "exterior")]);
 
 const out = new URL("../assets/wiki/", import.meta.url);
