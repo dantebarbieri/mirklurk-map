@@ -795,7 +795,9 @@ released, pointing Latest at it is the one line to change.
   post-publication wiki refresh adds verified links and cropped pictures for the three items and two spiders, their loot pages, webbed
   treasure and Version 0.9.6.5. Branch (Elderwort), Shabby Leather Leg Armor, Steel Shield and Grilled Bat Meat use the wiki's
   version-qualified 0.9.6.5 replacement crops; earlier wiki files and attribution remain intact. The other 308 bundled pictures are
-  unchanged. Published definitions and pictures do not establish normal spider-cave discovery or Grilled Spider Meat crafting access.
+  unchanged. Published definitions and pictures do not establish normal spider-cave discovery or Grilled Spider Meat crafting access. A
+  later catalog-only refresh adds the wiki's separate Version 0.9.6.0, 0.9.6.1 and 0.9.6.2 history pages; all pictures and game rules remain
+  unchanged, and Latest still names 0.9.6.5.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
