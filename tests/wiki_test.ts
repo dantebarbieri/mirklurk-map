@@ -2,6 +2,8 @@ import art from "../src/wikiart.json" with { type: "json" };
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
 import { beingImage, beingTitle, entityWiki, itemImage, itemTitle, itemWiki, placeImage, wikiUrl } from "../src/wiki.ts";
 import { assert, assertEquals } from "./assert.ts";
+import { addable } from "../src/editor/items.ts";
+import { CHANNELS, hasItem } from "../src/version.ts";
 
 Deno.test("wiki art: every bundled picture exists, same-origin and content-hashed, with its recorded size", async () => {
   const images = [art.beings, art.items, art.places].flatMap((group) => Object.values(group));
@@ -48,8 +50,22 @@ Deno.test("wiki titles: beings and items with a disambiguated page", () => {
   assertEquals([itemTitle("Turnip"), itemTitle("Iron Dagger")], ["Turnip (item)", "Iron Dagger"]);
 });
 
-Deno.test("wiki links: published 0.9.6.5 version page is verified alongside earlier versions", () => {
-  for (const version of ["0.9.1.2", "0.9.2.0", "0.9.5.0", "0.9.5.3", "0.9.5.5", "0.9.5.6", "0.9.6.0", "0.9.6.1", "0.9.6.2", "0.9.6.5"]) {
+Deno.test("wiki links: published stable and tester version pages are verified alongside earlier versions", () => {
+  for (
+    const version of [
+      "0.9.1.2",
+      "0.9.2.0",
+      "0.9.5.0",
+      "0.9.5.3",
+      "0.9.5.5",
+      "0.9.5.6",
+      "0.9.6.0",
+      "0.9.6.1",
+      "0.9.6.2",
+      "0.9.6.5",
+      "0.9.9.7",
+    ]
+  ) {
     assertEquals(wikiUrl(`Version ${version}`), `https://mirklurk.wiki/w/Version_${version}`);
   }
 });
@@ -73,7 +89,7 @@ Deno.test("wiki: 0.9.6.5 entities link to published pages and the four redrawn i
   }
 });
 
-Deno.test("wiki: 0.9.5.0 entities have canonical links and pictures; reserved items do not", () => {
+Deno.test("wiki: 0.9.5.0 entities have canonical links and pictures", () => {
   for (const i of [0, 278, 279]) {
     const name = ITEM_NAMES[i];
     assertEquals(itemWiki(name), `https://mirklurk.wiki/w/${name.replaceAll(" ", "_")}`);
@@ -87,9 +103,17 @@ Deno.test("wiki: 0.9.5.0 entities have canonical links and pictures; reserved it
     assertEquals(entityWiki(`Carcass: ${name}`, "Loot tables", i), url);
     assertEquals(wikiUrl(`${name} loot`), `${url}_loot`);
   }
-  for (let i = 280; i <= 283; i++) {
-    assertEquals(itemWiki(ITEM_NAMES[i]), undefined);
-    assertEquals(itemImage(i), undefined);
+});
+
+Deno.test("wiki: tester items have canonical cropped pictures without making them available in stable pickers", () => {
+  const beta = CHANNELS.beta;
+  assert(beta);
+  for (const i of [280, 281, 282, 283, 288, 289, 290, 291, 292, 293, 294, 295, 296]) {
+    const name = ITEM_NAMES[i];
+    assertEquals(itemWiki(name), `https://mirklurk.wiki/w/${name.replaceAll(" ", "_")}`);
+    assertEquals(itemImage(i)?.source, `${name.replaceAll(" ", "_")}_icon_(cropped).png`);
+    assert(addable(i) && hasItem(beta, i), `tester picker offers ${name}`);
+    assert(!hasItem(CHANNELS.latest, i), `stable picker excludes ${name} despite published art`);
   }
 });
 

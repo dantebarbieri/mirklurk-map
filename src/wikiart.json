@@ -1869,6 +1869,30 @@
       "h": 240,
       "source": "Intact_Snail_Shell_icon_(cropped).png"
     },
+    "280": {
+      "file": "assets/wiki/item_280.c3e6363198.png",
+      "w": 150,
+      "h": 205,
+      "source": "Iron_Shield_icon_(cropped).png"
+    },
+    "281": {
+      "file": "assets/wiki/item_281.5b4be87420.png",
+      "w": 155,
+      "h": 195,
+      "source": "Iron_Chestplate_icon_(cropped).png"
+    },
+    "282": {
+      "file": "assets/wiki/item_282.a8ba696e7a.png",
+      "w": 192,
+      "h": 208,
+      "source": "Steel_Buckler_icon_(cropped).png"
+    },
+    "283": {
+      "file": "assets/wiki/item_283.86c329bdfd.png",
+      "w": 150,
+      "h": 205,
+      "source": "Wooden_Shield_icon_(cropped).png"
+    },
     "284": {
       "file": "assets/wiki/item_284.1b70228ea5.png",
       "w": 65,
@@ -1886,6 +1910,60 @@
       "w": 232,
       "h": 104,
       "source": "Spider_Silk_icon_(cropped).png"
+    },
+    "288": {
+      "file": "assets/wiki/item_288.586d019908.png",
+      "w": 56,
+      "h": 228,
+      "source": "Battle_Hammer_icon_(cropped).png"
+    },
+    "289": {
+      "file": "assets/wiki/item_289.d413d7e74d.png",
+      "w": 52,
+      "h": 244,
+      "source": "Halfmoon_Axe_icon_(cropped).png"
+    },
+    "290": {
+      "file": "assets/wiki/item_290.d9e4b4f17a.png",
+      "w": 52,
+      "h": 252,
+      "source": "War_Mace_icon_(cropped).png"
+    },
+    "291": {
+      "file": "assets/wiki/item_291.40276b554c.png",
+      "w": 88,
+      "h": 216,
+      "source": "Well_Tailored_Socks_icon_(cropped).png"
+    },
+    "292": {
+      "file": "assets/wiki/item_292.8d1457b46b.png",
+      "w": 96,
+      "h": 224,
+      "source": "Laughable_Socks_icon_(cropped).png"
+    },
+    "293": {
+      "file": "assets/wiki/item_293.d3ba8f1f01.png",
+      "w": 140,
+      "h": 185,
+      "source": "Well_Tailored_Shirt_icon_(cropped).png"
+    },
+    "294": {
+      "file": "assets/wiki/item_294.36ba83a1a7.png",
+      "w": 95,
+      "h": 215,
+      "source": "Well_Tailored_Pants_icon_(cropped).png"
+    },
+    "295": {
+      "file": "assets/wiki/item_295.396590c1ca.png",
+      "w": 200,
+      "h": 240,
+      "source": "Hand_Sickle_icon_(cropped).png"
+    },
+    "296": {
+      "file": "assets/wiki/item_296.77a6e6d3fd.png",
+      "w": 135,
+      "h": 225,
+      "source": "Sturdy_Shortbow_icon_(cropped).png"
     }
   },
   "places": {
