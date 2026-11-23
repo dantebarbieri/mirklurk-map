@@ -791,7 +791,11 @@ released, pointing Latest at it is the one line to change.
   still use the same schema and VERSION marker. Edits retain older versions, optional fields, unknown keys and untouched saved grids.
   Startup restores English Nature writing; all five English INIs were freshly regenerated. Four packaged language folders now include
   English, Chinese, Spanish and Portuguese (Brazil), with limited missing-Borderless-key migration rather than full translation
-  regeneration. Added font glyphs and achievement frames do not establish translation completeness or new unlockable achievements.
+  regeneration. Added font glyphs and achievement frames do not establish translation completeness or new unlockable achievements. The
+  post-publication wiki refresh adds verified links and cropped pictures for the three items and two spiders, their loot pages, webbed
+  treasure and Version 0.9.6.5. Branch (Elderwort), Shabby Leather Leg Armor, Steel Shield and Grilled Bat Meat use the wiki's
+  version-qualified 0.9.6.5 replacement crops; earlier wiki files and attribution remain intact. The other 308 bundled pictures are
+  unchanged. Published definitions and pictures do not establish normal spider-cave discovery or Grilled Spider Meat crafting access.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
