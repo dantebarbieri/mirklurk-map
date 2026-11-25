@@ -183,6 +183,17 @@ Deno.test("creature icons: bigger than the old dot, inside the 16px symbol box a
   }
 });
 
+Deno.test("spider icon: a narrow waist separates the upper abdomen from the lower head and eyes", () => {
+  const icon = CREATURE_ICONS.spider;
+  assert(icon.detail, "the two body segments have a visible waist");
+  const waist = extent(pathPoints(icon.detail));
+  const eyes = extent(pathPoints(icon.eye!));
+  const abdomen = extent(pathPoints(icon.body).filter(([x, y]) => Math.abs(x) < 3 && y < waist.top));
+  assert(abdomen.bottom - abdomen.top > 3, "the abdomen is a distinct elongated segment");
+  assert(abdomen.right - abdomen.left > 2 * (waist.right - waist.left), "the body pinches at its waist");
+  assert(eyes.top > waist.bottom && eyes.bottom < 3, "eyes stay in the smaller lower segment, not the abdomen");
+});
+
 Deno.test("raft icons: lashed crossbars, deck and paddle fit the shared 16px map, legend and list symbol", () => {
   for (const [part, d] of Object.entries(RAFT_ICON)) {
     const box = extent(pathPoints(d));
