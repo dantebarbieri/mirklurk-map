@@ -1,7 +1,7 @@
 # MirkMap · Mirklurk World Viewer
 
-**MirkMap** is a small browser-based viewer for **Mirklurk 1.0**, retaining **0.9.9.7 tester** and earlier save support from 0.8.1.5 onward,
-published at **https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
+**MirkMap** is a small browser-based viewer for **Mirklurk 1.0**, retaining earlier save support from 0.8.1.5 onward, published at
+**https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
   the map the game itself made for it (`Maps/x_y.png`);
@@ -285,12 +285,12 @@ folder or ZIP for realistic terrain (`Player.save` or map PNGs alone are insuffi
 
 Switch on **Creatures** to draw each living creature as a small red silhouette of its kind: flies (Dreadfly, Giant Gnat, Deathfly), the
 Firelouse, the Sceetler, crabs (Boulder and Titanspine Crab), the Nightmare, snakes (Mire Serpent, Viper, Red Fang), the Giant Slug, fish
-(Mudfin, Razorfin), rats (Mirk Runner, Mirk Mauler), trolls (Swamp and Cave Troll), the Toadkin, the Scaalmyr (Grunt, Warrior, Geomancer),
-the Scaal, the Unwanted (Raving and Mutated), bats (Mirkfang, Giant Mirkfang and Mirkfang Matriarch), The Terror, a larger bat with tufted
-ears and ragged wings, and Magus Clay in his realm, a hooded figure with folded arms. Kinds that look alike in the game share a shape, so
-hover or tap one for its exact name. Map markers, the legend and the **Creatures when saved** list share the same hand-drawn shapes; NPCs
-keep their gold dot, and so do Wilda's Survivors and Grand Mother, who like the NPCs never target you, and the Dead Unwanted (Viend before
-he is revived).
+(Mudfin, Razorfin), rats (Mirk Runner, Mirk Mauler), trolls (Swamp and Cave Troll), spiders (Mirk Lurker and Deathlob, sharing a two-segment
+body with a narrow waist), the Toadkin, the Scaalmyr (Grunt, Warrior, Geomancer), the Scaal, the Unwanted (Raving and Mutated), bats
+(Mirkfang, Giant Mirkfang and Mirkfang Matriarch), The Terror, a larger bat with tufted ears and ragged wings, and Magus Clay in his realm,
+a hooded figure with folded arms. Kinds that look alike in the game share a shape, so hover or tap one for its exact name. Map markers, the
+legend and the **Creatures when saved** list share the same hand-drawn shapes; NPCs keep their gold dot, and so do Wilda's Survivors and
+Grand Mother, who like the NPCs never target you, and the Dead Unwanted (Viend before he is revived).
 
 Click a living creature or NPC to see what the game's own examine card does, plus its saved hit points. **Hit points** draws the grid saved
 in `Beings.save` square by square (armor as a bronze, silver or gold shield, larger for each of 1–3 layers; lost and burned points, poison
@@ -600,9 +600,7 @@ Restoring a backup undoes edits, not the mark. On a computer that never saved ed
 ## Game versions
 
 **Latest is public Mirklurk 1.0.0.0**, Steam build 26915460, announced as **Patch 1.0 - Leaving Early Access!** on 25 November 2026 at
-08:02:15 UTC. The announcement names 1.0; the installed build and save writer name 1.0.0.0. The earlier 0.9.9.7 tester (build 26865885,
-`next_version_tester`) remains a historical save version, not the current Beta channel. Its Discord announcement timestamp is unknown;
-observation on 23 November 2026 is not an asserted release date.
+08:02:15 UTC. The announcement names 1.0; the installed build and save writer name 1.0.0.0. There is no active Beta channel.
 
 The previous public release was Mirklurk 0.9.6.5 (Steam build 26778843), named in the patch announcement of 19 November 2026 UTC. The
 cumulative comparison against 0.9.5.6 adds three defined items, two creatures, changed Geomancer stats and latent spider-cave content;
@@ -623,12 +621,12 @@ gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's
 
 - **Which rules apply.** A save names the version that wrote it (`VERSION` in `Player.save`, from `save_player`). MirkMap uses the newest
   rules it has that are no newer than that, so a later build gets 1.0.0.0's and an older one 0.8.1.5's; a save that names no version gets
-  Latest's. For a save whose version's rules differ from Latest's (older saves and the tester), a version switch, beside Realistic and in
-  the save editor under the character's name, offers the save's own version and **Latest**: pick Latest to see the world as it will be once
-  the current game loads and saves it. A 1.0.0.0 save or one that names no version shows no switch; 0.9.6.5 and 0.9.9.7 saves retain their
-  own rules and offer **Latest**. Older 0.9.5.x saves get a switch, although those older versions still share their own modeled rules. The
-  pick lasts for that character while the page is open, through live reloads; another character follows its own save, and picking the save's
-  own version follows the save again.
+  Latest's. For an older save whose version's rules differ from Latest's, a version switch, beside Realistic and in the save editor under
+  the character's name, offers the save's own version and **Latest**: pick Latest to see the world as it will be once the current game loads
+  and saves it. A 1.0.0.0 save or one that names no version shows no switch; 0.9.6.5 and 0.9.9.7 saves retain their own rules and offer
+  **Latest**. Older 0.9.5.x saves get a switch, although those older versions still share their own modeled rules. The pick lasts for that
+  character while the page is open, through live reloads; another character follows its own save, and picking the save's own version follows
+  the save again.
 - **What 0.8.1.5's rules change.** Harvests give `a` to `a+b−1` (`loot_amountchances`), so Cranberries 2–5, 3–8 and 4–11, Watercress up to
   5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
   Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
@@ -802,45 +800,40 @@ gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's
   version-qualified 0.9.6.5 replacement crops; earlier wiki files and attribution remain intact. The other 308 bundled pictures are
   unchanged. Published definitions and pictures do not establish normal spider-cave discovery or Grilled Spider Meat crafting access. A
   later catalog-only refresh adds the wiki's separate Version 0.9.6.0, 0.9.6.1 and 0.9.6.2 history pages; all pictures and game rules remain
-  unchanged, and Latest still names 0.9.6.5.
-- **What the 0.9.9.7 tester changes.** The direct 0.9.6.5 comparison defines thirteen additional items, not an exact "around 20": Iron
-  Shield, Iron Chestplate, Steel Buckler and Wooden Shield (280–283), plus Battle Hammer, Halfmoon Axe, War Mace, Well Tailored Socks,
-  Laughable Socks, Well Tailored Shirt, Well Tailored Pants, Hand Sickle and Sturdy Shortbow (288–296). Generated dimensions, single-item
-  stacks, durability and waterproof fields follow `databank_Alarm_1`. Only Beta offers these items; stable pickers and writes reject
-  additions, while an existing save's unknown fields remain untouched. Equipping the Sturdy Shortbow leaves the off hand for ammunition,
-  whether new or taken from a bag, as `weapon_is_ranged` specifies. The new shields' base block chances are 12%, 8% and 12%; Shield Savant
-  remains additive. Saved gear uses its durability-scaled armor. Halfmoon Axe, War Mace and Hand Sickle join the chopping choices with
-  bonuses ×3, ×1.25 and ×1.6 only under tester rules. `manager_area_Alarm_2` now assigns the already-defined special cave sprite to eligible
-  selected normal cave candidates after the existing 0.333 chance; this is not a one-third chance per area. Existing saved areas load
-  without regeneration. Saved area 13 entrances, grids, webs and treasure remain authoritative; MirkMap adds no generator, placement
-  prediction or walking AP simulator. All 46 creature definitions, including the spiders and Geomancer's rebalance, are unchanged. The
-  distinction between cave-like area 13 and the tester's `area_is_dungeonlike`, which excludes it, corrects its weather exposure without
-  changing its cave tiles or saved grids. `obj_player_Create` exposes the Sturdy Shortbow recipe (2 Twine, 2 Trollgnarl branches and 10
-  Spider Silk); `menu_psynch` adds Grilled Spider Meat to a burning Campfire. These close tester acquisition gaps, not stable recipe access.
-  Completed rafts gain source-defined push/pull actions costing 6 AP, including failed pushes; motion destinations are not saved. The editor
-  moves saved rafts as before, not by simulating those game actions. Honey replenishment attempts are less frequent, and off-view dead trees
-  can be removed with conditional log placement, not guaranteed logs. Log scattering and fern revisit growth, rendering/settings fixes,
-  sickness-without-level handling and missing foreign language keys are game behavior; MirkMap does not advance time or regrow terrain. Its
-  wellbeing view already omits sickness with no saved level. No merchant stock or guaranteed treasure drops are inferred from new
-  definitions. All 74 environment PNGs and their metadata match the stable export byte-for-byte. A post-publication wiki refresh adds the
-  thirteen tester items' canonical pages and cropped icons, plus Version 0.9.9.7, without replacing existing pictures or their attribution.
-  Publishing tester art did not make these items available under 0.9.6.5's rules; 1.0 later ships the same definitions. New item names use
-  the captured English INIs. Saves keep the same encoding and VERSION; the supplied fort-only tester fixture verifies parsing and byte-exact
-  export, private edits and undo, but contains no cave or raft encounter. `NEWEST` describes audited generated data, separately from the
-  Steam channel.
-- **What public 1.0 changes.** The measured item, nature and being definitions are identical to the tester: 282 items, 19 nature kinds and
-  46 beings. The thirteen tester items are now available under Latest, but remain excluded from 0.9.6.5 and earlier rules. Existing item
-  icons and all 74 environment PNGs are unchanged; their attribution is preserved and the audited environment-data stamp becomes 1.0.0.0.
+  unchanged; Latest at that point named 0.9.6.5.
+- **What public 1.0 changes.** Compared with 0.9.6.5, the release includes thirteen additional defined items: Iron Shield, Iron Chestplate,
+  Steel Buckler and Wooden Shield (280–283), plus Battle Hammer, Halfmoon Axe, War Mace, Well Tailored Socks, Laughable Socks, Well Tailored
+  Shirt, Well Tailored Pants, Hand Sickle and Sturdy Shortbow (288–296). Generated dimensions, single-item stacks, durability and waterproof
+  fields follow `databank_Alarm_1`. Latest offers these items; 0.9.6.5 and earlier pickers and writes reject additions, while an existing
+  save's unknown fields remain untouched. Equipping the Sturdy Shortbow leaves the off hand for ammunition, whether new or taken from a bag,
+  as `weapon_is_ranged` specifies. The new shields' base block chances are 12%, 8% and 12%; Shield Savant remains additive. Saved gear uses
+  its durability-scaled armor. Halfmoon Axe, War Mace and Hand Sickle join the chopping choices with bonuses ×3, ×1.25 and ×1.6 under 1.0
+  and compatible historical rules. `manager_area_Alarm_2` assigns the already-defined special cave sprite to eligible selected normal cave
+  candidates after the existing 0.333 chance; this is not a one-third chance per area. Existing saved areas load without regeneration. Saved
+  area 13 entrances, grids, webs and treasure remain authoritative; MirkMap adds no generator, placement prediction or walking AP simulator.
+  All 46 creature definitions, including the spiders and Geomancer's rebalance, are unchanged. The release's underground classification does
+  not change cave tiles or saved grids. `obj_player_Create` exposes the Sturdy Shortbow recipe (2 Twine, 2 Trollgnarl branches and 10 Spider
+  Silk); `menu_psynch` adds Grilled Spider Meat to a burning Campfire. Completed rafts gain source-defined push/pull actions costing 6 AP,
+  including failed pushes; motion destinations are not saved. The editor moves saved rafts as before, not by simulating those game actions.
+  Honey replenishment attempts are less frequent, and off-view dead trees can be removed with conditional log placement, not guaranteed
+  logs. Log scattering and fern revisit growth, rendering/settings fixes, sickness-without-level handling and missing foreign language keys
+  are game behavior; MirkMap does not advance time or regrow terrain. Its wellbeing view already omits sickness with no saved level. No
+  merchant stock or guaranteed treasure drops are inferred from new definitions. The audited release has 282 items, 19 nature kinds and 46
+  beings. Existing canonical item pages and cropped icons remain available; publishing their art does not change older saves' item
+  availability. New item names use the captured English INIs. All 74 environment PNGs are unchanged; attribution is preserved and the
+  audited environment-data stamp becomes 1.0.0.0. The accepted release wiki refresh adds Achievements, Chestplate, Shortbow and Version
+  1.0.0.0 to the bundled catalog. The legacy Version 0.9.9.7 title remains a wiki redirect to the public release, not a separate current
+  release. Existing item and creature pictures remain unchanged; their verification date advances without changing attribution.
   `scr_map_and_weather::area_is_dungeonlike` now includes cave-like area 13: MirkMap's time/weather note reports its underground
-  classification and constant 0.35 air temperature only under 1.0 rules. Earlier stable and tester rules retain sheltered exposure. The game
-  also uses the predicate for warmth and container drying, but MirkMap does not simulate those transitions or change saved warmth/wetness.
-  Saved cave tiles, entrances, initial spiders and old Geomancer hit-point grids remain authoritative and unchanged. No new creature
-  population or fallback distribution is inferred from the predicate. The official release ends Early Access and adds fourteen guarded Steam
-  achievement IDs, German language support, map-title font and menu refresh fixes, crafting XP rounding (`ceil(RAP/2)` instead of `round`),
-  a combat track, audio/branding changes and further jump/poison-display fixes. These are game behavior, not a new achievement backend,
-  crafting/AP simulator or RNG generator in MirkMap. Previously supported raft/honey/tree/fern changes ship unchanged from the tester.
-  `save_player` changes only VERSION to 1.0.0.0, not save encoding or serialized fields. Synthetic release tests cover
-  parser/export/edit/undo compatibility; the preserved real tester fixture still names 0.9.9.7, not a claimed real 1.0 save.
+  classification and constant 0.35 air temperature only under 1.0 rules. Historical 0.9.6.5 and 0.9.9.7 saves retain sheltered exposure. The
+  game also uses the predicate for warmth and container drying, but MirkMap does not simulate those transitions or change saved
+  warmth/wetness. Saved cave tiles, entrances, initial spiders and old Geomancer hit-point grids remain authoritative and unchanged. No new
+  creature population or fallback distribution is inferred from the predicate. The official release ends Early Access and adds fourteen
+  guarded Steam achievement IDs, German language support, map-title font and menu refresh fixes, crafting XP rounding (`ceil(RAP/2)` instead
+  of `round`), a combat track, audio/branding changes and further jump/poison-display fixes. These are game behavior, not a new achievement
+  backend, crafting/AP simulator or RNG generator in MirkMap. `save_player` changes only VERSION to 1.0.0.0, not save encoding or serialized
+  fields. Synthetic release tests cover parser/export/edit/undo compatibility; the preserved real tester fixture still names 0.9.9.7, not a
+  claimed real 1.0 save.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
@@ -854,8 +847,7 @@ comparisons against 0.9.5.6's, 0.9.5.5's, 0.9.5.3's, 0.9.5.0's, 0.9.2.0's, 0.9.1
 and 0.8.1.5's); the entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ, [Game versions](#game-versions)
 says how.
 
-Tester rules and generated item data were separately checked against the immutable 0.9.9.7 beta and diffed against 0.9.6.5; the release
-retains that history and never regenerates a saved world.
+Historical save rules remain versioned; the release never regenerates a saved world.
 
 **The world layout is fixed at new game** (`gml_Object_obj_menu_Alarm_8`) and saved in `Player.save`: the grid, and the zones of Bhato
 (`rangerCamp`), the Library (`libraryArea`) and Scaal (`riftQuestArea`, the fort mirrored through the centre). The random stream is only

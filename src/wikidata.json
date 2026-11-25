@@ -1,6 +1,7 @@
 {
-  "verified": "2026-11-23",
+  "verified": "2026-11-25",
   "titles": [
+    "Achievements",
     "Action points",
     "Alchemy workstation",
     "Amethyst",
@@ -66,6 +67,7 @@
     "Cave Troll",
     "Cave Troll Hide",
     "Cave-floor cracks",
+    "Chestplate",
     "Chopping Log",
     "Clay's Magus Hood",
     "Clay's Strange Potion",
@@ -386,6 +388,7 @@
     "Shirt",
     "Shoddy Dagger",
     "Shoes",
+    "Shortbow",
     "Shortbow (Willow)",
     "Shortsword",
     "Sickness Cure",
@@ -508,6 +511,7 @@
     "Version 0.9.6.2",
     "Version 0.9.6.5",
     "Version 0.9.9.7",
+    "Version 1.0.0.0",
     "Version history",
     "Versions",
     "Vest",

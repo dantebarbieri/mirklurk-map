@@ -50,7 +50,7 @@ Deno.test("wiki titles: beings and items with a disambiguated page", () => {
   assertEquals([itemTitle("Turnip"), itemTitle("Iron Dagger")], ["Turnip (item)", "Iron Dagger"]);
 });
 
-Deno.test("wiki links: published stable and tester version pages are verified alongside earlier versions", () => {
+Deno.test("wiki links: public release and historical compatibility titles are verified", () => {
   for (
     const version of [
       "0.9.1.2",
@@ -64,10 +64,16 @@ Deno.test("wiki links: published stable and tester version pages are verified al
       "0.9.6.2",
       "0.9.6.5",
       "0.9.9.7",
+      "1.0.0.0",
     ]
   ) {
     assertEquals(wikiUrl(`Version ${version}`), `https://mirklurk.wiki/w/Version_${version}`);
   }
+  for (const title of ["Achievements", "Chestplate", "Shortbow"]) {
+    assertEquals(wikiUrl(title), `https://mirklurk.wiki/w/${title}`);
+  }
+  // The old title remains a valid wiki redirect, not an active MirkMap beta channel.
+  assertEquals(CHANNELS, { latest: "1.0.0.0" });
 });
 
 Deno.test("wiki: 0.9.6.5 entities link to published pages and the four redrawn items use qualified replacements", () => {
@@ -105,7 +111,7 @@ Deno.test("wiki: 0.9.5.0 entities have canonical links and pictures", () => {
   }
 });
 
-Deno.test("wiki: released tester items keep canonical cropped pictures and remain excluded from pre-tester rules", () => {
+Deno.test("wiki: release items keep canonical pictures and historical save availability", () => {
   for (const i of [280, 281, 282, 283, 288, 289, 290, 291, 292, 293, 294, 295, 296]) {
     const name = ITEM_NAMES[i];
     assertEquals(itemWiki(name), `https://mirklurk.wiki/w/${name.replaceAll(" ", "_")}`);
