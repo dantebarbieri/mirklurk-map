@@ -1,4 +1,4 @@
-// Time of day and weather as the game keeps them (Mirklurk 0.9.6.5): one `manager_day` for the whole world, saved once per
+// Time of day and weather as the game keeps them (Mirklurk 1.0.0.0, with historical exposure rules): one `manager_day` for the whole world, saved once per
 // character in Player.save (gml_GlobalScript_scr_saveload). Pure functions, shared with anything that reads or writes those keys.
 //
 // Every turn (`player_endturn` in gml_GlobalScript_scr_basic_useful) adds 8 minutes and moves the rain balance; when the hour
@@ -7,6 +7,7 @@
 
 import type { Rec } from "./save-record.ts";
 import { finite, num } from "./values.ts";
+import { atLeast, type GameVersion, NEWEST } from "./version.ts";
 
 /** `localWeather` (MDweather): the weather state machine's three states. */
 export const Weather = { Clear: 0, Cloudy: 1, Rain: 2 } as const;
@@ -250,9 +251,12 @@ export type Exposure = "outdoors" | "sheltered" | "underground";
  * cellars, the undercroft, the library, the rift depths) in gml_GlobalScript_scr_map_and_weather. The fort interior, Bhato's
  * hideout, Gurb-Gurb's hut, the shipwreck and Grand Mother's hut are neither: their light follows the day, but no rain falls inside.
  * Nor is a Magus realm, which keeps a light of its own (manager_day Step_0) and no weather.
+ * Spider cave 13 joins the dungeon-like areas only in 1.0.0.0; earlier stable and tester saves keep their own classification.
  */
-export function exposure(areaType: number): Exposure {
+export function exposure(areaType: number, rules: GameVersion = NEWEST): Exposure {
   if ([0, 1, 2, 3, 4, 5, 22, 23, 100].includes(areaType)) return "outdoors";
-  if ([10, 11, 12, 20, 21, 24, 25, 26, 30, 33].includes(areaType)) return "underground";
+  if ([10, 11, 12, 20, 21, 24, 25, 26, 30, 33].includes(areaType) || (areaType === 13 && atLeast(rules, "1.0.0.0"))) {
+    return "underground";
+  }
   return "sheltered";
 }
