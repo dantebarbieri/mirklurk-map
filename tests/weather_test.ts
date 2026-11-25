@@ -162,10 +162,12 @@ Deno.test("weather: the rain balance's tilt and its way back to even", () => {
 });
 
 Deno.test("weather: who feels it — outdoors, sheltered in buildings, underground", () => {
-  assertEquals([0, 1, 5, 22, 23, 100].map(exposure), Array(6).fill("outdoors"));
-  assertEquals([10, 11, 12, 20, 21, 24, 25, 26, 30, 33].map(exposure), Array(10).fill("underground"));
-  assertEquals(exposure(13), "sheltered", "cave-like area 13 is excluded from area_is_dungeonlike");
-  assertEquals([31, 32, 34, 35].map(exposure), Array(4).fill("sheltered"));
+  assertEquals([0, 1, 5, 22, 23, 100].map((a) => exposure(a)), Array(6).fill("outdoors"));
+  assertEquals([10, 11, 12, 20, 21, 24, 25, 26, 30, 33].map((a) => exposure(a)), Array(10).fill("underground"));
+  assertEquals(exposure(13, "0.9.6.5"), "sheltered", "stable cave-like area 13 is excluded from area_is_dungeonlike");
+  assertEquals(exposure(13, "0.9.9.7"), "sheltered", "tester classification is preserved");
+  assertEquals(exposure(13, "1.0.0.0"), "underground", "release dungeon predicate includes every cave-like area");
+  assertEquals([31, 32, 34, 35].map((a) => exposure(a)), Array(4).fill("sheltered"));
 });
 
 Deno.test({ name: "weather: real saves have a clock and consistent weather", ignore: !HAVE_SAVES }, () => {

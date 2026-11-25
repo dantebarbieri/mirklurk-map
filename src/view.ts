@@ -338,7 +338,7 @@ export function renderWorld(st: State) {
       "section",
       { id: "world" },
       summary,
-      skyPanel(p),
+      skyPanel(p, st.rules),
       freshness,
       modeControl,
       grid,

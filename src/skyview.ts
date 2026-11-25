@@ -5,6 +5,7 @@ import { pct, plural } from "./format.ts";
 import { temperatureLabel } from "./player.ts";
 import type { PlayerSave } from "./save.ts";
 import { skyIcon, type SkyIconName } from "./skyicons.ts";
+import { CHANNELS, detectVersion, type GameVersion } from "./version.ts";
 import {
   balanceTrend,
   clock,
@@ -78,12 +79,12 @@ function thermometer(sky: Sky): HTMLElement {
 }
 
 /** Time, weather and where the rain balance is steering it, as saved; null when the save has no clock. */
-export function skyPanel(p: PlayerSave): HTMLElement | null {
+export function skyPanel(p: PlayerSave, rules: GameVersion = detectVersion(p.version) ?? CHANNELS.latest): HTMLElement | null {
   const sky = p.sky;
   if (!sky) return null;
   const { minute } = clock(sky);
   const phase = phaseAt(minute), next = nextPhase(minute), goal = dayCountdown(minute);
-  const where = exposure(p.area.type);
+  const where = exposure(p.area.type, rules);
   const countdowns = [next, ...(goal.phase === next.phase ? [] : [goal])]
     .map((c) => `${c.phase.label} in ${plural(c.turns, "turn")}`)
     .join(" · ");

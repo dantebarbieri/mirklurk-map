@@ -32,7 +32,7 @@ import {
 import { addRaft, moveWithRaft } from "../src/editor/raft.ts";
 import { versionConflicts } from "../src/editor/compat.ts";
 import { BEING_NAMES, ITEM_NAMES } from "../src/gamedata.ts";
-import type { GameVersion } from "../src/version.ts";
+import { detectVersion, type GameVersion } from "../src/version.ts";
 import { deleteBeing, newBeing, spawnBeing } from "../src/editor/beings.ts";
 import { cheatedInfo } from "../src/cheated.ts";
 import { readMarker } from "../src/marker.ts";
@@ -127,7 +127,7 @@ const grid = (t: number) => Array.from({ length: 5 }, () => Array(5).fill(t));
 const E = -4;
 
 /** A small character standing in outdoor zone A,1 with a 4×2 pouch, and an explored zone B,1. */
-async function fixture(root: string) {
+async function fixture(root: string, version = "0.8.1.5") {
   const base = `${root}/Hero`;
   await Deno.mkdir(`${base}/[ 0,0 ]`, { recursive: true });
   await Deno.mkdir(`${base}/[ 1,0 ]`, { recursive: true });
@@ -144,7 +144,8 @@ async function fixture(root: string) {
     subParts: [{ type: 0, parentIndex: 13, X: 33, Y: 900, gridSave: [[E, E, E, E], [E, E, E, E]] }],
   };
   const player = [{
-    VERSION: "0.8.1.5",
+    VERSION: version,
+    ...(version === "1.0.0.0" ? { unknownReleaseField: { keep: ["unchanged", 7] } } : {}),
     worldGrid: grid(1),
     worldGridMem: grid(0),
     areaX: 0,
@@ -172,6 +173,33 @@ async function fixture(root: string) {
 
 const mtime = async (path: string) => (await Deno.stat(path)).mtime!.getTime();
 
+Deno.test("editor session: synthetic 1.0 save exports and undoes byte-exact, preserving version and unknown fields", async () => {
+  const root = await Deno.makeTempDir({ prefix: "mirklurk-release-" });
+  try {
+    await fixture(root, "1.0.0.0");
+    const path = `${root}/Hero/Player.save`;
+    const raw = decodeJson(await Deno.readFile(path));
+    const original = await Deno.readFile(path);
+    const s = await openSession(root, "Hero");
+    const player = `${s.character.root}Player.save`;
+    const exportedPlayer = async () => {
+      const zip = await readZip((await s.download()).blob);
+      return await zip.find((f) => f.name === player)!.read();
+    };
+    assertEquals(detectVersion(parsePlayer(raw).version), "1.0.0.0");
+    assertEquals(await exportedPlayer(), original);
+    await s.apply(player, (draft) => (setSkillPoints(playerRecord(draft), 7), "Skill points"));
+    const edited = decodeJson(await exportedPlayer());
+    assertEquals(playerRecord(edited), { ...playerRecord(raw), skillPoints: 7 });
+    assertEquals(parsePlayer(edited).version, "1.0.0.0");
+    await s.undo(0);
+    assertEquals(await exportedPlayer(), original);
+    assertEquals(await Deno.readFile(path), original, "source files are never written by download");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("editor session: saving and downloading refuse what the version in use lacks, checked on the bytes written", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });
   try {
@@ -192,6 +220,7 @@ Deno.test("editor session: saving and downloading refuse what the version in use
     assertEquals(s.changes.length, 1, "the bow actually fits before testing compatibility");
     await assertRejects(() => s.download(check("0.9.6.5")), /lacks Sturdy Shortbow/);
     await s.download(check("0.9.9.7"));
+    await s.download(check("1.0.0.0"));
     await s.undo(0);
     // Beta picked on this 0.8.1.5 save: a Magus' Shard, two Bat Hides and a Mirkfang Matriarch; then the switch goes back to Latest.
     await s.apply(player, give(262, 1));

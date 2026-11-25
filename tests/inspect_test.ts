@@ -7,6 +7,8 @@ import { creatureView } from "../src/creature.ts";
 import { parseHealth } from "../src/health.ts";
 import type { GameVersion } from "../src/version.ts";
 import { assert, assertEquals } from "./assert.ts";
+import { parsePlayer } from "../src/save.ts";
+import { skyPanel } from "../src/skyview.ts";
 
 const raft: Mark = { layer: "rafts", kind: "raft", item: 171, name: "Raft", x: 344, y: 744 };
 
@@ -57,6 +59,37 @@ class ElementStub {
     return this.children.map((c) => typeof c === "string" ? c : c.text()).join("");
   }
 }
+
+Deno.test("sky panel: release cave exposure follows selected rules without changing saved time or temperature", () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "document");
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: {
+      createElement: (tag: string) => new ElementStub(tag),
+      createElementNS: (_ns: string, tag: string) => new ElementStub(tag),
+    },
+  });
+  try {
+    const p = parsePlayer([{
+      VERSION: "0.9.9.7",
+      worldGrid: Array.from({ length: 5 }, () => Array(5).fill(1)),
+      areaType: 13,
+      MDminute: 420,
+      MDday: 1,
+      MDtemperature: 0.9,
+    }]);
+    const before = structuredClone(p);
+    const text = (rules?: GameVersion) => (skyPanel(p, rules) as unknown as ElementStub).text();
+    assert(text().includes("Indoors no rain"), "default follows the actual tester save, not newest rules");
+    assert(text("0.9.6.5").includes("Indoors no rain"));
+    assert(text("1.0.0.0").includes("Underground the game's dial reads Unknown Time"));
+    assert(text("1.0.0.0").includes("no weather reaches you and it is always Cold"));
+    assertEquals(p, before, "saved sky and player fields remain authoritative");
+  } finally {
+    if (original) Object.defineProperty(globalThis, "document", original);
+    else Reflect.deleteProperty(globalThis, "document");
+  }
+});
 
 Deno.test("creature cards use selected Geomancer stats, retain saved health and qualify spider attacks", () => {
   const original = Object.getOwnPropertyDescriptor(globalThis, "document");

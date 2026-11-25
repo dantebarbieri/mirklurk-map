@@ -105,15 +105,13 @@ Deno.test("wiki: 0.9.5.0 entities have canonical links and pictures", () => {
   }
 });
 
-Deno.test("wiki: tester items have canonical cropped pictures without making them available in stable pickers", () => {
-  const beta = CHANNELS.beta;
-  assert(beta);
+Deno.test("wiki: released tester items keep canonical cropped pictures and remain excluded from pre-tester rules", () => {
   for (const i of [280, 281, 282, 283, 288, 289, 290, 291, 292, 293, 294, 295, 296]) {
     const name = ITEM_NAMES[i];
     assertEquals(itemWiki(name), `https://mirklurk.wiki/w/${name.replaceAll(" ", "_")}`);
     assertEquals(itemImage(i)?.source, `${name.replaceAll(" ", "_")}_icon_(cropped).png`);
-    assert(addable(i) && hasItem(beta, i), `tester picker offers ${name}`);
-    assert(!hasItem(CHANNELS.latest, i), `stable picker excludes ${name} despite published art`);
+    assert(addable(i) && hasItem("0.9.9.7", i) && hasItem(CHANNELS.latest, i), `tester and release pickers offer ${name}`);
+    assert(!hasItem("0.9.6.5", i), `earlier stable picker excludes ${name} despite published art`);
   }
 });
 

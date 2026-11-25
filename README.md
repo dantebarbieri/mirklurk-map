@@ -1,7 +1,7 @@
 # MirkMap · Mirklurk World Viewer
 
-**MirkMap** is a small browser-based viewer for **Mirklurk** 0.9.6.5, with opt-in **0.9.9.7 tester** support (and earlier saves from 0.8.1.5
-through 0.9.5.6), published at **https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
+**MirkMap** is a small browser-based viewer for **Mirklurk 1.0**, retaining **0.9.9.7 tester** and earlier save support from 0.8.1.5 onward,
+published at **https://map.mirklurk.danteb.com**. Open a character's save folder and it shows:
 
 - the 5×5 world with every zone under its in-game name (`UI.ini [LocTitles]`) and coordinate (`A,1`–`E,5`), each explored zone drawn with
   the map the game itself made for it (`Maps/x_y.png`);
@@ -599,18 +599,19 @@ Restoring a backup undoes edits, not the mark. On a computer that never saved ed
 
 ## Game versions
 
-**Latest remains the stable 0.9.6.5 release. Beta is 0.9.9.7**, Steam build 26865885 on `next_version_tester`, not a released 1.0. The
-supplied Discord announcement calls it an intended final 1.0 test; its publication timestamp is unknown, and no captured Steam announcement
-names this tester version. Observation on 23 November 2026 is not an asserted release date.
+**Latest is public Mirklurk 1.0.0.0**, Steam build 26915460, announced as **Patch 1.0 - Leaving Early Access!** on 25 November 2026 at
+08:02:15 UTC. The announcement names 1.0; the installed build and save writer name 1.0.0.0. The earlier 0.9.9.7 tester (build 26865885,
+`next_version_tester`) remains a historical save version, not the current Beta channel. Its Discord announcement timestamp is unknown;
+observation on 23 November 2026 is not an asserted release date.
 
-Steam's default branch runs Mirklurk 0.9.6.5 (Steam build 26778843), named in the patch announcement of 19 November 2026 UTC. The cumulative
-comparison against 0.9.5.6 adds three defined items, two creatures, changed Geomancer stats and latent spider-cave content; MirkMap has
-distinct rules for it. The intervening 0.9.6.0 (16 November), 0.9.6.1 (17 November) and 0.9.6.2 (18 November) announcements describe
-language and UI fixes, not individually installed or analyzed intermediate binaries. It follows 0.9.5.6 (Steam build 26612189), associated
-with the unversioned Simplified Chinese announcement of 12 November 2026 UTC, not an exact binary-release timestamp. It adds packaged
-Chinese text/font coverage and fixes audio cleanup without changing the modeled rules. It follows 0.9.5.5, released on 11 November 2026
-(Steam build 26586914), which changes Rift-depth and fort-nature generation and fixes status processing, placement, sleeping, wetness and
-inventory UI. It follows 0.9.5.3 (6 November, build 26484105), which fixes equipment swaps, fire eligibility, resting/sleeping Focus
+The previous public release was Mirklurk 0.9.6.5 (Steam build 26778843), named in the patch announcement of 19 November 2026 UTC. The
+cumulative comparison against 0.9.5.6 adds three defined items, two creatures, changed Geomancer stats and latent spider-cave content;
+MirkMap has distinct rules for it. The intervening 0.9.6.0 (16 November), 0.9.6.1 (17 November) and 0.9.6.2 (18 November) announcements
+describe language and UI fixes, not individually installed or analyzed intermediate binaries. It follows 0.9.5.6 (Steam build 26612189),
+associated with the unversioned Simplified Chinese announcement of 12 November 2026 UTC, not an exact binary-release timestamp. It adds
+packaged Chinese text/font coverage and fixes audio cleanup without changing the modeled rules. It follows 0.9.5.5, released on 11 November
+2026 (Steam build 26586914), which changes Rift-depth and fort-nature generation and fixes status processing, placement, sleeping, wetness
+and inventory UI. It follows 0.9.5.3 (6 November, build 26484105), which fixes equipment swaps, fire eligibility, resting/sleeping Focus
 recovery, raw Wakebug's Focus effect and carried-light catch-up timing. It follows 0.9.5.0 (5 November, build 26457137), which adds death
 options, two creatures and two functional items, changes travel and skill rules, and fixes inventory/crafting/weather bugs. It follows
 0.9.2.0 (29 October), which changed torch stacking and blocking, and fixed inventory and combat bugs in 0.9.1.2 (22 October), which fixed
@@ -621,13 +622,13 @@ gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's
 (`CHANNELS`), and **Beta** while Steam has an opt-in beta: when a version is released, pointing Latest at it is the one line to change.
 
 - **Which rules apply.** A save names the version that wrote it (`VERSION` in `Player.save`, from `save_player`). MirkMap uses the newest
-  rules it has that are no newer than that, so a later build gets 0.9.9.7's and an older one 0.8.1.5's; a save that names no version gets
+  rules it has that are no newer than that, so a later build gets 1.0.0.0's and an older one 0.8.1.5's; a save that names no version gets
   Latest's. For a save whose version's rules differ from Latest's (older saves and the tester), a version switch, beside Realistic and in
   the save editor under the character's name, offers the save's own version and **Latest**: pick Latest to see the world as it will be once
-  the current game loads and saves it. While the tester is available, both stable and tester saves offer **Latest** and **Beta**; a save
-  that names no version defaults to Latest, not Beta. Older 0.9.5.x saves get a switch, although those older versions still share their own
-  modeled rules. The pick lasts for that character while the page is open, through live reloads; another character follows its own save, and
-  picking the save's own version follows the save again.
+  the current game loads and saves it. A 1.0.0.0 save or one that names no version shows no switch; 0.9.6.5 and 0.9.9.7 saves retain their
+  own rules and offer **Latest**. Older 0.9.5.x saves get a switch, although those older versions still share their own modeled rules. The
+  pick lasts for that character while the page is open, through live reloads; another character follows its own save, and picking the save's
+  own version follows the save again.
 - **What 0.8.1.5's rules change.** Harvests give `a` to `a+b−1` (`loot_amountchances`), so Cranberries 2–5, 3–8 and 4–11, Watercress up to
   5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
   Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
@@ -813,20 +814,33 @@ gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's
   selected normal cave candidates after the existing 0.333 chance; this is not a one-third chance per area. Existing saved areas load
   without regeneration. Saved area 13 entrances, grids, webs and treasure remain authoritative; MirkMap adds no generator, placement
   prediction or walking AP simulator. All 46 creature definitions, including the spiders and Geomancer's rebalance, are unchanged. The
-  distinction between cave-like area 13 and `area_is_dungeonlike`, which excludes it, corrects its weather exposure without changing its
-  cave tiles or saved grids. `obj_player_Create` exposes the Sturdy Shortbow recipe (2 Twine, 2 Trollgnarl branches and 10 Spider Silk);
-  `menu_psynch` adds Grilled Spider Meat to a burning Campfire. These close tester acquisition gaps, not stable recipe access. Completed
-  rafts gain source-defined push/pull actions costing 6 AP, including failed pushes; motion destinations are not saved. The editor moves
-  saved rafts as before, not by simulating those game actions. Honey replenishment attempts are less frequent, and off-view dead trees can
-  be removed with conditional log placement, not guaranteed logs. Log scattering and fern revisit growth, rendering/settings fixes,
+  distinction between cave-like area 13 and the tester's `area_is_dungeonlike`, which excludes it, corrects its weather exposure without
+  changing its cave tiles or saved grids. `obj_player_Create` exposes the Sturdy Shortbow recipe (2 Twine, 2 Trollgnarl branches and 10
+  Spider Silk); `menu_psynch` adds Grilled Spider Meat to a burning Campfire. These close tester acquisition gaps, not stable recipe access.
+  Completed rafts gain source-defined push/pull actions costing 6 AP, including failed pushes; motion destinations are not saved. The editor
+  moves saved rafts as before, not by simulating those game actions. Honey replenishment attempts are less frequent, and off-view dead trees
+  can be removed with conditional log placement, not guaranteed logs. Log scattering and fern revisit growth, rendering/settings fixes,
   sickness-without-level handling and missing foreign language keys are game behavior; MirkMap does not advance time or regrow terrain. Its
   wellbeing view already omits sickness with no saved level. No merchant stock or guaranteed treasure drops are inferred from new
   definitions. All 74 environment PNGs and their metadata match the stable export byte-for-byte. A post-publication wiki refresh adds the
   thirteen tester items' canonical pages and cropped icons, plus Version 0.9.9.7, without replacing existing pictures or their attribution.
-  Published beta art does not make these items available under Latest's stable rules. New item names use the captured English INIs. Saves
-  keep the same encoding and VERSION; the supplied fort-only tester fixture verifies parsing and byte-exact export, private edits and undo,
-  but contains no cave or raft encounter. `NEWEST` describes audited generated data; it is not the default Steam channel, which remains
-  stable.
+  Publishing tester art did not make these items available under 0.9.6.5's rules; 1.0 later ships the same definitions. New item names use
+  the captured English INIs. Saves keep the same encoding and VERSION; the supplied fort-only tester fixture verifies parsing and byte-exact
+  export, private edits and undo, but contains no cave or raft encounter. `NEWEST` describes audited generated data, separately from the
+  Steam channel.
+- **What public 1.0 changes.** The measured item, nature and being definitions are identical to the tester: 282 items, 19 nature kinds and
+  46 beings. The thirteen tester items are now available under Latest, but remain excluded from 0.9.6.5 and earlier rules. Existing item
+  icons and all 74 environment PNGs are unchanged; their attribution is preserved and the audited environment-data stamp becomes 1.0.0.0.
+  `scr_map_and_weather::area_is_dungeonlike` now includes cave-like area 13: MirkMap's time/weather note reports its underground
+  classification and constant 0.35 air temperature only under 1.0 rules. Earlier stable and tester rules retain sheltered exposure. The game
+  also uses the predicate for warmth and container drying, but MirkMap does not simulate those transitions or change saved warmth/wetness.
+  Saved cave tiles, entrances, initial spiders and old Geomancer hit-point grids remain authoritative and unchanged. No new creature
+  population or fallback distribution is inferred from the predicate. The official release ends Early Access and adds fourteen guarded Steam
+  achievement IDs, German language support, map-title font and menu refresh fixes, crafting XP rounding (`ceil(RAP/2)` instead of `round`),
+  a combat track, audio/branding changes and further jump/poison-display fixes. These are game behavior, not a new achievement backend,
+  crafting/AP simulator or RNG generator in MirkMap. Previously supported raft/honey/tree/fern changes ship unchanged from the tester.
+  `save_player` changes only VERSION to 1.0.0.0, not save encoding or serialized fields. Synthetic release tests cover
+  parser/export/edit/undo compatibility; the preserved real tester fixture still names 0.9.9.7, not a claimed real 1.0 save.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
@@ -835,12 +849,13 @@ gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's
 
 ## How the guesses work
 
-All rules below were read from the decompiled game (UndertaleModCli, `data.win` of 0.9.6.5, diffed against 0.9.5.6's, 0.9.5.5's, 0.9.5.3's,
-0.9.5.0's, 0.9.2.0's, 0.9.1.2's, 0.9.1.0's, 0.9.0.2's, 0.9.0.1's, 0.9.0.0's, 0.8.9.9's and 0.8.1.5's); the entry names are given so they can
-be re-checked after an update. Where 0.8.1.5's differ, [Game versions](#game-versions) says how.
+All rules below were read from the decompiled game (UndertaleModCli, public 1.0.0.0 compared against both 0.9.9.7 and 0.9.6.5, with earlier
+comparisons against 0.9.5.6's, 0.9.5.5's, 0.9.5.3's, 0.9.5.0's, 0.9.2.0's, 0.9.1.2's, 0.9.1.0's, 0.9.0.2's, 0.9.0.1's, 0.9.0.0's, 0.8.9.9's
+and 0.8.1.5's); the entry names are given so they can be re-checked after an update. Where 0.8.1.5's differ, [Game versions](#game-versions)
+says how.
 
-Tester rules and generated item data were separately checked against the immutable 0.9.9.7 beta and diffed against 0.9.6.5; they do not
-replace Latest's channel or regenerate any saved world.
+Tester rules and generated item data were separately checked against the immutable 0.9.9.7 beta and diffed against 0.9.6.5; the release
+retains that history and never regenerates a saved world.
 
 **The world layout is fixed at new game** (`gml_Object_obj_menu_Alarm_8`) and saved in `Player.save`: the grid, and the zones of Bhato
 (`rangerCamp`), the Library (`libraryArea`) and Scaal (`riftQuestArea`, the fort mirrored through the centre). The random stream is only
@@ -978,7 +993,8 @@ hour's turn. Rain is called light up to 0.2 (the soft rain sound) and heavy from
 `gml_Object_manager_day_Step_0`). Rain only wets you, and your containers' contents, in `area_is_outside` areas (`player_rained_upon`,
 `gml_Object_obj_container_Alarm_1`; `gml_GlobalScript_scr_map_and_weather`); the temperature word is `temperature_get_label` on
 `MDtemperature`, and the thermometer's colour is the game's frame `floor(6.99 × temperature)`; underground the air is always 0.35, Cold
-(`player_gets_all_wet`).
+(`player_gets_all_wet`). Spider cave area 13 joins `area_is_dungeonlike` only in public 1.0; 0.9.6.5 and 0.9.9.7 rules retain sheltered
+exposure. The viewer's explanatory note follows the selected rules without replacing saved time, weather, warmth or wetness.
 
 **Armor and equipment** (`src/armor.ts`). `Player.save` lists the 16 equipment slots of `myEquips` in order (two weapon sets of main and off
 hand, then helmet, hood, shirt, vest, backpack, belt, pants, leg armor, gloves, cloak, socks and footwear;
