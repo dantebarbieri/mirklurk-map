@@ -20,7 +20,10 @@ EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD deno eval "const r = await fetch('http://127.0.0.1:8081/healthz'); Deno.exit(r.ok ? 0 : 1)"
 CMD ["run", "--no-prompt", "--allow-net=0.0.0.0:8081", "--allow-read=/app,/data", "--allow-write=/data", "--allow-env=UPLOAD_DIR,TRUST_UPLOAD_PROXY", "server/uploads.ts"]
 
-FROM nginxinc/nginx-unprivileged:1.29-alpine AS web
+# Stable-branch tag so patch releases arrive on rebuild. NGINX now publishes to nginx/nginx-unprivileged; the old nginxinc/ repository
+# stopped at 1.31.7 and 1.30.6. Move to the next stable branch when this one reaches end of life, and raise the floor in tools/smoke.sh after
+# each advisory.
+FROM nginx/nginx-unprivileged:1.30-alpine AS web
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080
