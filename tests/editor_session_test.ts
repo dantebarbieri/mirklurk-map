@@ -145,7 +145,7 @@ async function fixture(root: string, version = "0.8.1.5") {
   };
   const player = [{
     VERSION: version,
-    ...(version === "1.0.0.0" ? { unknownReleaseField: { keep: ["unchanged", 7] } } : {}),
+    ...(version.startsWith("1.0.") ? { unknownReleaseField: { keep: ["unchanged", 7] } } : {}),
     worldGrid: grid(1),
     worldGridMem: grid(0),
     areaX: 0,
@@ -173,32 +173,34 @@ async function fixture(root: string, version = "0.8.1.5") {
 
 const mtime = async (path: string) => (await Deno.stat(path)).mtime!.getTime();
 
-Deno.test("editor session: synthetic 1.0 save exports and undoes byte-exact, preserving version and unknown fields", async () => {
-  const root = await Deno.makeTempDir({ prefix: "mirklurk-release-" });
-  try {
-    await fixture(root, "1.0.0.0");
-    const path = `${root}/Hero/Player.save`;
-    const raw = decodeJson(await Deno.readFile(path));
-    const original = await Deno.readFile(path);
-    const s = await openSession(root, "Hero");
-    const player = `${s.character.root}Player.save`;
-    const exportedPlayer = async () => {
-      const zip = await readZip((await s.download()).blob);
-      return await zip.find((f) => f.name === player)!.read();
-    };
-    assertEquals(detectVersion(parsePlayer(raw).version), "1.0.0.0");
-    assertEquals(await exportedPlayer(), original);
-    await s.apply(player, (draft) => (setSkillPoints(playerRecord(draft), 7), "Skill points"));
-    const edited = decodeJson(await exportedPlayer());
-    assertEquals(playerRecord(edited), { ...playerRecord(raw), skillPoints: 7 });
-    assertEquals(parsePlayer(edited).version, "1.0.0.0");
-    await s.undo(0);
-    assertEquals(await exportedPlayer(), original);
-    assertEquals(await Deno.readFile(path), original, "source files are never written by download");
-  } finally {
-    await Deno.remove(root, { recursive: true });
-  }
-});
+for (const version of ["1.0.0.0", "1.0.1.0"] as const) {
+  Deno.test(`editor session: synthetic ${version} save exports and undoes byte-exact, preserving version and unknown fields`, async () => {
+    const root = await Deno.makeTempDir({ prefix: "mirklurk-release-" });
+    try {
+      await fixture(root, version);
+      const path = `${root}/Hero/Player.save`;
+      const raw = decodeJson(await Deno.readFile(path));
+      const original = await Deno.readFile(path);
+      const s = await openSession(root, "Hero");
+      const player = `${s.character.root}Player.save`;
+      const exportedPlayer = async () => {
+        const zip = await readZip((await s.download()).blob);
+        return await zip.find((f) => f.name === player)!.read();
+      };
+      assertEquals(detectVersion(parsePlayer(raw).version), version);
+      assertEquals(await exportedPlayer(), original);
+      await s.apply(player, (draft) => (setSkillPoints(playerRecord(draft), 7), "Skill points"));
+      const edited = decodeJson(await exportedPlayer());
+      assertEquals(playerRecord(edited), { ...playerRecord(raw), skillPoints: 7 });
+      assertEquals(parsePlayer(edited).version, version);
+      await s.undo(0);
+      assertEquals(await exportedPlayer(), original);
+      assertEquals(await Deno.readFile(path), original, "source files are never written by download");
+    } finally {
+      await Deno.remove(root, { recursive: true });
+    }
+  });
+}
 
 Deno.test("editor session: saving and downloading refuse what the version in use lacks, checked on the bytes written", async () => {
   const root = await Deno.makeTempDir({ prefix: "mirklurk-editor-" });

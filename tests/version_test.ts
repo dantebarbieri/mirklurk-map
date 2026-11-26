@@ -30,10 +30,11 @@ const SHELL: GameVersion = "0.9.5.0", HOTFIX: GameVersion = "0.9.5.3", TERRAIN: 
 const LANGUAGE: GameVersion = "0.9.5.6", NEW: GameVersion = "0.9.6.5";
 const TESTER: GameVersion = "0.9.9.7";
 const RELEASE: GameVersion = "1.0.0.0";
+const PUBLIC: GameVersion = "1.0.1.0";
 /** The branches before 0.9.0.0's release: 0.8.1.5 as Latest and the 0.8.9.9 beta. */
 const BEFORE = { latest: OLD, beta: BETA };
 
-Deno.test("version: public 1.0 is Latest; the tester and previous stable remain historical versions", () => {
+Deno.test("version: public 1.0.1 is Latest; earlier releases retain their historical rules", () => {
   assertEquals(VERSIONS, [
     "0.8.1.5",
     "0.8.9.9",
@@ -50,8 +51,9 @@ Deno.test("version: public 1.0 is Latest; the tester and previous stable remain 
     "0.9.6.5",
     "0.9.9.7",
     "1.0.0.0",
+    "1.0.1.0",
   ]);
-  assertEquals(CHANNELS, { latest: RELEASE });
+  assertEquals(CHANNELS, { latest: PUBLIC });
   assertEquals(CHANNEL_LABELS, { latest: "Latest", beta: "Beta" });
   assertEquals([
     channelOf(OLD),
@@ -81,7 +83,7 @@ Deno.test("version: public 1.0 is Latest; the tester and previous stable remain 
     "0.9.6.5",
   ]);
   assertEquals(CHANNELS_TOOLTIP.split("\n"), [
-    "Latest: Mirklurk 1.0.0.0, the game's Steam release",
+    "Latest: Mirklurk 1.0.1.0, the game's Steam release",
   ]);
   assertEquals([channelOf(TERRAIN), versionLabel(TERRAIN)], [undefined, "0.9.5.5"]);
   assert(sameRules(TERRAIN, LANGUAGE) && !sameRules(NEW, TERRAIN));
@@ -93,9 +95,11 @@ Deno.test("version: public 1.0 is Latest; the tester and previous stable remain 
   assertEquals(channelOf(BLOCK), undefined);
   assert(!sameRules(NEW, BLOCK) && atLeast(NEW, BLOCK));
   // The generated data (items, beings, art) is read from the newest version.
-  assertEquals(NEWEST, RELEASE);
+  assertEquals(NEWEST, PUBLIC);
   assertEquals([channelOf(TESTER), versionLabel(TESTER)], [undefined, "0.9.9.7"]);
-  assertEquals([channelOf(RELEASE), versionLabel(RELEASE)], ["latest", "Latest (1.0.0.0)"]);
+  assertEquals([channelOf(RELEASE), versionLabel(RELEASE)], [undefined, "1.0.0.0"]);
+  assertEquals([channelOf(PUBLIC), versionLabel(PUBLIC)], ["latest", "Latest (1.0.1.0)"]);
+  assert(!sameRules(RELEASE, PUBLIC), "the three omitted shields only block after the patch");
   assert(!sameRules(TESTER, RELEASE), "area 13's dungeon classification changes in the release");
   assert(!sameRules(TESTER, NEW));
   assert(atLeast(NEW, OLD) && atLeast(NEW, BETA) && atLeast(BETA, OLD) && atLeast(OLD, OLD) && !atLeast(OLD, BETA) && !atLeast(BETA, NEW));
@@ -131,6 +135,8 @@ Deno.test("version: a save's VERSION picks the newest rules no newer than it", (
     ["0.9.9.7", TESTER],
     ["1.0.0.0", RELEASE],
     ["1.0", RELEASE],
+    ["1.0.1.0", PUBLIC],
+    ["1.0.1", PUBLIC],
     ["0.8.5", OLD],
     ["0.8.9.8", OLD],
     ["0.8.9.10", BETA],
@@ -149,7 +155,7 @@ Deno.test("version: a save's VERSION picks the newest rules no newer than it", (
     ["0.9.5.7", LANGUAGE],
     ["0.9.6.0", LANGUAGE],
     ["0.9.6.6", NEW],
-    ["9.0.0.0", RELEASE],
+    ["9.0.0.0", PUBLIC],
     // Older than any rules MirkMap has: the oldest.
     ["0.7.2.1", OLD],
     ["", undefined],
@@ -202,6 +208,7 @@ Deno.test("version: 0.8.1.5's game has no items from 258 or beings from 36; 0.8.
   assert(!addable(287), "webbed treasure is not gear");
   assertEquals(offered(TESTER).filter((i) => !offered(NEW).includes(i)), [280, 281, 282, 283, 288, 289, 290, 291, 292, 293, 294, 295, 296]);
   assertEquals(offered(RELEASE), offered(TESTER), "release ships the same thirteen items without changing older availability");
+  assertEquals(offered(PUBLIC), offered(RELEASE));
   assertEquals(
     offered(PATCH).filter((i) => !offered(OLD).includes(i)).length,
     items.filter((i) => i >= 258 && i <= 275 && addable(i)).length,
@@ -250,15 +257,15 @@ Deno.test("version switch: a choice only where the rules differ; notes say wheth
   assertEquals(versionNote({ detected: SHELL, rules: SHELL, saved: "0.9.5.0" }), "from this save (0.9.5.0)");
   assertEquals(versionNote({ detected: OLD, rules: OLD, saved: "0.8.5.0" }), "from this save (0.8.5.0, so 0.8.1.5's rules)");
   assertEquals(versionNote({ detected: OLD, rules: NEW, saved: "0.8.1.5" }), "chosen; this save is 0.8.1.5");
-  assertEquals(versionNote({ rules: RELEASE }), "this save names no version");
+  assertEquals(versionNote({ rules: PUBLIC }), "this save names no version");
   assertEquals(versionNote({ rules: OLD }), "chosen; this save names no version");
-  assertEquals(versionNote({ rules: RELEASE, saved: "beta" }), "this save's version, beta, is unreadable");
+  assertEquals(versionNote({ rules: PUBLIC, saved: "beta" }), "this save's version, beta, is unreadable");
   // A Player.save without VERSION parses to NO_VERSION, which names none.
   const grid = [0, 1, 2, 3, 4].map(() => [1, 1, 1, 1, 1]);
   const bare = parsePlayer([{ worldGrid: grid }]);
   assertEquals(bare.version, NO_VERSION);
   assertEquals(detectVersion(bare.version), undefined);
-  assertEquals(versionNote({ rules: RELEASE, saved: bare.version }), "this save names no version");
+  assertEquals(versionNote({ rules: PUBLIC, saved: bare.version }), "this save names no version");
   assertEquals(versionNote({ rules: OLD, saved: bare.version }), "chosen; this save names no version");
   assertEquals(parsePlayer([{ worldGrid: grid, VERSION: "0.9.6.5" }]).version, NEW);
   assertEquals([ownRules({ rules: OLD }), ownRules({ detected: OLD, rules: NEW })], [CHANNELS.latest, OLD]);
@@ -343,17 +350,17 @@ Deno.test("version switch: the save's version and Latest, the one in use pressed
   }
 });
 
-Deno.test("version switch: release hides the switch; older stable and tester saves retain their own rules", () => {
-  for (const detected of [NEW, TESTER, RELEASE, undefined]) {
-    const rules = detected ?? RELEASE;
+Deno.test("version switch: current patch hides the switch; earlier releases retain their own rules", () => {
+  for (const detected of [NEW, TESTER, RELEASE, PUBLIC, undefined]) {
+    const rules = detected ?? PUBLIC;
     assertEquals(ownRules({ detected, rules }), rules);
     assertEquals(
       switchOptions({ detected, rules }).map((o) => [o.label, o.version]),
-      detected === NEW || detected === TESTER ? [[detected, detected], ["Latest", RELEASE]] : [["Latest", RELEASE]],
+      detected && detected !== PUBLIC ? [[detected, detected], ["Latest", PUBLIC]] : [["Latest", PUBLIC]],
     );
   }
-  assertEquals(versionSwitch({ detected: RELEASE, rules: RELEASE }, () => {}), null);
-  assertEquals(versionSwitch({ rules: RELEASE }, () => {}), null);
+  assertEquals(versionSwitch({ detected: PUBLIC, rules: PUBLIC }, () => {}), null);
+  assertEquals(versionSwitch({ rules: PUBLIC }, () => {}), null);
   assertEquals(overrideOf(TESTER, TESTER), undefined);
   assertEquals(overrideOf(NEW, TESTER), NEW);
   assertEquals(versionNote({ detected: TESTER, rules: TESTER, saved: TESTER }), "from this save (0.9.9.7)");

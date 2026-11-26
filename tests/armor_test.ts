@@ -53,13 +53,21 @@ Deno.test("armor and item condition use the same durability maximum for every ar
   }
 });
 
-Deno.test("armor: tester shield blocks are gated while their saved durability-scaled armor is readable", () => {
+Deno.test("armor: the three omitted shields block only since 1.0.1, with additive skill and unchanged saved armor", () => {
   for (const [index, block, armor] of [[280, 0.12, 4], [282, 0.08, 3.5], [283, 0.12, 2.5]]) {
-    assertEquals(shieldBlock(index, "0.9.6.5"), undefined);
-    assertEquals(shieldBlock(index, "0.9.9.7"), block);
+    for (const v of VERSIONS) {
+      const recognized = atLeast(v, "1.0.1.0");
+      assertEquals(shieldBlock(index, v), recognized ? block : undefined);
+      for (const rank of [0, 2, 10]) {
+        assertAlmost(playerBlock([worn(1, saved(index))], rank, v), recognized ? block + rank * 0.025 : 0);
+        assertEquals(playerBlock([worn(1, saved(index), false)], rank, v), 0);
+        assertEquals(playerBlock([worn(0, saved(index))], rank, v), 0);
+      }
+    }
     assertEquals(itemArmor(saved(index)), armor);
-    assertAlmost(playerBlock([worn(1, saved(index))], 2, "0.9.9.7"), block + 0.05);
   }
+  assertEquals(shieldBlock(281, "1.0.1.0"), undefined, "Iron Chestplate is not a shield");
+  assertEquals(playerBlock([worn(1, saved(281))], 10, "1.0.1.0"), 0);
 });
 
 Deno.test("armor: Intact Snail Shell gives scaled armor and 9% plus Shield Savant only since 0.9.5.0", () => {
