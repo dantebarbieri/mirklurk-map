@@ -1107,10 +1107,11 @@ obsolete hashes from earlier exports are not shipped. Set `MIRKLURK_SAVES` to th
 ## Deploying
 
 `dist/` remains a standalone static viewer without sharing. The default Docker image (`web` target) builds it with Deno and serves it with
-unprivileged nginx on port 8080 over IPv4 and IPv6 (`deploy/nginx.conf`: strict Content-Security-Policy, which allows only same-origin
-manifests and service workers, immutable caching for hashed assets, `/healthz`). `index.html`, `sw.js`, `manifest.webmanifest` (served as
-`application/manifest+json`) and `icons/` revalidate on every request, so a release reaches installed apps on their next visit. It runs with
-a read-only root filesystem, only `/tmp` writable and no capabilities. HSTS and TLS are left to the reverse proxy.
+unprivileged nginx (the `nginx/nginx-unprivileged` stable branch; `tools/smoke.sh` enforces a minimum patched version) on port 8080 over
+IPv4 and IPv6 (`deploy/nginx.conf`: strict Content-Security-Policy, which allows only same-origin manifests and service workers, immutable
+caching for hashed assets, `/healthz`). `index.html`, `sw.js`, `manifest.webmanifest` (served as `application/manifest+json`) and `icons/`
+revalidate on every request, so a release reaches installed apps on their next visit. It runs with a read-only root filesystem, only `/tmp`
+writable and no capabilities. HSTS and TLS are left to the reverse proxy.
 
 Sharing adds a second service built from the Dockerfile's **`uploads` target**, on private port **8081**, with a persistent volume at
 **`/data`** owned by the image's `deno` user. `compose.yaml` is a complete local example. The web container forwards `/api/` to

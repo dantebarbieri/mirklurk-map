@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the image and checks the contract the homeserver relies on: read-only root filesystem with only
-# /tmp writable (plus the upload data volume), no capabilities, non-root, /healthz, headers, IPv4 and IPv6. Never deploys.
+# /tmp writable (plus the upload data volume), no capabilities, non-root, a patched nginx, /healthz, headers, IPv4 and IPv6. Never deploys.
 set -euo pipefail
 
 img=mirklurk-map:smoke
@@ -48,6 +48,13 @@ for container in "$name-uploads" "$name"; do
   [ "$(docker exec "$container" id -u)" != 0 ] || fail "$container runs as root"
 done
 docker exec "$name-uploads" test -w /data || fail "upload data volume is not writable by the service user"
+
+# Raise after each NGINX security advisory. 1.30.8 fixes the 2026-11-18 advisories (resolver, alias/try_files) and CVE-2026-132779.
+min_nginx=1.30.8
+nginx_version=$(docker exec "$name" nginx -v 2>&1 | sed -n 's@^nginx version: nginx/@@p')
+[ -n "$nginx_version" ] || fail "cannot read the nginx version"
+[ "$(printf '%s\n%s\n' "$min_nginx" "$nginx_version" | sort -V | head -n1)" = "$min_nginx" ] ||
+  fail "nginx $nginx_version is older than the patched $min_nginx"
 
 curl -fsS "$base/healthz" | grep -qx ok || fail "/healthz"
 for _ in $(seq 1 30); do
