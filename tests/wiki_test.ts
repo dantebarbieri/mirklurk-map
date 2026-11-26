@@ -65,6 +65,7 @@ Deno.test("wiki links: public release and historical compatibility titles are ve
       "0.9.6.5",
       "0.9.9.7",
       "1.0.0.0",
+      "1.0.1.0",
     ]
   ) {
     assertEquals(wikiUrl(`Version ${version}`), `https://mirklurk.wiki/w/Version_${version}`);
