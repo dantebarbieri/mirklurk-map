@@ -1,4 +1,4 @@
-// Hit-point grids of the player and of beings as saved (hpgrid and statusgrid), ported from Mirklurk 0.9.6.5.
+// Hit-point grids of the player and of beings as saved (hpgrid and statusgrid), audited through Mirklurk 1.0.1.0.
 // Sources: attack_lands and the turn-start poison/bleed effects in gml_GlobalScript_scr_basic_useful, hpcell_draw in
 // gml_GlobalScript_scr_gui_general, statusgrid_get in gml_GlobalScript_scr_gen_ingamers, being_initiate's armor.
 

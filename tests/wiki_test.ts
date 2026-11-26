@@ -73,7 +73,7 @@ Deno.test("wiki links: public release and historical compatibility titles are ve
     assertEquals(wikiUrl(title), `https://mirklurk.wiki/w/${title}`);
   }
   // The old title remains a valid wiki redirect, not an active MirkMap beta channel.
-  assertEquals(CHANNELS, { latest: "1.0.0.0" });
+  assertEquals(CHANNELS, { latest: "1.0.1.0" });
 });
 
 Deno.test("wiki: 0.9.6.5 entities link to published pages and the four redrawn items use qualified replacements", () => {
