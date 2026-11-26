@@ -845,7 +845,10 @@ gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's
   equipment menu gets a conditional long-label backdrop. English tooltip/item-description and packaged Chinese/German wording fixes do not
   alter generated names or journal text. These fonts, language selection, female text, debug-only damage and game-menu changes are not
   simulated by MirkMap. `save_player` changes only VERSION to 1.0.1.0; synthetic export/edit/undo tests preserve unknown fields and
-  historical versions. Existing real save coverage remains historical, not a claimed real 1.0.1 fixture.
+  historical versions. Existing real save coverage remains historical, not a claimed real 1.0.1 fixture. The accepted 1.0.1 wiki refresh
+  adds Version 1.0.1.0 to the bundled catalog and re-verifies links and image metadata on 26 November 2026; all pictures and their
+  attribution remain unchanged, including the shared two-segment spider marker. The legacy Version 0.9.9.7 redirect still leads to Version
+  1.0.0.0 rather than presenting a separate current beta.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The
