@@ -15,7 +15,7 @@
   explored entrance to see the inside, or a creature, NPC or your own marker to see hit points, attacks, a merchant's wares or your
   wellbeing, inventory and journal.
 
-It follows **Latest**, Mirklurk 0.9.6.5, building on what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda, her
+It follows **Latest**, Mirklurk 1.0.1.5, building on what the 0.8.9.9 beta brought: the Survivors' camp in a Savage Mirk (Wilda, her
 Survivors and Grand Mother's hut) and its side quest, the Mirkfangs and The Terror, Grand Mother's magic wares, the hidden Magus realm a
 Magus' Shard opens and Magus Clay's end in it, the Storage Chest, and placeables you can flip as you place them. 0.9.1.0 added large flint
 and the Flint Dagger made from it. Each save names the version that wrote it, and MirkMap and the save editor follow it, so a 0.8.1.5 save
@@ -945,8 +945,10 @@ adds one with a chance. Picking everything clears the tile; leaving some sets `L
 days you were away, after which it refills (`gml_Object_manager_area_Step_0`). New zones other than the Rift Mire get 8–32 Calmia, 5–13
 Turnips and 10–26 Cranberry plants spread into patches, by area type, and every new zone up to 320 fern patches of 8–64 steps each (64 in
 the Rift Mire, 196 in the Withered Mire) (`gml_Object_manager_area_Alarm_2`); on each return two Calmia sprout outdoors (again not in the
-Rift Mire), and one Vile Bulb in a cave, per day or part of a day you were away (`gml_Object_obj_screenfader_Step_0`), and plants grow and
-spread with every turn's growth ticks (`nature_grow` in `gml_GlobalScript_scr_nature`).
+Rift Mire), and one Vile Bulb in a cave, per day or part of a day you were away (`gml_Object_obj_screenfader_Step_0`). From 1.0.1.5, that
+revisit replenishment excludes area 13 (spider caves); earlier versions and other caves retain it. Inspection advice follows the selected
+rules and saved area type, without changing saved plants. Plants grow and spread with every turn's growth ticks (`nature_grow` in
+`gml_GlobalScript_scr_nature`).
 
 **Hit-point grids** (`src/health.ts`). `Player.save` and each being in `Beings.save` store `hpgrid` and `statusgrid` row by row. In
 `hpgrid`, −4 is no hit point, −1 burned (fire destroyed it; it cannot heal until treated), 0 lost, 1 healthy and 2–4 healthy under 1–3 armor
