@@ -1,5 +1,5 @@
 // Which game version's rules apply. A save names the version that wrote it (save_player's VERSION in Player.save), so MirkMap
-// follows it. Steam's release is 1.0.1.0; for a save from an older version whose rules differ, the switch can show
+// follows it. Steam's release is 1.0.1.5; for a save from an older version whose rules differ, the switch can show
 // Latest's instead, as the world will be once the current game saves it.
 
 /** The game versions whose rules MirkMap has, oldest first. */
@@ -20,6 +20,7 @@ export const VERSIONS = [
   "0.9.9.7",
   "1.0.0.0",
   "1.0.1.0",
+  "1.0.1.5",
 ] as const;
 export type GameVersion = (typeof VERSIONS)[number];
 
@@ -29,6 +30,8 @@ export type GameVersion = (typeof VERSIONS)[number];
  * than bugs in 0.9.1.0. The 0.9.5.3/0.9.5.5 fixes are outside MirkMap's modeled surfaces: it reads saved terrain and does not
  * generate nature or dungeons, so 0.9.5.5's changed generation/RNG must not filter or repair saved grids.
  * 0.9.5.6 changes language assets, menu flags, audio cleanup and achievement art, not modeled rules or generation.
+ * 1.0.1.5 changes cave-revisit replenishment, raft interaction menus and language/audio options. MirkMap reads saved occupants
+ * and nature instead of simulating catch-up or live game menus, so those changes share 1.0.1.0's modeled rules.
  */
 const SAME_RULES: Readonly<Partial<Record<GameVersion, GameVersion>>> = {
   "0.9.0.0": "0.8.9.9",
@@ -37,6 +40,7 @@ const SAME_RULES: Readonly<Partial<Record<GameVersion, GameVersion>>> = {
   "0.9.5.3": "0.9.5.0",
   "0.9.5.5": "0.9.5.0",
   "0.9.5.6": "0.9.5.0",
+  "1.0.1.5": "1.0.1.0",
 };
 
 /** Whether versions `a` and `b` have the same rules. */
@@ -49,7 +53,7 @@ export type Channel = "latest" | "beta";
  * The version each Steam branch runs. This is the one place to change when a version is released: point `latest` at it, and
  * `beta` at a new opt-in beta while one is out (omitted when there is none: the switch then offers no Beta).
  */
-export const CHANNELS: Readonly<{ latest: GameVersion; beta?: GameVersion }> = { latest: "1.0.1.0" };
+export const CHANNELS: Readonly<{ latest: GameVersion; beta?: GameVersion }> = { latest: "1.0.1.5" };
 export const CHANNEL_LABELS: Readonly<Record<Channel, string>> = { latest: "Latest", beta: "Beta" };
 /** What each branch is on Steam, for the switch's tooltip. */
 export const CHANNEL_NOTES: Readonly<Record<Channel, string>> = {
@@ -100,7 +104,7 @@ export const atLeast = (v: GameVersion, since: GameVersion) => VERSIONS.indexOf(
 /** The branch that runs version `v`, if one does. */
 export const channelOf = (v: GameVersion): Channel | undefined => channelsOf(CHANNELS).find((c) => CHANNELS[c] === v);
 
-/** "Latest (1.0.1.0)", or the bare version when no branch runs it any more. */
+/** "Latest (1.0.1.5)", or the bare version when no branch runs it any more. */
 export function versionLabel(v: GameVersion): string {
   const c = channelOf(v);
   return c ? `${CHANNEL_LABELS[c]} (${v})` : v;

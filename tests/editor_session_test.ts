@@ -173,7 +173,7 @@ async function fixture(root: string, version = "0.8.1.5") {
 
 const mtime = async (path: string) => (await Deno.stat(path)).mtime!.getTime();
 
-for (const version of ["1.0.0.0", "1.0.1.0"] as const) {
+for (const version of ["1.0.0.0", "1.0.1.0", "1.0.1.5"] as const) {
   Deno.test(`editor session: synthetic ${version} save exports and undoes byte-exact, preserving version and unknown fields`, async () => {
     const root = await Deno.makeTempDir({ prefix: "mirklurk-release-" });
     try {
@@ -1008,7 +1008,7 @@ Deno.test("editor session: old and latest builds preserve saved Rift pits, fort 
     return bytes;
   };
   const at = 80 * 160 + 80;
-  for (const version of ["0.9.5.3", "0.9.5.5", "0.9.5.6", "0.9.6.5"]) {
+  for (const version of ["0.9.5.3", "0.9.5.5", "0.9.5.6", "0.9.6.5", "1.0.1.0", "1.0.1.5"] as const) {
     const saved: [string, Uint8Array][] = [
       ["[ 0,0 ]/Containers.save", encoder.encode("[]")],
       ["[ 0,0 ]/NatureData.tmap", tilemap([[at, 1]])],
@@ -1019,8 +1019,15 @@ Deno.test("editor session: old and latest builds preserve saved Rift pits, fort 
         encoder.encode(JSON.stringify([
           { index: 16, hpgrid: Array(3).fill([2, 2, 2, 2, 2]), future: "retained" },
           ...(version === "0.9.6.5" ? [newBeing(16, 1, 2, "0.9.6.5")] : []),
+          ...(version.startsWith("1.0.")
+            ? [11, 29, 18, 27, 45, 46].map((index) => ({
+              ...newBeing(index, index, 80, version),
+              future: "saved occupants are not replaced by the new revisit pool",
+            }))
+            : []),
         ])),
       ],
+      ["[ 0,0,124,192 ]/NatureData.tmap", tilemap([[at, 16]])],
       [
         "[ 0,0,124,192 ]/Containers.save",
         encoder.encode(JSON.stringify([{
