@@ -744,6 +744,7 @@ async function renderZone(st: State, z: Zone, glide = false, locate = false) {
       close,
       difficulty: world.player.difficulty,
       rules: st.rules,
+      areaType: around.zoneOf.get(m)?.type ?? z.type,
       find: (t) => void showJournalTarget(st, t),
     });
   };
@@ -1505,6 +1506,7 @@ async function renderInterior(st: State, z: Zone, it: Interior, name: string, lo
       close,
       difficulty: st.world.player.difficulty,
       rules: st.rules,
+      areaType: it.kind ?? undefined,
       find: (t) => void showJournalTarget(st, t),
     });
   };
