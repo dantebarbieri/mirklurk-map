@@ -26,7 +26,7 @@ import { creatureView } from "./creature.ts";
 import { merchantView, sells } from "./merchants.ts";
 import { playerView } from "./player.ts";
 import type { FindTarget } from "./journal.ts";
-import { type GameVersion, NEWEST } from "./version.ts";
+import { atLeast, type GameVersion, NEWEST } from "./version.ts";
 
 const wikiAnchor = (url: string, cls: string, label: string) =>
   h("a", {
@@ -203,9 +203,15 @@ export interface InspectOptions {
   rules: GameVersion;
   /** Shows a person or place the player's journal mentions on the map. */
   find?: FindTarget;
+  /** Saved area type, for version-specific plant regrowth advice. */
+  areaType?: number;
 }
 
-export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picker, close, difficulty, rules, find }: InspectOptions) {
+export function inspectMark(
+  panel: HTMLElement,
+  m: Mark,
+  { expanded, tool, picker, close, difficulty, rules, find, areaType }: InspectOptions,
+) {
   panel.hidden = false;
   const img = markImage(m);
   const ctx: SectionContext = { key: `inspection:${markKey(m)}`, expanded, difficulty, rules, find };
@@ -247,7 +253,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
         ? brambleView(m.tree, tool ?? UNARMED)
         : treeView(m.tree, tool ?? UNARMED, `inspection:${markKey(m)}`, rules, expanded, picker))
       : []),
-    ...(m.gather ? gatherView(m.gather, rules) : []),
+    ...(m.gather ? gatherView(m.gather, rules, areaType) : []),
     ...(m.inventory
       ? [
         inventoryView(m.inventory, `inspection:${markKey(m)}`, expanded, undefined, ctx.rules),
@@ -260,7 +266,7 @@ export function inspectMark(panel: HTMLElement, m: Mark, { expanded, tool, picke
 const toolName = (tool: number) => ITEM_NAMES[tool] ?? `Item ${tool}`;
 
 /** How a plant grows into its yield, or how a nest refills (loot_generate in scr_items, nature_grow in scr_nature). */
-function gatherView(g: Gather, rules: GameVersion): HTMLElement[] {
+function gatherView(g: Gather, rules: GameVersion, areaType?: number): HTMLElement[] {
   const [berries, more, most, cress, cressMost] = [162, 163, 164, 170, 174].map((t) => amountText(gatherAt(t, rules)!.amount!));
   if (g.kind === "nest") {
     return [
@@ -280,7 +286,9 @@ function gatherView(g: Gather, rules: GameVersion): HTMLElement[] {
   };
   const regrow: Partial<Record<GatherKind, string>> = {
     calmia: "Each time you come back, two new Calmia sprout somewhere in the zone for every day (or part of one) you were away.",
-    bulb: "Each time you come back, the cave grows one new Vile Bulb for every day (or part of one) you were away.",
+    bulb: areaType === 13 && atLeast(rules, "1.0.1.5")
+      ? "Returning to this spider cave does not replenish Vile Bulbs in this version. Existing plants are shown as saved."
+      : "Each time you come back, the cave grows one new Vile Bulb for every day (or part of one) you were away.",
   };
   return [
     g.stage !== undefined ? h("p", {}, `Growth stage ${g.stage + 1} of 5. `, growth[g.kind] ?? "") : null,

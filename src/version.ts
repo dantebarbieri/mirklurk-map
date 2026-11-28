@@ -30,8 +30,6 @@ export type GameVersion = (typeof VERSIONS)[number];
  * than bugs in 0.9.1.0. The 0.9.5.3/0.9.5.5 fixes are outside MirkMap's modeled surfaces: it reads saved terrain and does not
  * generate nature or dungeons, so 0.9.5.5's changed generation/RNG must not filter or repair saved grids.
  * 0.9.5.6 changes language assets, menu flags, audio cleanup and achievement art, not modeled rules or generation.
- * 1.0.1.5 changes cave-revisit replenishment, raft interaction menus and language/audio options. MirkMap reads saved occupants
- * and nature instead of simulating catch-up or live game menus, so those changes share 1.0.1.0's modeled rules.
  */
 const SAME_RULES: Readonly<Partial<Record<GameVersion, GameVersion>>> = {
   "0.9.0.0": "0.8.9.9",
@@ -40,7 +38,6 @@ const SAME_RULES: Readonly<Partial<Record<GameVersion, GameVersion>>> = {
   "0.9.5.3": "0.9.5.0",
   "0.9.5.5": "0.9.5.0",
   "0.9.5.6": "0.9.5.0",
-  "1.0.1.5": "1.0.1.0",
 };
 
 /** Whether versions `a` and `b` have the same rules. */

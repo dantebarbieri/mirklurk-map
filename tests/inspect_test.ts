@@ -1,5 +1,6 @@
 import art from "../src/artdata.json" with { type: "json" };
-import { entityUrl, markImage, picture } from "../src/inspect.ts";
+import { entityUrl, inspectMark, markImage, picture } from "../src/inspect.ts";
+import { gatherAt } from "../src/gather.ts";
 import { markIcon } from "../src/mapview.ts";
 import type { Mark } from "../src/objects.ts";
 import { itemImage } from "../src/wiki.ts";
@@ -59,6 +60,35 @@ class ElementStub {
     return this.children.map((c) => typeof c === "string" ? c : c.text()).join("");
   }
 }
+
+Deno.test("Vile Bulb inspection: only latest spider caves omit revisit replenishment, without changing saved plants", () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "document");
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: {
+      createElement: (tag: string) => new ElementStub(tag),
+      createElementNS: (_ns: string, tag: string) => new ElementStub(tag),
+    },
+  });
+  try {
+    const mark: Mark = { layer: "bulbs", kind: "gather bulb", name: "Vile Bulb", x: 1288, y: 1288, gather: gatherAt(148, "1.0.1.0")! };
+    const before = structuredClone(mark);
+    const render = (rules: GameVersion, areaType?: number) => {
+      const panel = new ElementStub("section");
+      inspectMark(panel as unknown as HTMLElement, mark, { rules, areaType });
+      return panel.text();
+    };
+    const daily = "the cave grows one new Vile Bulb for every day";
+    assert(render("1.0.1.0", 13).includes(daily));
+    const latest = render("1.0.1.5", 13);
+    assert(latest.includes("does not replenish Vile Bulbs") && !latest.includes(daily));
+    for (const area of [10, 11, undefined]) assert(render("1.0.1.5", area).includes(daily), `${area}`);
+    assertEquals(mark, before, "inspection never regrows, removes or rewrites saved nature");
+  } finally {
+    if (original) Object.defineProperty(globalThis, "document", original);
+    else Reflect.deleteProperty(globalThis, "document");
+  }
+});
 
 Deno.test("sky panel: release cave exposure follows selected rules without changing saved time or temperature", () => {
   const original = Object.getOwnPropertyDescriptor(globalThis, "document");

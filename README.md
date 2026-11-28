@@ -599,10 +599,10 @@ Restoring a backup undoes edits, not the mark. On a computer that never saved ed
 
 ## Game versions
 
-**Latest is public Mirklurk 1.0.1.5**, Steam build 26967583, announced on 27 November 2026 at 08:15:26 UTC. It shares MirkMap's modeled
-rules with 1.0.1.0 (build 26946940), announced on 26 November 2026 at 11:50:32 UTC. That follows public 1.0.0.0 (build 26915460), announced
-as **Patch 1.0 - Leaving Early Access!** on 25 November 2026 at 08:02:15 UTC. That announcement names 1.0; its installed build and save
-writer name 1.0.0.0. There is no active Beta channel.
+**Latest is public Mirklurk 1.0.1.5**, Steam build 26967583, announced on 27 November 2026 at 08:15:26 UTC. It follows 1.0.1.0 (build
+26946940), announced on 26 November 2026 at 11:50:32 UTC. That follows public 1.0.0.0 (build 26915460), announced as **Patch 1.0 - Leaving
+Early Access!** on 25 November 2026 at 08:02:15 UTC. That announcement names 1.0; its installed build and save writer name 1.0.0.0. There is
+no active Beta channel.
 
 The previous public release was Mirklurk 0.9.6.5 (Steam build 26778843), named in the patch announcement of 19 November 2026 UTC. The
 cumulative comparison against 0.9.5.6 adds three defined items, two creatures, changed Geomancer stats and latent spider-cave content;
@@ -625,10 +625,10 @@ gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's
   rules it has that are no newer than that, so a later build gets 1.0.1.5's and an older one 0.8.1.5's; a save that names no version gets
   Latest's. For an older save whose version's rules differ from Latest's, a version switch, beside Realistic and in the save editor under
   the character's name, offers the save's own version and **Latest**: pick Latest to see the world as it will be once the current game loads
-  and saves it. A 1.0.1.0 or 1.0.1.5 save, or one that names no version, shows no switch because their modeled rules agree; 1.0.0.0 and
-  earlier saves retain their own rules and offer **Latest**. Older 0.9.5.x saves get a switch, although those older versions still share
-  their own modeled rules. The pick lasts for that character while the page is open, through live reloads; another character follows its own
-  save, and picking the save's own version follows the save again.
+  and saves it. A 1.0.1.5 save or one that names no version shows no switch; 1.0.1.0 and earlier saves retain their own rules and offer
+  **Latest**. Older 0.9.5.x saves get a switch, although those older versions still share their own modeled rules. The pick lasts for that
+  character while the page is open, through live reloads; another character follows its own save, and picking the save's own version follows
+  the save again.
 - **What 0.8.1.5's rules change.** Harvests give `a` to `a+b−1` (`loot_amountchances`), so Cranberries 2–5, 3–8 and 4–11, Watercress up to
   5–12 and Plant Fiber up to 5–14. There is no Survivors' camp, so no guess where it will be (a camp the save already holds still shows).
   Blunt blows stun 12% of the time. Clay and Viend sell no Storage Chest, Viend no Steel Hand Axe, and Wilda and Grand Mother do not trade.
@@ -863,13 +863,14 @@ gone. MirkMap has the rules of each of them (0.9.0.0's are the beta's, 0.9.0.2's
   spawn or daily rate. Area 13 also stops that caller's ordinary cave nature-16 regrowth; other caves keep it. This is distinct from the
   unchanged `manager_area_Alarm_4` early return for area 13: that return never proved that all other replenishment callers were absent.
   Initial spider placement is unchanged, and old saved nonspider inhabitants are not purged. MirkMap reads actual saved occupants and
-  nature, not catch-up RNG, and neither replaces a mixed cave population nor adds regrowth/placement simulation. Its modeled rules therefore
-  share 1.0.1.0's, including shield recognition and the 1.0 underground classification; synthetic save/export/edit/undo tests retain
-  VERSION, unknown fields, mixed cave beings and saved nature byte-exact. No real 1.0.1.5 gameplay fixture is claimed. All 282 item, 19
-  nature and 46 being definitions, fonts, generated names and 404 bundled PNGs are unchanged. Only the game's Polish flag frame changes;
-  that selector is not map art. The environment-data audit stamp advances without changing imagery, attribution or the selected two-segment
-  spider marker. `save_player` changes VERSION to 1.0.1.5 with no grid/field migration. The wiki catalog remains the previously accepted
-  bundle until the patch's separate live publication is accepted.
+  nature, not catch-up RNG, and neither replaces a mixed cave population nor adds regrowth/placement simulation. Its Vile Bulb inspection
+  note now says returning to area 13 does not replenish those plants under 1.0.1.5 rules; the historical note and other caves remain
+  unchanged. This displayed advice keeps 1.0.1.5's rules distinct while retaining 1.0.1.0 shield recognition and the 1.0 underground
+  classification; synthetic save/export/edit/undo tests retain VERSION, unknown fields, mixed cave beings and saved nature byte-exact. No
+  real 1.0.1.5 gameplay fixture is claimed. All 282 item, 19 nature and 46 being definitions, fonts, generated names and 404 bundled PNGs
+  are unchanged. Only the game's Polish flag frame changes; that selector is not map art. The environment-data audit stamp advances without
+  changing imagery, attribution or the selected two-segment spider marker. `save_player` changes VERSION to 1.0.1.5 with no grid/field
+  migration. The wiki catalog remains the previously accepted bundle until the patch's separate live publication is accepted.
 - **What is 0.8.9.9's in all.** Names, pictures and the other unchanged databank values. 0.8.9.9 also changed a few that MirkMap does not
   show (some foods' AP costs, two battleaxes' patterns, a glove's bonus, how much Wilda wanders), named being 35 a Survivor (0.8.1.5's
   unused "Unwanted Guard") and redrew four tiles (Hinderance 122 and 132, Ruin 23 and 24), which realistic mode draws as 0.8.9.9 does. The

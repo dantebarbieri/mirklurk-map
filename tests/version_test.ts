@@ -35,7 +35,7 @@ const POLISH: GameVersion = "1.0.1.5";
 /** The branches before 0.9.0.0's release: 0.8.1.5 as Latest and the 0.8.9.9 beta. */
 const BEFORE = { latest: OLD, beta: BETA };
 
-Deno.test("version: public 1.0.1.5 is Latest and shares modeled 1.0.1 rules", () => {
+Deno.test("version: public 1.0.1.5 is Latest and keeps earlier regrowth advice distinct", () => {
   assertEquals(VERSIONS, [
     "0.8.1.5",
     "0.8.9.9",
@@ -102,7 +102,7 @@ Deno.test("version: public 1.0.1.5 is Latest and shares modeled 1.0.1 rules", ()
   assertEquals([channelOf(RELEASE), versionLabel(RELEASE)], [undefined, "1.0.0.0"]);
   assertEquals([channelOf(PUBLIC), versionLabel(PUBLIC)], [undefined, "1.0.1.0"]);
   assertEquals([channelOf(POLISH), versionLabel(POLISH)], ["latest", "Latest (1.0.1.5)"]);
-  assert(sameRules(PUBLIC, POLISH) && sameRules(POLISH, PUBLIC));
+  assert(!sameRules(PUBLIC, POLISH) && !sameRules(POLISH, PUBLIC), "area 13 Vile Bulb advice differs");
   assert(!sameRules(RELEASE, POLISH) && !sameRules(TESTER, POLISH));
   assert(!sameRules(RELEASE, PUBLIC), "the three omitted shields only block after the patch");
   assert(!sameRules(TESTER, RELEASE), "area 13's dungeon classification changes in the release");
@@ -359,7 +359,7 @@ Deno.test("version switch: the save's version and Latest, the one in use pressed
   }
 });
 
-Deno.test("version switch: 1.0.1 and 1.0.1.5 hide the switch; earlier releases retain their own rules", () => {
+Deno.test("version switch: 1.0.1.5 hides the switch; earlier releases retain their own rules", () => {
   for (const detected of [NEW, TESTER, RELEASE, PUBLIC, POLISH, undefined]) {
     const rules = detected ?? POLISH;
     assertEquals(ownRules({ detected, rules }), rules);
@@ -368,7 +368,6 @@ Deno.test("version switch: 1.0.1 and 1.0.1.5 hide the switch; earlier releases r
       detected && !sameRules(detected, POLISH) ? [[detected, detected], ["Latest", POLISH]] : [["Latest", POLISH]],
     );
   }
-  assertEquals(versionSwitch({ detected: PUBLIC, rules: PUBLIC }, () => {}), null);
   assertEquals(versionSwitch({ detected: POLISH, rules: POLISH }, () => {}), null);
   assertEquals(versionSwitch({ rules: POLISH }, () => {}), null);
   assertEquals(overrideOf(TESTER, TESTER), undefined);
